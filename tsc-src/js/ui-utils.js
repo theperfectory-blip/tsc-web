@@ -244,6 +244,33 @@ async function migrateTeamsV3MergeDiablos(){
 }
 
 /* ----------------------------------------------------------
+   MIGRACIÓN v4: re-asignar títulos huérfanos a AC ANGELES ROJOS
+   Al fusionar DIABLOS ROJOS (v3) se borró el equipo, dejando registros
+   de palmarés apuntando a un teamId que ya no existe. Los re-apunta a
+   AC ANGELES ROJOS (el mismo club). En instalaciones nuevas no hay
+   huérfanos (el seed mapea por previousNames), así que es no-op.
+   ---------------------------------------------------------- */
+async function migratePalmaresV4DiablosToAngeles(){
+  const flag = await dbGetAll('settings', s=>s.key==='palmaresDiablosV4');
+  if(flag.length>0) return;
+  const teams = await dbGetAll('teams');
+  const angeles = teams.find(t => t.name === 'AC ANGELES ROJOS');
+  if (angeles) {
+    const teamIds = new Set(teams.map(t => t.id));
+    const pal = await dbGetAll('palmares');
+    let fixed = 0;
+    for (const p of pal) {
+      if (!teamIds.has(p.teamId)) {           // teamId huérfano (era DIABLOS)
+        await dbPut('palmares', {...p, teamId: angeles.id});
+        fixed++;
+      }
+    }
+    if (fixed) console.log(`[palmares] migración v4: ${fixed} títulos huérfanos re-asignados a AC ANGELES ROJOS`);
+  }
+  await dbAdd('settings', {key:'palmaresDiablosV4', value:true, at:new Date().toISOString()});
+}
+
+/* ----------------------------------------------------------
    ARRANQUE
    ---------------------------------------------------------- */
 window.addEventListener('load', async ()=>{
@@ -260,6 +287,8 @@ window.addEventListener('load', async ()=>{
   await migrateTeamsV3MergeDiablos();
   // Sembrar palmarés histórico si la IDB está vacía
   if(typeof seedPalmaresIfEmpty==='function') await seedPalmaresIfEmpty();
+  // v4: re-asignar títulos huérfanos de DIABLOS ROJOS a AC ANGELES ROJOS
+  await migratePalmaresV4DiablosToAngeles();
   await loadSeasons();
   setMode('public');
   // Inicializar autenticación (Firebase Auth + roles)
