@@ -80,15 +80,9 @@ async function cleanLegacyImportedFromIDB(){
   const importedIds = all.filter(h=>h.source==='imported').map(h=>h.id);
 
   if(importedIds.length){
-    await new Promise((resolve, reject)=>{
-      const tx = db.transaction('matchHistory','readwrite');
-      const os = tx.objectStore('matchHistory');
-      for(const id of importedIds) os.delete(id);
-      tx.oncomplete = ()=>resolve();
-      tx.onerror = ()=>reject(tx.error);
-      tx.onabort = ()=>reject(tx.error);
-    });
-    console.log(`[Historial] Migración: ${importedIds.length} imported legacy removidos del IDB`);
+    // Usa la abstracción dbDelete (funciona en IndexedDB y Firestore)
+    for(const id of importedIds) await dbDelete('matchHistory', id);
+    console.log(`[Historial] Migración: ${importedIds.length} imported legacy removidos`);
   }
 
   // También limpiar el flag viejo para evitar confusión
