@@ -17,11 +17,15 @@ para el volumen de este proyecto. Ver sección *Costos*.
   - Firestore creado (ubicación São Paulo/Santiago, **modo prueba** temporal)
   - Auth **Email/Password** habilitado
 - ✅ **Fase 1a** completa: SDK compat v12.14.0 cableado en `index.html`
-  - Smoke test OK · **prueba de conexión real OK** (write+read+delete en Firestore)
-- ⏳ **Siguiente — Fase 1b/2**: reescribir `db.js` sobre Firestore + datos
-  - ⚠️ Decisión pendiente: ¿los datos actuales se **re-siembran** en Firestore
-    (la mayoría viene de `seedInitialData()` + CSV estático) o hay datos
-    hechos a mano que requieren **export/import desde el navegador**?
+- ✅ **Fase 1b + 2** completas: `db.js` dual-mode (Firestore/IndexedDB), datos
+  sembrados en la nube y verificados (60 equipos, 30 palmarés, contadores)
+- ✅ **Fase 3** completa: login multi-rol (Firebase Auth + colección `users`).
+  Primer admin: `the.perfectory@gmail.com` (role admin + teamId 61 FK TUPADRE)
+- ✅ **Fase 4** completa: reglas de seguridad por rol **desplegadas y probadas**
+  (lectura pública, escritura solo admin, presidente edita su equipo,
+  auto-registro seguro sin posibilidad de auto-ascenso). Ya NO en modo prueba.
+- ⏳ **Siguiente — Fase 5**: pantalla admin "Usuarios" (vincular presidentes a
+  equipos, gestionar admins) + pestaña Perfil. Luego Fase 6 (push) y 7 (APK).
 
 ---
 

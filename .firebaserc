@@ -1,0 +1,5 @@
+{
+  "projects": {
+    "default": "tsc-web-yuna"
+  }
+}
