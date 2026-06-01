@@ -42,9 +42,15 @@ function _injectAuthModal(){
         </div>
         <div class="form-group" style="margin-bottom:6px;">
           <label>Contraseña</label>
-          <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password">
+          <div style="position:relative;">
+            <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px;width:100%;box-sizing:border-box;">
+            <button type="button" id="auth-eye" onclick="toggleAuthPass()" title="Mostrar/ocultar contraseña"
+              style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:17px;line-height:1;padding:2px;">👁️</button>
+          </div>
         </div>
         <div id="auth-error" style="color:#e74c3c;font-size:13px;min-height:18px;"></div>
+        <button type="button" id="auth-forgot" onclick="authForgotPassword()"
+          style="background:none;border:none;color:var(--txt2);font-size:12px;cursor:pointer;padding:0;text-align:left;">¿Olvidaste tu contraseña?</button>
       </div>
       <div class="modal-footer" style="flex-direction:column;align-items:stretch;gap:8px;">
         <button class="btn btn-primary" id="auth-submit" onclick="authSubmit()">Entrar</button>
@@ -74,7 +80,37 @@ function _renderAuthModalMode(){
   document.getElementById('auth-toggle').textContent = signup
     ? '¿Ya tienes cuenta? Inicia sesión'
     : '¿No tienes cuenta? Crear una';
+  const forgot = document.getElementById('auth-forgot');
+  if (forgot) forgot.style.display = signup ? 'none' : '';   // recuperar solo en login
+  // resetear visibilidad de la contraseña al cambiar de modo
+  const pass = document.getElementById('auth-pass');
+  const eye  = document.getElementById('auth-eye');
+  if (pass) pass.type = 'password';
+  if (eye)  eye.textContent = '👁️';
   document.getElementById('auth-error').textContent = '';
+}
+
+/* Mostrar / ocultar la contraseña (ojo) */
+function toggleAuthPass(){
+  const inp = document.getElementById('auth-pass');
+  const eye = document.getElementById('auth-eye');
+  if (!inp) return;
+  if (inp.type === 'password'){ inp.type = 'text';     if (eye) eye.textContent = '🙈'; }
+  else                        { inp.type = 'password'; if (eye) eye.textContent = '👁️'; }
+}
+
+/* Recuperar cuenta: envía email de restablecimiento de contraseña */
+async function authForgotPassword(){
+  const email = document.getElementById('auth-email').value.trim();
+  const errEl = document.getElementById('auth-error');
+  if (!email){ errEl.textContent = 'Escribe tu email arriba y vuelve a tocar aquí.'; return; }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    closeModal('auth-modal');
+    showToast('Te enviamos un email para restablecer tu contraseña');
+  } catch(e){
+    errEl.textContent = _authErrorMsg(e);
+  }
 }
 
 async function authSubmit(){

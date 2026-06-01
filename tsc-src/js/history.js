@@ -667,7 +667,10 @@ async function _computeHistoricalStandings(){
   // Set de números de temporada finalizadas (los lives de seasons activas NO cuentan)
   const finishedSet = new Set(seasons.filter(s=>s.status==='finished').map(s=>s.number));
 
-  // Lookup por nombre (actual + previousNames) → entry de equipo
+  // Lookup por nombre (actual + previousNames) → entry de equipo.
+  // Normaliza (sin puntos/comas, espacios colapsados, mayúsculas) para que
+  // variantes como "AC. ANGELES ROJOS" y "AC ANGELES ROJOS" cuenten igual.
+  const normName = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
   const lookup = new Map();
   for(const t of allTeams){
     const entry = {
@@ -679,8 +682,8 @@ async function _computeHistoricalStandings(){
       previousNames: (Array.isArray(t.previousNames)?t.previousNames:[]).map(s=>String(s).trim()).filter(Boolean),
       status: t.status || 'ACTIVO',
     };
-    if(t.name) lookup.set(String(t.name).toLowerCase(), entry);
-    entry.previousNames.forEach(p=>lookup.set(p.toLowerCase(), entry));
+    if(t.name) lookup.set(normName(t.name), entry);
+    entry.previousNames.forEach(p=>lookup.set(normName(p), entry));
   }
 
   // Resolver lives: cada uno con su match/phase/comp/season para extraer juego, temporada, equipoA/B
@@ -726,10 +729,10 @@ async function _computeHistoricalStandings(){
     const eA = String(r.equipoA||'').trim();
     const eB = String(r.equipoB||'').trim();
     if(!eA || !eB) continue;
-    const lookA = lookup.get(eA.toLowerCase());
-    const lookB = lookup.get(eB.toLowerCase());
-    const keyA = (lookA?.currentName) ? lookA.currentName.toUpperCase() : eA.toUpperCase();
-    const keyB = (lookB?.currentName) ? lookB.currentName.toUpperCase() : eB.toUpperCase();
+    const lookA = lookup.get(normName(eA));
+    const lookB = lookup.get(normName(eB));
+    const keyA = (lookA?.currentName) ? lookA.currentName.toUpperCase() : normName(eA);
+    const keyB = (lookB?.currentName) ? lookB.currentName.toUpperCase() : normName(eB);
     if(keyA===keyB) continue; // safety
     const a = ensure(keyA, lookA);
     const b = ensure(keyB, lookB);
@@ -886,9 +889,10 @@ function _renderHistorySubNav(active, isAdmin){
   if(isAdmin) return '';
   const tabStyle = (act)=>`padding:6px 14px;font-family:'Barlow Condensed';font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;border-radius:20px;cursor:pointer;border:2px solid ${act?'var(--gold)':'var(--brd)'};background:${act?'var(--gold-l)':'transparent'};color:${act?'var(--gold)':'var(--txt2)'};transition:all 0.15s;`;
   return `
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <button onclick="renderPubHistory()" style="${tabStyle(active==='partidos')}">Partidos</button>
       <button onclick="renderPubHistoryStandings()" style="${tabStyle(active==='tabla')}">Tabla histórica</button>
+      <button onclick="renderPubHistoryH2H()" style="${tabStyle(active==='h2h')}">Mano a Mano</button>
     </div>
   `;
 }
@@ -905,4 +909,129 @@ async function histStdClearFilters(){
   _histStdState.fTemp  = '';
   if(_histStdState.mode==='admin') await renderAdmHistoryStandings();
   else await renderPubHistoryStandings();
+}
+
+/* ============================================================
+   MANO A MANO (H2H) — enfrentamientos directos entre dos equipos
+   ============================================================ */
+const _h2hNorm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+
+async function renderPubHistoryH2H(){
+  _histState.mode = 'public';
+  const el = document.getElementById('pub-history-content');
+  if(!el) return;
+  el.innerHTML = `${_renderHistorySubNav('h2h', false)}<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
+
+  const [records, teamsRaw] = await Promise.all([ _getResolvedRecords(), dbGetAll('teams') ]);
+  const teams = teamsRaw.filter(t=>t.name).sort((a,b)=>a.name.localeCompare(b.name));
+  window._h2hRecords = records;
+  window._h2hTeams = teams;
+
+  const opts = (sel)=> teams.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${_esc(t.name)}</option>`).join('');
+  const selStyle = "padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;";
+
+  el.innerHTML = `
+    ${_renderHistorySubNav('h2h', false)}
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;">
+      <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+        <label>Equipo A</label>
+        <select id="h2h-a" onchange="renderH2HResult()" style="${selStyle}"><option value="">— elige —</option>${opts(null)}</select>
+      </div>
+      <div style="font-family:'Barlow Condensed';font-weight:700;color:var(--gold);padding-bottom:8px;">VS</div>
+      <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+        <label>Equipo B</label>
+        <select id="h2h-b" onchange="renderH2HResult()" style="${selStyle}"><option value="">— elige —</option>${opts(null)}</select>
+      </div>
+    </div>
+    <div id="h2h-result"><div style="color:var(--txt3);font-size:14px;padding:20px;text-align:center;">Elige dos equipos para ver su historial de enfrentamientos.</div></div>
+  `;
+}
+
+function renderH2HResult(){
+  const out = document.getElementById('h2h-result');
+  if(!out) return;
+  const aId = parseInt(document.getElementById('h2h-a')?.value);
+  const bId = parseInt(document.getElementById('h2h-b')?.value);
+  if(!aId || !bId){ out.innerHTML = `<div style="color:var(--txt3);font-size:14px;padding:20px;text-align:center;">Elige dos equipos para ver su historial de enfrentamientos.</div>`; return; }
+  if(aId===bId){ out.innerHTML = `<div style="color:var(--txt3);font-size:14px;padding:20px;text-align:center;">Elige dos equipos <b>distintos</b>.</div>`; return; }
+
+  const teams = window._h2hTeams || [];
+  const teamA = teams.find(t=>t.id===aId), teamB = teams.find(t=>t.id===bId);
+  if(!teamA || !teamB){ out.innerHTML = `<div style="color:var(--txt3);padding:20px;">Equipo no encontrado.</div>`; return; }
+
+  // Nombres (actual + previousNames) normalizados de cada equipo
+  const namesA = new Set([teamA.name, ...(teamA.previousNames||[])].map(_h2hNorm));
+  const namesB = new Set([teamB.name, ...(teamB.previousNames||[])].map(_h2hNorm));
+
+  // Partidos donde se enfrentan A y B (en cualquier orden)
+  const matches = (window._h2hRecords||[]).filter(r=>{
+    const a = _h2hNorm(r.equipoA), b = _h2hNorm(r.equipoB);
+    return (namesA.has(a) && namesB.has(b)) || (namesA.has(b) && namesB.has(a));
+  });
+
+  let winsA=0, draws=0, winsB=0, gfA=0, gfB=0, penWinsA=0, penWinsB=0;
+  const rows = [];
+  for(const r of matches){
+    const aIsHome = namesA.has(_h2hNorm(r.equipoA));
+    const gHome = parseInt(r.golesA)||0, gAway = parseInt(r.golesB)||0;
+    const gA = aIsHome ? gHome : gAway;        // goles del equipo A
+    const gB = aIsHome ? gAway : gHome;        // goles del equipo B
+    gfA += gA; gfB += gB;
+    if(gA>gB) winsA++; else if(gA<gB) winsB++; else {
+      draws++;
+      // desempate por penales si los hay
+      const pHome = parseInt(r.penA), pAway = parseInt(r.penB);
+      if(Number.isFinite(pHome) && Number.isFinite(pAway) && pHome!==pAway){
+        const pA = aIsHome ? pHome : pAway, pB = aIsHome ? pAway : pHome;
+        if(pA>pB) penWinsA++; else penWinsB++;
+      }
+    }
+    rows.push({ temporada:r.temporada, juego:r.juego, instancia:r.instancia, gA, gB,
+      pen: (Number.isFinite(parseInt(r.penA))&&Number.isFinite(parseInt(r.penB))) ?
+           (aIsHome?`${parseInt(r.penA)}-${parseInt(r.penB)}`:`${parseInt(r.penB)}-${parseInt(r.penA)}`) : '' });
+  }
+
+  if(!matches.length){
+    out.innerHTML = `<div style="color:var(--txt3);font-size:14px;padding:24px;text-align:center;">
+      <b>${_esc(teamA.name)}</b> y <b>${_esc(teamB.name)}</b> nunca se han enfrentado en el historial.</div>`;
+    return;
+  }
+
+  const badge = (t)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:${t.color||'#333'};color:#fff;font-size:10px;font-weight:700;">${_esc(t.ini||t.name.slice(0,3))}</span>`;
+  const penNote = (penWinsA||penWinsB) ? `<div style="font-size:11px;color:var(--txt3);margin-top:4px;">(${penWinsA+penWinsB} empate${(penWinsA+penWinsB)===1?'':'s'} definido${(penWinsA+penWinsB)===1?'':'s'} por penales: ${_esc(teamA.ini||'A')} ${penWinsA} · ${penWinsB} ${_esc(teamB.ini||'B')})</div>` : '';
+
+  out.innerHTML = `
+    <div class="card" style="padding:16px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">${badge(teamA)}<b style="font-size:14px;">${_esc(teamA.name)}</b></div>
+        <span style="color:var(--txt3);font-size:12px;">${matches.length} partido${matches.length===1?'':'s'}</span>
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;justify-content:flex-end;"><b style="font-size:14px;">${_esc(teamB.name)}</b>${badge(teamB)}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;gap:8px;">
+        <div><div style="font-size:26px;font-weight:800;color:var(--green,#2ecc71);">${winsA}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Gana ${_esc(teamA.ini||'A')}</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:var(--txt2);">${draws}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Empates</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:var(--gold);">${winsB}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Gana ${_esc(teamB.ini||'B')}</div></div>
+      </div>
+      <div style="text-align:center;font-size:13px;color:var(--txt2);margin-top:10px;">Goles: <b>${gfA}</b> — <b>${gfB}</b></div>
+      ${penNote}
+    </div>
+    <div class="card" style="overflow:auto;">
+      <table class="tbl" style="width:100%;font-size:13px;">
+        <thead><tr>
+          <th>Temporada</th><th>Juego</th><th>Instancia</th>
+          <th style="text-align:right;">${_esc(teamA.ini||'A')}</th>
+          <th style="text-align:center;">Marcador</th>
+          <th>${_esc(teamB.ini||'B')}</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr>
+            <td>${_esc(r.temporada||'')}</td><td>${_esc(r.juego||'')}</td><td>${_esc(r.instancia||'')}</td>
+            <td style="text-align:right;${r.gA>r.gB?'font-weight:700;color:var(--green,#2ecc71);':''}">${_esc(teamA.name)}</td>
+            <td style="text-align:center;font-weight:700;">${r.gA} - ${r.gB}${r.pen?`<div style="font-size:10px;color:var(--txt3);font-weight:400;">pen ${r.pen}</div>`:''}</td>
+            <td style="${r.gB>r.gA?'font-weight:700;color:var(--gold);':''}">${_esc(teamB.name)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
