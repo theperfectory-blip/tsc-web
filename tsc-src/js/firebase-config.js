@@ -10,12 +10,13 @@
    consola de Firebase (Project settings → Tus apps → SDK setup).
    ============================================================ */
 const FIREBASE_CONFIG = {
-  apiKey:            "TODO",
-  authDomain:        "TODO.firebaseapp.com",
-  projectId:         "TODO",
-  storageBucket:     "TODO.firebasestorage.app",
-  messagingSenderId: "TODO",
-  appId:             "TODO",
+  apiKey:            "AIzaSyDmKBTE3EJ6tlgqC7fesoY7DUHnpNRQj9k",
+  authDomain:        "tsc-web-yuna.firebaseapp.com",
+  projectId:         "tsc-web-yuna",
+  storageBucket:     "tsc-web-yuna.firebasestorage.app",
+  messagingSenderId: "1063027550773",
+  appId:             "1:1063027550773:web:4c850c60f06b70d6775f7c",
+  measurementId:     "G-PSG9HJP98E",
 };
 
 /* Flag de activación: la app sigue usando IndexedDB mientras la
