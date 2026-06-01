@@ -103,12 +103,18 @@ function toggleAuthPass(){
 async function authForgotPassword(){
   const email = document.getElementById('auth-email').value.trim();
   const errEl = document.getElementById('auth-error');
+  errEl.style.color = '#e74c3c';
   if (!email){ errEl.textContent = 'Escribe tu email arriba y vuelve a tocar aquí.'; return; }
   try {
     await firebase.auth().sendPasswordResetEmail(email);
-    closeModal('auth-modal');
-    showToast('Te enviamos un email para restablecer tu contraseña');
+    // Aviso persistente con advertencia de SPAM (no se cierra el modal)
+    errEl.style.color = '';
+    errEl.innerHTML = `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:10px;color:var(--txt);text-align:left;line-height:1.45;font-size:13px;">
+      📧 Te enviamos un correo a <b>${_authEsc(email)}</b>.<br>
+      ⚠️ <b>Revisa tu carpeta de SPAM</b> / correo no deseado si no lo ves en unos minutos.</div>`;
+    showToast('📧 Correo enviado · revisa tu carpeta de SPAM');
   } catch(e){
+    errEl.style.color = '#e74c3c';
     errEl.textContent = _authErrorMsg(e);
   }
 }
