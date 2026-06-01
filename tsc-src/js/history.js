@@ -17,10 +17,29 @@ const _histState = {
   fJuego: '',
   fTemp: '',
   fInst: '',
-  q: '',
+  qA: '',
+  qB: '',
   page: 1,
   mode: 'admin', // 'admin' | 'public'
 };
+
+// Equipos cacheados (los setea _getResolvedRecords) para resolver los buscadores
+let _histTeams = [];
+// Normaliza nombres: sin puntos/comas, espacios colapsados, mayúsculas
+const _histNorm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+// Resuelve un texto de búsqueda a UN equipo (o null si es ambiguo / sin match)
+function _histResolveTeam(query, teams){
+  const q = _histNorm(query);
+  if(!q || !teams || !teams.length) return null;
+  const exact = teams.find(t => _histNorm(t.name) === q
+    || (t.previousNames||[]).some(p => _histNorm(p) === q));
+  if(exact) return exact;
+  const matches = teams.filter(t => {
+    const names = [t.name, ...((t.previousNames)||[])].map(_histNorm);
+    return names.some(n => n.includes(q));
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
 
 // Cache in-memory del JSON estático (se carga una vez por sesión).
 let _staticHistoryCache = null;
@@ -256,18 +275,15 @@ async function refreshHistoryForSeason(seasonNumber){
    FILTRADO
    ---------------------------------------------------------- */
 function _applyFilters(rows){
-  const {fJuego, fTemp, fInst, q} = _histState;
-  const ql = (q||'').trim().toLowerCase();
+  const {fJuego, fTemp, fInst, qA, qB} = _histState;
+  const qal = _histNorm(qA), qbl = _histNorm(qB);
   return rows.filter(r=>{
     if(fJuego && r.juego!==fJuego) return false;
     if(fTemp  && r.temporada!==fTemp) return false;
     if(fInst  && r.instancia!==fInst) return false;
-    if(ql){
-      // Solo buscar en nombres de equipos (los otros campos tienen filtros propios).
-      const hay = [r.equipoA, r.equipoB]
-        .some(v => String(v||'').toLowerCase().includes(ql));
-      if(!hay) return false;
-    }
+    const a = _histNorm(r.equipoA), b = _histNorm(r.equipoB);
+    if(qal && !(a.includes(qal) || b.includes(qal))) return false;
+    if(qbl && !(a.includes(qbl) || b.includes(qbl))) return false;
     return true;
   });
 }
@@ -326,6 +342,7 @@ async function _getResolvedRecords(){
     });
   }
   window._histTeamLookup = lookup;
+  _histTeams = allTeams;   // para resolver los buscadores Equipo A / Equipo B
 
   const all = [...staticRows, ...idbLive];
   const resolved = await Promise.all(all.map(h => resolveHistoryRecord(h)));
@@ -398,9 +415,14 @@ function _renderFiltersZone(el, all, isAdmin){
         <label>Instancia</label>
         <select class="hist-sel-inst" onchange="histSetFilter('fInst',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
       </div>
-      <div class="form-group" style="margin:0;flex:1;min-width:180px;">
-        <label>Buscar equipo</label>
-        <input type="text" class="hist-q" value="${_esc(_histState.q)}" oninput="histSetSearch(this.value)" placeholder="Ej: PROMETEUS, MALVINAS..."
+      <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+        <label>Equipo A</label>
+        <input type="text" class="hist-qa" value="${_esc(_histState.qA)}" oninput="histSetSearch('qA', this.value)" placeholder="Ej: ANGELES, PROMETEUS..."
+          style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+        <label>Equipo B <span style="color:var(--txt3);font-weight:400;text-transform:none;font-size:11px;">(para Mano a Mano)</span></label>
+        <input type="text" class="hist-qb" value="${_esc(_histState.qB)}" oninput="histSetSearch('qB', this.value)" placeholder="vs. otro equipo..."
           style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
       </div>
       <button class="btn btn-sm" onclick="histClearFilters()">Limpiar</button>
@@ -441,6 +463,25 @@ function _refreshTableZone(el, all, isAdmin){
   const table   = el.querySelector('.hist-table-zone');
   const more    = el.querySelector('.hist-more-zone');
   if(!table) return;
+
+  // ¿Modo Mano a Mano? Ambos buscadores resuelven a equipos distintos.
+  const teamA = _histResolveTeam(_histState.qA, _histTeams);
+  const teamB = _histResolveTeam(_histState.qB, _histTeams);
+  if(teamA && teamB && teamA.id !== teamB.id){
+    const base = all.filter(r =>
+      (!_histState.fJuego || r.juego===_histState.fJuego) &&
+      (!_histState.fTemp  || r.temporada===_histState.fTemp) &&
+      (!_histState.fInst  || r.instancia===_histState.fInst)
+    );
+    if(summary) summary.textContent = '';
+    if(more) more.innerHTML = '';
+    table.classList.remove('card');
+    table.style.overflow = 'visible';
+    table.innerHTML = _buildH2HPanel(teamA, teamB, base);
+    return;
+  }
+  table.classList.add('card');
+  table.style.overflow = 'auto';
 
   const filtered = _sortDesc(_applyFilters(all));
   const total    = filtered.length;
@@ -559,8 +600,8 @@ async function histSetFilter(key, value){
   _refreshTableZone(el, all, _histState.mode==='admin');
 }
 
-async function histSetSearch(value){
-  _histState.q = value;
+async function histSetSearch(which, value){
+  _histState[which] = value;
   _histState.page = 1;
   const el = _currentHistContainer();
   if(!el) return;
@@ -572,7 +613,8 @@ async function histClearFilters(){
   _histState.fJuego = '';
   _histState.fTemp  = '';
   _histState.fInst  = '';
-  _histState.q      = '';
+  _histState.qA     = '';
+  _histState.qB     = '';
   _histState.page   = 1;
   if(_histState.mode==='admin') await renderAdmHistory();
   else await renderPubHistory();
@@ -892,7 +934,6 @@ function _renderHistorySubNav(active, isAdmin){
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <button onclick="renderPubHistory()" style="${tabStyle(active==='partidos')}">Partidos</button>
       <button onclick="renderPubHistoryStandings()" style="${tabStyle(active==='tabla')}">Tabla histórica</button>
-      <button onclick="renderPubHistoryH2H()" style="${tabStyle(active==='h2h')}">Mano a Mano</button>
     </div>
   `;
 }
@@ -912,67 +953,29 @@ async function histStdClearFilters(){
 }
 
 /* ============================================================
-   MANO A MANO (H2H) — enfrentamientos directos entre dos equipos
+   MANO A MANO (H2H) — panel de enfrentamientos directos entre dos
+   equipos. Integrado en "Partidos": se activa al escribir un equipo
+   en cada buscador (Equipo A / Equipo B). Devuelve el HTML del panel.
    ============================================================ */
-const _h2hNorm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
-
-async function renderPubHistoryH2H(){
-  _histState.mode = 'public';
-  const el = document.getElementById('pub-history-content');
-  if(!el) return;
-  el.innerHTML = `${_renderHistorySubNav('h2h', false)}<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
-
-  const [records, teamsRaw] = await Promise.all([ _getResolvedRecords(), dbGetAll('teams') ]);
-  const teams = teamsRaw.filter(t=>t.name).sort((a,b)=>a.name.localeCompare(b.name));
-  window._h2hRecords = records;
-  window._h2hTeams = teams;
-
-  const opts = (sel)=> teams.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${_esc(t.name)}</option>`).join('');
-  const selStyle = "padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;";
-
-  el.innerHTML = `
-    ${_renderHistorySubNav('h2h', false)}
-    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;">
-      <div class="form-group" style="margin:0;flex:1;min-width:150px;">
-        <label>Equipo A</label>
-        <select id="h2h-a" onchange="renderH2HResult()" style="${selStyle}"><option value="">— elige —</option>${opts(null)}</select>
-      </div>
-      <div style="font-family:'Barlow Condensed';font-weight:700;color:var(--gold);padding-bottom:8px;">VS</div>
-      <div class="form-group" style="margin:0;flex:1;min-width:150px;">
-        <label>Equipo B</label>
-        <select id="h2h-b" onchange="renderH2HResult()" style="${selStyle}"><option value="">— elige —</option>${opts(null)}</select>
-      </div>
-    </div>
-    <div id="h2h-result"><div style="color:var(--txt3);font-size:14px;padding:20px;text-align:center;">Elige dos equipos para ver su historial de enfrentamientos.</div></div>
-  `;
-}
-
-function renderH2HResult(){
-  const out = document.getElementById('h2h-result');
-  if(!out) return;
-  const aId = parseInt(document.getElementById('h2h-a')?.value);
-  const bId = parseInt(document.getElementById('h2h-b')?.value);
-  if(!aId || !bId){ out.innerHTML = `<div style="color:var(--txt3);font-size:14px;padding:20px;text-align:center;">Elige dos equipos para ver su historial de enfrentamientos.</div>`; return; }
-  if(aId===bId){ out.innerHTML = `<div style="color:var(--txt3);font-size:14px;padding:20px;text-align:center;">Elige dos equipos <b>distintos</b>.</div>`; return; }
-
-  const teams = window._h2hTeams || [];
-  const teamA = teams.find(t=>t.id===aId), teamB = teams.find(t=>t.id===bId);
-  if(!teamA || !teamB){ out.innerHTML = `<div style="color:var(--txt3);padding:20px;">Equipo no encontrado.</div>`; return; }
-
-  // Nombres (actual + previousNames) normalizados de cada equipo
-  const namesA = new Set([teamA.name, ...(teamA.previousNames||[])].map(_h2hNorm));
-  const namesB = new Set([teamB.name, ...(teamB.previousNames||[])].map(_h2hNorm));
+function _buildH2HPanel(teamA, teamB, records){
+  const namesA = new Set([teamA.name, ...(teamA.previousNames||[])].map(_histNorm));
+  const namesB = new Set([teamB.name, ...(teamB.previousNames||[])].map(_histNorm));
 
   // Partidos donde se enfrentan A y B (en cualquier orden)
-  const matches = (window._h2hRecords||[]).filter(r=>{
-    const a = _h2hNorm(r.equipoA), b = _h2hNorm(r.equipoB);
+  const matches = (records||[]).filter(r=>{
+    const a = _histNorm(r.equipoA), b = _histNorm(r.equipoB);
     return (namesA.has(a) && namesB.has(b)) || (namesA.has(b) && namesB.has(a));
   });
+
+  if(!matches.length){
+    return `<div style="color:var(--txt3);font-size:14px;padding:24px;text-align:center;">
+      <b>${_esc(teamA.name)}</b> y <b>${_esc(teamB.name)}</b> no se han enfrentado${(_histState.fJuego||_histState.fTemp||_histState.fInst)?' (con los filtros actuales)':' en el historial'}.</div>`;
+  }
 
   let winsA=0, draws=0, winsB=0, gfA=0, gfB=0, penWinsA=0, penWinsB=0;
   const rows = [];
   for(const r of matches){
-    const aIsHome = namesA.has(_h2hNorm(r.equipoA));
+    const aIsHome = namesA.has(_histNorm(r.equipoA));
     const gHome = parseInt(r.golesA)||0, gAway = parseInt(r.golesB)||0;
     const gA = aIsHome ? gHome : gAway;        // goles del equipo A
     const gB = aIsHome ? gAway : gHome;        // goles del equipo B
@@ -991,16 +994,10 @@ function renderH2HResult(){
            (aIsHome?`${parseInt(r.penA)}-${parseInt(r.penB)}`:`${parseInt(r.penB)}-${parseInt(r.penA)}`) : '' });
   }
 
-  if(!matches.length){
-    out.innerHTML = `<div style="color:var(--txt3);font-size:14px;padding:24px;text-align:center;">
-      <b>${_esc(teamA.name)}</b> y <b>${_esc(teamB.name)}</b> nunca se han enfrentado en el historial.</div>`;
-    return;
-  }
+  const badge = (t)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:${t.color||'#333'};color:#fff;font-size:10px;font-weight:700;flex:none;">${_esc(t.ini||t.name.slice(0,3))}</span>`;
+  const penNote = (penWinsA||penWinsB) ? `<div style="font-size:11px;color:var(--txt3);margin-top:4px;text-align:center;">(${penWinsA+penWinsB} empate${(penWinsA+penWinsB)===1?'':'s'} definido${(penWinsA+penWinsB)===1?'':'s'} por penales: ${_esc(teamA.ini||'A')} ${penWinsA} · ${penWinsB} ${_esc(teamB.ini||'B')})</div>` : '';
 
-  const badge = (t)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:${t.color||'#333'};color:#fff;font-size:10px;font-weight:700;">${_esc(t.ini||t.name.slice(0,3))}</span>`;
-  const penNote = (penWinsA||penWinsB) ? `<div style="font-size:11px;color:var(--txt3);margin-top:4px;">(${penWinsA+penWinsB} empate${(penWinsA+penWinsB)===1?'':'s'} definido${(penWinsA+penWinsB)===1?'':'s'} por penales: ${_esc(teamA.ini||'A')} ${penWinsA} · ${penWinsB} ${_esc(teamB.ini||'B')})</div>` : '';
-
-  out.innerHTML = `
+  return `
     <div class="card" style="padding:16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:8px;min-width:0;">${badge(teamA)}<b style="font-size:14px;">${_esc(teamA.name)}</b></div>
