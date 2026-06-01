@@ -336,9 +336,9 @@ async function _getResolvedRecords(){
       previousNames: (Array.isArray(t.previousNames)?t.previousNames:[]).map(s=>String(s).trim()).filter(Boolean),
       teamId: t.id,
     };
-    if(t.name) lookup.set(String(t.name).toLowerCase(), entry);
+    if(t.name) lookup.set(_histNorm(t.name), entry);
     entry.previousNames.forEach(p=>{
-      lookup.set(p.toLowerCase(), entry);
+      lookup.set(_histNorm(p), entry);
     });
   }
   window._histTeamLookup = lookup;
@@ -554,29 +554,29 @@ function _histRowHTML(r){
 */
 function _teamCellHTML(equipoName, align='left'){
   const lookup = window._histTeamLookup;
-  const safeName = _esc(equipoName);
-  if(!lookup || !equipoName) return safeName;
+  const safeRaw = _esc(equipoName);
+  if(!lookup || !equipoName) return safeRaw;
 
-  const entry = lookup.get(String(equipoName).toLowerCase());
-  if(!entry) return safeName;
+  const entry = lookup.get(_histNorm(equipoName));
+  if(!entry) return safeRaw;   // nombre sin equipo conocido: mostrar tal cual
 
-  const isHistoricalName = entry.currentName && entry.currentName.toLowerCase() !== String(equipoName).toLowerCase();
+  // Mostrar SIEMPRE el nombre actual/canónico del club (resuelto por id de equipo)
+  const displayName = _esc(entry.currentName || equipoName);
+  const recordedDiffers = _histNorm(entry.currentName) !== _histNorm(equipoName);
   const hasPrev = entry.previousNames.length > 0;
-  if(!isHistoricalName && !hasPrev) return safeName;
+  if(!recordedDiffers && !hasPrev) return displayName;
 
-  // Tooltip: lista con bullets (saltos de línea). Único affordance visible.
+  // Tooltip: nota del nombre con que figuró este partido + nombres anteriores.
   const tooltipLines = [];
-  if(isHistoricalName){
-    tooltipLines.push(`Hoy se llama: ${entry.currentName}`);
-    if(hasPrev) tooltipLines.push('');
-  }
+  if(recordedDiffers) tooltipLines.push(`En este partido figuró como: ${equipoName}`);
   if(hasPrev){
+    if(recordedDiffers) tooltipLines.push('');
     tooltipLines.push('Nombres anteriores:');
     entry.previousNames.forEach(p=>tooltipLines.push(`• ${p}`));
   }
   const tooltip = _esc(tooltipLines.join('\n'));
 
-  return `<span title="${tooltip}">${safeName}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
+  return `<span title="${tooltip}">${displayName}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
 }
 
 /* ----------------------------------------------------------
@@ -773,8 +773,9 @@ async function _computeHistoricalStandings(){
     if(!eA || !eB) continue;
     const lookA = lookup.get(normName(eA));
     const lookB = lookup.get(normName(eB));
-    const keyA = (lookA?.currentName) ? lookA.currentName.toUpperCase() : normName(eA);
-    const keyB = (lookB?.currentName) ? lookB.currentName.toUpperCase() : normName(eB);
+    // Clave estricta por id de equipo (un club = un id); si no resuelve, por nombre.
+    const keyA = lookA ? `#${lookA.teamId}` : normName(eA);
+    const keyB = lookB ? `#${lookB.teamId}` : normName(eB);
     if(keyA===keyB) continue; // safety
     const a = ensure(keyA, lookA);
     const b = ensure(keyB, lookB);
