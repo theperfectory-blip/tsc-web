@@ -74,8 +74,7 @@ const EQUIPOS_INICIALES = [
   {name:'COMANDO THRASH',ini:'CTH',status:'INACTIVO',color:'#888'},
   {name:'CENTINELA LIMA',ini:'CLM',status:'ACTIVO',color:'#5A1A8B'},
   {name:'PYRAMIDS',ini:'PYR',status:'ACTIVO',color:'#B8860B'},
-  {name:'AC ANGELES ROJOS',ini:'AAR',status:'ACTIVO',color:'#C0392B',previousNames:['AC. ANGELES ROJOS']},
-  {name:'DIABLOS ROJOS',ini:'DBR',status:'ACTIVO',color:'#922B21',previousNames:['AC DIABLOS ROJOS','AC. DIABLOS ROJOS']},
+  {name:'AC ANGELES ROJOS',ini:'AAR',status:'ACTIVO',color:'#C0392B',previousNames:['AC. ANGELES ROJOS','DIABLOS ROJOS','AC DIABLOS ROJOS','AC. DIABLOS ROJOS']},
   {name:'FC PROMETEUS',ini:'FCP',status:'ACTIVO',color:'#2C3E50'},
   {name:'NEW GRANADE',ini:'NGR',status:'INACTIVO',color:'#888'},
   {name:'U DE CHILE',ini:'UDC',status:'INACTIVO',color:'#888'},
@@ -211,39 +210,37 @@ async function syncTeamPreviousNames(){
 }
 
 /* ----------------------------------------------------------
-   MIGRACIÓN v2: ajustes específicos sobre el seed
-   - Agregar DIABLOS ROJOS como equipo si no existe
-   - Quitar "DIABLOS ROJOS" del previousNames de AC ANGELES ROJOS
-     (era un error: DIABLOS ROJOS es su propio equipo, no un nombre
-     anterior de AC ANGELES ROJOS)
+   MIGRACIÓN v3: DIABLOS ROJOS es el nombre ANTIGUO de AC ANGELES ROJOS
+   (corrige la v2, que erróneamente los había separado).
+   - Elimina el equipo independiente DIABLOS ROJOS si existe
+   - Agrega "DIABLOS ROJOS" (y variantes) a previousNames de AC ANGELES ROJOS
+   Así los partidos históricos jugados como DIABLOS ROJOS cuentan para
+   AC ANGELES ROJOS en la tabla histórica. Auto-corrige datos existentes.
    ---------------------------------------------------------- */
-async function migrateTeamsV2DiablosRojos(){
-  const flag = await dbGetAll('settings', s=>s.key==='teamsMigratedV2DiablosRojos');
+async function migrateTeamsV3MergeDiablos(){
+  const flag = await dbGetAll('settings', s=>s.key==='teamsMergedV3Diablos');
   if(flag.length>0) return;
   const teams = await dbGetAll('teams');
 
-  // 1. Crear DIABLOS ROJOS si no existe
-  const hasDiablos = teams.find(t => t.name === 'DIABLOS ROJOS');
-  if (!hasDiablos) {
-    await dbAdd('teams', {
-      name:'DIABLOS ROJOS', ini:'DBR', status:'ACTIVO', color:'#922B21',
-      previousNames:['AC DIABLOS ROJOS','AC. DIABLOS ROJOS'],
-      yunacoin:0, logo:null, season:1, pres:'',
-      createdAt:new Date().toISOString()
-    });
-  }
-
-  // 2. Quitar "DIABLOS ROJOS" del previousNames de AC ANGELES ROJOS
+  // 1. Agregar los nombres de DIABLOS a previousNames de AC ANGELES ROJOS
   const angeles = teams.find(t => t.name === 'AC ANGELES ROJOS');
-  if (angeles && Array.isArray(angeles.previousNames)) {
-    const cleaned = angeles.previousNames.filter(n => String(n).toUpperCase().trim() !== 'DIABLOS ROJOS');
-    if (cleaned.length !== angeles.previousNames.length) {
-      await dbPut('teams', {...angeles, previousNames: cleaned});
+  if (angeles) {
+    const namesToAdd = ['DIABLOS ROJOS','AC DIABLOS ROJOS','AC. DIABLOS ROJOS'];
+    const existing = Array.isArray(angeles.previousNames) ? angeles.previousNames : [];
+    const merged = [...new Set([...existing, ...namesToAdd])];
+    if (merged.length !== existing.length) {
+      await dbPut('teams', {...angeles, previousNames: merged});
     }
   }
 
-  await dbAdd('settings', {key:'teamsMigratedV2DiablosRojos', value:true, at:new Date().toISOString()});
-  console.log('[teams] migración v2: DIABLOS ROJOS separado de AC ANGELES ROJOS');
+  // 2. Eliminar el equipo independiente DIABLOS ROJOS (es el mismo club)
+  const diablos = teams.find(t => t.name === 'DIABLOS ROJOS');
+  if (diablos) {
+    await dbDelete('teams', diablos.id);
+  }
+
+  await dbAdd('settings', {key:'teamsMergedV3Diablos', value:true, at:new Date().toISOString()});
+  console.log('[teams] migración v3: DIABLOS ROJOS fusionado en AC ANGELES ROJOS');
 }
 
 /* ----------------------------------------------------------
@@ -259,8 +256,8 @@ window.addEventListener('load', async ()=>{
   await migrateTeamNamesToIds();
   // Sincronizar previousNames (resuelve duplicados en tabla histórica)
   await syncTeamPreviousNames();
-  // v2: separar DIABLOS ROJOS de AC ANGELES ROJOS
-  await migrateTeamsV2DiablosRojos();
+  // v3: DIABLOS ROJOS es el nombre antiguo de AC ANGELES ROJOS (fusionar)
+  await migrateTeamsV3MergeDiablos();
   // Sembrar palmarés histórico si la IDB está vacía
   if(typeof seedPalmaresIfEmpty==='function') await seedPalmaresIfEmpty();
   await loadSeasons();
