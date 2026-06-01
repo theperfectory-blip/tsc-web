@@ -3,8 +3,12 @@
    ---------------------------------------------------------- */
 function setMode(mode){
   if(mode==='admin' && STATE.mode!=='admin'){
-    const pass = prompt('Contraseña admin:');
-    if(pass !== STATE.adminPass){ showToast('Contraseña incorrecta','error'); return; }
+    // Modo admin requiere sesión iniciada con rol 'admin'
+    if(typeof AUTH === 'undefined' || AUTH.role !== 'admin'){
+      if(typeof openAuthModal === 'function') openAuthModal();
+      else showToast('Inicia sesión como administrador','error');
+      return;
+    }
   }
   STATE.mode = mode;
   const isAdmin = mode==='admin';

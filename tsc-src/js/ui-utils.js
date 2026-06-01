@@ -262,6 +262,8 @@ window.addEventListener('load', async ()=>{
   if(typeof seedPalmaresIfEmpty==='function') await seedPalmaresIfEmpty();
   await loadSeasons();
   setMode('public');
+  // Inicializar autenticación (Firebase Auth + roles)
+  if(typeof onAuthInit === 'function') onAuthInit();
 });
 
 /* ----------------------------------------------------------
