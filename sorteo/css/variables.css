@@ -1,0 +1,41 @@
+/* ============================================================
+   Tokens (stub — reemplaza con tu archivo real al integrar)
+   ============================================================ */
+:root {
+  /* Surfaces */
+  --bg-0: #0a0d12;
+  --bg-1: #11151c;
+  --bg-2: #161b24;
+  --bg-3: #1d242f;
+  --bg-elevated: #1f2632;
+
+  /* Lines & text */
+  --border: #262d3a;
+  --border-soft: #1c222c;
+  --text: #e8edf3;
+  --text-dim: #8a93a3;
+  --text-mute: #5a6273;
+
+  /* Brand accents */
+  --primary: #2ea3ff;
+  --primary-h: #4cb4ff;
+  --gold: #ffd23f;
+  --gold-h: #ffe27a;
+  --danger: #f04747;
+  --success: #29c073;
+
+  /* Sorteo specific */
+  --sorteo-glow: rgba(255, 210, 63, 0.55);
+  --sorteo-glow-soft: rgba(255, 210, 63, 0.18);
+
+  /* Geometry */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  /* Topbar / sidebar geometry */
+  --topbar-h: 56px;
+  --sidebar-w: 232px;
+  --pubnav-h: 44px;
+}

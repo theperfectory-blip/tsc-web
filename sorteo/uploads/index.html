@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TSC · Copa Suscriptores Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<!-- ============================================================
+     TOPBAR
+     ============================================================ -->
+<div id="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">TSC</div>
+    <div class="topbar-name">Teams Subs <span>Cup</span></div>
+  </div>
+  <div class="topbar-right">
+    <select class="season-sel" id="season-sel" onchange="onSeasonChange(this.value)">
+      <option value="">Temporada...</option>
+    </select>
+    <button class="mode-btn active" id="btn-pub" onclick="setMode('public')">Público</button>
+    <button class="mode-btn" id="btn-adm" onclick="setMode('admin')">Admin</button>
+    <button class="icon-btn" onclick="openSettings()" title="Configuración">⚙</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     NAV PÚBLICO
+     ============================================================ -->
+<div id="pubnav">
+  <div class="pubnav-inner">
+    <div class="pub-tab active" onclick="goPublicPage('panel',this)">Panel</div>
+    <div class="pub-tab" onclick="goPublicPage('competiciones',this)">Competiciones</div>
+    <div class="pub-tab" onclick="goPublicPage('equipos',this)">Equipos</div>
+    <div class="pub-tab" onclick="goPublicPage('historial',this)">Historial</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SIDEBAR ADMIN
+     ============================================================ -->
+<div id="sidebar">
+  <div class="nav-section-lbl">General</div>
+  <div class="nav-item active" onclick="goAdminPage('dashboard',this)">
+    <span class="nav-item-icon">◈</span>Dashboard
+  </div>
+  <div class="nav-item" onclick="goAdminPage('equipos-admin',this)">
+    <span class="nav-item-icon">⚑</span>Equipos
+  </div>
+
+  <div class="nav-section-lbl">Competiciones</div>
+  <div class="nav-item" onclick="goAdminPage('competiciones-admin',this)">
+    <span class="nav-item-icon">◉</span>Competiciones
+  </div>
+  <div class="nav-item" onclick="goAdminPage('fases-admin',this)">
+    <span class="nav-item-icon">⬡</span>Fases
+  </div>
+  <div class="nav-item" onclick="goAdminPage('partidos-admin',this)">
+    <span class="nav-item-icon">⚽</span>Partidos
+  </div>
+
+  <div class="nav-section-lbl">Economía</div>
+  <div class="nav-item" onclick="goAdminPage('coins-admin',this)">
+    <span class="nav-item-icon">◎</span>YuNaCoins
+  </div>
+
+  <div class="nav-section-lbl">Historial</div>
+  <div class="nav-item" onclick="goAdminPage('historial-admin',this)">
+    <span class="nav-item-icon">⟁</span>Historial de partidos
+  </div>
+  <div class="nav-item" onclick="goAdminPage('historial-tabla-admin',this)">
+    <span class="nav-item-icon">▦</span>Tabla histórica
+  </div>
+
+  <div class="nav-section-lbl">Sistema</div>
+  <div class="nav-item" onclick="goAdminPage('temporadas-admin',this)">
+    <span class="nav-item-icon">◷</span>Temporadas
+  </div>
+  <div class="nav-item" onclick="goAdminPage('datos-admin',this)">
+    <span class="nav-item-icon">⇅</span>Datos
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN CONTENT
+     ============================================================ -->
+<div id="main">
+
+  <!-- PÁGINAS PÚBLICAS -->
+  <div id="page-panel" class="page active">
+    <div class="section-lbl">Panel general</div>
+    <div id="pub-panel-content"></div>
+  </div>
+
+  <div id="page-competiciones" class="page">
+    <div class="section-lbl">Competiciones activas</div>
+    <div id="pub-comps-content"></div>
+  </div>
+
+  <div id="page-equipos" class="page">
+    <div class="section-lbl">Equipos</div>
+    <div id="pub-teams-content"></div>
+  </div>
+
+  <div id="page-historial" class="page">
+    <div class="section-lbl">Historial de partidos</div>
+    <div id="pub-history-content"></div>
+  </div>
+
+  <!-- PÁGINAS ADMIN -->
+  <div id="page-dashboard" class="page">
+    <div class="section-lbl">Estado general</div>
+    <div id="adm-dashboard-content"></div>
+  </div>
+
+  <div id="page-equipos-admin" class="page">
+    <div class="section-lbl">Gestión de equipos</div>
+    <div id="adm-teams-content"></div>
+  </div>
+
+  <div id="page-competiciones-admin" class="page">
+    <div class="section-lbl">Gestión de competiciones</div>
+    <div id="adm-comps-content"></div>
+  </div>
+
+  <div id="page-fases-admin" class="page">
+    <div class="section-lbl">Gestión de fases</div>
+    <div id="adm-fases-content"></div>
+  </div>
+
+  <div id="page-partidos-admin" class="page">
+    <div class="section-lbl">Registro de partidos</div>
+    <div id="adm-matches-content"></div>
+  </div>
+
+  <div id="page-coins-admin" class="page">
+    <div class="section-lbl">YuNaCoins</div>
+    <div id="adm-coins-content"></div>
+  </div>
+
+  <div id="page-temporadas-admin" class="page">
+    <div class="section-lbl">Gestión de temporadas</div>
+    <div id="adm-seasons-content"></div>
+  </div>
+
+  <div id="page-datos-admin" class="page">
+    <div class="section-lbl">Exportar e importar</div>
+    <div id="adm-data-content"></div>
+  </div>
+
+  <div id="page-historial-admin" class="page">
+    <div class="section-lbl">Historial de partidos</div>
+    <div id="adm-history-content"></div>
+  </div>
+
+  <div id="page-historial-tabla-admin" class="page">
+    <div class="section-lbl">Tabla histórica</div>
+    <div id="adm-history-standings-content"></div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     MODALES GLOBALES
+     ============================================================ -->
+
+<!-- Settings -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Configuración</div>
+      <button class="modal-close" onclick="closeModal('settings-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Tema visual</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button class="btn" id="theme-dark-btn" onclick="setTheme('dark')">🌙 Oscuro</button>
+          <button class="btn" id="theme-light-btn" onclick="setTheme('light')">☀️ Claro</button>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Contraseña admin</label>
+        <input type="password" id="new-pass-input" placeholder="Nueva contraseña">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="saveSettings()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h4 id="confirm-title">¿Confirmar acción?</h4>
+    <p id="confirm-msg">Esta acción no se puede deshacer.</p>
+    <div class="confirm-actions">
+      <button class="btn" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" onclick="runConfirm()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast"></div>
+
+<!-- ============================================================
+     SCRIPTS — carga en orden de dependencias
+     ============================================================ -->
+<script src="js/state.js"></script>
+<script src="js/db.js"></script>
+<script src="js/ui-utils.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/color-picker.js"></script>
+<script src="js/competitions.js"></script>
+<script src="js/phases.js"></script>
+<script src="js/standings.js"></script>
+<script src="js/matches.js"></script>
+<script src="js/bracket.js"></script>
+<script src="js/playoff.js"></script>
+<script src="js/public.js"></script>
+<script src="js/coins.js"></script>
+<script src="js/seasons.js"></script>
+<script src="js/data.js"></script>
+<script src="js/teams.js"></script>
+<script src="js/history.js"></script>
+
+</body>
+</html>

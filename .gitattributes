@@ -1,0 +1,17 @@
+# Normaliza saltos de línea: el repo guarda LF, cada SO usa lo suyo al checkout
+* text=auto
+
+# Forzar LF en código y config (consistencia cross-platform / build APK)
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+
+# Binarios: no tocar
+*.png   binary
+*.webp  binary
+*.mp3   binary
+*.xlsx  binary
+*.apk   binary
+*.aab   binary

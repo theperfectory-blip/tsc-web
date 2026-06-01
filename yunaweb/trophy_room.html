@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sala de Trofeos · TSC</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/palmares.css">
+
+<style>
+  /* Tokens del proyecto (resumidos para que el demo se vea como en la app) */
+  :root {
+    --bg:    #0a1018;
+    --card:  #121a26;
+    --card2: #182233;
+    --brd:   #25334a;
+    --txt:   #e9eef5;
+    --txt2:  #aab4c6;
+    --txt3:  #6c7691;
+    --gold:  #c9a84c;
+    --r: 8px;
+  }
+  html, body { background: var(--bg); color: var(--txt); margin: 0; }
+  body {
+    font-family: 'Barlow', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  .demo-topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px;
+    background: rgba(10,16,24,0.85);
+    border-bottom: 1px solid var(--brd);
+    backdrop-filter: blur(6px);
+  }
+  .demo-brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px; letter-spacing: 3px;
+    color: var(--gold);
+  }
+  .demo-brand b {
+    background: linear-gradient(135deg, var(--gold), #f4d77e);
+    color: #1a1407;
+    padding: 4px 8px; border-radius: 4px;
+    font-weight: 800; font-size: 14px;
+    letter-spacing: 1px;
+  }
+  .demo-tabs {
+    display: flex; gap: 4px;
+    font: 600 12px/1 'Barlow Condensed', sans-serif;
+    letter-spacing: 2px; text-transform: uppercase;
+  }
+  .demo-tab {
+    padding: 8px 14px; border-radius: 6px;
+    color: var(--txt2);
+    border: 1px solid transparent;
+  }
+  .demo-tab.active {
+    background: var(--card2);
+    border-color: var(--brd);
+    color: var(--txt);
+  }
+
+  .demo-wrap { max-width: 1280px; margin: 0 auto; padding: 12px 18px 40px; }
+  .demo-section-lbl {
+    font: 700 10px/1 'Barlow Condensed', sans-serif;
+    letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--txt3); margin: 6px 4px 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-topbar">
+  <div class="demo-brand">
+    <b>TSC</b>
+    Teams Subs Cup
+  </div>
+  <nav class="demo-tabs">
+    <span class="demo-tab">Panel</span>
+    <span class="demo-tab">Competiciones</span>
+    <span class="demo-tab">Equipos</span>
+    <span class="demo-tab active">Palmarés</span>
+    <span class="demo-tab">Historial</span>
+  </nav>
+</div>
+
+<div class="demo-wrap">
+  <div class="demo-section-lbl">Vista pública · Palmarés</div>
+  <div id="pub-palmares-content"></div>
+</div>
+
+<script>
+/* ============================================================
+   Stub de IndexedDB en memoria para el demo
+   La API real expone: dbGetAll(store, filterFn?), dbGet, dbAdd, dbDelete.
+   ============================================================ */
+const MOCK = (() => {
+  // Equipos (con colores aproximados — el admin real los define)
+  const teams = [
+    { id: 1,  name: 'La Tocata AS',         ini: 'TOC', color: '#e74c3c' },
+    { id: 2,  name: 'Junior',               ini: 'JNR', color: '#e8c01d' },
+    { id: 3,  name: 'Diablos Rojos',        ini: 'DBR', color: '#c0392b' },
+    { id: 4,  name: 'FC Prometeus',         ini: 'PRO', color: '#f39c12' },
+    { id: 5,  name: 'Yunaited FC',          ini: 'YUN', color: '#d12c2c' },
+    { id: 6,  name: 'River Plate 96',       ini: 'RIV', color: '#ffffff' },
+    { id: 7,  name: 'Reds LFC',             ini: 'RED', color: '#cf1414' },
+    { id: 8,  name: 'Retrato Lo Retro',     ini: 'RLR', color: '#16a085' },
+    { id: 9,  name: 'Escarlatas FC',        ini: 'ESC', color: '#9b59b6' },
+    { id: 10, name: 'Ind. Cordero',         ini: 'IND', color: '#2c3e50' },
+    { id: 11, name: 'Fenómenos FC',         ini: 'FEN', color: '#1abc9c' },
+    { id: 12, name: 'Motilones FC',         ini: 'MOT', color: '#8e44ad' },
+    { id: 13, name: 'Neohalcones Solares',  ini: 'NHS', color: '#f1c40f' },
+    { id: 14, name: 'Sarnosas',             ini: 'SAR', color: '#95a5a6' },
+    { id: 15, name: 'Shohoku',              ini: 'SHO', color: '#d93434' },
+    { id: 16, name: 'Chapulines',           ini: 'CHP', color: '#27ae60' },
+    { id: 17, name: 'Wakanda FC',           ini: 'WAK', color: '#1f2436' }
+  ];
+
+  // Registros de palmarés (basados en la imagen + años inventados)
+  const palmares = [
+    // TSC 1RA DIVISION
+    { id: 101, teamId: 1,  competition: 'TSC 1RA DIVISION',             year: 2024, season: 'T1' },
+    { id: 102, teamId: 1,  competition: 'TSC 1RA DIVISION',             year: 2022, season: 'T2' },
+    { id: 103, teamId: 3,  competition: 'TSC 1RA DIVISION',             year: 2023, season: 'T1' },
+    { id: 104, teamId: 3,  competition: 'TSC 1RA DIVISION',             year: 2019, season: 'T2' },
+    { id: 105, teamId: 4,  competition: 'TSC 1RA DIVISION',             year: 2021, season: 'T1' },
+    { id: 106, teamId: 4,  competition: 'TSC 1RA DIVISION',             year: 2018, season: 'T2' },
+    { id: 107, teamId: 2,  competition: 'TSC 1RA DIVISION',             year: 2020 },
+    { id: 108, teamId: 8,  competition: 'TSC 1RA DIVISION',             year: 2017 },
+    { id: 109, teamId: 9,  competition: 'TSC 1RA DIVISION',             year: 2016 },
+    { id: 110, teamId: 10, competition: 'TSC 1RA DIVISION',             year: 2015 },
+    { id: 111, teamId: 11, competition: 'TSC 1RA DIVISION',             year: 2014 },
+    { id: 112, teamId: 12, competition: 'TSC 1RA DIVISION',             year: 2013 },
+
+    // COPA DEL EMPERADOR DE LA TSC
+    { id: 201, teamId: 1,  competition: 'COPA DEL EMPERADOR DE LA TSC', year: 2024 },
+    { id: 202, teamId: 2,  competition: 'COPA DEL EMPERADOR DE LA TSC', year: 2023 },
+    { id: 203, teamId: 5,  competition: 'COPA DEL EMPERADOR DE LA TSC', year: 2022 },
+    { id: 204, teamId: 6,  competition: 'COPA DEL EMPERADOR DE LA TSC', year: 2021 },
+    { id: 205, teamId: 7,  competition: 'COPA DEL EMPERADOR DE LA TSC', year: 2020 },
+
+    // SUPER COPA DE LA TSC
+    { id: 301, teamId: 1,  competition: 'SUPER COPA DE LA TSC',         year: 2024 },
+    { id: 302, teamId: 1,  competition: 'SUPER COPA DE LA TSC',         year: 2022 },
+    { id: 303, teamId: 2,  competition: 'SUPER COPA DE LA TSC',         year: 2023 },
+    { id: 304, teamId: 5,  competition: 'SUPER COPA DE LA TSC',         year: 2021 },
+    { id: 305, teamId: 7,  competition: 'SUPER COPA DE LA TSC',         year: 2020 },
+
+    // LIGA DE CAMPEONES
+    { id: 401, teamId: 2,  competition: 'LIGA DE CAMPEONES',            year: 2024 },
+    { id: 402, teamId: 3,  competition: 'LIGA DE CAMPEONES',            year: 2023 },
+
+    // TSC 2DA DIVISION
+    { id: 501, teamId: 6,  competition: 'TSC 2DA DIVISION',             year: 2024 },
+    { id: 502, teamId: 13, competition: 'TSC 2DA DIVISION',             year: 2023 },
+    { id: 503, teamId: 14, competition: 'TSC 2DA DIVISION',             year: 2022 },
+    { id: 504, teamId: 15, competition: 'TSC 2DA DIVISION',             year: 2021 },
+    { id: 505, teamId: 16, competition: 'TSC 2DA DIVISION',             year: 2020 },
+    { id: 506, teamId: 17, competition: 'TSC 2DA DIVISION',             year: 2019 },
+  ];
+
+  return { teams, palmares };
+})();
+
+async function dbGetAll(store, filterFn) {
+  let rows;
+  if (store === 'teams') rows = MOCK.teams.slice();
+  else if (store === 'palmares') rows = MOCK.palmares.slice();
+  else rows = [];
+  if (typeof filterFn === 'function') rows = rows.filter(filterFn);
+  return rows;
+}
+async function dbGet(store, id) {
+  const arr = (store === 'teams' ? MOCK.teams : store === 'palmares' ? MOCK.palmares : []);
+  return arr.find(r => r.id === id);
+}
+async function dbAdd(store, rec) {
+  const arr = (store === 'teams' ? MOCK.teams : MOCK.palmares);
+  rec.id = (arr.reduce((m, r) => Math.max(m, r.id||0), 0) || 0) + 1;
+  arr.push(rec);
+  return rec.id;
+}
+async function dbDelete(store, id) {
+  const arr = (store === 'teams' ? MOCK.teams : MOCK.palmares);
+  const i = arr.findIndex(r => r.id === id);
+  if (i >= 0) arr.splice(i, 1);
+}
+function showToast(msg) { console.log('[toast]', msg); }
+</script>
+
+<script src="js/palmares.js"></script>
+<script>
+  renderPubPalmares();
+</script>
+</body>
+</html>

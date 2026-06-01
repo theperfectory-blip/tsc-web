@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "description": "Palmarés histórico de la Teams Subs Cup. Los registros se siembran en IndexedDB si está vacía. Los IDs son temporales; al insertar la app les asigna IDs reales.",
+  "records": [
+    { "team": "RETRATO LO RETRO",      "competition": "TSC 1RA DIVISION",             "season": "T1", "juego": "PES 4", "vigente": true },
+    { "team": "REDS LFC",              "competition": "COPA DEL EMPERADOR DE LA TSC", "season": "T1", "juego": "PES 4", "vigente": true },
+    { "team": "REDS LFC",              "competition": "SUPER COPA DE LA TSC",         "season": "T1", "juego": "PES 4", "vigente": true },
+    { "team": "NEOHALCONES SOLARES FC","competition": "TSC 2DA DIVISION",             "season": "T1", "juego": "PES 4", "vigente": true },
+
+    { "team": "LA TOCATA AS",          "competition": "TSC 1RA DIVISION" },
+    { "team": "LA TOCATA AS",          "competition": "TSC 1RA DIVISION" },
+    { "team": "LA TOCATA AS",          "competition": "COPA DEL EMPERADOR DE LA TSC" },
+    { "team": "LA TOCATA AS",          "competition": "SUPER COPA DE LA TSC" },
+    { "team": "LA TOCATA AS",          "competition": "SUPER COPA DE LA TSC" },
+
+    { "team": "ATL. JUNIOR YOSHUA",    "competition": "TSC 1RA DIVISION" },
+    { "team": "ATL. JUNIOR YOSHUA",    "competition": "COPA DEL EMPERADOR DE LA TSC" },
+    { "team": "ATL. JUNIOR YOSHUA",    "competition": "SUPER COPA DE LA TSC" },
+    { "team": "ATL. JUNIOR YOSHUA",    "competition": "LIGA DE CAMPEONES" },
+
+    { "team": "DIABLOS ROJOS",         "competition": "TSC 1RA DIVISION" },
+    { "team": "DIABLOS ROJOS",         "competition": "TSC 1RA DIVISION" },
+    { "team": "DIABLOS ROJOS",         "competition": "LIGA DE CAMPEONES" },
+
+    { "team": "FC PROMETEUS",          "competition": "TSC 1RA DIVISION" },
+    { "team": "FC PROMETEUS",          "competition": "TSC 1RA DIVISION" },
+
+    { "team": "YUNAITED FC",           "competition": "COPA DEL EMPERADOR DE LA TSC" },
+    { "team": "YUNAITED FC",           "competition": "SUPER COPA DE LA TSC" },
+
+    { "team": "RIVER PLATE 96",        "competition": "COPA DEL EMPERADOR DE LA TSC" },
+    { "team": "RIVER PLATE 96",        "competition": "TSC 2DA DIVISION" },
+
+    { "team": "ESCARLATAS FC",         "competition": "TSC 1RA DIVISION" },
+    { "team": "INDEP. CORDERO",        "competition": "TSC 1RA DIVISION" },
+    { "team": "FENOMENOS FC",          "competition": "TSC 1RA DIVISION" },
+    { "team": "MOTILONES HH",          "competition": "TSC 1RA DIVISION" },
+
+    { "team": "SARNOSAS FC",           "competition": "TSC 2DA DIVISION" },
+    { "team": "SHOHOKU",               "competition": "TSC 2DA DIVISION" },
+    { "team": "CHAPULINES FC",         "competition": "TSC 2DA DIVISION" },
+    { "team": "WAKANDA FC",            "competition": "TSC 2DA DIVISION" }
+  ]
+}

@@ -1,0 +1,41 @@
+/* ============================================================
+   VARIABLES
+   ============================================================ */
+:root {
+  --gold:#C9A84C;
+  --gold-l:rgba(201,168,76,0.12);
+  --gold-b:rgba(201,168,76,0.28);
+  --blue:#3B82F6;
+  --blue-l:rgba(59,130,246,0.12);
+  --green:#25A864;
+  --green-l:rgba(37,168,100,0.12);
+  --red:#E84040;
+  --red-l:rgba(232,64,64,0.12);
+  --yellow:#F59E0B;
+  --yellow-l:rgba(245,158,11,0.12);
+  --bg:#0C0F14;
+  --card:#141820;
+  --card2:#1A1F2B;
+  --nav:#090C10;
+  --brd:rgba(255,255,255,0.07);
+  --brd2:rgba(255,255,255,0.13);
+  --txt:#F0EDE6;
+  --txt2:#8B8F9A;
+  --txt3:#555A66;
+  --r:6px;
+  --rl:10px;
+  /* Bracket eliminatorio (renderBracketHTML / scaleBracket) */
+  --bk-card-w:220px;
+  --bk-row-h:88px;
+}
+[data-theme="light"] {
+  --bg:#F4F4F0;
+  --card:#FFFFFF;
+  --card2:#F0EEE8;
+  --nav:#FFFFFF;
+  --brd:rgba(0,0,0,0.08);
+  --brd2:rgba(0,0,0,0.15);
+  --txt:#1A1A1A;
+  --txt2:#555555;
+  --txt3:#999999;
+}

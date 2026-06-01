@@ -1,0 +1,1 @@
+npx serve C:\Users\Administrator\Downloads\tsc.web\tsc-src
