@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// ============================================================
+//  Reglas de seguridad Firestore — TSC Web
+//  Modelo de roles: public (anónimo) · president · admin
+//  El rol y el teamId viven en users/{uid} y los asigna el admin.
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn()    { return request.auth != null; }
+    function u()           { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function isAdmin()     { return signedIn() && u().role == 'admin'; }
+    function isPresident() { return signedIn() && u().role == 'president'; }
+
+    // --- Colecciones del torneo: lectura PÚBLICA, escritura solo admin ---
+    match /seasons/{id}        { allow read: if true; allow write: if isAdmin(); }
+    match /competitions/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /phases/{id}         { allow read: if true; allow write: if isAdmin(); }
+    match /matches/{id}        { allow read: if true; allow write: if isAdmin(); }
+    match /coins/{id}          { allow read: if true; allow write: if isAdmin(); }
+    match /history/{id}        { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{id}       { allow read: if true; allow write: if isAdmin(); }
+    match /matchHistory/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /sorteo/{id}         { allow read: if true; allow write: if isAdmin(); }
+    match /palmares/{id}       { allow read: if true; allow write: if isAdmin(); }
+    match /palmares-comps/{id} { allow read: if true; allow write: if isAdmin(); }
+
+    // --- Equipos: el presidente edita SU equipo (decisión #1 a confirmar) ---
+    match /teams/{teamId} {
+      allow read: if true;
+      allow update:        if isAdmin() || (isPresident() && string(u().teamId) == teamId);
+      allow create, delete: if isAdmin();
+    }
+
+    // --- Perfil: cada quien edita el suyo, SIN poder cambiarse rol/equipo ---
+    match /users/{uid} {
+      allow read:   if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow update: if isAdmin()
+                    || (request.auth.uid == uid
+                        && !request.resource.data.diff(resource.data)
+                              .affectedKeys().hasAny(['role','teamId']));
+      allow create, delete: if isAdmin();
+    }
+
+    // --- Contadores de IDs enteros (emulan autoIncrement) ---
+    match /_counters/{c} {
+      allow read:  if true;
+      allow write: if isAdmin() || isPresident();
+    }
+  }
+}
