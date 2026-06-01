@@ -48,8 +48,6 @@ function setTheme(theme){
    ---------------------------------------------------------- */
 function openSettings(){ openModal('settings-modal'); }
 function saveSettings(){
-  const np = document.getElementById('new-pass-input').value.trim();
-  if(np) STATE.adminPass = np;
   closeModal('settings-modal');
   showToast('Configuración guardada');
 }

@@ -7,7 +7,6 @@ const STATE = {
   mode: 'public',       // 'public' | 'admin'
   season: 1,
   theme: 'dark',
-  adminPass: '1234',
   publicPage: 'palmares',
   adminPage: 'dashboard',
 };
