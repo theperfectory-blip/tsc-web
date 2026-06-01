@@ -10,6 +10,21 @@ para el volumen de este proyecto. Ver sección *Costos*.
 
 ---
 
+## 📍 Estado actual (actualizado)
+
+- ✅ **Fase 0** completa: proyecto `tsc-web-yuna` creado (plan Spark)
+  - App web registrada · config real en `tsc-src/js/firebase-config.js`
+  - Firestore creado (ubicación São Paulo/Santiago, **modo prueba** temporal)
+  - Auth **Email/Password** habilitado
+- ✅ **Fase 1a** completa: SDK compat v12.14.0 cableado en `index.html`
+  - Smoke test OK · **prueba de conexión real OK** (write+read+delete en Firestore)
+- ⏳ **Siguiente — Fase 1b/2**: reescribir `db.js` sobre Firestore + datos
+  - ⚠️ Decisión pendiente: ¿los datos actuales se **re-siembran** en Firestore
+    (la mayoría viene de `seedInitialData()` + CSV estático) o hay datos
+    hechos a mano que requieren **export/import desde el navegador**?
+
+---
+
 ## 0. La idea clave: `db.js` es el único punto de cambio
 
 Toda la app pasa por 6 funciones (`tsc-src/js/db.js`). Si reimplemento esas
