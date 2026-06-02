@@ -19,16 +19,14 @@ async function renderAdmUsuarios(){
     return;
   }
 
-  let users, teams, locked = false;
+  let users, teams;
   try {
-    const [snap, teamsRaw, lk] = await Promise.all([
+    const [snap, teamsRaw] = await Promise.all([
       firebase.firestore().collection('users').get(),
       dbGetAll('teams'),
-      dbGetAll('settings', s => s.key === 'lockTeamEdits'),
     ]);
     users = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
     teams = teamsRaw;
-    locked = lk.length ? !!lk[0].value : false;
   } catch(e){
     el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${_uaEsc(e.code||e.message)}</div>`;
     return;
@@ -60,10 +58,6 @@ async function renderAdmUsuarios(){
       ${users.length} usuario${users.length===1?'':'s'} · asigna el <b>rol</b> y el <b>club</b> de cada uno.
       Un admin controla todo; un presidente solo edita su club.
     </div>
-    <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--txt);margin-bottom:14px;cursor:pointer;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:8px 12px;">
-      <input type="checkbox" ${locked?'checked':''} onchange="adminToggleTeamLock(this.checked)">
-      🔒 Bloquear que los presidentes editen el <b>nombre y logo</b> de su club
-    </label>
     <div class="card" style="overflow:auto;">
       <table class="tbl" style="width:100%;font-size:13px;">
         <thead><tr>
@@ -71,6 +65,7 @@ async function renderAdmUsuarios(){
           <th style="padding:8px 10px;">Email</th>
           <th style="padding:8px 10px;">Rol</th>
           <th style="padding:8px 10px;">Club vinculado</th>
+          <th style="padding:8px 10px;text-align:center;">Bloquear edición</th>
         </tr></thead>
         <tbody>
           ${users.map(u=>{
@@ -87,6 +82,9 @@ async function renderAdmUsuarios(){
               <td style="padding:8px 10px;">
                 <select style="${selStyle}" onchange="adminSetUserTeam('${_uaEsc(u.uid)}', this.value)">${teamOpts(u.teamId ?? null)}</select>
               </td>
+              <td style="padding:8px 10px;text-align:center;">
+                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" onchange="adminSetUserLock('${_uaEsc(u.uid)}', this.checked)">
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -94,14 +92,13 @@ async function renderAdmUsuarios(){
     </div>`;
 }
 
-async function adminToggleTeamLock(checked){
+async function adminSetUserLock(uid, locked){
   try {
-    const arr = await dbGetAll('settings', s => s.key === 'lockTeamEdits');
-    if (arr.length) await dbPut('settings', { ...arr[0], value: checked });
-    else await dbAdd('settings', { key: 'lockTeamEdits', value: checked });
-    showToast(checked ? '🔒 Edición de clubes bloqueada para presidentes' : 'Edición de clubes habilitada');
+    await firebase.firestore().collection('users').doc(uid).update({ lockEdits: locked });
+    showToast(locked ? '🔒 Edición de club bloqueada para este usuario' : 'Edición de club habilitada');
   } catch(e){
     showToast('Error: '+(e.code||e.message), 'error');
+    renderAdmUsuarios();
   }
 }
 

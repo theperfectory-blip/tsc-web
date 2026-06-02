@@ -32,7 +32,7 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if true;
       allow update: if isAdmin()
-                    || (isPresident() && me().teamId != null && string(me().teamId) == teamId);
+                    || (isPresident() && me().teamId != null && string(me().teamId) == teamId && me().lockEdits != true);
       allow create, delete: if isAdmin();
     }
 
@@ -51,7 +51,7 @@ service cloud.firestore {
       allow update: if isAdmin()
                     || (request.auth.uid == uid
                         && !request.resource.data.diff(resource.data)
-                              .affectedKeys().hasAny(['role','teamId']));
+                              .affectedKeys().hasAny(['role','teamId','lockEdits']));
 
       // Cada quien puede borrar su propia cuenta; el admin, cualquiera.
       allow delete: if isAdmin() || request.auth.uid == uid;

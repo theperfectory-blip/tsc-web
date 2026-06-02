@@ -48,10 +48,7 @@ async function renderProfileBody(){
   if (AUTH.teamId != null){
     try { team = await dbGet('teams', AUTH.teamId); } catch(_){}
   }
-  try {
-    const lk = await dbGetAll('settings', s => s.key === 'lockTeamEdits');
-    locked = lk.length ? !!lk[0].value : false;
-  } catch(_){}
+  locked = !!(AUTH.profile && AUTH.profile.lockEdits);
   window._profileTeam = team;
 
   const name  = AUTH.profile?.displayName || AUTH.user.email;
@@ -161,8 +158,7 @@ async function saveProfile(){
     }
     // 2. Club (nombre + logo) — solo si no está bloqueado
     if (team){
-      const lk = await dbGetAll('settings', s => s.key === 'lockTeamEdits');
-      const locked = lk.length ? !!lk[0].value : false;
+      const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
       if (!locked){
         const newTeamName = document.getElementById('profile-team-name')?.value.trim();
         const upd = { ...team };
