@@ -14,6 +14,11 @@ async function renderAdmTeams(){
     ? await buildTeamCompMap()
     : new Map();
 
+  // Mapa teamId → presidente vinculado (cuenta users.teamId).
+  window._presByTeam = (typeof buildPresidentByTeam==='function')
+    ? await buildPresidentByTeam()
+    : {};
+
   el.innerHTML = `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -89,7 +94,7 @@ function renderTeamsTable(teams){
       </td>
       <td style="font-weight:600;">${t.name}</td>
       <td><span class="badge badge-gray">${t.ini||'—'}</span></td>
-      <td style="color:var(--txt2);">${t.pres||'—'}</td>
+      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escTxt(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td>
         <span class="badge ${t.status==='ACTIVO'?'badge-green':'badge-gray'}">
           ${t.status||'ACTIVO'}
@@ -122,6 +127,10 @@ async function filterTeamsTable(){
 async function openTeamModal(id=null){
   let team = id ? await dbGet('teams',id) : null;
   const wrap = document.getElementById('team-modal-wrap');
+  // Cuentas para el selector de presidente (vínculo real users.teamId).
+  const _presUsers = (typeof loadUsersForSelect==='function') ? await loadUsersForSelect() : [];
+  const _presLinkedUid = id ? (_presUsers.find(u=>u.teamId===id)?.uid || '') : '';
+  const _presEsc = (v)=>String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="team-modal">
@@ -167,8 +176,16 @@ async function openTeamModal(id=null){
         </div>
 
         <div class="form-group">
-          <label>Presidente / Suscriptor</label>
-          <input type="text" id="tf-pres" value="${team?.pres||''}" placeholder="Nombre del suscriptor">
+          <label>Presidente / Suscriptor <span style="font-size:11px;color:var(--txt3);font-weight:400;">(cuenta vinculada)</span></label>
+          ${_presUsers.length
+            ? `<select id="tf-pres-uid" style="width:100%;padding:9px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:15px;">
+                 <option value="">— sin presidente —</option>
+                 ${_presUsers.map(u=>`<option value="${u.uid}" ${u.uid===_presLinkedUid?'selected':''}>${_presEsc(u.name)}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
+               </select>
+               <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Se asigna la cuenta del suscriptor; el vínculo es la fuente de verdad (no texto libre).</div>`
+            : `<input type="text" id="tf-pres" value="${team?.pres||''}" placeholder="Nombre del suscriptor">
+               <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Inicia sesión como admin para vincular cuentas de presidente.</div>`
+          }
         </div>
 
         <div class="form-group">
@@ -353,7 +370,9 @@ function setTeamColor(color, target='primary'){
 async function saveTeam(id){
   const name  = document.getElementById('tf-name').value.trim();
   const ini   = document.getElementById('tf-ini').value.trim().toUpperCase();
-  const pres  = document.getElementById('tf-pres').value.trim();
+  // `pres` (texto legacy) solo existe en modo sin cuentas; si hay selector, se preserva el valor previo.
+  const _presInput = document.getElementById('tf-pres');
+  const pres  = _presInput ? _presInput.value.trim() : (id ? ((await dbGet('teams',id))?.pres || '') : '');
   const color = document.getElementById('tf-color').value;
   const color2 = document.getElementById('tf-color2')?.value || color;
   const status= document.getElementById('tf-status').value;
@@ -380,6 +399,7 @@ async function saveTeam(id){
     updatedAt: new Date().toISOString(),
   };
 
+  let teamId = id;
   if(id){
     const existing = await dbGet('teams',id);
     // Si el nombre cambió, agregar el nombre anterior automáticamente al historial
@@ -396,8 +416,13 @@ async function saveTeam(id){
     // Notificar cambio de equipo para recargar vistas dinámicas
     await notifyTeamChanged(id);
   } else {
-    await dbAdd('teams',{...data, season:1, createdAt:new Date().toISOString()});
+    teamId = await dbAdd('teams',{...data, season:1, createdAt:new Date().toISOString()});
     showToast('Equipo creado');
+  }
+  // Vincular la cuenta del presidente (selector). Mueve users.teamId.
+  const _presSel = document.getElementById('tf-pres-uid');
+  if(_presSel && typeof updatePresidentLink==='function'){
+    await updatePresidentLink(teamId, _presSel.value || null);
   }
   closeTeamModal();
   renderAdmTeams();

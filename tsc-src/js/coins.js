@@ -5,6 +5,10 @@
 async function renderAdmCoins(){
   const el = document.getElementById('adm-coins-content');
   const teams = await dbGetAll('teams');
+  // Mapa teamId → presidente vinculado (cuenta users.teamId).
+  window._presByTeam = (typeof buildPresidentByTeam==='function')
+    ? await buildPresidentByTeam()
+    : {};
   const total   = teams.reduce((s,t)=>s+(t.yunacoin||0),0);
   const promedio = teams.length ? Math.round(total/teams.length) : 0;
   const maxCoins = Math.max(...teams.map(t=>t.yunacoin||0),1);
@@ -48,7 +52,7 @@ function renderCoinsTable(teams, maxCoins){
         ${t.logo?`<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${t.ini||'?'}</span>`}
       </div></td>
       <td style="font-weight:600;">${t.name}</td>
-      <td style="color:var(--txt2);">${t.pres||'—'}</td>
+      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${String(p).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td style="text-align:right;font-family:'Bebas Neue';font-size:22px;color:var(--gold);">${coins.toLocaleString('es-CL')}</td>
       <td><div style="display:flex;align-items:center;gap:6px;">
         <div style="flex:1;height:4px;background:var(--brd2);border-radius:2px;overflow:hidden;">

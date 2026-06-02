@@ -29,12 +29,46 @@ function _lmIsKnockout(phaseType){
   return ['bracket','single','playoff'].includes(phaseType);
 }
 
+/* ¿Este partido EXIGE un ganador al finalizar?
+   - bracket / single (partido único): sí.
+   - playoff: solo el partido DECISIVO de la serie (último leg). La ida puede
+     terminar empatada — la serie se resuelve por el global/visita/penales.
+   - grupos: no (el empate es un resultado válido). */
+function _liveMustHaveWinner(m, phase){
+  const t = phase?.type;
+  if(t==='bracket' || t==='single') return true;
+  if(t==='playoff'){
+    const legsCount = parseInt(phase?.config?.legs)||2;
+    return legsCount<=1 || m.leg===legsCount;
+  }
+  return false;
+}
+
 /* La gestión del partido en vivo SOLO está permitida en modo admin.
    El "modo público" es una vista de espectador (solo-lectura), aunque
    el usuario tenga rol admin. Las reglas de Firestore son la barrera
    real; esto evita además mostrar/usar controles de edición fuera de admin. */
 function _liveCanEdit(){
   return typeof STATE !== 'undefined' && STATE.mode === 'admin';
+}
+
+/* Devuelve OTRO partido que esté EN VIVO (distinto de exceptId), o null.
+   Solo puede haber un partido en vivo a la vez en todo el torneo. */
+async function _findOtherLiveMatch(exceptId){
+  try {
+    const all = await dbGetAll('matches', m=>!!m.live);
+    return all.find(m=>m.id!==exceptId) || null;
+  } catch(_){ return null; }
+}
+
+/* Avisa (toast) si ya hay otro partido en vivo. Devuelve true si está bloqueado. */
+async function _blockIfOtherLive(exceptId){
+  const other = await _findOtherLiveMatch(exceptId);
+  if(other){
+    showToast('Ya hay un partido EN VIVO. Finalízalo antes de iniciar otro.', 'error');
+    return true;
+  }
+  return false;
 }
 
 /* Refresca la vista de admin de fondo (lista de fechas o bracket). */
@@ -46,12 +80,16 @@ function _liveRefreshBackground(){
   } else if(ctx.kind==='bracket' && typeof renderBracket==='function'){
     const cid = document.querySelector('[id^="bracket-container-"]')?.id;
     if(cid) renderBracket(ctx.phaseId, cid, true);
+  } else if(ctx.kind==='playoff' && typeof renderPlayoff==='function'){
+    const cid = document.querySelector('[id^="playoff-container-"]')?.id;
+    if(cid) renderPlayoff(ctx.phaseId, cid, true);
   }
 }
 
 /* ---- Iniciar EN VIVO: fase de grupos ---- */
 async function startLiveGroupMatch(matchId, phaseId, groupIdx){
   if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+  if(await _blockIfOtherLive(matchId)) return;
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
   const now = new Date().toISOString();
@@ -74,6 +112,7 @@ async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, ma
   if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   phaseId = parseInt(phaseId, 10);
   const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+  if(await _blockIfOtherLive(existing[0]?.id)) return;
   const now = new Date().toISOString();
   let id;
   if(existing.length){
@@ -92,13 +131,37 @@ async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, ma
   await openLiveMatch(id);
 }
 
+/* ---- Iniciar EN VIVO: leg de playoff (serie ida/vuelta) ---- */
+async function startLivePlayoffLeg(phaseId, slotId, matchIdx, leg, teamA, teamB){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+  phaseId = parseInt(phaseId, 10);
+  const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+  if(await _blockIfOtherLive(existing[0]?.id)) return;
+  const now = new Date().toISOString();
+  let id;
+  if(existing.length){
+    id = existing[0].id;
+    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true, liveStartAt: existing[0].liveStartAt||now, liveEndAt:null });
+  } else {
+    id = await dbAdd('matches', {
+      slotId, phaseId, teamA, teamB,
+      goalsA:0, goalsB:0, penA:null, penB:null,
+      matchIdx, leg, season:STATE.season,
+      live:true, liveStartAt:now, liveEndAt:null, date:now,
+    });
+  }
+  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
+  _liveCtx = { kind:'playoff', phaseId };
+  await openLiveMatch(id);
+}
+
 /* ---- Abrir el centro en vivo ---- */
 async function openLiveMatch(matchId){
   if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
   const phase = await dbGet('phases', m.phaseId);
-  const knockout = _lmIsKnockout(phase?.type);
+  const knockout = _liveMustHaveWinner(m, phase); // exige ganador (prórroga/penales)
 
   const allTeams = await dbGetAll('teams');
   const byId = {}; allTeams.forEach(t=>byId[t.id]=t);
@@ -133,6 +196,7 @@ async function openLiveMatch(matchId){
 
   // Acciones del pie según tipo de fase
   let footer = `<button class="btn" onclick="closeLiveMatch()">Cerrar</button>`;
+  footer += `<button class="btn btn-danger btn-sm" onclick="liveDiscard(${matchId})" title="Cancelar el en vivo (no queda como jugado)">🗑 Descartar</button>`;
   if(knockout){
     if(!m.extraTime){
       footer += `<button class="btn" onclick="liveSetExtraTime(${matchId})" title="Entró en tiempo extra">⏱ Prórroga</button>`;
@@ -251,10 +315,10 @@ async function liveFinalize(matchId){
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
   const phase = await dbGet('phases', m.phaseId);
-  const knockout = _lmIsKnockout(phase?.type);
+  const mustWin = _liveMustHaveWinner(m, phase);
   const ga = m.goalsA||0, gb = m.goalsB||0;
 
-  if(knockout && ga===gb){
+  if(mustWin && ga===gb){
     const pa = m.penA, pb = m.penB;
     if(pa==null || pb==null || pa===pb){
       _liveWarn('Eliminatoria empatada: define un ganador por prórroga o penales.');
@@ -276,6 +340,29 @@ async function liveFinalize(matchId){
   showToast(`Partido finalizado · ${ga}-${gb}`);
   closeLiveMatch();
   _liveRefreshBackground();
+}
+
+/* Cancela el partido EN VIVO sin dejarlo como jugado.
+   - bracket/playoff (con slotId): borra el doc → vuelve a "por jugar".
+   - grupos: quita live y borra el marcador → vuelve a pendiente. */
+async function liveDiscard(matchId){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador','error'); return; }
+  const m = await dbGet('matches', matchId);
+  if(!m) return;
+  const doDiscard = async ()=>{
+    if(m.slotId){
+      if(typeof removeHistoryByMatchRef==='function') await removeHistoryByMatchRef(m.id);
+      await dbDelete('matches', m.id);
+    } else {
+      await dbPut('matches', { ...m, live:false, goalsA:null, goalsB:null, penA:null, penB:null, extraTime:false, liveStartAt:null, liveEndAt:null });
+    }
+    if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+    showToast('Partido en vivo descartado');
+    closeLiveMatch();
+  };
+  if(typeof showConfirm==='function'){
+    showConfirm('¿Descartar partido en vivo?', 'Se cancelará el EN VIVO y el partido volverá a "por jugar" (no queda como 0-0).', doDiscard);
+  } else { await doDiscard(); }
 }
 
 function closeLiveMatch(){

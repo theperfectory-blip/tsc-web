@@ -174,7 +174,9 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     // Calcular totales de serie
     const totA=legData.reduce((s,l)=>s+(l.goalsA||0),0);
     const totB=legData.reduce((s,l)=>s+(l.goalsB||0),0);
-    const allPlayed=legData.every(l=>l.goalsA!==null && l.goalsB!==null);
+    // Un leg EN VIVO no cierra la serie (no se corona ganador hasta finalizar).
+    const anyLegLive=legData.some(l=>l.live);
+    const allPlayed=!anyLegLive && legData.every(l=>l.goalsA!==null && l.goalsB!==null);
     const decidingLeg = legData[legsCount-1];
     const penA = decidingLeg?.penA ?? null;
     const penB = decidingLeg?.penB ?? null;
@@ -208,18 +210,34 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     }
 
     const legHtml=legData.map((ld,li)=>{
-      const ldTeamAName = ld.teamA ? (teamById[ld.teamA] || '') : '';
-      const ldTeamBName = ld.teamB ? (teamById[ld.teamB] || '') : '';
+      const ldTeamAName = ld.teamA ? (teamById[ld.teamA] || (typeof ld.teamA==='string'?ld.teamA:'')) : '';
+      const ldTeamBName = ld.teamB ? (teamById[ld.teamB] || (typeof ld.teamB==='string'?ld.teamB:'')) : '';
+      const legNo = li+1;
+      const isLegLive = !!ld.live;
+      const bothTeams = slot.teamA && slot.teamB;
+      // La vuelta solo se puede jugar cuando la ida ya terminó (no en vivo y con resultado).
+      const prevLegDone = (li===0) || (legData[li-1] && legData[li-1].goalsA!==null && legData[li-1].goalsB!==null && !legData[li-1].live);
+      // En vivo (admin) abre el centro; si no, el editor de leg.
+      const clickAttr = (isAdmin && isLegLive && ld.id!=null) ? `openLiveMatch(${ld.id})`
+        : (isAdmin && bothTeams && (ld.teamA&&ld.teamB)) ? `openPlayoffLegModal('${phaseId}','${ld.slotId}',${i},${legNo},'${ldTeamAName.replace(/'/g,"\\'")}','${ldTeamBName.replace(/'/g,"\\'")}',${isAdmin})` : '';
+      const sa = ld.goalsA!==null?ld.goalsA:'-', sb = ld.goalsB!==null?ld.goalsB:'-';
+      const colA = isLegLive?'var(--red)':(ld.goalsA!==null&&ld.goalsA>ld.goalsB?'var(--gold)':'var(--txt)');
+      const colB = isLegLive?'var(--red)':(ld.goalsB!==null&&ld.goalsB>ld.goalsA?'var(--gold)':'var(--txt)');
       return `
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--txt3);min-width:32px;">${legsCount>1?(li===0?'Ida':'Vuelta'):'Partido'}</span>
-        <div style="display:flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:4px 10px;cursor:${isAdmin&&slot.teamA&&slot.teamB?'pointer':'default'};"
-          ${isAdmin&&(ld.teamA&&ld.teamB)?`onclick="openPlayoffLegModal('${phaseId}','${ld.slotId}',${i},${li+1},'${ldTeamAName.replace(/'/g,"\\'")}','${ldTeamBName.replace(/'/g,"\\'")}',${isAdmin})"`:''}
-          onmouseover="${isAdmin?`this.style.borderColor='var(--gold)'`:''}" onmouseout="${isAdmin?`this.style.borderColor='var(--brd)'`:''}">
-          <span style="font-size:14px;font-weight:${ld.goalsA!==null&&ld.goalsA>ld.goalsB?'700':'400'};color:${ld.goalsA!==null&&ld.goalsA>ld.goalsB?'var(--gold)':'var(--txt)'};">${ld.goalsA!==null?ld.goalsA:'-'}</span>
+        <div ${isLegLive?'class="live-border"':''} style="display:flex;align-items:center;gap:6px;background:${isLegLive?'rgba(239,68,68,0.1)':'var(--card2)'};border:${isLegLive?'2px':'1px'} solid ${isLegLive?'var(--red)':'var(--brd)'};border-radius:var(--r);padding:4px 10px;cursor:${clickAttr?'pointer':'default'};"
+          ${clickAttr?`onclick="${clickAttr}"`:''}>
+          <span style="font-size:14px;font-weight:${ld.goalsA!==null&&ld.goalsA>ld.goalsB?'700':'400'};color:${colA};">${sa}</span>
           <span style="font-size:13px;color:var(--txt3);">-</span>
-          <span style="font-size:14px;font-weight:${ld.goalsB!==null&&ld.goalsB>ld.goalsA?'700':'400'};color:${ld.goalsB!==null&&ld.goalsB>ld.goalsA?'var(--gold)':'var(--txt)'};">${ld.goalsB!==null?ld.goalsB:'-'}</span>
+          <span style="font-size:14px;font-weight:${ld.goalsB!==null&&ld.goalsB>ld.goalsA?'700':'400'};color:${colB};">${sb}</span>
         </div>
+        ${isLegLive?'<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.5px;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>Vivo</span>':''}
+        ${(isAdmin && !isLegLive && bothTeams && prevLegDone)
+          ? `<button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${ld.slotId}',${i},${legNo},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:9px;padding:2px 6px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:3px;color:var(--red);cursor:pointer;">🔴 Vivo</button>`
+          : (isAdmin && !isLegLive && bothTeams && li>0 && !prevLegDone)
+          ? `<span style="font-size:9px;color:var(--txt3);font-style:italic;">termina la ida primero</span>`
+          : ''}
       </div>`;
     }).join('');
 

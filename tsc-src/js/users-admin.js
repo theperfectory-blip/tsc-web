@@ -122,3 +122,58 @@ async function adminSetUserTeam(uid, val){
     renderAdmUsuarios();
   }
 }
+
+/* Lista de cuentas para el selector de presidente en el modal de equipo.
+   Devuelve [] si no hay Firestore o no hay permiso (no admin). */
+async function loadUsersForSelect(){
+  if(typeof USE_FIRESTORE==='undefined' || !USE_FIRESTORE) return [];
+  if(typeof firebase==='undefined' || typeof firebase.firestore!=='function') return [];
+  try {
+    const snap = await firebase.firestore().collection('users').get();
+    return snap.docs.map(d=>({
+      uid: d.id,
+      name: d.data().displayName || d.data().email || '(sin nombre)',
+      teamId: d.data().teamId ?? null,
+      role: d.data().role,
+    }));
+  } catch(e){ console.warn('[users] no se pudo cargar:', e.code||e.message); return []; }
+}
+
+/* Vincula un equipo a una cuenta (users.teamId). Quita el vínculo previo
+   de quien tuviera este equipo, y asigna el nuevo presidente. Solo admin. */
+async function updatePresidentLink(teamId, newUid){
+  if(typeof USE_FIRESTORE==='undefined' || !USE_FIRESTORE) return;
+  if(typeof firebase==='undefined' || typeof firebase.firestore!=='function') return;
+  try {
+    const fs = firebase.firestore();
+    const snap = await fs.collection('users').get();
+    for(const d of snap.docs){
+      if(d.data().teamId===teamId && d.id!==newUid){
+        await fs.collection('users').doc(d.id).update({ teamId: null });
+      }
+    }
+    if(newUid){
+      await fs.collection('users').doc(newUid).update({ teamId });
+    }
+  } catch(e){ console.warn('[pres-link]', e.code||e.message); showToast('No se pudo vincular el presidente: '+(e.code||e.message),'error'); }
+}
+
+/* Mapa { teamId: nombre del presidente } a partir de las cuentas vinculadas
+   (users.teamId). Prioriza el rol 'president'; si no, cualquier cuenta
+   vinculada (p.ej. un admin dueño de su club). Solo en backend Firestore. */
+async function buildPresidentByTeam(){
+  const map = {};
+  if(typeof USE_FIRESTORE==='undefined' || !USE_FIRESTORE) return map;
+  if(typeof firebase==='undefined' || typeof firebase.firestore!=='function') return map;
+  try {
+    const snap = await firebase.firestore().collection('users').get();
+    snap.docs.forEach(d=>{
+      const u = d.data();
+      if(u.teamId==null) return;
+      const name = u.displayName || u.email || 'Presidente';
+      // Un presidente "real" pisa a cualquier otra cuenta vinculada al mismo club.
+      if(map[u.teamId]==null || u.role==='president') map[u.teamId] = name;
+    });
+  } catch(e){ console.warn('[pres] no se pudo cargar users:', e.code||e.message); }
+  return map;
+}
