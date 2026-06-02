@@ -81,15 +81,40 @@ async function renderPubPanel(){
       </div>`
     : '';
 
-  // Badge "EN VIVO" (solo con backend Firestore; el panel se actualiza solo)
-  const liveBadge = (typeof liveAvailable==='function' && liveAvailable())
-    ? `<div style="display:flex;align-items:center;gap:7px;margin-bottom:14px;font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.6px;text-transform:uppercase;color:#22c55e;">
-         <span class="live-dot"></span>En vivo · se actualiza solo
-       </div>`
-    : '';
+  // Bloque EN VIVO destacado (arriba del panel) — partidos en juego de la temporada.
+  // Solo aparece cuando hay al menos un partido en vivo; si no, no se muestra nada.
+  let liveBlock = '';
+  const liveMatches = await dbGetAll('matches', m=>m.live && (m.season===STATE.season||!m.season));
+  if(liveMatches.length){
+    const lvTeams = await dbGetAll('teams');
+    const lvById = {}; lvTeams.forEach(t=>lvById[t.id]=t);
+    const lvPhases = await dbGetAll('phases'); const phaseById={}; lvPhases.forEach(p=>phaseById[p.id]=p);
+    const lvComps  = await dbGetAll('competitions'); const compById={}; lvComps.forEach(c=>compById[c.id]=c);
+    const fmtT = iso => iso ? new Date(iso).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}) : '';
+    const logoOf = (tid)=> (typeof teamLogoHtml==='function') ? teamLogoHtml(lvById[tid]?.name||('#'+tid), lvById[tid], 30) : '';
+    liveBlock = `<div class="live-border" style="margin-bottom:22px;border:2px solid var(--red);border-radius:var(--r);overflow:hidden;background:rgba(239,68,68,0.05);">
+      ${liveMatches.map((m,idx)=>{
+        const a=lvById[m.teamA]?.name||('#'+m.teamA), b=lvById[m.teamB]?.name||('#'+m.teamB);
+        const ph=phaseById[m.phaseId]; const comp=ph?compById[ph.compId]:null;
+        const compName=comp?.name||'';
+        return `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(239,68,68,0.13);font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--red);${idx>0?'border-top:1px solid rgba(239,68,68,0.25);':''}">
+          <span class="live-dot live-dot-red"></span>En vivo${compName?` · <span style="color:var(--gold);">${compName}</span>`:''}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:9px;font-weight:700;font-size:16px;">${a}${logoOf(m.teamA)}</div>
+          <div style="text-align:center;min-width:90px;">
+            <div style="font-family:'Bebas Neue';font-size:34px;letter-spacing:2px;color:var(--red);line-height:1;">${m.goalsA||0}-${m.goalsB||0}</div>
+            ${m.liveStartAt?`<div style="font-size:10px;color:var(--txt3);margin-top:3px;">desde ${fmtT(m.liveStartAt)}</div>`:''}
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-start;gap:9px;font-weight:700;font-size:16px;">${logoOf(m.teamB)}${b}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
 
   el.innerHTML = `
-    ${liveBadge}
+    ${liveBlock}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       ${compBtns}
     </div>

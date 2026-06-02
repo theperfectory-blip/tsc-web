@@ -29,6 +29,14 @@ function _lmIsKnockout(phaseType){
   return ['bracket','single','playoff'].includes(phaseType);
 }
 
+/* La gestión del partido en vivo SOLO está permitida en modo admin.
+   El "modo público" es una vista de espectador (solo-lectura), aunque
+   el usuario tenga rol admin. Las reglas de Firestore son la barrera
+   real; esto evita además mostrar/usar controles de edición fuera de admin. */
+function _liveCanEdit(){
+  return typeof STATE !== 'undefined' && STATE.mode === 'admin';
+}
+
 /* Refresca la vista de admin de fondo (lista de fechas o bracket). */
 function _liveRefreshBackground(){
   const ctx = _liveCtx;
@@ -43,14 +51,18 @@ function _liveRefreshBackground(){
 
 /* ---- Iniciar EN VIVO: fase de grupos ---- */
 async function startLiveGroupMatch(matchId, phaseId, groupIdx){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
+  const now = new Date().toISOString();
   await dbPut('matches', {
     ...m,
     goalsA: m.goalsA!=null ? m.goalsA : 0,
     goalsB: m.goalsB!=null ? m.goalsB : 0,
     live: true,
-    playedAt: m.playedAt || new Date().toISOString(),
+    liveStartAt: m.liveStartAt || now,
+    liveEndAt: null,
+    playedAt: m.playedAt || now,
   });
   if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
   _liveCtx = { kind:'group', phaseId, groupIdx };
@@ -59,18 +71,20 @@ async function startLiveGroupMatch(matchId, phaseId, groupIdx){
 
 /* ---- Iniciar EN VIVO: eliminatoria (bracket) ---- */
 async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchIdx){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   phaseId = parseInt(phaseId, 10);
   const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+  const now = new Date().toISOString();
   let id;
   if(existing.length){
     id = existing[0].id;
-    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true });
+    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true, liveStartAt: existing[0].liveStartAt||now, liveEndAt:null });
   } else {
     id = await dbAdd('matches', {
       slotId, phaseId, teamA, teamB,
       goalsA:0, goalsB:0, penA:null, penB:null,
       roundIdx, matchIdx, season:STATE.season,
-      live:true, date:new Date().toISOString(),
+      live:true, liveStartAt:now, liveEndAt:null, date:now,
     });
   }
   if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
@@ -80,15 +94,17 @@ async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, ma
 
 /* ---- Abrir el centro en vivo ---- */
 async function openLiveMatch(matchId){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
   const phase = await dbGet('phases', m.phaseId);
   const knockout = _lmIsKnockout(phase?.type);
 
   const allTeams = await dbGetAll('teams');
-  const nameById = {}; allTeams.forEach(t=>nameById[t.id]=t.name);
-  const nameA = nameById[m.teamA] || String(m.teamA);
-  const nameB = nameById[m.teamB] || String(m.teamB);
+  const byId = {}; allTeams.forEach(t=>byId[t.id]=t);
+  const nameA = byId[m.teamA]?.name || String(m.teamA);
+  const nameB = byId[m.teamB]?.name || String(m.teamB);
+  const teamObjA = byId[m.teamA], teamObjB = byId[m.teamB];
 
   let wrap = document.getElementById('live-match-wrap');
   if(!wrap){ wrap=document.createElement('div'); wrap.id='live-match-wrap'; document.body.appendChild(wrap); }
@@ -96,12 +112,16 @@ async function openLiveMatch(matchId){
   const ga = m.goalsA||0, gb = m.goalsB||0;
   const hasPen = m.penA!=null && m.penB!=null;
   const showPen = knockout && (hasPen || (m.extraTime && ga===gb));
+  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}) : '—';
 
-  const scoreCol = (side, val)=>`
-    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-      <button class="btn" onclick="liveAdjust(${matchId},'${side}',1)" style="width:54px;height:42px;font-size:22px;padding:0;">+</button>
-      <div id="lm-${side}" style="font-family:'Bebas Neue';font-size:64px;line-height:1;min-width:70px;text-align:center;color:var(--txt);">${val}</div>
-      <button class="btn" onclick="liveAdjust(${matchId},'${side}',-1)" style="width:54px;height:42px;font-size:22px;padding:0;">−</button>
+  // Columna de un equipo: logo + nombre + marcador grande + botón GOL grande
+  const logoHtml = (name, obj)=> (typeof teamLogoHtml==='function') ? teamLogoHtml(name, obj, 44) : '';
+  const teamCol = (side, name, obj, val)=>`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+      ${logoHtml(name, obj)}
+      <div style="font-size:14px;font-weight:700;text-align:center;line-height:1.2;min-height:34px;display:flex;align-items:center;">${_lmEsc(name)}</div>
+      <div id="lm-${side}" style="font-family:'Bebas Neue';font-size:64px;line-height:1;text-align:center;color:var(--txt);">${val}</div>
+      <button class="btn btn-primary" onclick="liveGoal(${matchId},'${side}')" style="width:100%;font-family:'Barlow Condensed';font-weight:700;font-size:16px;letter-spacing:1px;padding:10px 0;">⚽ GOL</button>
     </div>`;
 
   const penCol = (side, val)=>`
@@ -132,18 +152,17 @@ async function openLiveMatch(matchId){
         <button class="modal-close" onclick="closeLiveMatch()">×</button>
       </div>
       <div class="modal-body">
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:14px;">
-          <div style="font-size:15px;font-weight:700;text-align:center;line-height:1.2;">${_lmEsc(nameA)}</div>
-          <div style="font-family:'Bebas Neue';font-size:18px;color:var(--txt3);">VS</div>
-          <div style="font-size:15px;font-weight:700;text-align:center;line-height:1.2;">${_lmEsc(nameB)}</div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;">
-          ${scoreCol('ga', ga)}
-          <div style="font-family:'Bebas Neue';font-size:40px;color:var(--txt3);">-</div>
-          ${scoreCol('gb', gb)}
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:start;">
+          ${teamCol('ga', nameA, teamObjA, ga)}
+          <div style="font-family:'Bebas Neue';font-size:44px;color:var(--txt3);padding-top:104px;">-</div>
+          ${teamCol('gb', nameB, teamObjB, gb)}
         </div>
 
-        <div id="lm-penalty-section" style="margin-top:16px;display:${showPen?'block':'none'};">
+        <div style="display:flex;justify-content:center;margin-top:14px;">
+          <button class="btn btn-sm" onclick="liveReset(${matchId})" title="Reiniciar marcador a 0-0" style="color:var(--txt2);">↺ Reiniciar</button>
+        </div>
+
+        <div id="lm-penalty-section" style="margin-top:14px;display:${showPen?'block':'none'};">
           <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-top:12px;border-top:1px solid var(--brd);">Penales</div>
           <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;">
             ${penCol('a', m.penA)}
@@ -152,7 +171,12 @@ async function openLiveMatch(matchId){
           </div>
         </div>
 
-        <div id="lm-warn" style="margin-top:12px;font-size:12px;color:var(--yellow);text-align:center;min-height:16px;"></div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--brd);display:flex;justify-content:space-between;font-size:12px;color:var(--txt3);">
+          <span>🟢 Inicio: <strong style="color:var(--txt2);">${fmtTime(m.liveStartAt)}</strong></span>
+          <span>🏁 Fin: <strong style="color:var(--txt2);">${m.liveEndAt?fmtTime(m.liveEndAt):'en juego'}</strong></span>
+        </div>
+
+        <div id="lm-warn" style="margin-top:10px;font-size:12px;color:var(--yellow);text-align:center;min-height:16px;"></div>
       </div>
       <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
         ${footer}
@@ -161,8 +185,26 @@ async function openLiveMatch(matchId){
   </div>`;
 }
 
+/* Marca un gol (botón ⚽ GOL): +1 al equipo, persiste y refresca el número. */
+async function liveGoal(matchId, side){
+  await liveAdjust(matchId, side, 1);
+}
+
+/* Reinicia el marcador a 0-0 (sin perder el estado EN VIVO). */
+async function liveReset(matchId){
+  if(!_liveCanEdit()) return;
+  const m = await dbGet('matches', matchId);
+  if(!m) return;
+  await dbPut('matches', { ...m, goalsA:0, goalsB:0, live:true });
+  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+  const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = 0;
+  const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = 0;
+  _liveClearWarn();
+}
+
 /* Ajusta el marcador (clamp ≥0), persiste y refresca solo los números. */
 async function liveAdjust(matchId, side, delta){
+  if(!_liveCanEdit()) return;
   const m = await dbGet('matches', matchId);
   if(!m) return;
   let ga = m.goalsA||0, gb = m.goalsB||0;
@@ -176,6 +218,7 @@ async function liveAdjust(matchId, side, delta){
 }
 
 async function liveSetExtraTime(matchId){
+  if(!_liveCanEdit()) return;
   const m = await dbGet('matches', matchId);
   if(!m) return;
   await dbPut('matches', { ...m, extraTime:true, live:true });
@@ -188,6 +231,7 @@ function liveTogglePenalties(matchId){
 }
 
 async function livePenAdjust(matchId, side, delta){
+  if(!_liveCanEdit()) return;
   const m = await dbGet('matches', matchId);
   if(!m) return;
   let pa = m.penA||0, pb = m.penB||0;
@@ -203,6 +247,7 @@ function _liveWarn(msg){ const w=document.getElementById('lm-warn'); if(w) w.tex
 function _liveClearWarn(){ const w=document.getElementById('lm-warn'); if(w) w.textContent=''; }
 
 async function liveFinalize(matchId){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
   const phase = await dbGet('phases', m.phaseId);
@@ -218,11 +263,13 @@ async function liveFinalize(matchId){
     }
   }
 
+  const now = new Date().toISOString();
   await dbPut('matches', {
     ...m,
     goalsA:ga, goalsB:gb,
     live:false,
-    playedAt: m.playedAt || new Date().toISOString(),
+    liveEndAt: now,
+    playedAt: m.playedAt || now,
   });
   if(typeof appendOrUpdateHistory==='function') await appendOrUpdateHistory(matchId);
   if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);

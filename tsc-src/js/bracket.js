@@ -688,7 +688,8 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalS
     var hasResult=slot.ga!==null&&slot.gb!==null&&!isLive;
     var sA=slot.ga!==null?(hasPen?slot.ga+'('+slot.penA+')':''+slot.ga):'-';
     var sB=slot.gb!==null?(hasPen?slot.gb+'('+slot.penB+')':''+slot.gb):'-';
-    var cfn=(!aTbd&&!bTbd)
+    // Solo el modo admin puede abrir el editor (en vivo o resultado). En público, solo-lectura.
+    var cfn=(!aTbd&&!bTbd&&isAdmin)
       ? (isLive ? "openLiveMatch("+slot.matchId+")" : "openBracketMatchModal('"+phase.id+"',"+ri+","+realMi+","+isAdmin+")")
       : null;
     // Encabezado EN VIVO y botón para iniciar (admin)
@@ -714,7 +715,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalS
     }
 
     var cardBc = isLive ? 'var(--red)' : bc;
-    return '<div style="background:var(--card);border:1px solid '+cardBc+';border-radius:10px;overflow:hidden;'
+    return '<div'+(isLive?' class="live-border"':'')+' style="background:var(--card);border:'+(isLive?'2px':'1px')+' solid '+cardBc+';border-radius:10px;overflow:hidden;'
       +'width:'+CARD_W+'px;flex-shrink:0;box-shadow:0 2px 16px rgba(0,0,0,0.12);" '
       +'onmouseover="this.style.boxShadow=\'0 4px 24px rgba(201,168,76,0.22)\';this.style.borderColor=\'var(--gold-b)\'" '
       +'onmouseout="this.style.boxShadow=\'0 2px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\''+cardBc+'\'">'
@@ -875,16 +876,22 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
     p.type==='playoff' && (p.season===STATE.season||!p.season) && p.id!==phaseId
   );
   const competitions = await dbGetAll('competitions');
+  const allTeamsRef = (await dbGetAll('teams', t=>(t.status||'ACTIVO')==='ACTIVO'))
+    .slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
 
   // Ref actual para este slot/side
   const existing = (phase.slotRefs||[]).find(r=>r.slotIdx===slotIdx&&r.side===side);
 
-  let selSourceType = existing?.type==='playoff_winner' ? 'playoff_winner' : 'ref';
+  let selSourceType = existing?.type==='playoff_winner' ? 'playoff_winner'
+                    : existing?.type==='team' ? 'team'
+                    : existing?.type==='ref' ? 'ref'
+                    : (groupPhases.length ? 'ref' : 'team'); // sin fase previa → equipo directo
   let selPhaseId  = existing?.type==='ref' ? existing.phaseId : (groupPhases[0]?.id||null);
   let selGroupIdx = existing?.groupIdx ?? 0;
   let selPlace    = existing?.place    ?? 1;
   let selPlayoffPhaseId = existing?.type==='playoff_winner' ? existing.phaseId : (playoffPhases[0]?.id||null);
   let selPlayoffMatchIdx = existing?.type==='playoff_winner' ? (existing.matchIdx ?? 0) : 0;
+  let selTeamId = existing?.type==='team' ? parseInt(existing.teamId) : null;
 
   let wrap = document.getElementById('slot-ref-modal-wrap');
   if(!wrap){ wrap=document.createElement('div'); wrap.id='slot-ref-modal-wrap'; document.body.appendChild(wrap); }
@@ -922,6 +929,19 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       <option value="${i}" ${i===selPlayoffMatchIdx?'selected':''}>Llave ${i+1}</option>`
     ).join('');
 
+    // Equipo directo: lista de equipos, EXCLUYENDO los ya asignados a otros slots de esta fase.
+    const usedTeamIds = new Set((phase.slotRefs||[])
+      .filter(r=>r.type==='team' && !(r.slotIdx===slotIdx && r.side===side))
+      .map(r=>parseInt(r.teamId)));
+    const availTeams = allTeamsRef.filter(t=>!usedTeamIds.has(t.id));
+    if(selSourceType==='team' && (selTeamId==null || usedTeamIds.has(selTeamId))){
+      selTeamId = availTeams[0]?.id ?? null;
+    }
+    const teamOpts = availTeams.map(t=>{
+      const nm = String(t.name||('#'+t.id)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<option value="${t.id}" ${t.id===selTeamId?'selected':''}>${nm}</option>`;
+    }).join('');
+
     // Preview: resolver quién sería ahora
     let previewTeam = '—';
     if(selSourceType==='ref' && selPhaseId){
@@ -953,14 +973,21 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       } else {
         previewTeam = winnerRef; // legacy: nombre directo
       }
+    } else if(selSourceType==='team' && selTeamId!=null){
+      const t = await dbGet('teams', selTeamId);
+      previewTeam = t?.name || `#${selTeamId}`;
     }
 
     const ordinal = ['1ro','2do','3ro','4to','5to','6to','7mo','8vo','9no'][selPlace-1]||`${selPlace}°`;
     const groupLetter = String.fromCharCode(65+selGroupIdx);
     const shortLabel = selSourceType==='ref'
       ? `G${groupLetter}-${ordinal}`
+      : selSourceType==='team'
+      ? (previewTeam||'Equipo')
       : `Ganador Llave ${selPlayoffMatchIdx+1}`;
-    const badgePreview = refBadgeHTML(shortLabel);
+    const badgePreview = selSourceType==='team'
+      ? `<span style="font-size:14px;font-weight:700;color:var(--gold);">${previewTeam}</span>`
+      : refBadgeHTML(shortLabel);
 
     wrap.innerHTML = `
     <div class="modal-overlay open" id="slot-ref-modal">
@@ -980,9 +1007,17 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
           <div class="form-group">
             <label>Tipo de referencia</label>
             <select id="sref-source" style="width:100%;">
+              <option value="team" ${selSourceType==='team'?'selected':''}>Equipo directo</option>
               <option value="ref" ${selSourceType==='ref'?'selected':''}>Posición de fase de grupos</option>
               <option value="playoff_winner" ${selSourceType==='playoff_winner'?'selected':''}>Ganador de llave (playoff)</option>
             </select>
+          </div>
+
+          <div id="sref-team-block" style="display:${selSourceType==='team'?'block':'none'};">
+            <div class="form-group">
+              <label>Equipo</label>
+              <select id="sref-team" style="width:100%;" ${availTeams.length?'':'disabled style="opacity:0.6;"'}>${availTeams.length?teamOpts:'<option>(todos los equipos ya están asignados)</option>'}</select>
+            </div>
           </div>
 
           <div id="sref-ref-block" style="display:${selSourceType==='ref'?'block':'none'};">
@@ -1054,6 +1089,10 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       selPlayoffMatchIdx = parseInt(e.target.value);
       buildModal();
     });
+    document.getElementById('sref-team')?.addEventListener('change', e=>{
+      selTeamId = parseInt(e.target.value);
+      buildModal();
+    });
 
     // Botones con addEventListener para evitar conflictos con confirm-overlay
     document.getElementById('slot-ref-remove-btn')?.addEventListener('click', ()=>{
@@ -1077,7 +1116,11 @@ async function saveSlotRef(phaseId, slotIdx, side){
   const phase = await dbGet('phases', phaseId);
   const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
 
-  if(sourceType==='playoff_winner'){
+  if(sourceType==='team'){
+    const teamId = parseInt(document.getElementById('sref-team')?.value);
+    if(!Number.isFinite(teamId)){ showToast('Selecciona un equipo','error'); return; }
+    refs.push({ type:'team', slotIdx, side, teamId });
+  } else if(sourceType==='playoff_winner'){
     const srcPlayoffPhaseId = parseInt(document.getElementById('sref-playoff-phase')?.value);
     const matchIdx = parseInt(document.getElementById('sref-playoff-key')?.value);
     if(!srcPlayoffPhaseId || isNaN(matchIdx)) return;

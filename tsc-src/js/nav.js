@@ -12,6 +12,8 @@ function setMode(mode){
   }
   STATE.mode = mode;
   const isAdmin = mode==='admin';
+  // Al salir de admin, cerrar el centro de partido en vivo (es solo-gestión).
+  if(!isAdmin){ const _lm=document.getElementById('live-match-wrap'); if(_lm) _lm.innerHTML=''; }
   document.getElementById('pubnav').classList.toggle('open',!isAdmin);
   document.getElementById('sidebar').classList.toggle('open',isAdmin);
   document.getElementById('main').classList.toggle('with-sidebar',isAdmin);

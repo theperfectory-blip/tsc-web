@@ -202,10 +202,19 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
            <span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:0.5px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo</span>
          </div>`
       : `<strong style="font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;">${hasR?gA+'-'+gB:'vs'}</strong>`;
+    // Horas de inicio/fin (se graban al jugar en vivo). Aparecen al costado derecho.
+    const fmtHora = iso => iso ? new Date(iso).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}) : '';
+    const timeCell = (m.liveStartAt||m.liveEndAt)
+      ? `<td style="width:104px;text-align:right;padding:6px 14px;font-size:10px;color:var(--txt3);white-space:nowrap;line-height:1.7;">
+           ${m.liveStartAt?`<div>🟢 ${fmtHora(m.liveStartAt)}</div>`:''}
+           ${m.liveEndAt?`<div>🏁 ${fmtHora(m.liveEndAt)}</div>`:'<div style="color:var(--red);">● en juego</div>'}
+         </td>`
+      : `<td style="width:104px;"></td>`;
     return `<tr${isLive?' style="background:rgba(239,68,68,0.06);"':''}>
       <td style="text-align:right;font-weight:500;padding:9px 14px;${fA}">${teamAName}</td>
       <td style="text-align:center;width:80px;padding:0 4px;">${scoreCell}</td>
       <td style="font-weight:500;padding:9px 14px;${fB}">${teamBName}</td>
+      ${timeCell}
       ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})">✕</button></td>`:''}
     </tr>`;
   }
@@ -367,10 +376,7 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
           } else if(hasR){
             centerCell = `<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`;
           } else {
-            centerCell = `<div style="display:flex;gap:4px;justify-content:center;">
-              <button class="btn btn-xs btn-primary" onclick="openEditResultModal(${m.id},${phaseId},${groupIdx})" style="font-size:11px;padding:3px 7px;" ${isFinalized?'disabled':''}>▶ Resultado</button>
-              <button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 7px;border:1px solid var(--red);color:var(--red);" ${isFinalized?'disabled':''}>🔴 Vivo</button>
-            </div>`;
+            centerCell = `<button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 10px;border:1px solid var(--red);color:var(--red);" ${isFinalized?'disabled':''}>🔴 Vivo</button>`;
           }
           return `<tr>
             <td style="text-align:right;padding:7px 10px;${fA}">${teamAName}</td>
@@ -967,6 +973,11 @@ async function openEditResultModal(matchId, phaseId, groupIdx){
           <input type="date" id="er-played-at" value="${suggestedDate}"
             style="width:100%;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
         </div>
+        ${(m.liveStartAt||m.liveEndAt)?`
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--brd);display:flex;justify-content:space-between;font-size:12px;color:var(--txt3);">
+          <span>🟢 Inicio: <strong style="color:var(--txt2);">${m.liveStartAt?new Date(m.liveStartAt).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—'}</strong></span>
+          <span>🏁 Fin: <strong style="color:var(--txt2);">${m.liveEndAt?new Date(m.liveEndAt).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}):'—'}</strong></span>
+        </div>`:''}
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="closeEditResultModal()">Cancelar</button>

@@ -197,3 +197,12 @@
   70% {box-shadow:0 0 0 6px rgba(239,68,68,0);}
   100%{box-shadow:0 0 0 0 rgba(239,68,68,0);}
 }
+
+/* Marco EN VIVO parpadeante (Fase 6B.2) — sincronizado con .live-dot-red (1.4s) */
+.live-border{
+  animation: liveBorderPulse 1.4s infinite;
+}
+@keyframes liveBorderPulse{
+  0%,100%{ border-color:#ef4444; }
+  50%    { border-color:rgba(239,68,68,0.28); }
+}
