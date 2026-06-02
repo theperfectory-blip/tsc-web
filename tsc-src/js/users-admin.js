@@ -19,14 +19,16 @@ async function renderAdmUsuarios(){
     return;
   }
 
-  let users, teams;
+  let users, teams, locked = false;
   try {
-    const [snap, teamsRaw] = await Promise.all([
+    const [snap, teamsRaw, lk] = await Promise.all([
       firebase.firestore().collection('users').get(),
       dbGetAll('teams'),
+      dbGetAll('settings', s => s.key === 'lockTeamEdits'),
     ]);
     users = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
     teams = teamsRaw;
+    locked = lk.length ? !!lk[0].value : false;
   } catch(e){
     el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${_uaEsc(e.code||e.message)}</div>`;
     return;
@@ -58,6 +60,10 @@ async function renderAdmUsuarios(){
       ${users.length} usuario${users.length===1?'':'s'} · asigna el <b>rol</b> y el <b>club</b> de cada uno.
       Un admin controla todo; un presidente solo edita su club.
     </div>
+    <label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--txt);margin-bottom:14px;cursor:pointer;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:8px 12px;">
+      <input type="checkbox" ${locked?'checked':''} onchange="adminToggleTeamLock(this.checked)">
+      🔒 Bloquear que los presidentes editen el <b>nombre y logo</b> de su club
+    </label>
     <div class="card" style="overflow:auto;">
       <table class="tbl" style="width:100%;font-size:13px;">
         <thead><tr>
@@ -86,6 +92,17 @@ async function renderAdmUsuarios(){
         </tbody>
       </table>
     </div>`;
+}
+
+async function adminToggleTeamLock(checked){
+  try {
+    const arr = await dbGetAll('settings', s => s.key === 'lockTeamEdits');
+    if (arr.length) await dbPut('settings', { ...arr[0], value: checked });
+    else await dbAdd('settings', { key: 'lockTeamEdits', value: checked });
+    showToast(checked ? '🔒 Edición de clubes bloqueada para presidentes' : 'Edición de clubes habilitada');
+  } catch(e){
+    showToast('Error: '+(e.code||e.message), 'error');
+  }
 }
 
 async function adminSetUserRole(uid, role){

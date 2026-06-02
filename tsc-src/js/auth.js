@@ -209,8 +209,8 @@ function renderAuthUI(){
     const name   = AUTH.profile?.displayName || AUTH.user.email;
     const roleLbl = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
     area.innerHTML =
-      `<span class="auth-user" title="${_authEsc(AUTH.user.email)}" style="color:var(--txt2);font-size:12px;margin-right:6px;">`
-      + `${_authEsc(name)} · ${roleLbl}</span>`
+      `<button class="auth-user" title="Ver mi perfil" onclick="openProfile()" style="background:none;border:none;color:var(--txt2);font-size:12px;margin-right:6px;cursor:pointer;text-decoration:underline;">`
+      + `${_authEsc(name)} · ${roleLbl}</button>`
       + `<button class="mode-btn" onclick="authSignOut()">Salir</button>`;
     if (btnAdm) btnAdm.style.display = (AUTH.role === 'admin') ? '' : 'none';
     if (btnPub) btnPub.style.display = (AUTH.role === 'admin') ? '' : 'none';
