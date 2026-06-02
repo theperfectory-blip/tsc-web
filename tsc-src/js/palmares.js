@@ -415,6 +415,18 @@ function renderTrophyByStyle(styleId, size=120){
 /* ---------------- Helpers de datos ---------------- */
 async function getAllPalmaresRecords(){ return dbGetAll('palmares'); }
 
+/* Orden de campeones dentro de una competición:
+   1) orden manual (campo `order`, ascendente) si existe;
+   2) si no, cronología por año y luego id (más reciente primero). */
+function _palmCompareChrono(a, b){
+  const oa = (typeof a.order === 'number') ? a.order : null;
+  const ob = (typeof b.order === 'number') ? b.order : null;
+  if(oa !== null && ob !== null) return oa - ob;
+  if(oa !== null) return -1;
+  if(ob !== null) return 1;
+  return (b.year||0) - (a.year||0) || (b.id||0) - (a.id||0);
+}
+
 async function aggregatePalmaresByTeam(){
   const recs = await getAllPalmaresRecords();
   const out = new Map();
@@ -687,7 +699,7 @@ async function renderPubPalmares(){
   const compData = PALMARES_COMPS.map(comp => {
     const compRecs = recs
       .filter(r => r.competition === comp.key)
-      .sort((a, b) => (b.year||0) - (a.year||0) || (b.id||0) - (a.id||0));
+      .sort(_palmCompareChrono);
     const champion = reigningChampion(recs, comp.key, overrides);
     const champTeam = champion ? teamById[champion.teamId] : null;
     return { comp, records: compRecs, champion, champTeam };
@@ -801,7 +813,7 @@ function buildInfoPanel(data, teamById){
   // Resto del historial: excluye al vigente y ordena year DESC (más reciente arriba)
   const restRecords = records
     .filter(r => !champion || r.id !== champion.id)
-    .sort((a, b) => (b.year || 0) - (a.year || 0) || (b.id || 0) - (a.id || 0));
+    .sort(_palmCompareChrono);
 
   const list = restRecords.map((r) => {
     const team = teamById[r.teamId] || {};
@@ -1158,7 +1170,7 @@ async function renderAdmPalmares(){
   // Para cada competición, lista de registros + el override actual
   const compSections = PALMARES_COMPS.map(c => {
     const compRecs = recs.filter(r => r.competition === c.key)
-      .sort((a, b) => (b.year||0) - (a.year||0) || (b.id||0) - (a.id||0));
+      .sort(_palmCompareChrono);
     const overrideId = overrides[c.key];
     const autoChamp = reigningChampion(recs, c.key, {}); // sin override
     const effective = reigningChampion(recs, c.key, overrides);
@@ -1203,6 +1215,7 @@ async function renderAdmPalmares(){
             <option value="">${_esc(autoLbl)}</option>
             ${opts}
           </select>
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones manualmente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="margin-top:6px;">↕ Ordenar</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1249,6 +1262,61 @@ async function setVigenteChampion(compKey, value){
   await setReigningOverride(compKey, recordId);
   if (typeof showToast === 'function') showToast(recordId ? 'Campeón vigente actualizado' : 'Vuelve al modo automático');
   renderAdmPalmares();
+}
+
+/* ---- Reordenamiento manual de campeones por competición ---- */
+async function openPalmaresReorder(compKey){
+  const [recs, teams] = await Promise.all([getAllPalmaresRecords(), dbGetAll('teams')]);
+  const teamById = {}; teams.forEach(t => teamById[t.id] = t);
+  const comp = PALMARES_COMPS.find(c => c.key === compKey);
+  const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+  window._palmReorderTeams = teamById;
+  const wrap = _palmModalWrap();
+  wrap.innerHTML = `
+  <div class="modal-overlay open" id="palmares-reorder-modal">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-hdr">
+        <div class="modal-title">Ordenar · ${_esc(comp?.label || compKey)}</div>
+        <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Usa ▲▼ para ordenar. El de arriba aparece primero en el palmarés.</div>
+        <div id="palm-reorder-list">${_palmReorderListHTML(list, teamById)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function _palmReorderListHTML(list, teamById){
+  return list.map((r, i) => {
+    const t = teamById[r.teamId];
+    const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--brd);border-radius:6px;margin-bottom:6px;">
+      <span style="width:18px;text-align:right;color:var(--txt3);font-size:12px;">${i+1}</span>
+      <span style="width:26px;height:26px;border-radius:6px;background:${t?.color||'#333'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none;">${_esc((t?.ini || t?.name || '?').slice(0,3))}</span>
+      <span style="flex:1;font-size:13px;min-width:0;">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span style="color:var(--txt3);font-size:11px;"> · ${_esc(extras)}</span>`:''}</span>
+      <button class="btn btn-xs" ${i===0?'disabled':''} onclick="palmaresMove('${_escAttr(r.competition)}',${r.id},-1)">▲</button>
+      <button class="btn btn-xs" ${i===list.length-1?'disabled':''} onclick="palmaresMove('${_escAttr(r.competition)}',${r.id},1)">▼</button>
+    </div>`;
+  }).join('');
+}
+
+async function palmaresMove(compKey, recId, dir){
+  const recs = await getAllPalmaresRecords();
+  const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+  const idx = list.findIndex(r => r.id === recId);
+  const ni = idx + dir;
+  if(idx < 0 || ni < 0 || ni >= list.length) return;
+  [list[idx], list[ni]] = [list[ni], list[idx]];
+  // Reasignar order secuencial 1..n y guardar los que cambian
+  for(let i=0; i<list.length; i++){
+    if(list[i].order !== i+1){
+      await dbPut('palmares', {...list[i], order: i+1});
+      list[i].order = i+1;
+    }
+  }
+  const cont = document.getElementById('palm-reorder-list');
+  if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
 }
 
 /* Modal: agregar título */
