@@ -88,6 +88,9 @@
   </div>
 
   <div class="nav-section-lbl">Sistema</div>
+  <div class="nav-item" onclick="goAdminPage('usuarios-admin',this)">
+    <span class="nav-item-icon">☺</span>Usuarios
+  </div>
   <div class="nav-item" onclick="goAdminPage('temporadas-admin',this)">
     <span class="nav-item-icon">◷</span>Temporadas
   </div>
@@ -140,6 +143,11 @@
   <div id="page-equipos-admin" class="page">
     <div class="section-lbl">Gestión de equipos</div>
     <div id="adm-teams-content"></div>
+  </div>
+
+  <div id="page-usuarios-admin" class="page">
+    <div class="section-lbl">Usuarios y permisos</div>
+    <div id="adm-usuarios-content"></div>
   </div>
 
   <div id="page-competiciones-admin" class="page">
@@ -247,6 +255,7 @@
 <script src="js/firebase-config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/users-admin.js"></script>
 <script src="js/ui-utils.js"></script>
 <script src="js/nav.js"></script>
 <script src="js/color-picker.js"></script>

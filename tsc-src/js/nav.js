@@ -76,6 +76,7 @@ async function renderAdminPage(page){
   switch(page){
     case 'dashboard':           await renderAdmDashboard();   break;
     case 'equipos-admin':       await renderAdmTeams();       break;
+    case 'usuarios-admin':      await renderAdmUsuarios();    break;
     case 'competiciones-admin': await renderAdmComps();       break;
     case 'fases-admin':         await renderAdmFases();       break;
     case 'partidos-admin':      await renderAdmMatches();     break;
