@@ -686,8 +686,18 @@ async function exportHistoryToExcel(){
 const _histStdState = {
   fJuego: '',
   fTemp: '',
+  sortBy: 'pts',     // pj | v | e | p | gf | gc | dg | pts | rend
+  sortDir: 'desc',   // 'asc' | 'desc'
   mode: 'admin',
 };
+
+/* Encabezado de columna ordenable (con flecha si está activa) */
+function _histStdTh(label, key){
+  const active = _histStdState.sortBy === key;
+  const arrow  = active ? (_histStdState.sortDir==='asc' ? ' ▲' : ' ▼') : '';
+  const col    = active ? 'color:var(--gold);font-weight:700;' : '';
+  return `<th onclick="histStdSort('${key}')" title="Ordenar por ${label}" style="text-align:center;cursor:pointer;user-select:none;white-space:nowrap;${col}">${label}${arrow}</th>`;
+}
 
 function _classifyOutcomeFIFA(r){
   // Empata: Empate o cualquiera definido por penales (PK).
@@ -797,10 +807,15 @@ async function _computeHistoricalStandings(){
     s.pts = s.v*3 + s.e;
     s.rendimiento = s.pj>0 ? (s.pts / (s.pj*3)) : 0;
   });
+  const _sb  = _histStdState.sortBy || 'pts';
+  const _dir = _histStdState.sortDir === 'asc' ? 1 : -1;
+  const _val = (s)=> _sb==='rend' ? s.rendimiento : (s[_sb] ?? 0);
   arr.sort((a,b)=>{
+    const d = _val(a) - _val(b);
+    if(d !== 0) return _dir * d;
+    // Desempates fijos (para orden estable)
     if(b.pts !== a.pts) return b.pts - a.pts;
     if(b.dg !== a.dg)   return b.dg - a.dg;
-    if(b.gf !== a.gf)   return b.gf - a.gf;
     return a.name.localeCompare(b.name);
   });
 
@@ -859,15 +874,15 @@ async function _renderHistoryStandingsInto(el, isAdmin){
             <tr>
               <th style="width:40px;text-align:right;">#</th>
               <th>Equipo</th>
-              <th style="text-align:center;">PJ</th>
-              <th style="text-align:center;">V</th>
-              <th style="text-align:center;">E</th>
-              <th style="text-align:center;">P</th>
-              <th style="text-align:center;">GF</th>
-              <th style="text-align:center;">GC</th>
-              <th style="text-align:center;">DG</th>
-              <th style="text-align:center;">Pts</th>
-              <th style="text-align:center;">Rend.</th>
+              ${_histStdTh('PJ','pj')}
+              ${_histStdTh('V','v')}
+              ${_histStdTh('E','e')}
+              ${_histStdTh('P','p')}
+              ${_histStdTh('GF','gf')}
+              ${_histStdTh('GC','gc')}
+              ${_histStdTh('DG','dg')}
+              ${_histStdTh('Pts','pts')}
+              ${_histStdTh('Rend.','rend')}
             </tr>
           </thead>
           <tbody>${data.standings.map((s,i)=>_histStdRowHTML(s, i)).join('')}</tbody>
@@ -942,6 +957,17 @@ function _renderHistorySubNav(active, isAdmin){
 async function histStdSetFilter(key, value){
   _histStdState[key] = value;
   if(key==='fJuego'){ _histStdState.fTemp = ''; }
+  if(_histStdState.mode==='admin') await renderAdmHistoryStandings();
+  else await renderPubHistoryStandings();
+}
+
+async function histStdSort(key){
+  if(_histStdState.sortBy === key){
+    _histStdState.sortDir = _histStdState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _histStdState.sortBy = key;
+    _histStdState.sortDir = 'desc';   // por defecto de mayor a menor
+  }
   if(_histStdState.mode==='admin') await renderAdmHistoryStandings();
   else await renderPubHistoryStandings();
 }
