@@ -817,5 +817,5 @@ async function getPlayoffWinnerForMatch(sourcePhaseId, targetMatchIdx){
    PANEL PÚBLICO — navegación por competición y fase
    ---------------------------------------------------------- */
 // Estado de navegación pública
-window._pubState = { compId: null, phaseId: null };
+window._pubState = { compId: null, phaseId: null, groupIdx: 0 };
 

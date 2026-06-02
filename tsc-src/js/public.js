@@ -81,7 +81,15 @@ async function renderPubPanel(){
       </div>`
     : '';
 
+  // Badge "EN VIVO" (solo con backend Firestore; el panel se actualiza solo)
+  const liveBadge = (typeof liveAvailable==='function' && liveAvailable())
+    ? `<div style="display:flex;align-items:center;gap:7px;margin-bottom:14px;font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.6px;text-transform:uppercase;color:#22c55e;">
+         <span class="live-dot"></span>En vivo · se actualiza solo
+       </div>`
+    : '';
+
   el.innerHTML = `
+    ${liveBadge}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       ${compBtns}
     </div>
@@ -124,8 +132,9 @@ async function renderPubPanel(){
             <div id="pub-matches-list-${selPhase.id}"></div>
           </div>`;
         document.getElementById(phaseContentId)?.appendChild(matchesWrap);
-        // Mostrar grupo 0 por defecto
-        await pubShowMatchesGroup(selPhase.id, 0, document.querySelector(`[data-group="0"]`));
+        // Mostrar el grupo activo (preservado entre re-renders en vivo); por defecto 0
+        const gIdx = (window._pubState.groupIdx!=null && window._pubState.groupIdx<ngroups) ? window._pubState.groupIdx : 0;
+        await pubShowMatchesGroup(selPhase.id, gIdx, document.querySelector(`[data-group="${gIdx}"]`));
       }
     }
     else if(selPhase.type==='bracket') await renderBracket(selPhase.id, phaseContentId, false);
@@ -154,6 +163,7 @@ async function renderPubPanel(){
 }
 
 async function pubShowMatchesGroup(phaseId, groupIdx, btnEl){
+  window._pubState.groupIdx = groupIdx;   // recordar grupo activo para el re-render en vivo
   // Resaltar botón activo
   const btnsContainer = document.getElementById(`pub-matches-group-btns-${phaseId}`);
   if(btnsContainer) btnsContainer.querySelectorAll('button').forEach(b=>{
@@ -178,11 +188,13 @@ async function pubShowMatchesGroup(phaseId, groupIdx, btnEl){
 async function pubSelectComp(compId){
   window._pubState.compId = compId;
   window._pubState.phaseId = null;
+  window._pubState.groupIdx = 0;   // nueva competición → arrancar en el primer grupo
   await renderPubPanel();
 }
 
 async function pubSelectPhase(phaseId){
   window._pubState.phaseId = phaseId;
+  window._pubState.groupIdx = 0;   // nueva fase → arrancar en el primer grupo
   await renderPubPanel();
 }
 

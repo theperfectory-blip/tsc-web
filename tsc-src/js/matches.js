@@ -185,19 +185,26 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
 
   function _mRow(m, showDel){
     const gA=m.goalsA,gB=m.goalsB,hasR=gA!=null&&gB!=null;
-    const aW=hasR&&gA>gB,bW=hasR&&gB>gA;
-    const fA=!hasR ? '' : isPublicMinimal
+    const isLive=!!m.live;
+    const aW=hasR&&!isLive&&gA>gB,bW=hasR&&!isLive&&gB>gA;
+    const fA=!hasR||isLive ? '' : isPublicMinimal
       ? (aW ? 'font-weight:700;color:var(--green);' : bW ? 'opacity:0.55;' : '')
       : (aW ? 'font-weight:700;color:var(--green);' : bW ? 'color:var(--red);opacity:0.7;' : 'color:var(--yellow);');
-    const fB=!hasR ? '' : isPublicMinimal
+    const fB=!hasR||isLive ? '' : isPublicMinimal
       ? (bW ? 'font-weight:700;color:var(--green);' : aW ? 'opacity:0.55;' : '')
       : (bW ? 'font-weight:700;color:var(--green);' : aW ? 'color:var(--red);opacity:0.7;' : 'color:var(--yellow);');
     // Buscar nombres desde IDs
     const teamAName = teamById[m.teamA] || String(m.teamA);
     const teamBName = teamById[m.teamB] || String(m.teamB);
-    return `<tr>
+    const scoreCell = isLive
+      ? `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+           <strong style="font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;color:var(--red);">${gA}-${gB}</strong>
+           <span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:0.5px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo</span>
+         </div>`
+      : `<strong style="font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;">${hasR?gA+'-'+gB:'vs'}</strong>`;
+    return `<tr${isLive?' style="background:rgba(239,68,68,0.06);"':''}>
       <td style="text-align:right;font-weight:500;padding:9px 14px;${fA}">${teamAName}</td>
-      <td style="text-align:center;width:80px;padding:0 4px;"><strong style="font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;">${hasR?gA+'-'+gB:'vs'}</strong></td>
+      <td style="text-align:center;width:80px;padding:0 4px;">${scoreCell}</td>
       <td style="font-weight:500;padding:9px 14px;${fB}">${teamBName}</td>
       ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})">✕</button></td>`:''}
     </tr>`;
@@ -341,7 +348,8 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
       <table class="tbl" style="width:100%;">
         <tbody>${ms.map(m=>{
           const gA=m.goalsA,gB=m.goalsB,hasR=gA!=null&&gB!=null;
-          const aW=hasR&&gA>gB,bW=hasR&&gB>gA;
+          const isLive=!!m.live;
+          const aW=hasR&&!isLive&&gA>gB,bW=hasR&&!isLive&&gB>gA;
           const fA=aW?'font-weight:700;color:var(--green);':bW?'opacity:0.55;':'';
           const fB=bW?'font-weight:700;color:var(--green);':aW?'opacity:0.55;':'';
           // Buscar nombres desde IDs
@@ -351,13 +359,22 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
           const diaCorto = m.playedAt
             ? new Date(m.playedAt).toLocaleDateString('es-CL',{day:'2-digit',month:'short'}).replace('.','')
             : '';
+          let centerCell;
+          if(isLive){
+            centerCell = `<button class="btn btn-xs" onclick="openLiveMatch(${m.id})" title="Abrir partido en vivo"
+              style="font-size:13px;padding:3px 9px;font-family:'Bebas Neue';letter-spacing:1px;background:rgba(239,68,68,0.15);border:1px solid var(--red);color:var(--red);">
+              <span class="live-dot live-dot-red" style="width:7px;height:7px;display:inline-block;vertical-align:middle;margin-right:5px;"></span>${gA}-${gB}</button>`;
+          } else if(hasR){
+            centerCell = `<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`;
+          } else {
+            centerCell = `<div style="display:flex;gap:4px;justify-content:center;">
+              <button class="btn btn-xs btn-primary" onclick="openEditResultModal(${m.id},${phaseId},${groupIdx})" style="font-size:11px;padding:3px 7px;" ${isFinalized?'disabled':''}>▶ Resultado</button>
+              <button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 7px;border:1px solid var(--red);color:var(--red);" ${isFinalized?'disabled':''}>🔴 Vivo</button>
+            </div>`;
+          }
           return `<tr>
             <td style="text-align:right;padding:7px 10px;${fA}">${teamAName}</td>
-            <td style="text-align:center;width:80px;">
-              ${hasR
-                ?`<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`
-                :`<button class="btn btn-xs btn-primary" onclick="openEditResultModal(${m.id},${phaseId},${groupIdx})" style="font-size:11px;padding:3px 7px;" ${isFinalized?'disabled':''}> ▶ Resultado</button>`}
-            </td>
+            <td style="text-align:center;width:120px;">${centerCell}</td>
             <td style="padding:7px 10px;${fB}">${teamBName}</td>
             <td style="font-size:11px;color:var(--txt3);white-space:nowrap;padding-right:6px;">${diaCorto}</td>
             <td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✕</button></td>

@@ -44,6 +44,7 @@ function goPublicPage(page, tabEl){
    NAVEGACIÓN ADMIN
    ---------------------------------------------------------- */
 function goAdminPage(page, navEl){
+  if(typeof liveStop==='function') liveStop();   // sin tiempo real en modo admin
   STATE.adminPage = page;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
@@ -61,10 +62,16 @@ function goAdminPage(page, navEl){
    RENDER PÁGINAS (stubs — se completan en partes siguientes)
    ---------------------------------------------------------- */
 async function renderPublicPage(page){
+  if(typeof liveStop==='function') liveStop();   // cancela tiempo real de la vista anterior
   await refreshSorteoTabVisibility();
   switch(page){
     case 'palmares':      await renderPubPalmares();    break;
-    case 'panel':         await renderPubPanel();       break;
+    case 'panel':
+      await renderPubPanel();
+      // Tiempo real: el panel se re-renderiza solo cuando cambian los partidos.
+      if(typeof liveSubscribe==='function')
+        liveSubscribe('panel-'+STATE.season, 'matches', ()=>renderPubPanel());
+      break;
     case 'competiciones': await renderPubComps();       break;
     case 'equipos':       await renderPubTeams();       break;
     case 'sorteo':        await renderPubSorteo();      break;

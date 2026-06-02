@@ -588,10 +588,12 @@ async function buildBracketSlots(phase, rounds, matchMap){
         slots[ri][mi].gb=saved.goalsB??null;
         slots[ri][mi].penA=saved.penA??null;
         slots[ri][mi].penB=saved.penB??null;
+        slots[ri][mi].live=!!saved.live;
+        slots[ri][mi].matchId=saved.id;
       }
-      // Propagar ganador a siguiente ronda
+      // Propagar ganador a siguiente ronda (un partido EN VIVO no clasifica a nadie aún)
       if(ri+1<rounds.length){
-        const w=getWinner(slots[ri][mi]);
+        const w=slots[ri][mi].live ? null : getWinner(slots[ri][mi]);
         if(w){
           const nextMatch=Math.floor(mi/2);
           const isA=mi%2===0;
@@ -682,10 +684,20 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalS
     var aW = slot.ga!==null && (slot.ga>slot.gb||(hasPen&&slot.penA>slot.penB));
     var bW = slot.gb!==null && (slot.gb>slot.ga||(hasPen&&slot.penB>slot.penA));
     var aTbd=!slot.teamA, bTbd=!slot.teamB;
-    var hasResult=slot.ga!==null&&slot.gb!==null;
+    var isLive=!!slot.live;
+    var hasResult=slot.ga!==null&&slot.gb!==null&&!isLive;
     var sA=slot.ga!==null?(hasPen?slot.ga+'('+slot.penA+')':''+slot.ga):'-';
     var sB=slot.gb!==null?(hasPen?slot.gb+'('+slot.penB+')':''+slot.gb):'-';
-    var cfn=(!aTbd&&!bTbd)?"openBracketMatchModal('"+phase.id+"',"+ri+","+realMi+","+isAdmin+")":null;
+    var cfn=(!aTbd&&!bTbd)
+      ? (isLive ? "openLiveMatch("+slot.matchId+")" : "openBracketMatchModal('"+phase.id+"',"+ri+","+realMi+","+isAdmin+")")
+      : null;
+    // Encabezado EN VIVO y botón para iniciar (admin)
+    var liveHdr = isLive
+      ? '<div style="display:flex;align-items:center;justify-content:center;gap:5px;padding:3px 0;background:rgba(239,68,68,0.15);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo</div>'
+      : '';
+    var liveBtn = (isAdmin && !hasResult && !isLive && !aTbd && !bTbd)
+      ? '<div style="padding:2px 10px 8px;text-align:center;"><button onclick="event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')" style="font-size:10px;padding:2px 8px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:3px;color:var(--red);cursor:pointer;">🔴 En vivo</button></div>'
+      : '';
     // Resaltar bordes solo cuando ya hay equipo resuelto (no cuando solo existe la referencia)
     var bc=(slot.teamA||slot.teamB)?'var(--gold-b)':'var(--brd)';
 
@@ -701,15 +713,18 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalS
         +'</div>';
     }
 
-    return '<div style="background:var(--card);border:1px solid '+bc+';border-radius:10px;overflow:hidden;'
+    var cardBc = isLive ? 'var(--red)' : bc;
+    return '<div style="background:var(--card);border:1px solid '+cardBc+';border-radius:10px;overflow:hidden;'
       +'width:'+CARD_W+'px;flex-shrink:0;box-shadow:0 2px 16px rgba(0,0,0,0.12);" '
       +'onmouseover="this.style.boxShadow=\'0 4px 24px rgba(201,168,76,0.22)\';this.style.borderColor=\'var(--gold-b)\'" '
-      +'onmouseout="this.style.boxShadow=\'0 2px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\''+bc+'\'">'
+      +'onmouseout="this.style.boxShadow=\'0 2px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\''+cardBc+'\'">'
+      +liveHdr
       +teamRow('blogo-'+slotId+'-a',slot.teamA,sA,aW,aTbd,slot.labelA,cfn)
       +bA
       +'<div style="height:1px;background:var(--brd);margin:0 10px;"></div>'
       +teamRow('blogo-'+slotId+'-b',slot.teamB,sB,bW,bTbd,slot.labelB,cfn)
       +bB
+      +liveBtn
       +'</div>';
   }
 
@@ -753,7 +768,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalS
 
   /* ── Final ── */
   var finalSlot = (slots[nRounds-1]&&slots[nRounds-1][0])||{teamA:null,teamB:null,ga:null,gb:null};
-  var champId = getWinner(finalSlot);
+  var champId = finalSlot.live ? null : getWinner(finalSlot);
   var champ = (champId && window._bracketTeamById) ? window._bracketTeamById[champId] : null;
   var nFirst = leftSlots[0] ? leftSlots[0].length : 1;
   var colH = nFirst * ROW_H * 2;

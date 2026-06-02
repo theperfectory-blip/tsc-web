@@ -123,6 +123,24 @@ function dbDelete(store, id){
   });
 }
 
+/* Suscripción en tiempo real (Fase 6A).
+   En Firestore usa onSnapshot → llama cb(result) ante cada cambio.
+   En IndexedDB no hay reactividad → no-op. SIEMPRE devuelve una
+   función para cancelar la suscripción (unsubscribe). */
+function dbSubscribe(store, filter, cb){
+  if (_isFS()) {
+    return db.collection(store).onSnapshot(
+      snap => {
+        let result = snap.docs.map(d=>d.data());
+        if(filter) result = result.filter(filter);
+        cb(result);
+      },
+      err => console.warn('[db] onSnapshot '+store+':', err.code||err.message)
+    );
+  }
+  return ()=>{}; // IndexedDB local: sin tiempo real
+}
+
 /* Helpers con filtro por temporada */
 function getForSeason(store){ return dbGetAll(store, r=>r.season===STATE.season||!r.season); }
 
