@@ -415,16 +415,18 @@ function renderTrophyByStyle(styleId, size=120){
 /* ---------------- Helpers de datos ---------------- */
 async function getAllPalmaresRecords(){ return dbGetAll('palmares'); }
 
-/* Orden de campeones dentro de una competición:
+/* Orden de campeones dentro de una competición. El PRIMERO es el más
+   reciente / campeón vigente.
    1) orden manual (campo `order`, ascendente) si existe;
-   2) si no, cronología por año y luego id (más reciente primero). */
+   2) si no, por año DESC y luego id ASC (el seed inserta el más reciente
+      primero, así que id ascendente = del más nuevo al más antiguo). */
 function _palmCompareChrono(a, b){
   const oa = (typeof a.order === 'number') ? a.order : null;
   const ob = (typeof b.order === 'number') ? b.order : null;
   if(oa !== null && ob !== null) return oa - ob;
   if(oa !== null) return -1;
   if(ob !== null) return 1;
-  return (b.year||0) - (a.year||0) || (b.id||0) - (a.id||0);
+  return (b.year||0) - (a.year||0) || (a.id||0) - (b.id||0);
 }
 
 async function aggregatePalmaresByTeam(){
@@ -496,19 +498,13 @@ async function deleteCopa(key){
   return true;
 }
 
-/* Auto-detect vigente; respeta override si existe y apunta a un registro válido de la comp. */
-function reigningChampion(records, compKey, overrides){
+/* El campeón vigente = el PRIMERO del orden (manual o cronológico).
+   Así "el #1 de la lista" es siempre el vigente / más reciente, y no hay
+   un selector separado que entre en conflicto con el orden. */
+function reigningChampion(records, compKey){
   const filtered = records.filter(r => r.competition === compKey);
   if (!filtered.length) return null;
-  if (overrides && overrides[compKey] != null) {
-    const forced = filtered.find(r => r.id === overrides[compKey]);
-    if (forced) return forced;
-  }
-  filtered.sort((a, b) => {
-    const yA = a.year || 0, yB = b.year || 0;
-    if (yA !== yB) return yB - yA;
-    return (b.id || 0) - (a.id || 0);
-  });
+  filtered.sort(_palmCompareChrono);
   return filtered[0];
 }
 
@@ -1150,10 +1146,33 @@ function initTrophyRoom(root, compData, teamById){
 /* ============================================================
    ADMIN — Matriz + Campeones vigentes + Editar registro
    ============================================================ */
+/* Limpieza one-time: borra los `order` asignados con el default viejo
+   (id descendente, que dejaba al campeón vigente al final). Tras esto, el
+   orden por defecto vuelve a ser cronológico (más reciente primero) y el
+   admin puede reordenar a mano. Corre solo cuando un admin abre el palmarés. */
+async function _palmResetBadOrderOnce(){
+  try {
+    const flag = await dbGetAll('settings', s => s.key === 'palmaresOrderResetV1');
+    if(flag.length) return;
+    const recs = await getAllPalmaresRecords();
+    let cleared = 0;
+    for(const r of recs){
+      if(typeof r.order === 'number'){
+        const { order, ...rest } = r;
+        await dbPut('palmares', rest);   // setDoc reemplaza: el campo order desaparece
+        cleared++;
+      }
+    }
+    await dbAdd('settings', { key:'palmaresOrderResetV1', value:true });
+    if(cleared) console.log(`[palmares] reset de order viejo: ${cleared} registros`);
+  } catch(e){ /* si no es admin la escritura falla; se ignora */ }
+}
+
 async function renderAdmPalmares(){
   const el = document.getElementById('adm-palmares-content');
   if(!el) return;
 
+  await _palmResetBadOrderOnce();
   await loadPalmaresComps();
   const [recs, allTeams, { value: overrides }] = await Promise.all([
     getAllPalmaresRecords(),
@@ -1211,11 +1230,7 @@ async function renderAdmPalmares(){
               ${effTeam ? `<span class="palm-vig-dot" style="background:${effTeam.color||'#888'}"></span>${_esc(effTeam.name)}${effExtras?` · ${_esc(effExtras)}`:''}` : '<span style="color:var(--txt3);">sin campeón</span>'}
             </div>
           </div>
-          <select class="palm-vig-sel" onchange="setVigenteChampion('${_escAttr(s.comp.key)}', this.value)">
-            <option value="">${_esc(autoLbl)}</option>
-            ${opts}
-          </select>
-          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones manualmente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="margin-top:6px;">↕ Ordenar</button>` : ''}
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="margin-top:6px;">↕ Ordenar campeones</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1280,7 +1295,7 @@ async function openPalmaresReorder(compKey){
         <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
       </div>
       <div class="modal-body">
-        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Usa ▲▼ para ordenar. El de arriba aparece primero en el palmarés.</div>
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Usa ▲▼ para ordenar. <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
         <div id="palm-reorder-list">${_palmReorderListHTML(list, teamById)}</div>
       </div>
     </div>
@@ -1291,10 +1306,12 @@ function _palmReorderListHTML(list, teamById){
   return list.map((r, i) => {
     const t = teamById[r.teamId];
     const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid var(--brd);border-radius:6px;margin-bottom:6px;">
-      <span style="width:18px;text-align:right;color:var(--txt3);font-size:12px;">${i+1}</span>
+    const isVig = i === 0;
+    const vigBadge = isVig ? `<span style="background:var(--gold);color:#000;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:0.5px;">VIGENTE</span>` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid ${isVig?'var(--gold)':'var(--brd)'};border-radius:6px;margin-bottom:6px;background:${isVig?'rgba(212,175,55,0.08)':'transparent'};">
+      <span style="width:18px;text-align:right;color:${isVig?'var(--gold)':'var(--txt3)'};font-size:12px;font-weight:${isVig?'700':'400'};">${i+1}</span>
       <span style="width:26px;height:26px;border-radius:6px;background:${t?.color||'#333'};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none;">${_esc((t?.ini || t?.name || '?').slice(0,3))}</span>
-      <span style="flex:1;font-size:13px;min-width:0;">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span style="color:var(--txt3);font-size:11px;"> · ${_esc(extras)}</span>`:''}</span>
+      <span style="flex:1;font-size:13px;min-width:0;">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span style="color:var(--txt3);font-size:11px;"> · ${_esc(extras)}</span>`:''}${vigBadge}</span>
       <button class="btn btn-xs" ${i===0?'disabled':''} onclick="palmaresMove('${_escAttr(r.competition)}',${r.id},-1)">▲</button>
       <button class="btn btn-xs" ${i===list.length-1?'disabled':''} onclick="palmaresMove('${_escAttr(r.competition)}',${r.id},1)">▼</button>
     </div>`;
