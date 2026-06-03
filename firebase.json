@@ -4,6 +4,7 @@
     "indexes": "firebase/firestore.indexes.json"
   },
   "hosting": {
+    "site": "teamsubscup",
     "public": "tsc-src",
     "ignore": [
       "firebase.json",
