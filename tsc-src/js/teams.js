@@ -244,8 +244,9 @@ async function openTeamModal(id=null){
     </div>
   </div>`;
 
-  // Guardar logo base64 temporalmente
+  // Logo: _logoData = URL actual (o null); _logoFile = archivo nuevo pendiente de subir.
   window._logoData = team?.logo||null;
+  window._logoFile = null;
 
   // Pre-poblar nombres anteriores. Acepta array nuevo (previousNames)
   // o string legacy (historyNames separado por →, , o ;)
@@ -300,17 +301,17 @@ function closeTeamModal(){
 function previewLogo(input){
   const file = input.files[0];
   if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (e)=>{
-    window._logoData = e.target.result;
-    const preview = document.getElementById('logo-preview');
-    if(preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
-  };
-  reader.readAsDataURL(file);
+  // Guardamos el archivo y mostramos un preview local; la subida ocurre al Guardar.
+  window._logoFile = file;
+  const url = URL.createObjectURL(file);
+  window._logoData = url; // preview visual temporal (se reemplaza por la URL de la nube al guardar)
+  const preview = document.getElementById('logo-preview');
+  if(preview) preview.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
 }
 
 function removeLogo(){
   window._logoData = null;
+  window._logoFile = null;
   const ini = document.getElementById('tf-ini')?.value||'?';
   const color = document.getElementById('tf-color')?.value||'#333';
   const preview = document.getElementById('logo-preview');
@@ -380,6 +381,18 @@ async function saveTeam(id){
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
 
+  // Subir el logo nuevo a la nube (Cloudinary) → guardamos solo la URL.
+  let logoUrl = window._logoData || null;
+  if(window._logoFile){
+    if(typeof cloudReady==='function' && !cloudReady()){
+      showToast('Configura Cloudinary (js/cloudinary.js) para subir logos','error'); return;
+    }
+    try {
+      showToast('Subiendo logo...');
+      logoUrl = await uploadImageToCloud(window._logoFile);
+    } catch(e){ showToast('No se pudo subir el logo: '+(e.message||e),'error'); return; }
+  }
+
   // Recopilar nombres anteriores: una caja por nombre, descartando vacíos y duplicados
   const prevInputs = [...document.querySelectorAll('#tf-prev-names .tf-prev-input')];
   const previousNames = [];
@@ -395,7 +408,7 @@ async function saveTeam(id){
     yunacoin: coins,
     previousNames,                                  // ← nuevo (array)
     historyNames: previousNames.join(' → '),        // ← compatibilidad legacy (string)
-    logo: window._logoData||null,
+    logo: logoUrl,
     updatedAt: new Date().toISOString(),
   };
 

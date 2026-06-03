@@ -6,7 +6,8 @@
      nombre/logo (versión simple), salvo que el admin lo bloquee.
    ============================================================ */
 
-let _profileLogoData;          // base64 del nuevo logo (si se sube)
+let _profileLogoData;          // URL del logo (existente o preview temporal)
+let _profileLogoFile;          // archivo nuevo pendiente de subir a la nube
 let _profileLogoTouched = false;
 
 function _pfEsc(v){
@@ -33,6 +34,7 @@ async function openProfile(){
   if (typeof AUTH === 'undefined' || !AUTH.user){ if(typeof openAuthModal==='function') openAuthModal(); return; }
   _injectProfileModal();
   _profileLogoData = undefined;
+  _profileLogoFile = undefined;
   _profileLogoTouched = false;
   openModal('profile-modal');
   document.getElementById('profile-body').innerHTML = `<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
@@ -112,18 +114,17 @@ async function renderProfileBody(){
 function profilePreviewLogo(input){
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e)=>{
-    _profileLogoData = e.target.result;
-    _profileLogoTouched = true;
-    const prev = document.getElementById('profile-logo-preview');
-    if (prev) prev.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
-  };
-  reader.readAsDataURL(file);
+  _profileLogoFile = file;
+  _profileLogoTouched = true;
+  const url = URL.createObjectURL(file);
+  _profileLogoData = url;  // preview temporal; se sube al guardar
+  const prev = document.getElementById('profile-logo-preview');
+  if (prev) prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
 }
 
 function profileRemoveLogo(){
   _profileLogoData = null;
+  _profileLogoFile = null;
   _profileLogoTouched = true;
   const team = window._profileTeam || {};
   const prev = document.getElementById('profile-logo-preview');
@@ -164,7 +165,15 @@ async function saveProfile(){
         const upd = { ...team };
         let changed = false;
         if (newTeamName && newTeamName !== team.name){ upd.name = newTeamName; changed = true; }
-        if (_profileLogoTouched){ upd.logo = (_profileLogoData ?? null); changed = true; }
+        if (_profileLogoTouched){
+          let newLogo = _profileLogoData ?? null;
+          if (_profileLogoFile){
+            if (typeof cloudReady==='function' && !cloudReady()){ showToast('Configura Cloudinary para subir logos','error'); return; }
+            try { newLogo = await uploadImageToCloud(_profileLogoFile); }
+            catch(e){ showToast('No se pudo subir el logo: '+(e.message||e),'error'); return; }
+          }
+          upd.logo = newLogo; changed = true;
+        }
         if (changed){ await dbPut('teams', upd); window._profileTeam = upd; }
       }
     }
