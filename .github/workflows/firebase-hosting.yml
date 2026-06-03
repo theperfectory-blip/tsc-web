@@ -1,0 +1,23 @@
+name: Deploy a Firebase Hosting
+
+# Cada push a la rama firebase-migration publica la web automáticamente.
+on:
+  push:
+    branches:
+      - firebase-migration
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TSC_WEB_YUNA }}
+          channelId: live
+          projectId: tsc-web-yuna
