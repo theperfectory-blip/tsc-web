@@ -761,6 +761,14 @@
     grid-template-columns: 1fr;
     grid-template-rows: clamp(420px, 56vh, 580px) auto;
     height: auto;
+    overflow: visible;            /* dejar ver el panel de campeones (fila 2) */
+  }
+  /* El carrusel conserva su recorte propio para que las copas laterales
+     no se desborden, sin recortar el panel de abajo. */
+  .tr-stage {
+    overflow: hidden;
+    height: clamp(420px, 56vh, 580px);
+    border-radius: 18px;
   }
   .tr-room > .tr-bg-wall,
   .tr-room > .tr-bg-glow,
@@ -777,6 +785,9 @@
     padding: 14px 12px;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    /* Móvil: crecer con el contenido (sin scroll interno que lo colapse a 0). */
+    overflow-y: visible;
+    min-height: auto;
   }
   .tr-side-panel .tr-champ {
     background:

@@ -576,7 +576,36 @@ function _teamCellHTML(equipoName, align='left'){
   }
   const tooltip = _esc(tooltipLines.join('\n'));
 
-  return `<span title="${tooltip}">${displayName}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
+  return `<span class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;">${displayName}<sup style="color:var(--gold);margin-left:3px;font-size:10px;">ⓘ</sup></span>`;
+}
+
+/* Muestra los nombres anteriores en un popover al TOCAR la ⓘ (clave en móvil,
+   donde no hay hover). En desktop sigue funcionando el title. Toggle: se cierra
+   al tocar fuera o al volver a tocar el mismo. */
+function histShowPrev(event, el){
+  if(event){ event.stopPropagation(); event.preventDefault(); }
+  const text = (el.getAttribute('data-prev')||'').trim();
+  const existing = document.querySelector('.hist-prev-pop');
+  const sameKey = existing && existing.dataset.for === text;
+  if(existing) existing.remove();
+  if(sameKey || !text) return;
+  const pop = document.createElement('div');
+  pop.className = 'hist-prev-pop';
+  pop.dataset.for = text;
+  pop.style.cssText = 'position:fixed;z-index:99999;background:var(--card2);border:1px solid var(--gold-b,#c9a84c);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.5;color:var(--txt);box-shadow:0 8px 28px rgba(0,0,0,0.5);max-width:240px;white-space:pre-line;';
+  pop.textContent = text;
+  document.body.appendChild(pop);
+  const r = el.getBoundingClientRect();
+  let left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 8);
+  if(left < 8) left = 8;
+  let top = r.bottom + 6;
+  if(top + pop.offsetHeight > window.innerHeight - 8) top = r.top - pop.offsetHeight - 6;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  setTimeout(()=>{
+    const close = ()=>{ pop.remove(); document.removeEventListener('click', close); };
+    document.addEventListener('click', close, { once:true });
+  }, 0);
 }
 
 /* ----------------------------------------------------------
@@ -925,7 +954,7 @@ function _histStdRowHTML(s, i){
     <td style="padding:6px 10px;">
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="width:24px;height:24px;border-radius:50%;background:${s.color||'#333'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;">${logoHTML}</div>
-        <span title="${tooltip}">${_esc(s.name)}${iconPrev}</span>
+        <span ${tooltip?`class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;"`:''}>${_esc(s.name)}${iconPrev}</span>
       </div>
     </td>
     <td style="text-align:center;color:var(--txt2);padding:6px 4px;">${s.pj}</td>

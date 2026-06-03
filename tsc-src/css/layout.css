@@ -28,6 +28,11 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 .topbar-name span{color:var(--gold);}
 .topbar-right{display:flex;align-items:center;gap:6px;}
 
+/* Móvil: dejar solo el círculo "TSC" (ocultar "Teams Subs Cup") */
+@media(max-width:520px){
+  .topbar-name{display:none;}
+}
+
 .season-sel{
   background:var(--card2);border:1px solid var(--brd);color:var(--txt);
   padding:5px 10px;border-radius:var(--r);font-size:13px;font-weight:600;
