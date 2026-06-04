@@ -111,7 +111,10 @@
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.025);
     g.gain.linearRampToValueAtTime(vol * 0.85, t + 0.12);
-    g.gain.setValueAtTime(vol * 0.85, t + dur - 0.18);
+    // Sustain antes del release. Para notas cortas (o ctx recién creado con
+    // currentTime≈0) t+dur-0.18 podía quedar negativo → RangeError; lo
+    // acotamos para que nunca preceda al ramp anterior ni sea < 0.
+    g.gain.setValueAtTime(vol * 0.85, Math.max(t + 0.12, t + dur - 0.18));
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
 
     o1.connect(lp); o2.connect(lp); o3.connect(lp);

@@ -455,12 +455,16 @@
     let i = 0;
     const runStep = () => {
       const step = SEQ[i];
-      showFrame(step.frame);
-      if (step.sparks)   fireSparks();
-      if (step.shake)    shake();
-      if (step.reveal)   showRevealCard(teamName(teamId), ord, remaining, b.name);
-      if (step.tada && window.SFX) SFX.playTada();
-      if (step.confetti) fireConfetti(teamId);
+      // Un error en un efecto (p.ej. audio bloqueado en el espectador) NO debe
+      // cortar la secuencia: la animación visual debe completarse siempre.
+      try {
+        showFrame(step.frame);
+        if (step.sparks)   fireSparks();
+        if (step.shake)    shake();
+        if (step.reveal)   showRevealCard(teamName(teamId), ord, remaining, b.name);
+        if (step.tada && window.SFX) SFX.playTada();
+        if (step.confetti) fireConfetti(teamId);
+      } catch(e){ console.warn('[sorteo] paso de animación falló (continúa):', e); }
       i++;
       if (i < SEQ.length) setTimeout(runStep, step.dur);
       else setTimeout(finishSequence, step.dur);
