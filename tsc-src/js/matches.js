@@ -375,8 +375,10 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
               <span class="live-dot live-dot-red" style="width:7px;height:7px;display:inline-block;vertical-align:middle;margin-right:5px;"></span>${gA}-${gB}</button>`;
           } else if(hasR){
             centerCell = `<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`;
+          } else if(!isFinalized){
+            centerCell = `<button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 10px;border:1px solid var(--red);color:var(--red);">🔴 Vivo</button>`;
           } else {
-            centerCell = `<button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 10px;border:1px solid var(--red);color:var(--red);" ${isFinalized?'disabled':''}>🔴 Vivo</button>`;
+            centerCell = `<span style="font-size:11px;color:var(--txt3);">Finalizado</span>`;
           }
           return `<tr>
             <td style="text-align:right;padding:7px 10px;${fA}">${teamAName}</td>
