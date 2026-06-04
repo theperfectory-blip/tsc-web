@@ -74,15 +74,29 @@ async function _blockIfOtherLive(exceptId){
 /* Refresca la vista de admin de fondo (lista de fechas o bracket). */
 function _liveRefreshBackground(){
   const ctx = _liveCtx;
-  if(!ctx) return;
-  if(ctx.kind==='group' && typeof showMatchGroupTable==='function'){
-    showMatchGroupTable(ctx.phaseId, ctx.groupIdx);
-  } else if(ctx.kind==='bracket' && typeof renderBracket==='function'){
-    const cid = document.querySelector('[id^="bracket-container-"]')?.id;
-    if(cid) renderBracket(ctx.phaseId, cid, true);
-  } else if(ctx.kind==='playoff' && typeof renderPlayoff==='function'){
-    const cid = document.querySelector('[id^="playoff-container-"]')?.id;
-    if(cid) renderPlayoff(ctx.phaseId, cid, true);
+  if(!ctx){
+    console.log('[LiveMatch] _liveCtx es nulo, no hay refresh');
+    return;
+  }
+  try {
+    if(ctx.kind==='group' && typeof showMatchGroupTable==='function'){
+      console.log('[LiveMatch] Refrescando tabla de grupos:', ctx.phaseId, ctx.groupIdx);
+      showMatchGroupTable(ctx.phaseId, ctx.groupIdx);
+    } else if(ctx.kind==='bracket' && typeof renderBracket==='function'){
+      const cid = document.querySelector('[id^="bracket-container-"]')?.id;
+      if(cid){
+        console.log('[LiveMatch] Refrescando bracket:', ctx.phaseId);
+        renderBracket(ctx.phaseId, cid, true);
+      }
+    } else if(ctx.kind==='playoff' && typeof renderPlayoff==='function'){
+      const cid = document.querySelector('[id^="playoff-container-"]')?.id;
+      if(cid){
+        console.log('[LiveMatch] Refrescando playoff:', ctx.phaseId);
+        renderPlayoff(ctx.phaseId, cid, true);
+      }
+    }
+  } catch(err){
+    console.error('[LiveMatch] Error al refrescar fondo:', err);
   }
 }
 
@@ -371,4 +385,5 @@ function closeLiveMatch(){
   const el = document.getElementById('live-match-wrap');
   if(el) el.innerHTML='';
   _liveRefreshBackground();
+  _liveCtx = null;
 }
