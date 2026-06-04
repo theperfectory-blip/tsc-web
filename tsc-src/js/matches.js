@@ -324,6 +324,10 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
   const teamById = {};
   allTeams.forEach(t=>teamById[t.id]=t.name);
 
+  // ¿Hay algún partido EN VIVO en toda la temporada? Si lo hay, se ocultan los
+  // botones "🔴 Vivo" de los demás partidos (solo uno en directo a la vez).
+  const anyLive = (await dbGetAll('matches', m=>!!m.live && (m.season===STATE.season||!m.season))).length>0;
+
   el.innerHTML = keys.map(r=>{
     const ms=byRonda[r];
     const label=r==='sin-ronda'?'Sin ronda asignada':`Fecha ${r}`;
@@ -375,10 +379,12 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
               <span class="live-dot live-dot-red" style="width:7px;height:7px;display:inline-block;vertical-align:middle;margin-right:5px;"></span>${gA}-${gB}</button>`;
           } else if(hasR){
             centerCell = `<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`;
-          } else if(!isFinalized){
+          } else if(isFinalized){
+            centerCell = `<span style="font-size:11px;color:var(--txt3);">Finalizado</span>`;
+          } else if(!anyLive){
             centerCell = `<button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 10px;border:1px solid var(--red);color:var(--red);">🔴 Vivo</button>`;
           } else {
-            centerCell = `<span style="font-size:11px;color:var(--txt3);">Finalizado</span>`;
+            centerCell = `<span style="font-size:11px;color:var(--txt3);">vs</span>`;
           }
           return `<tr>
             <td style="text-align:right;padding:7px 10px;${fA}">${teamAName}</td>

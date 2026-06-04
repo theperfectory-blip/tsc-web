@@ -375,6 +375,9 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   // Mapear partidos existentes
   const matchMap = {};
   allMatches.forEach(m=>{ matchMap[m.slotId]=m; });
+  // ¿Hay algún partido EN VIVO en esta fase? Si lo hay, se ocultan los botones
+  // "🔴 En vivo" de los demás cruces (solo uno en directo a la vez).
+  const anyLiveInPhase = allMatches.some(m=>m.live);
 
   // Rellenar slots con clasificados de grupos si es derivada
   const slots = await buildBracketSlots(phase, rounds, matchMap);
@@ -696,7 +699,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalS
     var liveHdr = isLive
       ? '<div style="display:flex;align-items:center;justify-content:center;gap:5px;padding:3px 0;background:rgba(239,68,68,0.15);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo</div>'
       : '';
-    var liveBtn = (isAdmin && !hasResult && !isLive && !aTbd && !bTbd)
+    var liveBtn = (isAdmin && !anyLiveInPhase && !hasResult && !isLive && !aTbd && !bTbd)
       ? '<div style="padding:2px 10px 8px;text-align:center;"><button onclick="event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')" style="font-size:10px;padding:2px 8px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:3px;color:var(--red);cursor:pointer;">🔴 En vivo</button></div>'
       : '';
     // Resaltar bordes solo cuando ya hay equipo resuelto (no cuando solo existe la referencia)

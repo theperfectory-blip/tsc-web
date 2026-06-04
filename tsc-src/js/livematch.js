@@ -71,29 +71,20 @@ async function _blockIfOtherLive(exceptId){
   return false;
 }
 
-/* Refresca la vista de admin de fondo (lista de fechas o bracket). */
+/* Refresca la vista de admin de fondo (lista de fechas, bracket o playoff)
+   para que el marcador en miniatura siga al modal en tiempo real. */
 function _liveRefreshBackground(){
   const ctx = _liveCtx;
-  if(!ctx){
-    console.log('[LiveMatch] _liveCtx es nulo, no hay refresh');
-    return;
-  }
+  if(!ctx) return;
   try {
     if(ctx.kind==='group' && typeof showMatchGroupTable==='function'){
-      console.log('[LiveMatch] Refrescando tabla de grupos:', ctx.phaseId, ctx.groupIdx);
       showMatchGroupTable(ctx.phaseId, ctx.groupIdx);
     } else if(ctx.kind==='bracket' && typeof renderBracket==='function'){
       const cid = document.querySelector('[id^="bracket-container-"]')?.id;
-      if(cid){
-        console.log('[LiveMatch] Refrescando bracket:', ctx.phaseId);
-        renderBracket(ctx.phaseId, cid, true);
-      }
+      if(cid) renderBracket(ctx.phaseId, cid, true);
     } else if(ctx.kind==='playoff' && typeof renderPlayoff==='function'){
       const cid = document.querySelector('[id^="playoff-container-"]')?.id;
-      if(cid){
-        console.log('[LiveMatch] Refrescando playoff:', ctx.phaseId);
-        renderPlayoff(ctx.phaseId, cid, true);
-      }
+      if(cid) renderPlayoff(ctx.phaseId, cid, true);
     }
   } catch(err){
     console.error('[LiveMatch] Error al refrescar fondo:', err);
@@ -326,15 +317,56 @@ async function livePenAdjust(matchId, side, delta){
 function _liveWarn(msg){ const w=document.getElementById('lm-warn'); if(w) w.textContent=msg; }
 function _liveClearWarn(){ const w=document.getElementById('lm-warn'); if(w) w.textContent=''; }
 
+/* Estado de una serie de playoff/single de varios legs.
+   Considera el marcador ACTUAL de todos los legs (ya persistidos) y la
+   misma jerarquía de desempate que renderPlayoff: global → gol de visita.
+   Devuelve { needPen } = true SOLO si tras jugar todos los legs el global
+   sigue empatado y el gol de visita no resuelve (entonces sí hacen falta
+   penales en el leg decisivo). */
+async function _playoffSeriesNeedsPenalties(m, phase){
+  const config    = phase?.config || {};
+  const legsCount = parseInt(config.legs) || 2;
+  const awayGoal  = config.awayGoal || false;
+  // Todos los legs de ESTA serie (mismo matchIdx dentro de la fase).
+  const legs = await dbGetAll('matches', x=>x.phaseId===m.phaseId && x.matchIdx===m.matchIdx);
+  legs.sort((a,b)=>(a.leg||0)-(b.leg||0));
+  const allPlayed = legs.length>=legsCount && legs.every(l=>l.goalsA!=null && l.goalsB!=null);
+  if(!allPlayed) return false; // aún faltan legs: no se fuerza desempate aquí
+  const totA = legs.reduce((s,l)=>s+(l.goalsA||0),0);
+  const totB = legs.reduce((s,l)=>s+(l.goalsB||0),0);
+  if(totA!==totB) return false;             // hay ganador por global
+  if(awayGoal && legsCount>=2){
+    const awayA = legs[1]?.goalsA ?? 0;     // visita de A en la vuelta
+    const awayB = legs[0]?.goalsB ?? 0;     // visita de B en la ida
+    if(awayA!==awayB) return false;         // resuelto por gol de visita
+  }
+  return true;                              // global empatado → penales
+}
+
 async function liveFinalize(matchId){
   if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
   const m = await dbGet('matches', matchId);
   if(!m){ showToast('Partido no encontrado','error'); return; }
   const phase = await dbGet('phases', m.phaseId);
-  const mustWin = _liveMustHaveWinner(m, phase);
   const ga = m.goalsA||0, gb = m.goalsB||0;
 
-  if(mustWin && ga===gb){
+  // ¿Hace falta un desempate (prórroga/penales) que aún no está resuelto?
+  const legsCount  = parseInt(phase?.config?.legs) || 1;
+  const isKnockout = ['bracket','single','playoff'].includes(phase?.type);
+  const isMultiLeg = legsCount>=2 && m.leg!=null;   // serie ida/vuelta
+  let needsTiebreak = false;
+  if(isKnockout){
+    if(isMultiLeg){
+      // En la IDA el empate es válido; solo el leg decisivo puede exigir desempate,
+      // y SOLO si el GLOBAL de la serie sigue empatado (no el marcador del leg).
+      needsTiebreak = (m.leg===legsCount) && await _playoffSeriesNeedsPenalties(m, phase);
+    } else {
+      // Partido único (bracket/single/supercopa de 1 partido): empate → desempate.
+      needsTiebreak = (ga===gb);
+    }
+  }
+
+  if(needsTiebreak){
     const pa = m.penA, pb = m.penB;
     if(pa==null || pb==null || pa===pb){
       _liveWarn('Eliminatoria empatada: define un ganador por prórroga o penales.');

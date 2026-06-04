@@ -14,6 +14,9 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
   const allMatches=await dbGetAll('matches',m=>m.phaseId===phaseId);
   const matchMap={};
   allMatches.forEach(m=>{matchMap[m.slotId]=m;});
+  // ¿Hay algún partido EN VIVO en esta fase? Si lo hay, se ocultan los botones
+  // "🔴 Vivo" de los demás cruces (solo puede haber uno en directo a la vez).
+  const anyLiveInPhase = allMatches.some(m=>m.live);
 
   // Mapa de IDs a nombres para mostrar
   const allTeams = await dbGetAll('teams');
@@ -233,9 +236,9 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
           <span style="font-size:14px;font-weight:${ld.goalsB!==null&&ld.goalsB>ld.goalsA?'700':'400'};color:${colB};">${sb}</span>
         </div>
         ${isLegLive?'<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.5px;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>Vivo</span>':''}
-        ${(isAdmin && !isLegLive && bothTeams && prevLegDone && (ld.goalsA===null || ld.goalsB===null))
+        ${(isAdmin && !anyLiveInPhase && !isLegLive && bothTeams && prevLegDone && (ld.goalsA===null || ld.goalsB===null))
           ? `<button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${ld.slotId}',${i},${legNo},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:9px;padding:2px 6px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:3px;color:var(--red);cursor:pointer;">🔴 Vivo</button>`
-          : (isAdmin && !isLegLive && bothTeams && li>0 && !prevLegDone)
+          : (isAdmin && !anyLiveInPhase && !isLegLive && bothTeams && li>0 && !prevLegDone)
           ? `<span style="font-size:9px;color:var(--txt3);font-style:italic;">termina la ida primero</span>`
           : ''}
       </div>`;
