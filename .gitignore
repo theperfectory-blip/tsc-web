@@ -30,6 +30,11 @@ ui-debug.log*
 .env.*
 !.env.example
 
+# ─── Configuración local (cada desarrollador usa su Firebase proyecto) ───
+tsc-src/js/firebase-config.js
+tsc-src/js/cloudinary.js
+# Ver DEPLOY.md para instrucciones de configuración
+
 # ─── Build / distribución APK ───
 /android/
 /ios/
