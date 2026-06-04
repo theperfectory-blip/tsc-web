@@ -92,6 +92,55 @@
     }
   }
 
+  /* ---- Tiempo real CROSS-DEVICE para espectadores (Firestore onSnapshot). ----
+     BroadcastChannel solo sincroniza pestañas del mismo dispositivo; los
+     espectadores en sus móviles necesitan esto para ver el sorteo en vivo
+     (con la animación pick-and-open-ball), no solo al recargar. */
+  let _sorteoUnsub = null;
+  function _subscribeSorteoLive() {
+    if (typeof dbSubscribe !== 'function') { ensureBC(); return; }
+    _unsubscribeSorteoLive();
+    _sorteoUnsub = dbSubscribe('sorteo', r => r.season === stateSeason, onSorteoSnapshot);
+  }
+  function _unsubscribeSorteoLive() {
+    if (_sorteoUnsub) { try { _sorteoUnsub(); } catch(e){} _sorteoUnsub = null; }
+  }
+  async function onSorteoSnapshot(rows) {
+    if (!root || !readOnly) return;
+    const rec = rows.find(r => r.season === stateSeason);
+    if (!rec) return;
+    const newBombos = rec.bombos || [];
+    // Detectar un equipo recién sorteado comparando con el estado conocido.
+    let nd = null;
+    for (const nb of newBombos) {
+      const ob = state.bombos.find(b => b.id === nb.id);
+      const oldCount = ob ? ob.drawn.length : 0;
+      if ((nb.drawn || []).length > oldCount) {
+        const last = nb.drawn[nb.drawn.length - 1];
+        nd = { bomboId: nb.id, teamId: last.teamId, ord: nb.drawn.length };
+        break;
+      }
+    }
+    const visible = root && root.offsetParent !== null;
+    if (nd && !busy && visible) {
+      // Reproducir la animación del nuevo equipo (igual que el broadcast 'draw').
+      await loadState();
+      state.activeId = nd.bomboId;
+      await refreshTeamsCache();
+      const b = activeBombo(); if (!b) return;
+      const drawnSet = new Set(b.drawn.map(d => d.teamId));
+      const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id)).length;
+      await playDrawAnimation(b, nd.teamId, nd.ord, remaining);
+    } else {
+      // Reset / nuevo bombo / no visible: refrescar el estado sin animar.
+      const keepLocalActive = state.activeId;
+      await loadState();
+      if (keepLocalActive && state.bombos.find(b => b.id === keepLocalActive)) state.activeId = keepLocalActive;
+      await renderAll();
+      if (typeof refreshSorteoTabVisibility === 'function') refreshSorteoTabVisibility();
+    }
+  }
+
   async function loadState() {
     const season = (typeof STATE !== 'undefined' && STATE.season) || 1;
     const all = await dbGetAll('sorteo', r => r.season === season);
@@ -179,6 +228,7 @@
 
   /* ---------------- Mount ---------------- */
   async function mount(container) {
+    _unsubscribeSorteoLive();   // cancelar suscripción en vivo previa si se remonta
     container.innerHTML = TEMPLATE;
     root = container;
     root.classList.toggle('sorteo-readonly', !!readOnly);
@@ -241,7 +291,13 @@
     await loadState();
     await renderAll();
     ensureDrumAudio();
-    ensureBC();
+    // Público con backend Firestore → tiempo real cross-device (onSnapshot).
+    // Admin o backend local → BroadcastChannel (sincroniza pestañas locales).
+    if (readOnly && typeof USE_FIRESTORE !== 'undefined' && USE_FIRESTORE && typeof dbSubscribe === 'function') {
+      _subscribeSorteoLive();
+    } else {
+      ensureBC();
+    }
   }
 
   /* ---------------- Bombos UI ---------------- */

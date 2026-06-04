@@ -52,6 +52,10 @@
   opacity: 0.85;
 }
 
+/* Evita que las copas del carrusel (stage en preserve-3d, que ignora el
+   overflow del room) desborden el viewport y empujen la topbar fija. */
+#pub-palmares-content{ overflow-x: clip; }
+
 /* La sala — desktop: grid 2 columnas (carrusel | panel) bajo el mismo
    parquet y focos. Mobile: stack vertical, panel debajo con apariencia
    de tarjeta normal. */
