@@ -266,7 +266,7 @@ async function liveReset(matchId){
   _liveClearWarn();
 }
 
-/* Ajusta el marcador (clamp ≥0), persiste y refresca solo los números. */
+/* Ajusta el marcador (clamp ≥0), persiste y refresca tabla + modal. */
 async function liveAdjust(matchId, side, delta){
   if(!_liveCanEdit()) return;
   const m = await dbGet('matches', matchId);
@@ -278,6 +278,7 @@ async function liveAdjust(matchId, side, delta){
   if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
   const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = ga;
   const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = gb;
+  _liveRefreshBackground();
   _liveClearWarn();
 }
 
@@ -304,6 +305,7 @@ async function livePenAdjust(matchId, side, delta){
   await dbPut('matches', { ...m, penA:pa, penB:pb, live:true });
   const elA = document.getElementById('lm-pen-a'); if(elA) elA.textContent = pa;
   const elB = document.getElementById('lm-pen-b'); if(elB) elB.textContent = pb;
+  _liveRefreshBackground();
   _liveClearWarn();
 }
 
