@@ -1,7 +1,7 @@
 # Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-06-03)
 
 ## Corpus Check
-- 27 files · ~209,799 words
+- 27 files · ~210,198 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

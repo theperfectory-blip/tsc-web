@@ -97,6 +97,7 @@
      espectadores en sus móviles necesitan esto para ver el sorteo en vivo
      (con la animación pick-and-open-ball), no solo al recargar. */
   let _sorteoUnsub = null;
+  let _pendingSnap = null;   // snapshot recibido durante una animación (se procesa al terminar)
   function _subscribeSorteoLive() {
     if (typeof dbSubscribe !== 'function') { ensureBC(); return; }
     _unsubscribeSorteoLive();
@@ -107,6 +108,10 @@
   }
   async function onSorteoSnapshot(rows) {
     if (!root || !readOnly) return;
+    // Si hay una animación en curso, NO procesar el snapshot: un renderAll
+    // aquí recrearía el DOM y dejaría la animación pegada a media pose.
+    // El estado ya quedó cargado antes de animar; el próximo snapshot sincroniza.
+    if (busy) { _pendingSnap = rows; return; }
     const rec = rows.find(r => r.season === stateSeason);
     if (!rec) return;
     const newBombos = rec.bombos || [];
@@ -481,6 +486,11 @@
           const drawnSet = new Set(b.drawn.map(d => d.teamId));
           const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id));
           if (!remaining.length && b.drawn.length) flashHint(`🎉 ${b.name} completo`, true);
+        }
+        // Público en vivo: si llegó un sorteo durante esta animación, procesarlo ahora.
+        if (readOnly && _pendingSnap) {
+          const snap = _pendingSnap; _pendingSnap = null;
+          onSorteoSnapshot(snap);
         }
       }, 1000);
     }, 280);
