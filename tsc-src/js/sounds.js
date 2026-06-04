@@ -142,13 +142,50 @@
     crash(tHold, 0.95, 1.3);
   }
 
+  /* ---------------- Ping de radar / sonar (partido en vivo) ----------------
+     Tono descendente con cola larga + un eco tenue → sensación de "sonar". */
+  function radarPing(vol = 1) {
+    const c = getCtx(); if (!c) return;
+    const t = c.currentTime + 0.01;
+    function blip(at, gain, f0, f1) {
+      const o = c.createOscillator();
+      const g = c.createGain();
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
+      o.type = 'sine';
+      o.frequency.setValueAtTime(f0, at);
+      o.frequency.exponentialRampToValueAtTime(f1, at + 0.14);
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(gain * vol, at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.85);
+      o.connect(lp).connect(g).connect(masterGain);
+      o.start(at); o.stop(at + 0.95);
+    }
+    blip(t, 0.42, 760, 560);            // ping principal
+    blip(t + 0.16, 0.12, 720, 540);     // eco tenue
+  }
+
+  /* Persistencia del estado de sonido (on/off + volumen) */
+  function loadSound(){
+    let on = true, vol = 0.85;
+    try {
+      const o = localStorage.getItem('tsc_sound_on'); if (o !== null) on = o === '1';
+      const v = parseFloat(localStorage.getItem('tsc_sound_vol')); if (!isNaN(v)) vol = Math.max(0, Math.min(1, v));
+    } catch(e){}
+    return { on, vol };
+  }
+  const _snd = loadSound();
+  if (masterGain) masterGain.gain.value = _snd.vol; // por si el ctx ya existe
+
   window.SFX = {
-    enabled: true,
-    unlock() { getCtx(); },
-    setVolume(v) { if (masterGain) masterGain.gain.value = Math.max(0, Math.min(1, v)); },
+    enabled: _snd.on,
+    volume: _snd.vol,
+    unlock() { getCtx(); if (masterGain) masterGain.gain.value = this.volume; },
+    setVolume(v) { this.volume = Math.max(0, Math.min(1, v)); if (masterGain) masterGain.gain.value = this.volume; try{ localStorage.setItem('tsc_sound_vol', String(this.volume)); }catch(e){} },
+    getVolume() { return this.volume; },
     playDrumRoll(ms) { if (!this.enabled) return { stop(){} }; return playDrumRoll(ms); },
     playTada()       { if (!this.enabled) return; playTada(); },
     playSnare()      { if (!this.enabled) return; const c = getCtx(); if (c) snareHit(c.currentTime + 0.01, 1); },
-    setEnabled(b)    { this.enabled = !!b; }
+    radarPing()      { if (!this.enabled) return; radarPing(1); },
+    setEnabled(b)    { this.enabled = !!b; try{ localStorage.setItem('tsc_sound_on', b ? '1':'0'); }catch(e){} }
   };
 })();

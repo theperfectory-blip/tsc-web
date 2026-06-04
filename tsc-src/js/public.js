@@ -112,6 +112,8 @@ async function renderPubPanel(){
       }).join('')}
     </div>`;
   }
+  // Ping de radar mientras haya partido en vivo a la vista (respeta on/off de sonido)
+  if(typeof liveRadarStart==='function'){ liveMatches.length ? liveRadarStart() : liveRadarStop(); }
 
   el.innerHTML = `
     ${liveBlock}

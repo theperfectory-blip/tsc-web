@@ -28,9 +28,15 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 .topbar-name span{color:var(--gold);}
 .topbar-right{display:flex;align-items:center;gap:6px;}
 
-/* Móvil: dejar solo el círculo "TSC" (ocultar "Teams Subs Cup") */
+/* Móvil: dejar solo el círculo "TSC" y compactar la barra para que TODO
+   (logo · temporada · perfil · ⚙) quepa en pantallas pequeñas (iPhone SE). */
 @media(max-width:520px){
   .topbar-name{display:none;}
+  #topbar{padding:0 8px;gap:6px;}
+  .topbar-right{gap:5px;min-width:0;}
+  .season-sel{padding:4px 6px;font-size:12px;max-width:88px;}
+  .mode-btn{padding:4px 8px;font-size:12px;letter-spacing:0;}
+  .icon-btn{padding:4px 7px;font-size:16px;}
 }
 
 .season-sel{
@@ -52,6 +58,14 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   transition:border-color 0.15s;line-height:1;
 }
 .icon-btn:hover{border-color:var(--gold);}
+/* Avatar de perfil en la topbar (solo imagen / SVG genérico) */
+.auth-avatar{
+  width:30px;height:30px;border-radius:50%;flex:none;padding:0;
+  background:var(--card2);border:1px solid var(--brd2);color:var(--txt2);
+  display:inline-flex;align-items:center;justify-content:center;
+  overflow:hidden;cursor:pointer;transition:border-color 0.15s;
+}
+.auth-avatar:hover{border-color:var(--gold);}
 
 /* ============================================================
    SIDEBAR NAV (admin)

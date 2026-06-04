@@ -47,6 +47,7 @@ function goPublicPage(page, tabEl){
    ---------------------------------------------------------- */
 function goAdminPage(page, navEl){
   if(typeof liveStop==='function') liveStop();   // sin tiempo real en modo admin
+  if(typeof liveRadarStop==='function') liveRadarStop();
   STATE.adminPage = page;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
@@ -65,6 +66,7 @@ function goAdminPage(page, navEl){
    ---------------------------------------------------------- */
 async function renderPublicPage(page){
   if(typeof liveStop==='function') liveStop();   // cancela tiempo real de la vista anterior
+  if(typeof liveRadarStop==='function') liveRadarStop(); // detener ping de radar (lo reinicia el panel si hay en vivo)
   await refreshSorteoTabVisibility();
   switch(page){
     case 'palmares':      await renderPubPalmares();    break;

@@ -104,7 +104,8 @@ async function renderProfileBody(){
   }
 
   html += `
-    <div class="modal-footer" style="margin-top:18px;padding:0;border:none;">
+    <div class="modal-footer" style="margin-top:18px;padding:0;border:none;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <button class="btn btn-danger btn-sm" onclick="closeModal('profile-modal');authSignOut();">Cerrar sesión</button>
       <button class="btn btn-primary" onclick="saveProfile()">Guardar cambios</button>
     </div>`;
 

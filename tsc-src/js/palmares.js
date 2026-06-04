@@ -595,15 +595,23 @@ async function seedPalmaresIfEmpty(){
 
 /* ---------------- Audio "ding" sutil ---------------- */
 let _palmAudioCtx = null;
-let _palmAudioMuted = false;
+let _palmMaster = null;
 function _palmAudio(){
   if (_palmAudioCtx) return _palmAudioCtx;
-  try { _palmAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { _palmAudioCtx = null; }
+  try {
+    _palmAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    _palmMaster = _palmAudioCtx.createGain();
+    _palmMaster.connect(_palmAudioCtx.destination);
+  } catch(e) { _palmAudioCtx = null; }
   return _palmAudioCtx;
 }
+/* El sonido del palmarés respeta el control GLOBAL (⚙ Configuración). */
+function _palmSoundOff(){ return (window.SFX && window.SFX.enabled === false); }
+function _palmApplyVol(){ if (_palmMaster) _palmMaster.gain.value = (window.SFX && typeof window.SFX.volume === 'number') ? window.SFX.volume : 0.85; }
 function playPalmDing(){
-  if (_palmAudioMuted) return;
+  if (_palmSoundOff()) return;
   const ctx = _palmAudio(); if (!ctx) return;
+  _palmApplyVol();
   // Algunos navegadores requieren resume() tras gesto del usuario
   if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e){} }
   const t = ctx.currentTime;
@@ -611,7 +619,7 @@ function playPalmDing(){
   const g = ctx.createGain();
   const f = ctx.createBiquadFilter();
   f.type = 'highpass'; f.frequency.value = 600;
-  o.connect(f); f.connect(g); g.connect(ctx.destination);
+  o.connect(f); f.connect(g); g.connect(_palmMaster);
   o.type = 'sine';
   o.frequency.setValueAtTime(1480, t);  // ~F#6
   o.frequency.exponentialRampToValueAtTime(880, t + 0.22);
@@ -624,8 +632,9 @@ function playPalmDing(){
 /* Sonido de "expansión" al abrir el fullscreen: whoosh ascendente +
    acorde triunfal corto. Acompaña la animación de zoom. */
 function playPalmZoom(){
-  if (_palmAudioMuted) return;
+  if (_palmSoundOff()) return;
   const ctx = _palmAudio(); if (!ctx) return;
+  _palmApplyVol();
   if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e){} }
   const t = ctx.currentTime;
 
@@ -647,7 +656,7 @@ function playPalmZoom(){
   ng.gain.setValueAtTime(0.0001, t);
   ng.gain.exponentialRampToValueAtTime(0.10, t + 0.05);
   ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-  noise.connect(lp); lp.connect(ng); ng.connect(ctx.destination);
+  noise.connect(lp); lp.connect(ng); ng.connect(_palmMaster);
   noise.start(t); noise.stop(t + 0.6);
 
   // 2) Acorde triunfal: fundamental + quinta + octava
@@ -657,7 +666,7 @@ function playPalmZoom(){
     const g = ctx.createGain();
     o.type = 'triangle';
     o.frequency.setValueAtTime(freq, t + 0.10);
-    o.connect(g); g.connect(ctx.destination);
+    o.connect(g); g.connect(_palmMaster);
     g.gain.setValueAtTime(0.0001, t + 0.10);
     g.gain.exponentialRampToValueAtTime(0.055, t + 0.16);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
@@ -670,11 +679,46 @@ function playPalmZoom(){
   sub.type = 'sine';
   sub.frequency.setValueAtTime(120, t + 0.18);
   sub.frequency.exponentialRampToValueAtTime(50, t + 0.45);
-  sub.connect(subG); subG.connect(ctx.destination);
+  sub.connect(subG); subG.connect(_palmMaster);
   subG.gain.setValueAtTime(0.0001, t + 0.18);
   subG.gain.exponentialRampToValueAtTime(0.08, t + 0.22);
   subG.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
   sub.start(t + 0.18); sub.stop(t + 0.6);
+}
+
+/* Sonido de "cierre" al volver de pantalla completa a la vista normal:
+   whoosh descendente + tono que baja. Complemento de playPalmZoom. */
+function playPalmZoomOut(){
+  if (_palmSoundOff()) return;
+  const ctx = _palmAudio(); if (!ctx) return;
+  _palmApplyVol();
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch(e){} }
+  const t = ctx.currentTime;
+  // Whoosh descendente (lowpass de agudo a grave)
+  const bufSize = Math.floor(ctx.sampleRate * 0.4);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++){ const env = Math.pow(1 - i / bufSize, 1.2); data[i] = (Math.random()*2-1) * env; }
+  const noise = ctx.createBufferSource(); noise.buffer = buf;
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(6000, t);
+  lp.frequency.exponentialRampToValueAtTime(320, t + 0.32);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t);
+  ng.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  noise.connect(lp); lp.connect(ng); ng.connect(_palmMaster);
+  noise.start(t); noise.stop(t + 0.45);
+  // Tono descendente corto
+  const o = ctx.createOscillator(); const g = ctx.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(540, t);
+  o.frequency.exponentialRampToValueAtTime(170, t + 0.28);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+  o.connect(g); g.connect(_palmMaster);
+  o.start(t); o.stop(t + 0.4);
 }
 
 /* ============================================================
@@ -725,7 +769,6 @@ async function renderPubPalmares(){
         <button class="tr-nav tr-nav-next" id="tr-next" aria-label="Copa siguiente">
           <svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button class="tr-mute" id="tr-mute" aria-label="Silenciar"></button>
 
         <div class="tr-drag-hint" id="tr-drag-hint">
           <svg viewBox="0 0 64 24" width="58" height="22"><path d="M2 12h60M8 6l-6 6 6 6M56 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -903,8 +946,10 @@ function openChampionFullscreen(data, teamById, sourceRect){
 function _trFsEsc(e){ if (e.key === 'Escape') closeChampionFullscreen(); }
 function closeChampionFullscreen(){
   const wrap = _palmModalWrap();
+  const wasOpen = wrap && wrap.innerHTML.trim() !== '';
   if (wrap) wrap.innerHTML = '';
   document.removeEventListener('keydown', _trFsEsc);
+  if (wasOpen) { try { playPalmZoomOut(); } catch(e){} }
 }
 
 /* ---------------- Trophy Room interactivity ---------------- */
@@ -916,7 +961,6 @@ function initTrophyRoom(root, compData, teamById){
   const dotsEl  = root.querySelector('#tr-dots');
   const prevBtn = root.querySelector('#tr-prev');
   const nextBtn = root.querySelector('#tr-next');
-  const muteBtn = root.querySelector('#tr-mute');
   const hint    = root.querySelector('#tr-drag-hint');
   const sideEl  = root.querySelector('#tr-side-panel');
   const cards   = [...stage.querySelectorAll('.tr-case')];
@@ -926,22 +970,6 @@ function initTrophyRoom(root, compData, teamById){
   let velocity = 0, frame = null;
   let movedDuringDrag = false, interacted = false;
   let firstSnap = true;
-
-  // Botón mute
-  if (muteBtn) {
-    muteBtn.classList.toggle('off', _palmAudioMuted);
-    muteBtn.innerHTML = _palmAudioMuted
-      ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/></svg>'
-      : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-    muteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      _palmAudioMuted = !_palmAudioMuted;
-      muteBtn.classList.toggle('off', _palmAudioMuted);
-      muteBtn.innerHTML = _palmAudioMuted
-        ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/></svg>'
-        : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
-    });
-  }
 
   function positionCards(){
     // Usar ancho del stage (no del room) para calcular spread, así las

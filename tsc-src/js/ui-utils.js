@@ -46,7 +46,26 @@ function setTheme(theme){
 /* ----------------------------------------------------------
    SETTINGS
    ---------------------------------------------------------- */
-function openSettings(){ openModal('settings-modal'); }
+function openSettings(){
+  openModal('settings-modal');
+  // Reflejar el estado de sonido actual en los controles
+  const on = document.getElementById('snd-on');
+  const vol = document.getElementById('snd-vol');
+  if (on && window.SFX)  on.checked = window.SFX.enabled !== false;
+  if (vol && window.SFX) vol.value = Math.round((window.SFX.getVolume ? window.SFX.getVolume() : 0.85) * 100);
+}
+
+/* Control de sonido GLOBAL (afecta SFX y el palmarés, que lee SFX). */
+function setSoundOn(b){
+  if (window.SFX){ window.SFX.unlock(); window.SFX.setEnabled(!!b); if (b) window.SFX.radarPing(); }
+}
+function setSoundVol(v){
+  const vol = Math.max(0, Math.min(1, (parseFloat(v) || 0) / 100));
+  if (window.SFX){ window.SFX.unlock(); window.SFX.setVolume(vol); }
+}
+function sndPreview(){
+  if (window.SFX && window.SFX.enabled !== false){ window.SFX.unlock(); window.SFX.radarPing(); }
+}
 function saveSettings(){
   closeModal('settings-modal');
   showToast('Configuración guardada');

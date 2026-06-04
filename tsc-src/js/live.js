@@ -44,3 +44,17 @@ function liveSubscribe(key, store, onChange){
 function liveAvailable(){
   return typeof USE_FIRESTORE !== 'undefined' && USE_FIRESTORE;
 }
+
+/* ---- Ping de "radar/sonar" mientras hay un partido EN VIVO en el panel.
+   Suena cada 1.4s (al ritmo del punto rojo). Respeta el on/off de sonido. ---- */
+let _radarTimer = null;
+function liveRadarStart(){
+  if (_radarTimer) return;                 // ya activo
+  if (typeof window.SFX === 'undefined') return;
+  const tick = ()=>{ if (window.SFX && window.SFX.enabled !== false) window.SFX.radarPing(); };
+  tick();                                   // primer ping inmediato
+  _radarTimer = setInterval(tick, 1400);    // mismo período que livePulseRed
+}
+function liveRadarStop(){
+  if (_radarTimer){ clearInterval(_radarTimer); _radarTimer = null; }
+}

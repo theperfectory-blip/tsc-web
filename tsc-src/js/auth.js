@@ -206,12 +206,13 @@ function renderAuthUI(){
   const btnAdm = document.getElementById('btn-adm');
   if (!area) return;
   if (AUTH.user){
-    const name   = AUTH.profile?.displayName || AUTH.user.email;
-    const roleLbl = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
+    // Solo avatar (sin nombre). Foto de la cuenta si existe; si no, SVG genérico.
+    const photo  = AUTH.user.photoURL;
+    const avatar = photo
+      ? `<img src="${_authEsc(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
+      : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
     area.innerHTML =
-      `<button class="auth-user" title="Ver mi perfil" onclick="openProfile()" style="background:none;border:none;color:var(--txt2);font-size:12px;margin-right:6px;cursor:pointer;text-decoration:underline;">`
-      + `${_authEsc(name)} · ${roleLbl}</button>`
-      + `<button class="mode-btn" onclick="authSignOut()">Salir</button>`;
+      `<button class="auth-avatar" title="Mi perfil" aria-label="Mi perfil" onclick="openProfile()">${avatar}</button>`;
     if (btnAdm) btnAdm.style.display = (AUTH.role === 'admin') ? '' : 'none';
     if (btnPub) btnPub.style.display = (AUTH.role === 'admin') ? '' : 'none';
   } else {
