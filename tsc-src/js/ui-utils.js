@@ -48,11 +48,27 @@ function setTheme(theme){
    ---------------------------------------------------------- */
 function openSettings(){
   openModal('settings-modal');
-  // Reflejar el estado de sonido actual en los controles
+  // Sonido
   const on = document.getElementById('snd-on');
   const vol = document.getElementById('snd-vol');
   if (on && window.SFX)  on.checked = window.SFX.enabled !== false;
   if (vol && window.SFX) vol.value = Math.round((window.SFX.getVolume ? window.SFX.getVolume() : 0.85) * 100);
+  // Zona horaria — poblar datalist una sola vez y restaurar valor guardado
+  const tzInput = document.getElementById('settings-timezone');
+  const tzList  = document.getElementById('settings-tz-list');
+  if (tzInput && tzList){
+    if (!tzList.children.length){
+      try {
+        Intl.supportedValuesOf('timeZone').forEach(tz => {
+          const opt = document.createElement('option'); opt.value = tz; tzList.appendChild(opt);
+        });
+      } catch(e){}
+    }
+    tzInput.value = (typeof AUTH!=='undefined' && AUTH.profile?.timezone)
+      || localStorage.getItem('tsc_timezone')
+      || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    settingsUpdateTzPreview();
+  }
 }
 
 /* Control de sonido GLOBAL (afecta SFX y el palmarés, que lee SFX). */
@@ -66,7 +82,37 @@ function setSoundVol(v){
 function sndPreview(){
   if (window.SFX && window.SFX.enabled !== false){ window.SFX.unlock(); window.SFX.radarPing(); }
 }
+function settingsUpdateTzPreview(){
+  const tz = document.getElementById('settings-timezone')?.value.trim();
+  const el = document.getElementById('settings-tz-preview');
+  if (!el) return;
+  if (!tz){ el.textContent = ''; return; }
+  try {
+    el.textContent = '🕐 ' + new Intl.DateTimeFormat('es',{
+      timeZone:tz, weekday:'short', day:'numeric', month:'short',
+      hour:'2-digit', minute:'2-digit', timeZoneName:'short'
+    }).format(new Date());
+    el.style.color = 'var(--txt3)';
+  } catch(e){
+    el.textContent = '⚠ Zona horaria no válida';
+    el.style.color = '#e74c3c';
+  }
+}
+
 function saveSettings(){
+  // Zona horaria
+  const newTz = document.getElementById('settings-timezone')?.value.trim();
+  if (newTz){
+    try {
+      new Intl.DateTimeFormat('es', { timeZone: newTz }); // valida
+      localStorage.setItem('tsc_timezone', newTz);
+      if (typeof AUTH !== 'undefined' && AUTH.user && AUTH.profile){
+        firebase.firestore().collection('users').doc(AUTH.user.uid)
+          .update({ timezone: newTz }).catch(()=>{});
+        AUTH.profile.timezone = newTz;
+      }
+    } catch(e){ showToast('Zona horaria no válida','error'); return; }
+  }
   closeModal('settings-modal');
   showToast('Configuración guardada');
 }

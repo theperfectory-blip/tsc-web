@@ -235,6 +235,18 @@
           <span style="font-size:15px;">🔊</span>
         </div>
       </div>
+
+      <div class="form-group" style="margin-top:18px;margin-bottom:0;">
+        <label>Zona horaria</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="text" id="settings-timezone" list="settings-tz-list"
+            style="flex:1;" oninput="settingsUpdateTzPreview()" autocomplete="off" placeholder="America/Santiago">
+          <datalist id="settings-tz-list"></datalist>
+          <button class="btn btn-xs" title="Detectar automáticamente"
+            onclick="(()=>{const i=document.getElementById('settings-timezone');i.value=Intl.DateTimeFormat().resolvedOptions().timeZone;settingsUpdateTzPreview();})()">Auto</button>
+        </div>
+        <div id="settings-tz-preview" style="font-size:11px;color:var(--txt3);margin-top:4px;min-height:16px;"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="saveSettings()">Guardar</button>

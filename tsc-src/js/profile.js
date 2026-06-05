@@ -64,7 +64,6 @@ async function renderProfileBody(){
   const name     = AUTH.profile?.displayName || AUTH.user.email;
   const email    = AUTH.user.email;
   const username = AUTH.profile?.username || '';
-  const tz       = AUTH.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const verified = AUTH.user.emailVerified;
   const roleLbl  = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
 
@@ -104,18 +103,6 @@ async function renderProfileBody(){
           style="padding-left:26px;"
           oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
       </div>
-    </div>
-
-    <div class="form-group">
-      <label>Zona horaria</label>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <input type="text" id="profile-timezone" list="tz-datalist" value="${_pfEsc(tz)}"
-          style="flex:1;" oninput="profileUpdateTzPreview()" autocomplete="off">
-        <datalist id="tz-datalist">${_tzOptions()}</datalist>
-        <button class="btn btn-xs" title="Detectar automáticamente"
-          onclick="(()=>{const i=document.getElementById('profile-timezone');i.value=Intl.DateTimeFormat().resolvedOptions().timeZone;profileUpdateTzPreview();})()">Auto</button>
-      </div>
-      <div id="tz-preview" style="font-size:11px;color:var(--txt3);margin-top:4px;min-height:16px;"></div>
     </div>
 
     <div style="font-size:12px;color:var(--txt3);margin:-4px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -210,7 +197,6 @@ async function renderProfileBody(){
     </div>`;
 
   body.innerHTML = html;
-  setTimeout(profileUpdateTzPreview, 0);
 }
 
 /* ── Estadísticas del club ──────────────────────────────────── */
@@ -400,36 +386,11 @@ async function profileChangeEmail(){
   }
 }
 
-/* ── Zona horaria ───────────────────────────────────────────── */
-
-function _tzOptions(){
-  try {
-    return Intl.supportedValuesOf('timeZone').map(tz => `<option value="${tz}">`).join('');
-  } catch(e){ return ''; }
-}
-
-function profileUpdateTzPreview(){
-  const tz = document.getElementById('profile-timezone')?.value.trim();
-  const el = document.getElementById('tz-preview');
-  if (!el) return;
-  if (!tz){ el.textContent = ''; return; }
-  try {
-    const fmt = new Intl.DateTimeFormat('es', {
-      timeZone: tz,
-      weekday:'short', day:'numeric', month:'short',
-      hour:'2-digit', minute:'2-digit', timeZoneName:'short'
-    });
-    el.textContent = '🕐 ' + fmt.format(new Date());
-    el.style.color = 'var(--txt3)';
-  } catch(e){
-    el.textContent = '⚠ Zona horaria no válida';
-    el.style.color = '#e74c3c';
-  }
-}
-
 /* Helper global — formatea una fecha respetando la zona horaria del usuario con DST automático */
 function formatInUserTZ(date, opts = {}){
-  const tz = AUTH.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tz = (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
+    || localStorage.getItem('tsc_timezone')
+    || Intl.DateTimeFormat().resolvedOptions().timeZone;
   return new Intl.DateTimeFormat('es', { timeZone: tz, ...opts }).format(new Date(date));
 }
 
@@ -508,14 +469,7 @@ async function saveProfile(){
       upd.displayName = newName;
     }
 
-    // 3. Zona horaria
-    const newTz = document.getElementById('profile-timezone')?.value.trim();
-    if (newTz && newTz !== (AUTH.profile?.timezone || '')){
-      try { new Intl.DateTimeFormat('es', { timeZone: newTz }); upd.timezone = newTz; }
-      catch(e){ showToast('Zona horaria no válida','error'); return; }
-    }
-
-    // 4. Nombre de usuario (@handle) con verificación de unicidad
+    // 3. Nombre de usuario (@handle) con verificación de unicidad
     if (newUsername !== (AUTH.profile?.username || '')){
       if (newUsername){
         const snap = await firebase.firestore().collection('users').where('username','==',newUsername).get();
