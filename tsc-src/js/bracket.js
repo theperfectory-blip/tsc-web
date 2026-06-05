@@ -813,24 +813,32 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
     var rowContent='';
     if(slot.twoLeg){
       // Fila personalizada: logo | nombre | ida·vta | total | badge
-      var mkTLRow=function(lid,tid,legS1,legS2,tot,isWin,isTbd,lbl,byAway){
+      // Marcadores PARCIALES por equipo: ida-vuelta (+pen). NO suma global.
+      // Fuente Bebas Neue, tamaño de los nombres; dorado si ganó, no gris.
+      var mkTLRow=function(lid,tid,legA,legB,pen,isLL,isWin,isTbd,lbl,byAway){
         var nm=(tid&&window._bracketTeamById)?window._bracketTeamById[tid]:null;
         var tx=nm||(lbl||'Por definir');
-        var legDet=(legS1!=='–'||legS2!=='–')?'<span style="font-size:9px;color:var(--txt3);white-space:nowrap;flex-shrink:0;letter-spacing:0.3px;">'+legS1+'·'+legS2+'</span>':'';
+        var d1=legA!=null?legA:'–', d2=legB!=null?legB:'–';
+        var penStr=pen!=null?'('+pen+')':'';
+        var hasAny=legA!=null||legB!=null;
+        var scoreCol=isLL?'var(--red)':(isWin?'var(--gold)':'var(--txt)');
+        var scoreHtml=hasAny
+          ? '<span style="font-family:\'Bebas Neue\';font-size:18px;letter-spacing:1px;white-space:nowrap;flex-shrink:0;color:'+scoreCol+';">'+d1+'-'+d2+penStr+'</span>'
+          : '';
         var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
-        return '<div style="display:flex;align-items:center;gap:5px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
+        return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
           +logoCircle(lid,nm)
-          +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:86px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+tx+'</span>'
-          +legDet
-          +'<span style="font-family:\'Bebas Neue\';font-size:20px;min-width:16px;text-align:right;color:'+(isWin?'var(--gold)':'var(--txt3)')+';">'+tot+'</span>'
+          +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+tx+'</span>'
+          +scoreHtml
           +bdg
           +'</div>';
       };
-      rowContent=mkTLRow('blogo-'+slotId+'-a',slot.teamA,lA1,lA2,sA,aW,aTbd,slot.labelA,decidedByAway2)
+      var anyLegLive2=slot.leg1Live||slot.leg2Live||false;
+      rowContent=mkTLRow('blogo-'+slotId+'-a',slot.teamA,slot.leg1a,slot.leg2a,slot.penA,anyLegLive2,aW,aTbd,slot.labelA,decidedByAway2)
         +bA
         +'<div style="height:1px;background:var(--brd);margin:0 10px;"></div>'
-        +mkTLRow('blogo-'+slotId+'-b',slot.teamB,lB1,lB2,sB,bW,bTbd,slot.labelB,decidedByAway2)
-        +bB+legsLine;
+        +mkTLRow('blogo-'+slotId+'-b',slot.teamB,slot.leg1b,slot.leg2b,slot.penB,anyLegLive2,bW,bTbd,slot.labelB,decidedByAway2)
+        +bB;
     } else {
       rowContent=teamRow('blogo-'+slotId+'-a',slot.teamA,sA,aW,aTbd,slot.labelA,cfn)
         +bA
