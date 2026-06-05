@@ -257,6 +257,10 @@ async function openPhaseModal(id=null){
             <label class="toggle"><input type="checkbox" id="pf-legsall" ${phase?.config?.legs==='double'?'checked':''}><span class="toggle-slider"></span></label>
           </div>
           <div class="toggle-row">
+            <label>Gol de visita desempata (ida y vuelta)</label>
+            <label class="toggle"><input type="checkbox" id="pf-bawaygoal" ${phase?.config?.awayGoal?'checked':''}><span class="toggle-slider"></span></label>
+          </div>
+          <div class="toggle-row">
             <label>Final a partido único</label>
             <label class="toggle"><input type="checkbox" id="pf-finalonly" ${phase?.config?.finalSingle!==false?'checked':''}><span class="toggle-slider"></span></label>
           </div>
@@ -694,6 +698,7 @@ async function savePhase(id){
       legs:        document.getElementById('pf-legsall').checked?'double':'single',
       thirdPlace:  document.getElementById('pf-third').value==='1',
       finalSingle: document.getElementById('pf-finalonly').checked,
+      awayGoal:    document.getElementById('pf-bawaygoal')?.checked||false,
     };
   } else if(type==='playoff'){
     config = {
