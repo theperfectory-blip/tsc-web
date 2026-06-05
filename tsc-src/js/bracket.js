@@ -688,7 +688,12 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
 
   const _bkCs = getComputedStyle(document.documentElement);
   const CARD_W = parseFloat(_bkCs.getPropertyValue('--bk-card-w')) || 220;
-  const ROW_H  = parseFloat(_bkCs.getPropertyValue('--bk-row-h')) || 88;
+  let   ROW_H  = parseFloat(_bkCs.getPropertyValue('--bk-row-h')) || 88;
+  // Cruces a ida y vuelta: las tarjetas son más altas (banner en vivo + filas
+  // con scores inline + botones de ref). Aumentar la altura de fila para que
+  // las tarjetas no se solapen verticalmente.
+  const _anyTwoLeg = slots.some(r=>r.some(s=>s && s.twoLeg));
+  if(_anyTwoLeg) ROW_H = Math.max(ROW_H, isAdmin ? 120 : 104);
 
   const leftSlots  = slots.map(r => r.slice(0, Math.ceil(r.length/2)));
   const rightSlots = slots.map(r => r.slice(Math.ceil(r.length/2)));

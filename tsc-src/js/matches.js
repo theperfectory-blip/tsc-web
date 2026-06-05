@@ -1,3 +1,45 @@
+/* ----------------------------------------------------------
+   TIEMPO REAL EN ADMIN (Fase 6A para admin)
+   El modo público ya se suscribe a 'matches' (nav.js). Aquí hacemos
+   lo mismo en admin: cualquier cambio en partidos (local o remoto)
+   re-renderiza la vista actual vía onSnapshot → datos siempre frescos
+   (sin caché stale). Una sola suscripción por temporada.
+   ---------------------------------------------------------- */
+async function _rerenderAdminMatchLive(){
+  const pid = window._matchPhaseId;
+  if(!Number.isFinite(pid)) return;
+  // Solo si seguimos en la página de partidos admin
+  if(typeof STATE!=='undefined' && (STATE.mode!=='admin' || STATE.adminPage!=='partidos-admin')) return;
+  const phase = await dbGet('phases', pid);
+  if(!phase) return;
+  try{
+    if(phase.type==='groups'){
+      const gi = window._matchGroupIdx||0;
+      if(typeof showMatchGroupTable==='function') await showMatchGroupTable(pid, gi);
+    } else if(phase.type==='bracket'){
+      const cid=`bracket-container-${pid}`;
+      if(document.getElementById(cid)) await renderBracket(pid, cid, true);
+    } else if(phase.type==='playoff'){
+      const cid=`playoff-container-${pid}`;
+      if(document.getElementById(cid)) await renderPlayoff(pid, cid, true);
+    } else if(phase.type==='single'){
+      const teams = phase.config?.teams||2;
+      const cid = teams===4 ? `bracket-container-${pid}` : `playoff-container-${pid}`;
+      if(document.getElementById(cid)){
+        if(teams===4) await renderBracket(pid, cid, true);
+        else await renderPlayoff(pid, cid, true);
+      }
+    }
+  }catch(err){ console.error('[AdminLive] re-render:', err); }
+}
+
+function _subscribeAdminMatchesLive(){
+  if(typeof liveSubscribe!=='function') return;
+  // Key estable por temporada: cambiar de fase NO recrea la suscripción
+  // (el callback lee window._matchPhaseId dinámicamente).
+  liveSubscribe('adm-matches-'+STATE.season, 'matches', ()=>_rerenderAdminMatchLive());
+}
+
 async function renderAdmMatches(){
   const el = document.getElementById('adm-matches-content');
   const comps  = await getForSeason('competitions');
@@ -152,6 +194,9 @@ async function onMatchPhaseChange(phaseId){
     const ml = document.getElementById('matches-list-container');
     if(ml) ml.innerHTML='';
   }
+
+  // Activar tiempo real en admin para esta vista (una sola suscripción/temporada)
+  _subscribeAdminMatchesLive();
 }
 
 async function onMatchGroupChange(gi){
