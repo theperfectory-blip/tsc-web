@@ -253,11 +253,11 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     const scoreA = allPlayed ? (decidedBy==='pen' ? `${totA}(${penA})` : `${totA}`) : null;
     const scoreB = allPlayed ? (decidedBy==='pen' ? `${totB}(${penB})` : `${totB}`) : null;
 
-    // Indicador de cómo ganó: '✓v' = gol de visita, '✓' = global/penales
+    // Indicador de cómo ganó: badge dorado + 'v' si fue por gol de visita
     const winBadgeA = winner===slot.teamA
-      ? `<span style="font-family:'Bebas Neue';font-size:13px;color:var(--gold);letter-spacing:0.5px;">${decidedBy==='away'?'✓v':'✓'}</span>` : '';
+      ? `<span class="badge badge-gold">✓${decidedBy==='away'?'<span style="font-size:9px;letter-spacing:0px;">v</span>':''}</span>` : '';
     const winBadgeB = winner===slot.teamB
-      ? `<span style="font-family:'Bebas Neue';font-size:13px;color:var(--gold);letter-spacing:0.5px;">${decidedBy==='away'?'✓v':'✓'}</span>` : '';
+      ? `<span class="badge badge-gold">✓${decidedBy==='away'?'<span style="font-size:9px;letter-spacing:0px;">v</span>':''}</span>` : '';
 
     const wA = winner===slot.teamA, wB = winner===slot.teamB;
 
