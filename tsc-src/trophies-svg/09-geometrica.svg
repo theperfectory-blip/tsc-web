@@ -1,0 +1,28 @@
+<svg class="palm-trophy geometrica" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="ball" cx="36%" cy="28%">
+      <stop offset="0%" stop-color="#FCFBF2"/><stop offset="42%" stop-color="#D8D2BE"/><stop offset="100%" stop-color="#8A8270"/>
+    </radialGradient>
+    <linearGradient id="chr" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7C7C84"/><stop offset="30%" stop-color="#F4F4F8"/><stop offset="55%" stop-color="#B6B6C0"/><stop offset="80%" stop-color="#EDEDF2"/><stop offset="100%" stop-color="#6C6C74"/>
+    </linearGradient>
+  </defs>
+  <!-- Brazo izquierdo (hoja curva alta) -->
+  <path d="M 74 150 C 70 116, 74 82, 86 54 C 88 60, 88 64, 90 76 C 84 104, 82 126, 94 150 Z" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.5"/>
+  <!-- Brazo derecho -->
+  <path d="M 126 150 C 130 116, 126 82, 114 54 C 112 60, 112 64, 110 76 C 116 104, 118 126, 106 150 Z" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.5"/>
+  <!-- Columna central con cintura -->
+  <path d="M 95 74 L 105 74 C 108 100, 107 126, 104 150 L 96 150 C 93 126, 92 100, 95 74 Z" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.5"/>
+  <!-- Balón cromado -->
+  <circle cx="100" cy="46" r="28" fill="url(#ball)" stroke="#6E6856" stroke-width="0.6"/>
+  <g fill="none" stroke="#6E6856" stroke-width="1" opacity="0.45">
+    <polygon points="100,32 110,40 106,52 94,52 90,40"/>
+    <path d="M 90 40 L 78 38 M 110 40 L 122 38 M 94 52 L 88 64 M 106 52 L 112 64 M 100 52 L 100 60"/>
+  </g>
+  <ellipse cx="90" cy="36" rx="7" ry="10" fill="rgba(255,255,255,0.45)"/>
+  <!-- Base redonda escalonada (plata) -->
+  <ellipse cx="100" cy="150" rx="20" ry="4.5" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <rect x="84" y="150" width="32" height="8" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <ellipse cx="100" cy="160" rx="28" ry="6" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <ellipse cx="100" cy="166" rx="34" ry="6" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+</svg>

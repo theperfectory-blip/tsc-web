@@ -1,0 +1,13 @@
+<svg class="palm-trophy sobria" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#5C2E0C"/><stop offset="50%" stop-color="#E8A05A"/><stop offset="100%" stop-color="#5C2E0C"/>
+    </linearGradient>
+  </defs>
+  <path d="M 76 32 Q 100 18 124 32 L 122 46 L 78 46 Z" fill="url(#g)" stroke="#3A1A06" stroke-width="0.6"/>
+  <path d="M 78 46 L 122 46 L 124 60 Q 124 110 100 124 Q 76 110 76 60 Z" fill="url(#g)" stroke="#3A1A06" stroke-width="0.6"/>
+  <rect x="93" y="124" width="14" height="28" fill="url(#g)" stroke="#3A1A06" stroke-width="0.4"/>
+  <rect x="76" y="152" width="48" height="10" rx="2" fill="url(#g)" stroke="#3A1A06" stroke-width="0.4"/>
+  <rect x="60" y="162" width="80" height="18" rx="3" fill="url(#g)" stroke="#3A1A06" stroke-width="0.4"/>
+  <ellipse cx="100" cy="64" rx="14" ry="3" fill="rgba(255,255,255,0.3)"/>
+</svg>

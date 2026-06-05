@@ -1,0 +1,69 @@
+<svg class="palm-trophy nebula" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glb" cx="38%" cy="30%">
+      <stop offset="0%" stop-color="#FBFBFE"/><stop offset="45%" stop-color="#C9C9D2"/><stop offset="100%" stop-color="#6E6E78"/>
+    </radialGradient>
+    <linearGradient id="chr" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7C7C84"/><stop offset="30%" stop-color="#F2F2F6"/><stop offset="55%" stop-color="#B6B6C0"/><stop offset="100%" stop-color="#6C6C74"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3A2418"/><stop offset="50%" stop-color="#6E4A30"/><stop offset="100%" stop-color="#2E1B10"/>
+    </linearGradient>
+  </defs>
+  <!-- Figura del futbolista -->
+  <g fill="#9A9AA4">
+    <circle cx="100" cy="11" r="2.4"/>
+    <path d="M 100 13 L 97 23 L 103 23 Z"/>
+    <path d="M 98 15 L 92 13 M 102 15 L 108 16" stroke="#9A9AA4" stroke-width="1.4" stroke-linecap="round"/>
+    <path d="M 99 23 L 96 30 M 101 23 L 105 29" stroke="#9A9AA4" stroke-width="1.6" stroke-linecap="round"/>
+  </g>
+  <ellipse cx="100" cy="31" rx="5" ry="2" fill="url(#chr)"/>
+  <!-- Globo plateado -->
+  <circle cx="100" cy="58" r="27" fill="url(#glb)" stroke="#5A5A62" stroke-width="0.6"/>
+  <ellipse cx="88" cy="44" rx="8" ry="11" fill="rgba(255,255,255,0.45)"/>
+  <!-- Banda ecuatorial -->
+  <rect x="70" y="51" width="60" height="13" fill="#E4E4EA" stroke="#7A7A82" stroke-width="0.5"/>
+  <g fill="#8A8A92">
+    <rect x="76" y="55" width="2" height="5"/>
+    <rect x="82" y="55" width="2" height="5"/>
+    <rect x="88" y="55" width="2" height="5"/>
+    <rect x="94" y="55" width="2" height="5"/>
+    <rect x="100" y="55" width="2" height="5"/>
+    <rect x="106" y="55" width="2" height="5"/>
+    <rect x="112" y="55" width="2" height="5"/>
+    <rect x="118" y="55" width="2" height="5"/>
+    <rect x="124" y="55" width="2" height="5"/>
+  </g>
+  <!-- Asas laterales (tapas axiales) -->
+  <rect x="60" y="54" width="12" height="8" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <rect x="53" y="50" width="7" height="16" rx="1" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <rect x="128" y="54" width="12" height="8" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <rect x="140" y="50" width="7" height="16" rx="1" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <!-- Cuello acampanado fluteado -->
+  <path d="M 92 85 Q 90 94 82 104 L 118 104 Q 110 94 108 85 Z" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.5"/>
+  <g stroke="#8A8A92" stroke-width="0.6" opacity="0.5">
+    <line x1="96" y1="87" x2="90" y2="103"/>
+    <line x1="100" y1="87" x2="100" y2="103"/>
+    <line x1="104" y1="87" x2="110" y2="103"/>
+  </g>
+  <ellipse cx="100" cy="104" rx="22" ry="3.5" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <ellipse cx="100" cy="109" rx="25" ry="3.5" fill="url(#chr)" stroke="#5A5A62" stroke-width="0.4"/>
+  <!-- Pedestal torre con rejilla de placas -->
+  <rect x="68" y="112" width="64" height="54" fill="url(#wood)" stroke="#2E1B10" stroke-width="0.5"/>
+  <g fill="url(#chr)">
+    <rect x="68" y="112" width="6" height="54"/>
+    <rect x="83" y="112" width="6" height="54"/>
+    <rect x="98" y="112" width="6" height="54"/>
+    <rect x="113" y="112" width="6" height="54"/>
+    <rect x="126" y="112" width="6" height="54"/>
+  </g>
+  <g stroke="#D6D6DE" stroke-width="2" opacity="0.9">
+    <line x1="68" y1="122" x2="132" y2="122"/>
+    <line x1="68" y1="134" x2="132" y2="134"/>
+    <line x1="68" y1="146" x2="132" y2="146"/>
+    <line x1="68" y1="158" x2="132" y2="158"/>
+  </g>
+  <!-- Base de madera escalonada -->
+  <rect x="60" y="166" width="80" height="9" rx="1" fill="url(#wood)" stroke="#2E1B10" stroke-width="0.4"/>
+  <rect x="54" y="175" width="92" height="10" rx="1" fill="url(#wood)" stroke="#2E1B10" stroke-width="0.4"/>
+</svg>

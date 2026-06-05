@@ -1,0 +1,16 @@
+<svg class="palm-trophy orejona" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#8A8A8A"/><stop offset="50%" stop-color="#F4F4F4"/><stop offset="100%" stop-color="#7A7A7A"/>
+    </linearGradient>
+  </defs>
+  <path d="M 68 50 L 132 50 L 138 60 Q 142 118 100 148 Q 58 118 62 60 Z" fill="url(#g)" stroke="#4A4A4A" stroke-width="0.6"/>
+  <ellipse cx="100" cy="50" rx="32" ry="6" fill="#3A3A3A"/>
+  <ellipse cx="100" cy="49" rx="30" ry="4" fill="#1A1A1A"/>
+  <path d="M 70 56 C 16 30, 10 96, 60 124" fill="none" stroke="url(#g)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M 130 56 C 184 30, 190 96, 140 124" fill="none" stroke="url(#g)" stroke-width="9" stroke-linecap="round"/>
+  <rect x="95" y="148" width="10" height="32" fill="url(#g)" stroke="#4A4A4A" stroke-width="0.4"/>
+  <rect x="80" y="180" width="40" height="9" rx="2" fill="url(#g)" stroke="#4A4A4A" stroke-width="0.4"/>
+  <rect x="68" y="189" width="64" height="14" rx="3" fill="url(#g)" stroke="#4A4A4A" stroke-width="0.4"/>
+  <ellipse cx="100" cy="80" rx="18" ry="4" fill="rgba(255,255,255,0.4)"/>
+</svg>

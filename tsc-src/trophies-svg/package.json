@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "canvas": "^3.2.3",
+    "canvg": "^4.0.3",
+    "sharp": "^0.34.5",
+    "xmldom": "^0.6.0"
+  }
+}

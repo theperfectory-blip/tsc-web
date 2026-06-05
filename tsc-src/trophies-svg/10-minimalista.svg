@@ -1,0 +1,33 @@
+<svg class="palm-trophy minimalista" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sil" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8E8E96"/><stop offset="26%" stop-color="#F8F8FB"/><stop offset="50%" stop-color="#CACAD2"/><stop offset="74%" stop-color="#F2F2F6"/><stop offset="100%" stop-color="#7E7E86"/>
+    </linearGradient>
+  </defs>
+  <!-- Asas curvas hacia afuera -->
+  <path d="M 58 56 Q 32 42 44 24 Q 49 18 55 23" fill="none" stroke="url(#sil)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M 142 56 Q 168 42 156 24 Q 151 18 145 23" fill="none" stroke="url(#sil)" stroke-width="5" stroke-linecap="round"/>
+  <!-- Banda del borde con relieve -->
+  <ellipse cx="100" cy="50" rx="54" ry="13" fill="url(#sil)" stroke="#5A5A62" stroke-width="0.6"/>
+  <ellipse cx="100" cy="49" rx="46" ry="9" fill="#B9B9C2" opacity="0.5"/>
+  <path d="M 60 50 q 5 -5 10 0 q 5 5 10 0 q 5 -5 10 0 q 5 5 10 0 q 5 -5 10 0 q 5 5 10 0" fill="none" stroke="#7C7C84" stroke-width="1" opacity="0.5"/>
+  <!-- Cuenco ancho y poco profundo -->
+  <path d="M 50 54 Q 56 96 100 104 Q 144 96 150 54 Q 125 70 100 70 Q 75 70 50 54 Z" fill="url(#sil)" stroke="#5A5A62" stroke-width="0.6"/>
+  <!-- Estrías inferiores -->
+  <g fill="none" stroke="#9C9CA6" stroke-width="0.8" opacity="0.5">
+    <path d="M 72 70 L 78 100"/>
+    <path d="M 86 72 L 90 103"/>
+    <path d="M 100 72 L 100 104"/>
+    <path d="M 114 72 L 110 103"/>
+    <path d="M 128 70 L 122 100"/>
+  </g>
+  <ellipse cx="80" cy="64" rx="14" ry="5" fill="rgba(255,255,255,0.4)"/>
+  <!-- Vástago y pie -->
+  <rect x="94" y="104" width="12" height="16" fill="url(#sil)" stroke="#5A5A62" stroke-width="0.4"/>
+  <ellipse cx="100" cy="122" rx="20" ry="5" fill="url(#sil)" stroke="#5A5A62" stroke-width="0.4"/>
+  <!-- Base de mármol negro con placa dorada -->
+  <path d="M 64 132 L 136 132 L 140 178 L 60 178 Z" fill="#0E0E12"/>
+  <path d="M 136 132 L 146 126 L 150 172 L 140 178 Z" fill="#050507"/>
+  <path d="M 64 132 L 74 126 L 146 126 L 136 132 Z" fill="#1C1C22"/>
+  <rect x="74" y="150" width="40" height="16" rx="1" fill="#E8D49A" stroke="#B89A4E" stroke-width="0.5"/>
+</svg>

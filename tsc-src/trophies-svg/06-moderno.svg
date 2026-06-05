@@ -1,0 +1,35 @@
+<svg class="palm-trophy moderno" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C9A227"/><stop offset="35%" stop-color="#FFE9A0"/><stop offset="62%" stop-color="#EFC65C"/><stop offset="100%" stop-color="#9A7B1E"/>
+    </linearGradient>
+    <linearGradient id="gold2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9A7B1E"/><stop offset="50%" stop-color="#FFE9A0"/><stop offset="100%" stop-color="#9A7B1E"/>
+    </linearGradient>
+    <linearGradient id="base" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2A2E45"/><stop offset="100%" stop-color="#0A0C16"/>
+    </linearGradient>
+  </defs>
+  <!-- Pedestal cúbico (perspectiva) -->
+  <path d="M 72 172 L 128 172 L 128 212 L 72 212 Z" fill="url(#base)" stroke="#000" stroke-width="0.5"/>
+  <path d="M 128 172 L 138 164 L 138 204 L 128 212 Z" fill="#05070F"/>
+  <path d="M 72 172 L 82 164 L 138 164 L 128 172 Z" fill="#1B1F33"/>
+  <!-- Collar dorado -->
+  <rect x="72" y="160" width="56" height="8" rx="2" fill="url(#gold2)" stroke="#7A5E18" stroke-width="0.4"/>
+  <ellipse cx="100" cy="160" rx="28" ry="5" fill="url(#gold2)" stroke="#7A5E18" stroke-width="0.4"/>
+  <!-- Anillo exterior (toro) -->
+  <ellipse cx="100" cy="82" rx="58" ry="64" fill="none" stroke="url(#gold)" stroke-width="11"/>
+  <ellipse cx="100" cy="82" rx="63" ry="69" fill="none" stroke="#7A5E18" stroke-width="0.6" opacity="0.4"/>
+  <ellipse cx="100" cy="82" rx="53" ry="59" fill="none" stroke="#7A5E18" stroke-width="0.6" opacity="0.4"/>
+  <!-- Anillos internos entrelazados (giroscopio) -->
+  <g fill="none" stroke-linecap="round">
+    <ellipse cx="100" cy="82" rx="30" ry="50" stroke="url(#gold)" stroke-width="7" transform="rotate(-24 100 82)"/>
+    <ellipse cx="100" cy="82" rx="47" ry="25" stroke="#FFF4D6" stroke-width="6" opacity="0.9" transform="rotate(13 100 82)"/>
+    <ellipse cx="100" cy="82" rx="22" ry="40" stroke="url(#gold)" stroke-width="6" transform="rotate(30 100 82)"/>
+    <ellipse cx="100" cy="82" rx="40" ry="18" stroke="url(#gold)" stroke-width="5" transform="rotate(-9 100 82)"/>
+  </g>
+  <!-- Núcleo -->
+  <circle cx="100" cy="82" r="8" fill="url(#gold)" stroke="#7A5E18" stroke-width="0.5"/>
+  <!-- Brillo -->
+  <ellipse cx="76" cy="48" rx="9" ry="15" fill="rgba(255,255,255,0.4)" transform="rotate(-25 76 48)"/>
+</svg>

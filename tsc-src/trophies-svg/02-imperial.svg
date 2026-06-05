@@ -1,0 +1,20 @@
+<svg class="palm-trophy imperial" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0%" x2="100%">
+      <stop offset="0%" stop-color="#A8854D"/><stop offset="50%" stop-color="#FFE8AE"/><stop offset="100%" stop-color="#A8854D"/>
+    </linearGradient>
+  </defs>
+  <path d="M 72 14 L 80 28 L 88 8 L 96 24 L 100 4 L 104 24 L 112 8 L 120 28 L 128 14 L 128 34 L 72 34 Z" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.6"/>
+  <circle cx="80" cy="10" r="2.4" fill="#B22222"/>
+  <circle cx="100" cy="4" r="2.4" fill="#B22222"/>
+  <circle cx="120" cy="10" r="2.4" fill="#B22222"/>
+  <ellipse cx="100" cy="38" rx="30" ry="5" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.6"/>
+  <path d="M 76 38 L 124 38 L 118 132 Q 100 144 82 132 Z" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.6"/>
+  <path d="M 76 52 Q 52 70 58 108" fill="none" stroke="url(#g)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 124 52 Q 148 70 142 108" fill="none" stroke="url(#g)" stroke-width="4" stroke-linecap="round"/>
+  <rect x="88" y="142" width="24" height="10" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.4"/>
+  <rect x="78" y="152" width="44" height="12" rx="2" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.4"/>
+  <rect x="66" y="164" width="68" height="14" rx="2" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.4"/>
+  <rect x="54" y="178" width="92" height="16" rx="3" fill="url(#g)" stroke="#8B5A2B" stroke-width="0.4"/>
+  <ellipse cx="100" cy="56" rx="14" ry="2.5" fill="rgba(255,255,255,0.35)"/>
+</svg>

@@ -1,0 +1,15 @@
+<svg class="palm-trophy celtica" viewBox="0 0 200 240" width="400" height="480" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C0AF3F"/><stop offset="50%" stop-color="#F4E4A0"/><stop offset="100%" stop-color="#8B7E2F"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="60" r="45" fill="url(#cel)" stroke="#5C4620" stroke-width="1.5"/>
+  <path d="M 75 50 Q 65 40 60 50 M 75 60 Q 60 55 55 70 M 75 70 Q 65 80 70 90" fill="none" stroke="#5C4620" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 125 50 Q 135 40 140 50 M 125 60 Q 140 55 145 70 M 125 70 Q 135 80 130 90" fill="none" stroke="#5C4620" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="100" cy="60" r="28" fill="none" stroke="#5C4620" stroke-width="1" opacity="0.6"/>
+  <circle cx="100" cy="60" r="18" fill="none" stroke="#5C4620" stroke-width="1" opacity="0.4"/>
+  <path d="M 95 35 L 105 35 M 95 90 L 105 90" stroke="#5C4620" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="90" y="105" width="20" height="30" fill="url(#cel)" stroke="#5C4620" stroke-width="0.8" rx="1"/>
+  <polygon points="70,135 130,135 125,155 75,155" fill="url(#cel)" stroke="#5C4620" stroke-width="0.8"/>
+</svg>
