@@ -64,6 +64,7 @@ async function renderProfileBody(){
   const name     = AUTH.profile?.displayName || AUTH.user.email;
   const email    = AUTH.user.email;
   const username = AUTH.profile?.username || '';
+  const tz       = AUTH.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const verified = AUTH.user.emailVerified;
   const roleLbl  = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
 
@@ -105,14 +106,46 @@ async function renderProfileBody(){
       </div>
     </div>
 
+    <div class="form-group">
+      <label>Zona horaria</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="text" id="profile-timezone" list="tz-datalist" value="${_pfEsc(tz)}"
+          style="flex:1;" oninput="profileUpdateTzPreview()" autocomplete="off">
+        <datalist id="tz-datalist">${_tzOptions()}</datalist>
+        <button class="btn btn-xs" title="Detectar automáticamente"
+          onclick="(()=>{const i=document.getElementById('profile-timezone');i.value=Intl.DateTimeFormat().resolvedOptions().timeZone;profileUpdateTzPreview();})()">Auto</button>
+      </div>
+      <div id="tz-preview" style="font-size:11px;color:var(--txt3);margin-top:4px;min-height:16px;"></div>
+    </div>
+
     <div style="font-size:12px;color:var(--txt3);margin:-4px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       ${_pfEsc(email)} ${verBadge} · <b>${roleLbl}</b>
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
-      <button class="btn btn-sm" onclick="profileChangePassword()">🔑 Cambiar contraseña</button>
+      <button class="btn btn-sm" onclick="profileTogglePasswordChange()">🔑 Cambiar contraseña</button>
       <button class="btn btn-sm" onclick="profileToggleEmailChange()">✉ Cambiar email</button>
     </div>
+
+    <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
+      <div class="form-group" style="margin-bottom:8px;">
+        <label style="font-size:12px;">Contraseña actual</label>
+        <input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label style="font-size:12px;">Nueva contraseña (mín. 6 caracteres)</label>
+        <input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label style="font-size:12px;">Confirmar nueva contraseña</label>
+        <input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button>
+      </div>
+    </div>
+
     <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
       <div class="form-group" style="margin-bottom:8px;">
         <label style="font-size:12px;">Nuevo email</label>
@@ -177,6 +210,7 @@ async function renderProfileBody(){
     </div>`;
 
   body.innerHTML = html;
+  setTimeout(profileUpdateTzPreview, 0);
 }
 
 /* ── Estadísticas del club ──────────────────────────────────── */
@@ -366,13 +400,76 @@ async function profileChangeEmail(){
   }
 }
 
-/* ── Cambio de contraseña ───────────────────────────────────── */
+/* ── Zona horaria ───────────────────────────────────────────── */
+
+function _tzOptions(){
+  try {
+    return Intl.supportedValuesOf('timeZone').map(tz => `<option value="${tz}">`).join('');
+  } catch(e){ return ''; }
+}
+
+function profileUpdateTzPreview(){
+  const tz = document.getElementById('profile-timezone')?.value.trim();
+  const el = document.getElementById('tz-preview');
+  if (!el) return;
+  if (!tz){ el.textContent = ''; return; }
+  try {
+    const fmt = new Intl.DateTimeFormat('es', {
+      timeZone: tz,
+      weekday:'short', day:'numeric', month:'short',
+      hour:'2-digit', minute:'2-digit', timeZoneName:'short'
+    });
+    el.textContent = '🕐 ' + fmt.format(new Date());
+    el.style.color = 'var(--txt3)';
+  } catch(e){
+    el.textContent = '⚠ Zona horaria no válida';
+    el.style.color = '#e74c3c';
+  }
+}
+
+/* Helper global — formatea una fecha respetando la zona horaria del usuario con DST automático */
+function formatInUserTZ(date, opts = {}){
+  const tz = AUTH.profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return new Intl.DateTimeFormat('es', { timeZone: tz, ...opts }).format(new Date(date));
+}
+
+/* ── Cambio de contraseña (con re-autenticación) ───────────── */
+
+function profileTogglePasswordChange(){
+  const sec = document.getElementById('profile-password-change-section');
+  if (!sec) return;
+  const open = sec.style.display === 'none' || !sec.style.display;
+  sec.style.display = open ? '' : 'none';
+  if (open){
+    document.getElementById('profile-curr-pass-pw')?.focus();
+  } else {
+    ['profile-curr-pass-pw','profile-new-pw','profile-new-pw2']
+      .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  }
+}
 
 async function profileChangePassword(){
+  const currPass = document.getElementById('profile-curr-pass-pw')?.value;
+  const newPw    = document.getElementById('profile-new-pw')?.value;
+  const newPw2   = document.getElementById('profile-new-pw2')?.value;
+  if (!currPass || !newPw || !newPw2){ showToast('Completa todos los campos','error'); return; }
+  if (newPw.length < 6){ showToast('La nueva contraseña debe tener al menos 6 caracteres','error'); return; }
+  if (newPw !== newPw2){ showToast('Las contraseñas nuevas no coinciden','error'); return; }
+  const errMap = {
+    'auth/wrong-password':     'Contraseña actual incorrecta.',
+    'auth/invalid-credential': 'Contraseña actual incorrecta.',
+    'auth/too-many-requests':  'Demasiados intentos. Espera un momento.',
+    'auth/weak-password':      'La contraseña es demasiado débil.',
+  };
   try {
-    await firebase.auth().sendPasswordResetEmail(AUTH.user.email);
-    showToast('📧 Te enviamos un correo · revisa tu carpeta de SPAM');
-  } catch(e){ showToast('Error: '+(e.code||e.message), 'error'); }
+    const cred = firebase.auth.EmailAuthProvider.credential(AUTH.user.email, currPass);
+    await AUTH.user.reauthenticateWithCredential(cred);
+    await AUTH.user.updatePassword(newPw);
+    showToast('✅ Contraseña actualizada');
+    profileTogglePasswordChange();
+  } catch(e){
+    showToast(errMap[e.code] || ('Error: '+(e.message||e)), 'error');
+  }
 }
 
 function profileViewMyMatches(){
@@ -411,7 +508,14 @@ async function saveProfile(){
       upd.displayName = newName;
     }
 
-    // 3. Nombre de usuario (@handle) con verificación de unicidad
+    // 3. Zona horaria
+    const newTz = document.getElementById('profile-timezone')?.value.trim();
+    if (newTz && newTz !== (AUTH.profile?.timezone || '')){
+      try { new Intl.DateTimeFormat('es', { timeZone: newTz }); upd.timezone = newTz; }
+      catch(e){ showToast('Zona horaria no válida','error'); return; }
+    }
+
+    // 4. Nombre de usuario (@handle) con verificación de unicidad
     if (newUsername !== (AUTH.profile?.username || '')){
       if (newUsername){
         const snap = await firebase.firestore().collection('users').where('username','==',newUsername).get();

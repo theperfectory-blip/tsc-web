@@ -175,6 +175,7 @@ async function _loadProfile(user){
     displayName: _pendingSignupName || user.displayName || (user.email||'').split('@')[0],
     username: null,
     photoURL: null,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
     role: 'president',   // por defecto; admin se asigna a mano (consola/Fase 5)
     teamId: null,
     lockEdits: true,     // el admin desbloquea si el usuario lo solicita
