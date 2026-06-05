@@ -177,6 +177,7 @@ async function _loadProfile(user){
     photoURL: null,
     role: 'president',   // por defecto; admin se asigna a mano (consola/Fase 5)
     teamId: null,
+    lockEdits: true,     // el admin desbloquea si el usuario lo solicita
     createdAt: new Date().toISOString(),
   };
   _pendingSignupName = null;
