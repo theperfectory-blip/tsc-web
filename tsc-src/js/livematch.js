@@ -327,9 +327,16 @@ async function _playoffSeriesNeedsPenalties(m, phase){
   const config    = phase?.config || {};
   const legsCount = parseInt(config.legs) || 2;
   const awayGoal  = config.awayGoal || false;
-  // Todos los legs de ESTA serie (mismo matchIdx dentro de la fase).
-  const legs = await dbGetAll('matches', x=>x.phaseId===m.phaseId && x.matchIdx===m.matchIdx);
-  legs.sort((a,b)=>(a.leg||0)-(b.leg||0));
+  // Identificar la serie por el PREFIJO del slotId (`${phaseId}_m${idx}_legN`)
+  // en vez de depender solo de `matchIdx`, que puede faltar en docs antiguos.
+  const legNum = x=>{ const r=/_leg(\d+)$/.exec(String(x.slotId||'')); return r?parseInt(r[1]):(x.leg||0); };
+  const seriesPrefix = String(m.slotId||'').replace(/_leg\d+$/,''); // "6_m0"
+  const legs = await dbGetAll('matches', x=>{
+    if(x.phaseId!==m.phaseId) return false;
+    if(seriesPrefix) return String(x.slotId||'').indexOf(seriesPrefix+'_leg')===0;
+    return x.matchIdx===m.matchIdx; // fallback si no hay slotId
+  });
+  legs.sort((a,b)=>legNum(a)-legNum(b));
   const allPlayed = legs.length>=legsCount && legs.every(l=>l.goalsA!=null && l.goalsB!=null);
   if(!allPlayed) return false; // aún faltan legs: no se fuerza desempate aquí
   const totA = legs.reduce((s,l)=>s+(l.goalsA||0),0);
@@ -351,15 +358,23 @@ async function liveFinalize(matchId){
   const ga = m.goalsA||0, gb = m.goalsB||0;
 
   // ¿Hace falta un desempate (prórroga/penales) que aún no está resuelto?
-  const legsCount  = parseInt(phase?.config?.legs) || 1;
-  const isKnockout = ['bracket','single','playoff'].includes(phase?.type);
-  const isMultiLeg = legsCount>=2 && m.leg!=null;   // serie ida/vuelta
+  // Default de legs DEBE coincidir con renderPlayoff (2 en playoff/single); si
+  // aquí usáramos 1, una serie ida/vuelta se trataría como partido único y un
+  // empate en la vuelta pediría penales sin sumar la ida.
+  const ptype      = phase?.type;
+  const defaultLegs= (ptype==='playoff' || ptype==='single') ? 2 : 1;
+  const legsCount  = parseInt(phase?.config?.legs) || defaultLegs;
+  const isKnockout = ['bracket','single','playoff'].includes(ptype);
+  // Nº de leg: del campo, o derivado del slotId (`..._legN`) si el campo falta.
+  const slotLegMatch = /_leg(\d+)$/.exec(String(m.slotId||''));
+  const mLeg = (m.leg!=null) ? m.leg : (slotLegMatch ? parseInt(slotLegMatch[1]) : null);
+  const isMultiLeg = legsCount>=2 && mLeg!=null;   // serie ida/vuelta
   let needsTiebreak = false;
   if(isKnockout){
     if(isMultiLeg){
       // En la IDA el empate es válido; solo el leg decisivo puede exigir desempate,
       // y SOLO si el GLOBAL de la serie sigue empatado (no el marcador del leg).
-      needsTiebreak = (m.leg===legsCount) && await _playoffSeriesNeedsPenalties(m, phase);
+      needsTiebreak = (mLeg===legsCount) && await _playoffSeriesNeedsPenalties(m, phase);
     } else {
       // Partido único (bracket/single/supercopa de 1 partido): empate → desempate.
       needsTiebreak = (ga===gb);
