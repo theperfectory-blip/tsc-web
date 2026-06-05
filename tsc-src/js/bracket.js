@@ -365,9 +365,6 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   // Mapear partidos existentes
   const matchMap = {};
   allMatches.forEach(m=>{ matchMap[m.slotId]=m; });
-  // ¿Hay algún partido EN VIVO en esta fase? Si lo hay, se ocultan los botones
-  // "🔴 En vivo" de los demás cruces (solo uno en directo a la vez).
-  const anyLiveInPhase = allMatches.some(m=>m.live);
 
   // Rellenar slots con clasificados de grupos si es derivada
   const slots = await buildBracketSlots(phase, rounds, matchMap);
@@ -616,6 +613,10 @@ async function getClassifiedFromPhase(sourcePhaseId){
 function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle){
   const nRounds = rounds.length;
   if(!nRounds) return '<div style="color:var(--txt3);">Sin rondas configuradas.</div>';
+
+  // ¿Hay algún partido EN VIVO en esta fase? Si lo hay, se ocultan los botones
+  // "🔴 En vivo" de los demás cruces (solo uno en directo a la vez).
+  const anyLiveInPhase = Object.values(matchMap).some(m=>m && m.live);
 
   const _bkCs = getComputedStyle(document.documentElement);
   const CARD_W = parseFloat(_bkCs.getPropertyValue('--bk-card-w')) || 220;
