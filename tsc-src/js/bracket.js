@@ -822,15 +822,18 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
         var penStr=pen!=null?'('+pen+')':'';
         var hasAny=legA!=null||legB!=null;
         var scoreCol=isLL?'var(--red)':(isWin?'var(--gold)':'var(--txt)');
+        // Separador "|" entre ida y vuelta (el "-" se confundía con marcador).
         var scoreHtml=hasAny
-          ? '<span style="font-family:\'Bebas Neue\';font-size:18px;letter-spacing:1px;white-space:nowrap;flex-shrink:0;color:'+scoreCol+';">'+d1+'-'+d2+penStr+'</span>'
+          ? '<span style="font-family:\'Bebas Neue\';font-size:18px;letter-spacing:1px;white-space:nowrap;flex-shrink:0;color:'+scoreCol+';">'+d1+'<span style="color:var(--txt3);margin:0 2px;">|</span>'+d2+penStr+'</span>'
           : '';
+        // Badge ✓ al lado del NOMBRE del ganador (no tras el marcador).
         var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
         return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
           +logoCircle(lid,nm)
-          +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+tx+'</span>'
-          +scoreHtml
+          +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+tx+'</span>'
           +bdg
+          +'<span style="flex:1;"></span>'
+          +scoreHtml
           +'</div>';
       };
       var anyLegLive2=slot.leg1Live||slot.leg2Live||false;
