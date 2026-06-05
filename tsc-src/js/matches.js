@@ -37,7 +37,8 @@ function _subscribeAdminMatchesLive(){
   if(typeof liveSubscribe!=='function') return;
   // Key estable por temporada: cambiar de fase NO recrea la suscripción
   // (el callback lee window._matchPhaseId dinámicamente).
-  liveSubscribe('adm-matches-'+STATE.season, 'matches', ()=>_rerenderAdminMatchLive());
+  // Escucha partidos (marcadores/vivo), fases (refs/publicar) y equipos (nombre/logo).
+  liveSubscribe('adm-matches-'+STATE.season, ['matches','phases','teams'], ()=>_rerenderAdminMatchLive());
 }
 
 async function renderAdmMatches(){

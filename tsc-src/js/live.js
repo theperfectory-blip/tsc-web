@@ -10,33 +10,44 @@
    que `liveSubscribe` simplemente no hace nada (modo local).
    ============================================================ */
 
-let _liveUnsub = null;   // función para cancelar la suscripción de Firestore
+let _liveUnsubs = [];    // funciones para cancelar las suscripciones activas
 let _liveTimer = null;   // debounce de re-render
 let _liveKey   = null;   // identifica la suscripción activa (evita remontar igual)
 
-/* Cancela la suscripción activa (si la hay). Idempotente. */
+/* Cancela TODAS las suscripciones activas (si las hay). Idempotente. */
 function liveStop(){
-  if (_liveUnsub){ try { _liveUnsub(); } catch(_){} _liveUnsub = null; }
+  if (_liveUnsubs.length){
+    _liveUnsubs.forEach(u=>{ try { u(); } catch(_){} });
+    _liveUnsubs = [];
+  }
   if (_liveTimer){ clearTimeout(_liveTimer); _liveTimer = null; }
   _liveKey = null;
 }
 
-/* Suscribe `store` (filtrado por temporada actual) y llama a
-   `onChange` con debounce ante cada cambio remoto.
-   - `key`: identidad de la vista; si ya estás suscrito a la misma
-     key, no hace nada (evita remontar en re-renders internos).
-   - El PRIMER snapshot se ignora: la vista ya se pintó con un
-     fetch normal justo antes, así no hay doble render redundante. */
-function liveSubscribe(key, store, onChange){
+/* Suscribe una o varias colecciones (filtradas por temporada actual) y llama
+   a `onChange` con debounce ante CUALQUIER cambio remoto o local.
+   - `key`: identidad de la vista; si ya estás suscrito a la misma key, no hace
+     nada (evita remontar en re-renders internos).
+   - `stores`: nombre de colección (string) o lista de colecciones (array).
+   - El PRIMER snapshot de cada colección se ignora: la vista ya se pintó con un
+     fetch normal justo antes, así no hay doble render redundante.
+
+   onSnapshot es la fuente autoritativa del servidor → datos SIEMPRE frescos,
+   sin caché stale. Cubre cambios propios y de otros dispositivos. */
+function liveSubscribe(key, stores, onChange){
   if (typeof USE_FIRESTORE === 'undefined' || !USE_FIRESTORE) return; // sin tiempo real (IndexedDB)
   if (_liveKey === key) return;                                       // ya suscrito a esto
   liveStop();
   _liveKey = key;
-  let first = true;
-  _liveUnsub = dbSubscribe(store, r => r.season===STATE.season || !r.season, () => {
-    if (first){ first = false; return; }
-    if (_liveTimer) clearTimeout(_liveTimer);
-    _liveTimer = setTimeout(onChange, 250);
+  const list = Array.isArray(stores) ? stores : [stores];
+  list.forEach(store=>{
+    let first = true;
+    const unsub = dbSubscribe(store, r => r.season===STATE.season || !r.season, () => {
+      if (first){ first = false; return; }     // ignora el primer snapshot por colección
+      if (_liveTimer) clearTimeout(_liveTimer);
+      _liveTimer = setTimeout(onChange, 200);
+    });
+    _liveUnsubs.push(unsub);
   });
 }
 

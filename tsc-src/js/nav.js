@@ -68,18 +68,32 @@ async function renderPublicPage(page){
   if(typeof liveStop==='function') liveStop();   // cancela tiempo real de la vista anterior
   if(typeof liveRadarStop==='function') liveRadarStop(); // detener ping de radar (lo reinicia el panel si hay en vivo)
   await refreshSorteoTabVisibility();
+  const _sub = (key, stores, fn)=>{ if(typeof liveSubscribe==='function') liveSubscribe(key+'-'+STATE.season, stores, fn); };
   switch(page){
-    case 'palmares':      await renderPubPalmares();    break;
+    case 'palmares':
+      await renderPubPalmares();
+      // Palmarés depende de temporadas finalizadas, fases y partidos.
+      _sub('palmares', ['seasons','phases','matches'], ()=>renderPubPalmares());
+      break;
     case 'panel':
       await renderPubPanel();
-      // Tiempo real: el panel se re-renderiza solo cuando cambian los partidos.
-      if(typeof liveSubscribe==='function')
-        liveSubscribe('panel-'+STATE.season, 'matches', ()=>renderPubPanel());
+      // Panel: partidos (marcadores/vivo) + fases (publicar) + equipos (nombre/logo).
+      _sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
       break;
-    case 'competiciones': await renderPubComps();       break;
-    case 'equipos':       await renderPubTeams();       break;
-    case 'sorteo':        await renderPubSorteo();      break;
-    case 'historial':     await renderPubHistory();     break;
+    case 'competiciones':
+      await renderPubComps();
+      // Competiciones: estructura de fases, partidos, equipos y competiciones.
+      _sub('comps', ['competitions','phases','matches','teams'], ()=>renderPubComps());
+      break;
+    case 'equipos':
+      await renderPubTeams();
+      _sub('equipos', ['teams'], ()=>renderPubTeams());
+      break;
+    case 'sorteo':        await renderPubSorteo();      break; // tiempo real propio (módulo SORTEO)
+    case 'historial':
+      await renderPubHistory();
+      _sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
+      break;
   }
 }
 
