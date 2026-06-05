@@ -245,34 +245,53 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     }).join('');
 
     const teamAName = slot.teamA ? (teamById[slot.teamA] || slot.labelA || 'Por definir') : (slot.labelA||'Por definir');
+    const teamBName = slot.teamB ? (teamById[slot.teamB] || slot.labelB || 'Por definir') : (slot.labelB||'Por definir');
     const teamAIni = (teamById[slot.teamA] || slot.labelA || '').substring(0,3).toUpperCase() || '?';
+    const teamBIni = (teamById[slot.teamB] || slot.labelB || '').substring(0,3).toUpperCase() || '?';
+
+    // Construir marcador con penales si aplica: "3(5)" o solo "3"
+    const scoreA = allPlayed ? (decidedBy==='pen' ? `${totA}(${penA})` : `${totA}`) : null;
+    const scoreB = allPlayed ? (decidedBy==='pen' ? `${totB}(${penB})` : `${totB}`) : null;
+
+    // Indicador de cómo ganó: '✓v' = gol de visita, '✓' = global/penales
+    const winBadgeA = winner===slot.teamA
+      ? `<span style="font-family:'Bebas Neue';font-size:13px;color:var(--gold);letter-spacing:0.5px;">${decidedBy==='away'?'✓v':'✓'}</span>` : '';
+    const winBadgeB = winner===slot.teamB
+      ? `<span style="font-family:'Bebas Neue';font-size:13px;color:var(--gold);letter-spacing:0.5px;">${decidedBy==='away'?'✓v':'✓'}</span>` : '';
+
+    const wA = winner===slot.teamA, wB = winner===slot.teamB;
 
     html+=`
     <div class="card">
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:12px 14px;">
+
+        <!-- Equipo A: logo | nombre | goles ✓ -->
         <div style="display:flex;align-items:center;gap:7px;">
           <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-a">${teamAIni}</div>
-          <span style="font-size:16px;font-weight:${winner===slot.teamA?'700':'400'};${winner===slot.teamA?'color:var(--gold);':''};">${teamAName}</span>
-          ${winner===slot.teamA?'<span class="badge badge-gold">✓</span>':''}
+          <span style="font-size:15px;font-weight:${wA?'700':'400'};color:${wA?'var(--gold)':'var(--txt)'};">${teamAName}</span>
+          ${scoreA!==null?`<span style="font-family:'Bebas Neue';font-size:20px;color:${wA?'var(--gold)':'var(--txt2)'};">${scoreA}</span>`:''}
+          ${winBadgeA}
         </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-        ${legHtml}
-          ${allPlayed&&legsCount>1?`<div style="font-size:13px;color:var(--txt3);">Total: <strong style="color:var(--txt);">${totA} - ${totB}</strong></div>`:''}
-          ${allPlayed&&totA===totB&&awayGoal&&legsCount>=2?`<div style="font-size:12px;color:var(--txt3);">Visita: <strong style="color:var(--txt);">${awayA} - ${awayB}</strong></div>`:''}
-          ${decidedBy==='pen'?`<div style="font-size:12px;color:var(--txt3);">Penales: <strong style="color:var(--txt);">${penA} - ${penB}</strong></div>`:''}
-          ${allPlayed&&totA===totB&&(!winner)?`<div style="font-size:11px;color:var(--yellow);">Serie empatada: define por ${awayGoal&&legsCount>=2?'gol de visita o ':' '}penales</div>`:''}
+
+        <!-- Centro: ida/vuelta + aviso de empate si falta decidir -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:5px;">
+          ${legHtml}
+          ${allPlayed&&totA===totB&&!winner?`<div style="font-size:10px;color:var(--yellow);text-align:center;">Define por ${awayGoal&&legsCount>=2?'visita o ':''}penales</div>`:''}
           ${isAdmin?(isSingle
-            ?`<button class="btn btn-xs" onclick="openSupercopaTeamAssign(${phaseId},${i})" style="font-size:11px;">✎ Asignar equipos</button>`
-            :`<div style="display:flex;gap:6px;">
+            ?`<button class="btn btn-xs" onclick="openSupercopaTeamAssign(${phaseId},${i})" style="font-size:11px;margin-top:4px;">✎ Asignar equipos</button>`
+            :`<div style="display:flex;gap:6px;margin-top:2px;">
               <button class="btn btn-xs" onclick="openSlotRefModal(${phaseId},${i},'A','playoff')" style="font-size:10px;opacity:0.75;">Ref A</button>
               <button class="btn btn-xs" onclick="openSlotRefModal(${phaseId},${i},'B','playoff')" style="font-size:10px;opacity:0.75;">Ref B</button>
             </div>`)
           :''}
         </div>
+
+        <!-- Equipo B: ✓ goles | nombre | logo -->
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:7px;">
-          ${winner===slot.teamB?'<span class="badge badge-gold">✓</span>':''}
-          <span style="font-size:16px;font-weight:${winner===slot.teamB?'700':'400'};${winner===slot.teamB?'color:var(--gold);':''};">${slot.teamB ? (teamById[slot.teamB] || slot.labelB || 'Por definir') : (slot.labelB||'Por definir')}</span>
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-b">${(teamById[slot.teamB] || slot.labelB || '').substring(0,3).toUpperCase()||'?'}</div>
+          ${winBadgeB}
+          ${scoreB!==null?`<span style="font-family:'Bebas Neue';font-size:20px;color:${wB?'var(--gold)':'var(--txt2)'};">${scoreB}</span>`:''}
+          <span style="font-size:15px;font-weight:${wB?'700':'400'};color:${wB?'var(--gold)':'var(--txt)'};">${teamBName}</span>
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-b">${teamBIni}</div>
         </div>
       </div>
     </div>`;
