@@ -4,13 +4,16 @@
    - Foto de perfil propia (independiente del escudo del club)
    - Nombre de usuario único (@handle)
    - Nombre para mostrar + cambio de contraseña
+   - Cambio de email con re-autenticación
+   - Verificación de email
+   - Estadísticas del club (gráfico W/D/L + GF/GC)
    - Si vinculado a club: editar nombre/escudo del club
    ============================================================ */
 
-let _profileAvatarData;        // URL avatar usuario (preview temporal o valor actual)
-let _profileAvatarFile;        // archivo avatar pendiente de subir
+let _profileAvatarData;
+let _profileAvatarFile;
 let _profileAvatarTouched = false;
-let _profileLogoData;          // URL escudo del club
+let _profileLogoData;
 let _profileLogoFile;
 let _profileLogoTouched = false;
 
@@ -52,23 +55,31 @@ async function renderProfileBody(){
   const body = document.getElementById('profile-body');
   if (!body) return;
 
-  let team = null, locked = false;
-  if (AUTH.teamId != null){
-    try { team = await dbGet('teams', AUTH.teamId); } catch(_){}
-  }
-  locked = !!(AUTH.profile && AUTH.profile.lockEdits);
+  // Carga equipo + stats en paralelo
+  const [team, stats] = await Promise.all([
+    AUTH.teamId != null ? dbGet('teams', AUTH.teamId).catch(()=>null) : Promise.resolve(null),
+    AUTH.teamId != null ? _loadTeamStats(AUTH.teamId)               : Promise.resolve(null),
+  ]);
+  const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
   window._profileTeam = team;
 
   const name     = AUTH.profile?.displayName || AUTH.user.email;
   const email    = AUTH.user.email;
   const username = AUTH.profile?.username || '';
+  const verified = AUTH.user.emailVerified;
   const roleLbl  = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
 
-  // Avatar del usuario — usa _profileAvatarData si ya fue tocado, si no usa el guardado en Firestore
+  // Avatar del usuario (≠ escudo del club)
   const avatarSrc = _profileAvatarData !== undefined ? _profileAvatarData : (AUTH.profile?.photoURL || null);
   const avatarInner = avatarSrc
     ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;">`
     : `<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:block;color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
+
+  // Badge de verificación de email
+  const verBadge = verified
+    ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
+    : `<span style="color:#FFC107;font-size:11px;font-weight:600;">⚠ sin verificar</span>
+       <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`;
 
   let html = `
     <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
@@ -81,6 +92,7 @@ async function renderProfileBody(){
         <button class="btn btn-xs btn-danger" id="profile-avatar-remove-btn" onclick="profileRemoveAvatar()" style="${avatarSrc ? '' : 'display:none;'}">Quitar foto</button>
       </div>
     </div>
+
     <div class="form-group">
       <label>Nombre para mostrar</label>
       <input type="text" id="profile-name" value="${_pfEsc(name)}">
@@ -94,13 +106,32 @@ async function renderProfileBody(){
           oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
       </div>
     </div>
-    <div style="font-size:12px;color:var(--txt3);margin:-4px 0 12px;">
-      ${_pfEsc(email)} · <b>${roleLbl}</b>
+
+    <div style="font-size:12px;color:var(--txt3);margin:-4px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      ${_pfEsc(email)} ${verBadge} · <b>${roleLbl}</b>
     </div>
-    <button class="btn btn-sm" onclick="profileChangePassword()">🔑 Cambiar contraseña</button>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
+      <button class="btn btn-sm" onclick="profileChangePassword()">🔑 Cambiar contraseña</button>
+      <button class="btn btn-sm" onclick="profileToggleEmailChange()">✉ Cambiar email</button>
+    </div>
+    <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
+      <div class="form-group" style="margin-bottom:8px;">
+        <label style="font-size:12px;">Nuevo email</label>
+        <input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label style="font-size:12px;">Contraseña actual (para confirmar)</label>
+        <input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button>
+      </div>
+    </div>
   `;
 
-  // Sección club (solo para usuarios con equipo vinculado)
+  // ── Sección Club ────────────────────────────────────────────
   if (team){
     const currentLogo = _profileLogoData !== undefined ? _profileLogoData : team.logo;
     const logoInner = currentLogo
@@ -111,6 +142,12 @@ async function renderProfileBody(){
       <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
       <div class="section-lbl" style="margin-bottom:10px;">Mi club</div>
       ${locked ? `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);margin-bottom:12px;">🔒 El administrador bloqueó la edición de nombre y escudo.</div>` : ''}
+    `;
+
+    // Stats + donut chart
+    if (stats) html += _statsHTML(stats);
+
+    html += `
       <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px;">
         <div id="profile-logo-preview" style="width:64px;height:64px;border-radius:12px;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:${_pfEsc(team.color||'#333')};">
           ${logoInner}
@@ -118,7 +155,7 @@ async function renderProfileBody(){
         <div style="display:flex;flex-direction:column;gap:6px;">
           <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" onchange="profilePreviewLogo(this)">
           <button class="btn btn-sm" ${dis} onclick="document.getElementById('profile-logo-file').click()">Cambiar escudo</button>
-          ${(currentLogo) && !locked ? `<button class="btn btn-xs btn-danger" onclick="profileRemoveLogo()">Quitar</button>` : ''}
+          ${currentLogo && !locked ? `<button class="btn btn-xs btn-danger" onclick="profileRemoveLogo()">Quitar</button>` : ''}
         </div>
       </div>
       <div class="form-group">
@@ -144,7 +181,89 @@ async function renderProfileBody(){
   body.innerHTML = html;
 }
 
-/* ---- Avatar del usuario (foto de perfil, ≠ escudo del club) ---- */
+/* ── Estadísticas del club ──────────────────────────────────── */
+
+async function _loadTeamStats(teamId){
+  const id = Number(teamId);
+  const all = await dbGetAll('matches');
+  const played = all.filter(m =>
+    (m.teamA === id || m.teamB === id) &&
+    m.goalsA != null && m.goalsB != null
+  );
+  let W=0, D=0, L=0, GF=0, GA=0;
+  for (const m of played){
+    const iA = m.teamA === id;
+    const gf = iA ? m.goalsA : m.goalsB;
+    const ga = iA ? m.goalsB : m.goalsA;
+    GF += gf; GA += ga;
+    if (gf > ga) W++;
+    else if (gf < ga) L++;
+    else D++;
+  }
+  return { W, D, L, GF, GA, P: played.length };
+}
+
+function _donutSVG(segs, size=72){
+  const total = segs.reduce((s,d) => s + d.value, 0);
+  const r = 27, cx = size/2, cy = size/2;
+  const circ = 2 * Math.PI * r;
+  if (!total){
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--brd2)" stroke-width="9"/></svg>`;
+  }
+  let cum = 0;
+  const circles = segs.map(s => {
+    if (!s.value) return '';
+    const len = (s.value / total) * circ;
+    const off = -(cum / total) * circ;
+    cum += s.value;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="9" stroke-dasharray="${len.toFixed(2)} ${(circ-len).toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+  }).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${circles}</svg>`;
+}
+
+function _statsHTML(s){
+  const { W, D, L, GF, GA, P } = s;
+  if (!P) return `<div style="font-size:12px;color:var(--txt3);margin-bottom:14px;">Sin partidos registrados aún.</div>`;
+  const maxG = Math.max(GF, GA, 1);
+  const bar = (n, color) => {
+    const w = Math.round(n / maxG * 100);
+    return `<div style="height:5px;border-radius:3px;background:var(--brd2);overflow:hidden;"><div style="height:100%;width:${w}%;background:${color};border-radius:3px;"></div></div>`;
+  };
+  const chart = _donutSVG([
+    { value: W, color: '#2ecc71' },
+    { value: D, color: '#95a5a6' },
+    { value: L, color: '#e74c3c' },
+  ]);
+  return `
+    <div style="display:flex;gap:14px;align-items:center;background:var(--card2);border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+      <div style="flex:none;position:relative;width:72px;height:72px;">
+        ${chart}
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;line-height:1.1;pointer-events:none;">
+          <div style="font-size:16px;font-weight:700;font-family:'Bebas Neue';">${P}</div>
+          <div style="font-size:9px;color:var(--txt3);letter-spacing:0.5px;">PJ</div>
+        </div>
+      </div>
+      <div style="flex:1;font-size:12px;display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:2px;">
+          <span><span style="color:#2ecc71;">●</span> G <b>${W}</b></span>
+          <span><span style="color:#95a5a6;">●</span> E <b>${D}</b></span>
+          <span><span style="color:#e74c3c;">●</span> P <b>${L}</b></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt3);">
+            <span>Goles a favor</span><b style="color:var(--txt);">${GF}</b>
+          </div>
+          ${bar(GF, '#f1c40f')}
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt3);margin-top:3px;">
+            <span>Goles en contra</span><b style="color:var(--txt);">${GA}</b>
+          </div>
+          ${bar(GA, '#e74c3c')}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── Avatar del usuario (foto de perfil, ≠ escudo del club) ── */
 
 function profilePreviewAvatar(input){
   const file = input.files[0];
@@ -157,7 +276,6 @@ function profilePreviewAvatar(input){
   if (prev) prev.innerHTML = `<img src="${_pfEsc(url)}" style="width:100%;height:100%;object-fit:cover;">`;
   const removeBtn = document.getElementById('profile-avatar-remove-btn');
   if (removeBtn) removeBtn.style.display = '';
-  // Actualiza el avatar de la topbar en tiempo real
   _updateTopbarAvatar(url);
 }
 
@@ -180,7 +298,7 @@ function _updateTopbarAvatar(url){
     : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
 }
 
-/* ---- Escudo del club ---- */
+/* ── Escudo del club ────────────────────────────────────────── */
 
 function profilePreviewLogo(input){
   const file = input.files[0];
@@ -202,7 +320,51 @@ function profileRemoveLogo(){
   if (prev) prev.innerHTML = `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3))}</span>`;
 }
 
-/* ---- Acciones de cuenta ---- */
+/* ── Verificación y cambio de email ────────────────────────── */
+
+async function profileResendVerification(){
+  try {
+    await AUTH.user.sendEmailVerification();
+    showToast('📧 Correo de verificación enviado · revisa tu SPAM');
+  } catch(e){ showToast('Error: '+(e.code||e.message),'error'); }
+}
+
+function profileToggleEmailChange(){
+  const sec = document.getElementById('profile-email-change-section');
+  if (!sec) return;
+  const open = sec.style.display === 'none' || !sec.style.display;
+  sec.style.display = open ? '' : 'none';
+  if (open){
+    document.getElementById('profile-new-email')?.focus();
+  } else {
+    if (document.getElementById('profile-new-email'))     document.getElementById('profile-new-email').value = '';
+    if (document.getElementById('profile-curr-pass-email')) document.getElementById('profile-curr-pass-email').value = '';
+  }
+}
+
+async function profileChangeEmail(){
+  const newEmail = document.getElementById('profile-new-email')?.value.trim();
+  const pass     = document.getElementById('profile-curr-pass-email')?.value;
+  if (!newEmail || !pass){ showToast('Completa el nuevo email y tu contraseña actual','error'); return; }
+  const errMap = {
+    'auth/wrong-password':      'Contraseña incorrecta.',
+    'auth/invalid-credential':  'Contraseña incorrecta.',
+    'auth/email-already-in-use':'Ese email ya está en uso.',
+    'auth/invalid-email':       'Email inválido.',
+    'auth/too-many-requests':   'Demasiados intentos. Espera un momento.',
+  };
+  try {
+    const cred = firebase.auth.EmailAuthProvider.credential(AUTH.user.email, pass);
+    await AUTH.user.reauthenticateWithCredential(cred);
+    await AUTH.user.verifyBeforeUpdateEmail(newEmail);
+    showToast('📧 Correo de verificación enviado a '+newEmail+' · revisa tu SPAM');
+    profileToggleEmailChange();
+  } catch(e){
+    showToast(errMap[e.code] || ('Error: '+(e.message||e)), 'error');
+  }
+}
+
+/* ── Cambio de contraseña ───────────────────────────────────── */
 
 async function profileChangePassword(){
   try {
@@ -220,7 +382,7 @@ function profileViewMyMatches(){
   goPublicPage('historial');
 }
 
-/* ---- Guardar todo ---- */
+/* ── Guardar todo ───────────────────────────────────────────── */
 
 async function saveProfile(){
   const newName     = document.getElementById('profile-name')?.value.trim();
@@ -262,7 +424,6 @@ async function saveProfile(){
       Object.assign(AUTH.profile, upd);
     }
 
-    // Refleja la nueva foto en la topbar (si cambió)
     if ('photoURL' in upd) _updateTopbarAvatar(upd.photoURL);
     if (typeof renderAuthUI === 'function') renderAuthUI();
 
