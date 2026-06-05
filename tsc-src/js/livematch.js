@@ -440,22 +440,22 @@ async function liveFinalize(matchId){
   const _savedCtx = _liveCtx ? {..._liveCtx} : null;
   showToast(`Partido finalizado · ${ga}-${gb}`);
   closeLiveMatch();
-  // Re-render forzado con setTimeout(0) para garantizar que la DB ya refleja
-  // live:false antes de leer (evita que caché de Firestore devuelva dato viejo).
+  // Re-render forzado: esperamos 250ms para que Firestore propague el cambio
+  // antes de releer (collection.get() puede servir datos de caché momentáneamente
+  // si el onSnapshot todavía no procesó el write de live:false).
   if(_savedCtx){
-    setTimeout(async()=>{
-      try{
-        if(_savedCtx.kind==='playoff'||_savedCtx.kind==='single'){
-          const cid=document.querySelector('[id^="playoff-container-"]')?.id;
-          if(cid) await renderPlayoff(_savedCtx.phaseId, cid, true);
-        } else if(_savedCtx.kind==='bracket'){
-          const cid=document.querySelector('[id^="bracket-container-"]')?.id;
-          if(cid) await renderBracket(_savedCtx.phaseId, cid, true);
-        } else if(_savedCtx.kind==='group' && typeof showMatchGroupTable==='function'){
-          showMatchGroupTable(_savedCtx.phaseId, _savedCtx.groupIdx);
-        }
-      }catch(e){ console.error('[LiveMatch] re-render post-finalizar:', e); }
-    }, 0);
+    await new Promise(r=>setTimeout(r,250));
+    try{
+      if(_savedCtx.kind==='playoff'||_savedCtx.kind==='single'){
+        const cid=document.querySelector('[id^="playoff-container-"]')?.id;
+        if(cid) await renderPlayoff(_savedCtx.phaseId, cid, true);
+      } else if(_savedCtx.kind==='bracket'){
+        const cid=document.querySelector('[id^="bracket-container-"]')?.id;
+        if(cid) await renderBracket(_savedCtx.phaseId, cid, true);
+      } else if(_savedCtx.kind==='group' && typeof showMatchGroupTable==='function'){
+        showMatchGroupTable(_savedCtx.phaseId, _savedCtx.groupIdx);
+      }
+    }catch(e){ console.error('[LiveMatch] re-render post-finalizar:', e); }
   }
 }
 
