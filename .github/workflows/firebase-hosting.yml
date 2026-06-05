@@ -1,10 +1,10 @@
 name: Deploy a Firebase Hosting
 
-# Cada push a la rama firebase-migration publica la web automáticamente.
+# Cada push a la rama main publica la web automáticamente.
 on:
   push:
     branches:
-      - firebase-migration
+      - main
 
 permissions:
   contents: read
