@@ -182,58 +182,26 @@ async function renderProfileBody(){
 /* ── Estadísticas del club ──────────────────────────────────── */
 
 async function _loadTeamStats(teamId, team){
-  const id = Number(teamId);
-
-  // Normalización idéntica a history.js (_histNorm puede no estar cargado aún)
   const _norm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
   const allNames = new Set([
     _norm(team.name),
     ...((Array.isArray(team.previousNames) ? team.previousNames : []).map(_norm))
   ].filter(Boolean));
 
+  // Usa exactamente los mismos datos resueltos que la tabla histórica
+  const rows = await _getResolvedRecords();
+
   let W=0, D=0, L=0, GF=0, GA=0;
-  const _tally = (gf, ga) => {
-    GF += gf; GA += ga;
-    if (gf > ga) W++; else if (gf < ga) L++; else D++;
-  };
-
-  // Carga en paralelo: JSON estático + matchHistory live + matches (para resolver refs)
-  const [staticRows, liveHistory, allMatches] = await Promise.all([
-    typeof loadStaticHistory === 'function' ? loadStaticHistory() : Promise.resolve([]),
-    dbGetAll('matchHistory', h => h.source === 'live'),
-    dbGetAll('matches'),
-  ]);
-  const matchById = {};
-  for (const m of allMatches) matchById[m.id] = m;
-
-  // Fuente 1: JSON estático — identificación por nombre de equipo
-  for (const r of staticRows){
+  for (const r of rows){
     if (r.golesA == null || r.golesB == null) continue;
     const isA = allNames.has(_norm(r.equipoA));
     const isB = !isA && allNames.has(_norm(r.equipoB));
     if (!isA && !isB) continue;
-    _tally(isA ? r.golesA : r.golesB, isA ? r.golesB : r.golesA);
+    const gf = isA ? r.golesA : r.golesB;
+    const ga = isA ? r.golesB : r.golesA;
+    GF += gf; GA += ga;
+    if (gf > ga) W++; else if (gf < ga) L++; else D++;
   }
-
-  // Fuente 2: matchHistory live — congelados (nombre guardado) o sin congelar (via matchRef)
-  for (const h of liveHistory){
-    if (h.golesA == null || h.golesB == null) continue;
-    if (h.equipoA && h.equipoB){
-      // Registro congelado: nombres guardados directamente
-      const isA = allNames.has(_norm(h.equipoA));
-      const isB = !isA && allNames.has(_norm(h.equipoB));
-      if (!isA && !isB) continue;
-      _tally(isA ? h.golesA : h.golesB, isA ? h.golesB : h.golesA);
-    } else if (h.matchRef != null){
-      // No congelado (temporada actual): resolver via matches store por ID
-      const m = matchById[h.matchRef];
-      if (!m) continue;
-      const mA = Number(m.teamA), mB = Number(m.teamB);
-      if (mA !== id && mB !== id) continue;
-      _tally(mA === id ? h.golesA : h.golesB, mA === id ? h.golesB : h.golesA);
-    }
-  }
-
   return { W, D, L, GF, GA, P: W+D+L };
 }
 
