@@ -227,7 +227,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       const colA = isLegLive?'var(--red)':(ld.goalsA!==null&&ld.goalsA>ld.goalsB?'var(--gold)':'var(--txt)');
       const colB = isLegLive?'var(--red)':(ld.goalsB!==null&&ld.goalsB>ld.goalsA?'var(--gold)':'var(--txt)');
       return `
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:12px;color:var(--txt3);min-width:32px;">${legsCount>1?(li===0?'Ida':'Vuelta'):'Partido'}</span>
         <div ${isLegLive?'class="live-border"':''} style="display:flex;align-items:center;gap:6px;background:${isLegLive?'rgba(239,68,68,0.1)':'var(--card2)'};border:${isLegLive?'2px':'1px'} solid ${isLegLive?'var(--red)':'var(--brd)'};border-radius:var(--r);padding:4px 10px;cursor:${clickAttr?'pointer':'default'};"
           ${clickAttr?`onclick="${clickAttr}"`:''}>
@@ -236,11 +236,6 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
           <span style="font-size:14px;font-weight:${ld.goalsB!==null&&ld.goalsB>ld.goalsA?'700':'400'};color:${colB};">${sb}</span>
         </div>
         ${isLegLive?'<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.5px;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>Vivo</span>':''}
-        ${(isAdmin && !anyLiveInPhase && !isLegLive && bothTeams && prevLegDone && (ld.goalsA===null || ld.goalsB===null))
-          ? `<button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${ld.slotId}',${i},${legNo},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:9px;padding:2px 6px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:3px;color:var(--red);cursor:pointer;">🔴 Vivo</button>`
-          : (isAdmin && !anyLiveInPhase && !isLegLive && bothTeams && li>0 && !prevLegDone)
-          ? `<span style="font-size:9px;color:var(--txt3);font-style:italic;">termina la ida primero</span>`
-          : ''}
       </div>`;
     }).join('');
 
@@ -260,9 +255,27 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       ? `<span class="badge badge-gold">✓${decidedBy==='away'?'<span style="font-size:9px;letter-spacing:0px;">v</span>':''}</span>` : '';
 
     const wA = winner===slot.teamA, wB = winner===slot.teamB;
+    const bothTeamsExist = !!(slot.teamA && slot.teamB);
+
+    // ── Sección superior: banner EN VIVO o botón 🔴 ───────────────────
+    const nextPlayableLegIdx = legData.findIndex((ld,li)=>{
+      const prevOk = li===0 || (legData[li-1]?.goalsA!=null && !legData[li-1]?.live);
+      return prevOk && !ld.live && (ld.goalsA==null || ld.goalsB==null);
+    });
+    let topSection = '';
+    if(anyLegLive){
+      const liveLegIdx = legData.findIndex(l=>l.live);
+      const liveLegTag = legsCount>1 ? ` · ${liveLegIdx===0?'Ida':'Vuelta'}` : '';
+      topSection = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 0;background:rgba(239,68,68,0.12);border-bottom:1px solid rgba(239,68,68,0.22);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo<span style="opacity:0.7;font-weight:400;">${liveLegTag}</span></div>`;
+    } else if(isAdmin && !anyLiveInPhase && bothTeamsExist && nextPlayableLegIdx>=0){
+      const _ld = legData[nextPlayableLegIdx];
+      const _ll = legsCount>1 ? ` · ${nextPlayableLegIdx===0?'Ida':'Vuelta'}` : '';
+      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;">🔴 En vivo${_ll}</button></div>`;
+    }
 
     html+=`
-    <div class="card">
+    <div class="card${anyLegLive?' live-border':''}">
+      ${topSection}
       <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:12px 14px;">
 
         <!-- Equipo A: logo | nombre | goles ✓ -->

@@ -745,7 +745,6 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
     var isLive=!!slot.live;
     var aW, bW, hasResult, sA, sB, legsLine='';
     if(slot.twoLeg){
-      // Cruce ida y vuelta: global en flancos; per-leg en filas con botón 🔴.
       var leg1Done = slot.leg1a!=null && slot.leg1b!=null && !slot.leg1Live;
       var leg2Done = slot.leg2a!=null && slot.leg2b!=null && !slot.leg2Live;
       var totA=(slot.leg1a||0)+(slot.leg2a||0), totB=(slot.leg1b||0)+(slot.leg2b||0);
@@ -755,32 +754,15 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
       sA = (leg1Done&&leg2Done) ? ''+totA : '-';
       sB = (leg1Done&&leg2Done) ? ''+totB : '-';
       hasResult = leg1Done && leg2Done;
-      // Filas por leg con botón de En Vivo
-      var mkLR = function(legNum, sa, sb, isLL, legId, prevDone, hasSc){
-        var lbl=legNum===1?'Ida':'Vuelta';
-        var cA=isLL?'var(--red)':(sa!=null&&sa>sb?'var(--gold)':'var(--txt)');
-        var cB=isLL?'var(--red)':(sb!=null&&sb>sa?'var(--gold)':'var(--txt)');
-        var dA=sa!=null?sa:'-', dB=sb!=null?sb:'-';
-        var canLive=isAdmin&&!anyLiveInPhase&&!isLL&&!aTbd&&!bTbd&&prevDone&&!hasSc;
-        var clkLive=isAdmin&&isLL&&legId!=null;
-        return '<div style="display:flex;align-items:center;justify-content:center;gap:4px;padding:1px 6px;">'
-          +'<span style="font-size:9px;color:var(--txt3);min-width:26px;text-align:right;">'+lbl+'</span>'
-          +'<div '+(isLL?'class="live-border"':'')+' style="display:flex;align-items:center;gap:3px;background:'+(isLL?'rgba(239,68,68,0.1)':'var(--card2)')+';border:'+(isLL?'2':'1')+'px solid '+(isLL?'var(--red)':'var(--brd)')+';border-radius:3px;padding:2px 7px;cursor:'+(clkLive?'pointer':'default')+';"'
-          +(clkLive?' onclick="event.stopPropagation();openLiveMatch('+legId+')"':'')+' >'
-          +'<span style="font-family:\'Bebas Neue\';font-size:15px;color:'+cA+';">'+dA+'</span>'
-          +'<span style="font-size:10px;color:var(--txt3);">-</span>'
-          +'<span style="font-family:\'Bebas Neue\';font-size:15px;color:'+cB+';">'+dB+'</span>'
-          +'</div>'
-          +(isLL?'<span class="live-dot live-dot-red" style="width:5px;height:5px;flex-shrink:0;"></span>':'')
-          +(canLive?'<button onclick="event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+','+legNum+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')" style="font-size:8px;padding:1px 5px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:2px;color:var(--red);cursor:pointer;">🔴</button>':'')
-          +'</div>';
-      };
-      var penTxt2=slot.penA!=null&&slot.penB!=null?'<div style="text-align:center;font-size:8px;color:var(--txt3);padding-bottom:2px;">pen '+slot.penA+'-'+slot.penB+'</div>':'';
-      legsLine='<div style="padding:3px 0 5px;">'
-        +mkLR(1,slot.leg1a,slot.leg1b,slot.leg1Live||false,slot.leg1Id||null,true,leg1Done)
-        +mkLR(2,slot.leg2a,slot.leg2b,slot.leg2Live||false,slot.leg2Id||null,leg1Done,leg2Done)
-        +penTxt2
-        +'</div>';
+      // ¿Ganó por gol de visita? (badge 'v')
+      var decidedByAway2=!!(leg1Done&&leg2Done&&slot.awayGoal&&totA===totB&&(slot.leg2a||0)!==(slot.leg1b||0));
+      // Scores de cada equipo en cada leg para mostrar inline (ida·vuelta)
+      var lA1=slot.leg1a!=null?slot.leg1a:'–', lA2=slot.leg2a!=null?slot.leg2a:'–';
+      var lB1=slot.leg1b!=null?slot.leg1b:'–', lB2=slot.leg2b!=null?slot.leg2b:'–';
+      // legsLine = solo info de penales si aplica
+      legsLine=(slot.penA!=null&&slot.penB!=null)
+        ?'<div style="text-align:center;font-size:8px;color:var(--txt3);padding:1px 6px 5px;letter-spacing:0.3px;">pen '+slot.penA+'-'+slot.penB+'</div>'
+        :'';
     } else {
       var isDraw = slot.ga!==null && slot.gb!==null && slot.ga===slot.gb;
       var hasPen = isDraw && slot.penA!=null && slot.penB!=null;
@@ -790,50 +772,74 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
       sA=slot.ga!==null?(hasPen?slot.ga+'('+slot.penA+')':''+slot.ga):'-';
       sB=slot.gb!==null?(hasPen?slot.gb+'('+slot.penB+')':''+slot.gb):'-';
     }
-    // Solo el modo admin puede abrir el editor (en vivo o resultado). En público, solo-lectura.
     var cfn=(!aTbd&&!bTbd&&isAdmin)
       ? (slot.leg1Live ? "openLiveMatch("+(slot.leg1Id)+")"
         : slot.leg2Live ? "openLiveMatch("+(slot.leg2Id)+")"
-        : isLive ? "openLiveMatch("+slot.matchId+")"   // single-leg live
+        : isLive ? "openLiveMatch("+slot.matchId+")"
         : "openBracketMatchModal('"+phase.id+"',"+ri+","+realMi+","+isAdmin+")")
       : null;
-    // Encabezado EN VIVO y botón para iniciar (admin)
-    var liveHdr = isLive
-      ? '<div style="display:flex;align-items:center;justify-content:center;gap:5px;padding:3px 0;background:rgba(239,68,68,0.15);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo</div>'
-      : '';
-    // El modo EN VIVO es solo para partido único; el cruce a ida y vuelta se
-    // registra por el modal (un marcador por leg).
-    var liveBtn = (isAdmin && !slot.twoLeg && !anyLiveInPhase && !hasResult && !isLive && !aTbd && !bTbd)
-      ? '<div style="padding:2px 10px 8px;text-align:center;"><button onclick="event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')" style="font-size:10px;padding:2px 8px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:3px;color:var(--red);cursor:pointer;">🔴 En vivo</button></div>'
-      : '';
-    // Resaltar bordes solo cuando ya hay equipo resuelto (no cuando solo existe la referencia)
     var bc=(slot.teamA||slot.teamB)?'var(--gold-b)':'var(--brd)';
+    var cardBc = isLive ? 'var(--red)' : bc;
 
-    var bA='',bB='';
-    if(isAdmin&&ri===0&&!hasResult){
-      bA='<div style="padding:0 10px 4px;">'
-        +'<button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'A\')" style="font-size:10px;padding:2px 6px;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;color:'+(slot.teamA?'var(--gold)':'var(--txt3)')+';cursor:pointer;">'
-          +(slot.refA?(slot.teamA?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelA):' Ref')+'</button>'
-        +'</div>';
-      bB='<div style="padding:0 10px 4px;">'
-        +'<button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'B\')" style="font-size:10px;padding:2px 6px;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;color:'+(slot.teamB?'var(--gold)':'var(--txt3)')+';cursor:pointer;">'
-          +(slot.refB?(slot.teamB?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelB):' Ref')+'</button>'
-        +'</div>';
+    // ── Sección superior: banner EN VIVO o botón 🔴 ──────────────────
+    var topSection='';
+    if(isLive){
+      var _legTag=slot.twoLeg?(slot.leg1Live?' · Ida':slot.leg2Live?' · Vuelta':''):'';
+      topSection='<div style="display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;background:rgba(239,68,68,0.15);border-bottom:1px solid rgba(239,68,68,0.25);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo<span style="opacity:0.7;font-weight:400;margin-left:2px;">'+_legTag+'</span></div>';
+    } else if(isAdmin&&!anyLiveInPhase&&!aTbd&&!bTbd&&!hasResult){
+      var _lbOnclick='', _lbLabel='🔴 En vivo';
+      if(slot.twoLeg){
+        if(!leg1Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',1,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='🔴 Vivo · Ida'; }
+        else if(!leg2Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',2,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='🔴 Vivo · Vuelta'; }
+      } else {
+        _lbOnclick='event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')';
+      }
+      if(_lbOnclick) topSection='<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="'+_lbOnclick+'" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:\'Barlow Condensed\';font-weight:700;letter-spacing:0.3px;">'+_lbLabel+'</button></div>';
     }
 
-    var cardBc = isLive ? 'var(--red)' : bc;
+    // ── Botones de referencia (admin, primera ronda, sin resultado) ──
+    var bA='',bB='';
+    if(isAdmin&&ri===0&&!hasResult){
+      bA='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'A\')" style="font-size:10px;padding:2px 6px;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;color:'+(slot.teamA?'var(--gold)':'var(--txt3)')+';cursor:pointer;">'+(slot.refA?(slot.teamA?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelA):' Ref')+'</button></div>';
+      bB='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'B\')" style="font-size:10px;padding:2px 6px;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;color:'+(slot.teamB?'var(--gold)':'var(--txt3)')+';cursor:pointer;">'+(slot.refB?(slot.teamB?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelB):' Ref')+'</button></div>';
+    }
+
+    // ── Filas de equipos ─────────────────────────────────────────────
+    var rowContent='';
+    if(slot.twoLeg){
+      // Fila personalizada: logo | nombre | ida·vta | total | badge
+      var mkTLRow=function(lid,tid,legS1,legS2,tot,isWin,isTbd,lbl,byAway){
+        var nm=(tid&&window._bracketTeamById)?window._bracketTeamById[tid]:null;
+        var tx=nm||(lbl||'Por definir');
+        var legDet=(legS1!=='–'||legS2!=='–')?'<span style="font-size:9px;color:var(--txt3);white-space:nowrap;flex-shrink:0;letter-spacing:0.3px;">'+legS1+'·'+legS2+'</span>':'';
+        var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
+        return '<div style="display:flex;align-items:center;gap:5px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
+          +logoCircle(lid,nm)
+          +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:86px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+tx+'</span>'
+          +legDet
+          +'<span style="font-family:\'Bebas Neue\';font-size:20px;min-width:16px;text-align:right;color:'+(isWin?'var(--gold)':'var(--txt3)')+';">'+tot+'</span>'
+          +bdg
+          +'</div>';
+      };
+      rowContent=mkTLRow('blogo-'+slotId+'-a',slot.teamA,lA1,lA2,sA,aW,aTbd,slot.labelA,decidedByAway2)
+        +bA
+        +'<div style="height:1px;background:var(--brd);margin:0 10px;"></div>'
+        +mkTLRow('blogo-'+slotId+'-b',slot.teamB,lB1,lB2,sB,bW,bTbd,slot.labelB,decidedByAway2)
+        +bB+legsLine;
+    } else {
+      rowContent=teamRow('blogo-'+slotId+'-a',slot.teamA,sA,aW,aTbd,slot.labelA,cfn)
+        +bA
+        +'<div style="height:1px;background:var(--brd);margin:0 10px;"></div>'
+        +teamRow('blogo-'+slotId+'-b',slot.teamB,sB,bW,bTbd,slot.labelB,cfn)
+        +bB;
+    }
+
     return '<div'+(isLive?' class="live-border"':'')+' style="background:var(--card);border:'+(isLive?'2px':'1px')+' solid '+cardBc+';border-radius:10px;overflow:hidden;'
       +'width:'+CARD_W+'px;flex-shrink:0;box-shadow:0 2px 16px rgba(0,0,0,0.12);" '
       +'onmouseover="this.style.boxShadow=\'0 4px 24px rgba(201,168,76,0.22)\';this.style.borderColor=\'var(--gold-b)\'" '
       +'onmouseout="this.style.boxShadow=\'0 2px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\''+cardBc+'\'">'
-      +liveHdr
-      +teamRow('blogo-'+slotId+'-a',slot.teamA,sA,aW,aTbd,slot.labelA,cfn)
-      +bA
-      +'<div style="height:1px;background:var(--brd);margin:0 10px;"></div>'
-      +teamRow('blogo-'+slotId+'-b',slot.teamB,sB,bW,bTbd,slot.labelB,cfn)
-      +bB
-      +legsLine
-      +liveBtn
+      +topSection
+      +rowContent
       +'</div>';
   }
 
