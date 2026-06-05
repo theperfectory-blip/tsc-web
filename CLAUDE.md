@@ -67,7 +67,7 @@ tsc-src/
     │   ├── resolveSlotRef, refLabel, refBadgeHTML, getClassifiedFromPhase
     │   ├── openSlotRefModal, saveSlotRef, removeSlotRef
     │   ├── openBracketMatchModal, saveBracketMatch, deleteBracketMatch
-    │   ├── getWinner, getPlayoffWinner, teamLogoHtml, loadBracketLogos
+    │   ├── getWinner, teamLogoHtml, loadBracketLogos
     │   └── getStandingsForPhase, invalidateStandingsCache (_standingsCache)
     │
     ├── playoff.js              # Configuración de formato playoff / supercopa

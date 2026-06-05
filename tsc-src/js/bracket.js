@@ -19,15 +19,6 @@ function getWinner(m){
   return null;
 }
 
-function getPlayoffWinner(m){
-  if(!m||m.leg1a===undefined||m.leg1a===null) return null;
-  const totA=(m.leg1a||0)+(m.leg2a||0);
-  const totB=(m.leg1b||0)+(m.leg2b||0);
-  if(totA>totB) return m.teamA;
-  if(totB>totA) return m.teamB;
-  return null;
-}
-
 async function getTeamLogo(name){
   const teams = await dbGetAll('teams', t=>t.name===name);
   return teams[0]||null;
@@ -363,7 +354,6 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
 
   const config = phase.config||{};
   const totalTeams = config.teams||8;
-  const legs = config.legs||'single';
   const finalSingle = config.finalSingle!==false;
 
   // Cargar partidos del bracket
@@ -389,7 +379,7 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   window._bracketTeamById = teamById;
 
   // Render
-  el.innerHTML = renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalSingle);
+  el.innerHTML = renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle);
 
   // Escalar bracket para llenar ancho disponible sin scroll
   requestAnimationFrame(()=>{ scaleBracket(phase.id); setTimeout(()=>scaleBracket(phase.id),150); });
@@ -623,7 +613,7 @@ async function getClassifiedFromPhase(sourcePhaseId){
   return result;
 }
 
-function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, legs, finalSingle){
+function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle){
   const nRounds = rounds.length;
   if(!nRounds) return '<div style="color:var(--txt3);">Sin rondas configuradas.</div>';
 
