@@ -600,25 +600,54 @@ async function buildBracketSlots(phase, rounds, matchMap){
   rounds.forEach((r,ri)=>{
     r.matches && Array.from({length:r.matches}).forEach((_,mi)=>{
       const slotId=`${phase.id}_r${ri}_m${mi}`;
-      const saved=matchMap[slotId];
       // Este cruce es a ida y vuelta salvo la final cuando finalSingle está activo.
       const slotTwoLeg = isDouble && !(finalSingle && ri===rounds.length-1);
       slots[ri][mi].twoLeg = slotTwoLeg;
       slots[ri][mi].awayGoal = awayGoal;
-      if(saved){
-        slots[ri][mi].teamA=saved.teamA||slots[ri][mi].teamA;
-        slots[ri][mi].teamB=saved.teamB||slots[ri][mi].teamB;
-        slots[ri][mi].ga=saved.goalsA??null;
-        slots[ri][mi].gb=saved.goalsB??null;
-        slots[ri][mi].penA=saved.penA??null;
-        slots[ri][mi].penB=saved.penB??null;
-        slots[ri][mi].live=!!saved.live;
-        slots[ri][mi].matchId=saved.id;
-        // Campos de ida/vuelta (solo presentes en cruces a doble partido)
-        slots[ri][mi].leg1a=saved.leg1a??null;
-        slots[ri][mi].leg1b=saved.leg1b??null;
-        slots[ri][mi].leg2a=saved.leg2a??null;
-        slots[ri][mi].leg2b=saved.leg2b??null;
+      if(slotTwoLeg){
+        // Ida/vuelta: cada leg es un doc separado (slotId_leg1, slotId_leg2).
+        const leg1=matchMap[slotId+'_leg1'], leg2=matchMap[slotId+'_leg2'];
+        // Compatibilidad con datos guardados en formato antiguo (doc único con leg1a/leg2a…)
+        const unified=matchMap[slotId];
+        if(leg1||leg2){
+          if(leg1?.teamA) slots[ri][mi].teamA=leg1.teamA;
+          if(leg1?.teamB) slots[ri][mi].teamB=leg1.teamB;
+          slots[ri][mi].leg1a=leg1?.goalsA??null;
+          slots[ri][mi].leg1b=leg1?.goalsB??null;
+          slots[ri][mi].leg2a=leg2?.goalsA??null;
+          slots[ri][mi].leg2b=leg2?.goalsB??null;
+          slots[ri][mi].penA =leg2?.penA??null;
+          slots[ri][mi].penB =leg2?.penB??null;
+          slots[ri][mi].leg1Live=!!leg1?.live;
+          slots[ri][mi].leg2Live=!!leg2?.live;
+          slots[ri][mi].live=!!(leg1?.live||leg2?.live);
+          slots[ri][mi].leg1Id=leg1?.id??null;
+          slots[ri][mi].leg2Id=leg2?.id??null;
+          slots[ri][mi].matchId=leg2?.id??leg1?.id??null;
+        } else if(unified){
+          if(unified.teamA) slots[ri][mi].teamA=unified.teamA;
+          if(unified.teamB) slots[ri][mi].teamB=unified.teamB;
+          slots[ri][mi].leg1a=unified.leg1a??null;
+          slots[ri][mi].leg1b=unified.leg1b??null;
+          slots[ri][mi].leg2a=unified.leg2a??null;
+          slots[ri][mi].leg2b=unified.leg2b??null;
+          slots[ri][mi].penA=unified.penA??null;
+          slots[ri][mi].penB=unified.penB??null;
+          slots[ri][mi].live=!!unified.live;
+          slots[ri][mi].matchId=unified.id;
+        }
+      } else {
+        const saved=matchMap[slotId];
+        if(saved){
+          slots[ri][mi].teamA=saved.teamA||slots[ri][mi].teamA;
+          slots[ri][mi].teamB=saved.teamB||slots[ri][mi].teamB;
+          slots[ri][mi].ga=saved.goalsA??null;
+          slots[ri][mi].gb=saved.goalsB??null;
+          slots[ri][mi].penA=saved.penA??null;
+          slots[ri][mi].penB=saved.penB??null;
+          slots[ri][mi].live=!!saved.live;
+          slots[ri][mi].matchId=saved.id;
+        }
       }
       // Propagar ganador a siguiente ronda (un partido EN VIVO no clasifica a nadie aún)
       if(ri+1<rounds.length){
@@ -716,20 +745,42 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
     var isLive=!!slot.live;
     var aW, bW, hasResult, sA, sB, legsLine='';
     if(slot.twoLeg){
-      // Cruce de ida y vuelta: marcador = GLOBAL; el ganador sale de getWinner
-      // (global → gol de visita → penales). Debajo se muestra el desglose.
-      var done = slot.leg1a!=null && slot.leg1b!=null && slot.leg2a!=null && slot.leg2b!=null;
+      // Cruce ida y vuelta: global en flancos; per-leg en filas con botón 🔴.
+      var leg1Done = slot.leg1a!=null && slot.leg1b!=null && !slot.leg1Live;
+      var leg2Done = slot.leg2a!=null && slot.leg2b!=null && !slot.leg2Live;
       var totA=(slot.leg1a||0)+(slot.leg2a||0), totB=(slot.leg1b||0)+(slot.leg2b||0);
       var w2=getWinner(slot);
-      aW = done && w2===slot.teamA;
-      bW = done && w2===slot.teamB;
-      sA = done ? ''+totA : '-';
-      sB = done ? ''+totB : '-';
-      hasResult = done && !isLive;
-      if(done){
-        var penTxt=(slot.penA!=null&&slot.penB!=null)?' · pen '+slot.penA+'-'+slot.penB:'';
-        legsLine='<div style="text-align:center;font-size:9px;color:var(--txt3);padding:1px 0 4px;letter-spacing:0.3px;">Ida '+slot.leg1a+'-'+slot.leg1b+' · Vta '+slot.leg2a+'-'+slot.leg2b+penTxt+'</div>';
-      }
+      aW = leg1Done && leg2Done && w2===slot.teamA;
+      bW = leg1Done && leg2Done && w2===slot.teamB;
+      sA = (leg1Done&&leg2Done) ? ''+totA : '-';
+      sB = (leg1Done&&leg2Done) ? ''+totB : '-';
+      hasResult = leg1Done && leg2Done;
+      // Filas por leg con botón de En Vivo
+      var mkLR = function(legNum, sa, sb, isLL, legId, prevDone, hasSc){
+        var lbl=legNum===1?'Ida':'Vuelta';
+        var cA=isLL?'var(--red)':(sa!=null&&sa>sb?'var(--gold)':'var(--txt)');
+        var cB=isLL?'var(--red)':(sb!=null&&sb>sa?'var(--gold)':'var(--txt)');
+        var dA=sa!=null?sa:'-', dB=sb!=null?sb:'-';
+        var canLive=isAdmin&&!anyLiveInPhase&&!isLL&&!aTbd&&!bTbd&&prevDone&&!hasSc;
+        var clkLive=isAdmin&&isLL&&legId!=null;
+        return '<div style="display:flex;align-items:center;justify-content:center;gap:4px;padding:1px 6px;">'
+          +'<span style="font-size:9px;color:var(--txt3);min-width:26px;text-align:right;">'+lbl+'</span>'
+          +'<div '+(isLL?'class="live-border"':'')+' style="display:flex;align-items:center;gap:3px;background:'+(isLL?'rgba(239,68,68,0.1)':'var(--card2)')+';border:'+(isLL?'2':'1')+'px solid '+(isLL?'var(--red)':'var(--brd)')+';border-radius:3px;padding:2px 7px;cursor:'+(clkLive?'pointer':'default')+';"'
+          +(clkLive?' onclick="event.stopPropagation();openLiveMatch('+legId+')"':'')+' >'
+          +'<span style="font-family:\'Bebas Neue\';font-size:15px;color:'+cA+';">'+dA+'</span>'
+          +'<span style="font-size:10px;color:var(--txt3);">-</span>'
+          +'<span style="font-family:\'Bebas Neue\';font-size:15px;color:'+cB+';">'+dB+'</span>'
+          +'</div>'
+          +(isLL?'<span class="live-dot live-dot-red" style="width:5px;height:5px;flex-shrink:0;"></span>':'')
+          +(canLive?'<button onclick="event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+','+legNum+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')" style="font-size:8px;padding:1px 5px;background:rgba(239,68,68,0.12);border:1px solid var(--red);border-radius:2px;color:var(--red);cursor:pointer;">🔴</button>':'')
+          +'</div>';
+      };
+      var penTxt2=slot.penA!=null&&slot.penB!=null?'<div style="text-align:center;font-size:8px;color:var(--txt3);padding-bottom:2px;">pen '+slot.penA+'-'+slot.penB+'</div>':'';
+      legsLine='<div style="padding:3px 0 5px;">'
+        +mkLR(1,slot.leg1a,slot.leg1b,slot.leg1Live||false,slot.leg1Id||null,true,leg1Done)
+        +mkLR(2,slot.leg2a,slot.leg2b,slot.leg2Live||false,slot.leg2Id||null,leg1Done,leg2Done)
+        +penTxt2
+        +'</div>';
     } else {
       var isDraw = slot.ga!==null && slot.gb!==null && slot.ga===slot.gb;
       var hasPen = isDraw && slot.penA!=null && slot.penB!=null;
@@ -741,7 +792,10 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
     }
     // Solo el modo admin puede abrir el editor (en vivo o resultado). En público, solo-lectura.
     var cfn=(!aTbd&&!bTbd&&isAdmin)
-      ? (isLive ? "openLiveMatch("+slot.matchId+")" : "openBracketMatchModal('"+phase.id+"',"+ri+","+realMi+","+isAdmin+")")
+      ? (slot.leg1Live ? "openLiveMatch("+(slot.leg1Id)+")"
+        : slot.leg2Live ? "openLiveMatch("+(slot.leg2Id)+")"
+        : isLive ? "openLiveMatch("+slot.matchId+")"   // single-leg live
+        : "openBracketMatchModal('"+phase.id+"',"+ri+","+realMi+","+isAdmin+")")
       : null;
     // Encabezado EN VIVO y botón para iniciar (admin)
     var liveHdr = isLive
@@ -1264,12 +1318,26 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
   const nameB = _resolveName(slot.teamB);
 
   const slotId=`${phaseId}_r${roundIdx}_m${matchIdx}`;
-  const existing=matchMap[slotId];
 
   // ¿Cruce a ida y vuelta? (la final puede ser a único si finalSingle)
   const finalSingle = phase.config?.finalSingle!==false;
   const twoLeg = phase.config?.legs==='double' && !(finalSingle && roundIdx===rounds.length-1);
   const awayGoal = !!phase.config?.awayGoal;
+
+  // Para twoLeg: per-leg docs; para partido único: doc unificado.
+  let existingLeg1=null, existingLeg2=null;
+  if(twoLeg){
+    existingLeg1 = matchMap[slotId+'_leg1'] || null;
+    existingLeg2 = matchMap[slotId+'_leg2'] || null;
+    // Compatibilidad: antiguo doc unificado
+    const uDoc = matchMap[slotId];
+    if(uDoc && !existingLeg1 && !existingLeg2){
+      existingLeg1 = {goalsA:uDoc.leg1a, goalsB:uDoc.leg1b};
+      existingLeg2 = {goalsA:uDoc.leg2a, goalsB:uDoc.leg2b, penA:uDoc.penA, penB:uDoc.penB};
+    }
+  }
+  const existing = twoLeg ? null : matchMap[slotId];
+  const existPen = twoLeg ? existingLeg2 : existing; // fuente de datos de penales
 
   // Estilo común de input de marcador
   const inp = (id,val)=>`<input type="number" id="${id}" min="0" value="${val??''}" placeholder="0"
@@ -1279,11 +1347,11 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
   const scoreSection = twoLeg
     ? `${legLbl(`Ida · ${nameA} local`)}
        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
-         ${inp('bm-l1a', existing?.leg1a)}<div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">-</div>${inp('bm-l1b', existing?.leg1b)}
+         ${inp('bm-l1a', existingLeg1?.goalsA)}<div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">-</div>${inp('bm-l1b', existingLeg1?.goalsB)}
        </div>
        ${legLbl(`Vuelta · ${nameB} local`)}
        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
-         ${inp('bm-l2a', existing?.leg2a)}<div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">-</div>${inp('bm-l2b', existing?.leg2b)}
+         ${inp('bm-l2a', existingLeg2?.goalsA)}<div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">-</div>${inp('bm-l2b', existingLeg2?.goalsB)}
        </div>
        <div id="bm-global" style="text-align:center;font-size:13px;color:var(--txt2);margin-top:10px;padding-top:8px;border-top:1px solid var(--brd);">Global: <strong>—</strong></div>`
     : `<div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
@@ -1313,13 +1381,13 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
         ${scoreSection}
 
         <!-- Sección penales — aparece solo si empate -->
-        <div id="bm-penalty-section" style="margin-top:12px;display:${(existing?.penA!=null)?'block':'none'};">
+        <div id="bm-penalty-section" style="margin-top:12px;display:${(existPen?.penA!=null)?'block':'none'};">
           <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-top:10px;border-top:1px solid var(--brd);">Penales</div>
           <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
-            <input type="number" id="bm-pa" min="0" value="${existing?.penA??''}" placeholder="0"
+            <input type="number" id="bm-pa" min="0" value="${existPen?.penA??''}" placeholder="0"
               style="padding:10px;text-align:center;font-family:'Bebas Neue';font-size:26px;background:var(--card2);border:1px solid var(--gold-b);border-radius:var(--r);color:var(--gold);width:100%;">
             <div style="font-family:'Bebas Neue';font-size:22px;color:var(--txt3);">-</div>
-            <input type="number" id="bm-pb" min="0" value="${existing?.penB??''}" placeholder="0"
+            <input type="number" id="bm-pb" min="0" value="${existPen?.penB??''}" placeholder="0"
               style="padding:10px;text-align:center;font-family:'Bebas Neue';font-size:26px;background:var(--card2);border:1px solid var(--gold-b);border-radius:var(--r);color:var(--gold);width:100%;">
           </div>
         </div>
@@ -1327,14 +1395,14 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
         <!-- Toggle penales -->
         <div style="margin-top:10px;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--txt2);">
-            <input type="checkbox" id="bm-pen-toggle" ${existing?.penA!=null?'checked':''}
+            <input type="checkbox" id="bm-pen-toggle" ${existPen?.penA!=null?'checked':''}
               onchange="document.getElementById('bm-penalty-section').style.display=this.checked?'block':'none'">
             Definir por penales
           </label>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        ${existing ? `<button class="btn btn-danger btn-sm" onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">✕ Eliminar</button>` : '<div></div>'}
+        ${(twoLeg?(existingLeg1||existingLeg2):existing) ? `<button class="btn btn-danger btn-sm" onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">✕ Eliminar</button>` : '<div></div>'}
         <div style="display:flex;gap:8px;">
           <button class="btn" onclick="closeBracketMatchModal()">Cancelar</button>
           <button class="btn btn-primary" onclick="saveBracketMatch('${slotId}',${phaseId},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)},${roundIdx},${matchIdx},${twoLeg},${awayGoal})">Guardar</button>
@@ -1376,7 +1444,10 @@ function closeBracketMatchModal(){
 
 async function deleteBracketMatch(slotId, phaseId, roundIdx, matchIdx){
   showConfirm('¿Eliminar resultado?','Se borrará el resultado de este partido.',async()=>{
-    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+    // Borrar doc unificado y docs per-leg (compatibilidad con ambos formatos)
+    const existing = await dbGetAll('matches', m=>m.phaseId===phaseId && (
+      m.slotId===slotId || m.slotId===slotId+'_leg1' || m.slotId===slotId+'_leg2'
+    ));
     for(const m of existing){
       await removeHistoryByMatchRef(m.id);
       await dbDelete('matches', m.id);
@@ -1392,68 +1463,65 @@ async function saveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchId
   const hasPen = document.getElementById('bm-pen-toggle')?.checked;
   const pa = hasPen ? (parseInt(document.getElementById('bm-pa').value)||0) : null;
   const pb = hasPen ? (parseInt(document.getElementById('bm-pb').value)||0) : null;
-  const existing = await dbGetAll('matches',m=>m.slotId===slotId&&m.phaseId===phaseId);
 
-  let data, toastScore;
+  const _resolveName = async (v)=>{
+    if(typeof v==='number' || Number.isFinite(parseInt(v))){
+      const t = await dbGet('teams', parseInt(v)); return t?.name || `#${v}`;
+    }
+    return v;
+  };
+  const _doRender = ()=>{ const cid=document.querySelector('[id^="bracket-container-"]')?.id; if(cid) renderBracket(phaseId, cid, true); };
+
   if(twoLeg){
+    // ── Guarda Ida y Vuelta como docs separados ──────────────────────────
     const _v=id=>{ const v=parseInt(document.getElementById(id)?.value); return isNaN(v)?null:v; };
     const l1a=_v('bm-l1a'), l1b=_v('bm-l1b'), l2a=_v('bm-l2a'), l2b=_v('bm-l2b');
     const allIn=[l1a,l1b,l2a,l2b].every(v=>v!==null);
     const totA=(l1a||0)+(l2a||0), totB=(l1b||0)+(l2b||0);
-    // Validación: serie completa y global empatado sin desempate válido → exigir penales.
     if(allIn && totA===totB){
       const awayDecides = awayGoal && (l2a||0)!==(l1b||0);
       if(!awayDecides && (pa===null||pb===null||pa===pb)){
         showToast('Global empatado: define un ganador por penales','error'); return;
       }
     }
-    data = {
-      slotId, phaseId, teamA, teamB,
-      leg1a:l1a, leg1b:l1b, leg2a:l2a, leg2b:l2b,
-      goalsA: allIn?totA:null, goalsB: allIn?totB:null,
-      penA:pa, penB:pb, twoLeg:true,
-      roundIdx, matchIdx, season:STATE.season, date:new Date().toISOString()
-    };
-    toastScore = allIn ? `${totA}-${totB} global` : 'parcial';
-  } else {
-    const ga = parseInt(document.getElementById('bm-ga').value)||0;
-    const gb = parseInt(document.getElementById('bm-gb').value)||0;
-    if(hasPen && ga===gb && pa===pb && pa!==null){
-      showToast('Los penales no pueden terminar en empate','error'); return;
+    const now = new Date().toISOString();
+    if(l1a!==null && l1b!==null){
+      const sid1=slotId+'_leg1';
+      const ex1=await dbGetAll('matches',m=>m.slotId===sid1&&m.phaseId===phaseId);
+      const d1={slotId:sid1,phaseId,teamA,teamB,goalsA:l1a,goalsB:l1b,leg:1,roundIdx,matchIdx,season:STATE.season,date:now};
+      let id1; if(ex1.length){id1=ex1[0].id;await dbPut('matches',{...ex1[0],...d1});}else{id1=await dbAdd('matches',d1);}
+      await appendOrUpdateHistory(id1);
     }
-    data = {
-      slotId, phaseId, teamA, teamB,
-      goalsA:ga, goalsB:gb, penA:pa, penB:pb,
-      roundIdx, matchIdx, season:STATE.season, date:new Date().toISOString()
-    };
-    toastScore = `${ga}-${gb}`;
+    if(l2a!==null && l2b!==null){
+      const sid2=slotId+'_leg2';
+      const ex2=await dbGetAll('matches',m=>m.slotId===sid2&&m.phaseId===phaseId);
+      const d2={slotId:sid2,phaseId,teamA,teamB,goalsA:l2a,goalsB:l2b,penA:pa,penB:pb,leg:2,roundIdx,matchIdx,season:STATE.season,date:now};
+      let id2; if(ex2.length){id2=ex2[0].id;await dbPut('matches',{...ex2[0],...d2});}else{id2=await dbAdd('matches',d2);}
+      if(allIn) await appendOrUpdateHistory(id2);
+    }
+    const nameA=await _resolveName(teamA), nameB=await _resolveName(teamB);
+    const toastScore=allIn?`${totA}-${totB} global`:'parcial';
+    const penStr=pa!==null?` (pen ${pa}-${pb})`:'';
+    showToast(`${nameA} ${toastScore}${penStr} ${nameB}`);
+    closeBracketMatchModal();
+    _doRender();
+    return;
   }
 
+  // ── Partido único ────────────────────────────────────────────────────
+  const ga = parseInt(document.getElementById('bm-ga').value)||0;
+  const gb = parseInt(document.getElementById('bm-gb').value)||0;
+  if(hasPen && ga===gb && pa===pb && pa!==null){ showToast('Los penales no pueden terminar en empate','error'); return; }
+  const existing = await dbGetAll('matches',m=>m.slotId===slotId&&m.phaseId===phaseId);
+  const data = { slotId, phaseId, teamA, teamB, goalsA:ga, goalsB:gb, penA:pa, penB:pb, roundIdx, matchIdx, season:STATE.season, date:new Date().toISOString() };
   let savedId;
-  if(existing.length){
-    savedId = existing[0].id;
-    await dbPut('matches',{...existing[0],...data});
-  } else {
-    savedId = await dbAdd('matches',data);
-  }
-  // Solo registrar en el historial cuando hay marcador (en ida/vuelta parcial no).
+  if(existing.length){ savedId=existing[0].id; await dbPut('matches',{...existing[0],...data}); } else { savedId=await dbAdd('matches',data); }
   if(data.goalsA!=null && data.goalsB!=null) await appendOrUpdateHistory(savedId);
-
-  // Resolver nombres para el toast (teamA/B pueden ser IDs)
-  const _resolveName = async (v)=>{
-    if(typeof v==='number' || Number.isFinite(parseInt(v))){
-      const t = await dbGet('teams', parseInt(v));
-      return t?.name || `#${v}`;
-    }
-    return v;
-  };
-  const nameA = await _resolveName(teamA);
-  const nameB = await _resolveName(teamB);
-  const penStr = pa!==null ? ` (pen ${pa}-${pb})` : '';
-  showToast(`${nameA} ${toastScore}${penStr} ${nameB}`);
+  const nameA=await _resolveName(teamA), nameB=await _resolveName(teamB);
+  const penStr=pa!==null?` (pen ${pa}-${pb})`:'';
+  showToast(`${nameA} ${ga}-${gb}${penStr} ${nameB}`);
   closeBracketMatchModal();
-  const cid=document.querySelector('[id^="bracket-container-"]')?.id;
-  if(cid) renderBracket(phaseId, cid, true);
+  _doRender();
 }
 
 /* ----------------------------------------------------------

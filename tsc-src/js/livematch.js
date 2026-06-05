@@ -31,12 +31,21 @@ function _lmIsKnockout(phaseType){
 
 /* ¿Este partido EXIGE un ganador al finalizar?
    - bracket / single (partido único): sí.
+   - bracket twoLeg (ida y vuelta): solo el leg 2 (vuelta) exige ganador global.
    - playoff: solo el partido DECISIVO de la serie (último leg). La ida puede
      terminar empatada — la serie se resuelve por el global/visita/penales.
    - grupos: no (el empate es un resultado válido). */
 function _liveMustHaveWinner(m, phase){
   const t = phase?.type;
-  if(t==='bracket' || t==='single') return true;
+  if(t==='bracket' || t==='single'){
+    // Cruce ida y vuelta: la ida (leg 1) puede terminar empatada;
+    // la vuelta (leg 2) exige un ganador global (gol visita o penales).
+    const slotLegMatch = /_leg(\d+)$/.exec(String(m.slotId||''));
+    if(slotLegMatch && phase?.config?.legs==='double'){
+      return parseInt(slotLegMatch[1]) >= 2; // solo vuelta exige ganador
+    }
+    return true; // partido único → siempre exige ganador
+  }
   if(t==='playoff'){
     const legsCount = parseInt(phase?.config?.legs)||2;
     return legsCount<=1 || m.leg===legsCount;
@@ -128,6 +137,31 @@ async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, ma
       slotId, phaseId, teamA, teamB,
       goalsA:0, goalsB:0, penA:null, penB:null,
       roundIdx, matchIdx, season:STATE.season,
+      live:true, liveStartAt:now, liveEndAt:null, date:now,
+    });
+  }
+  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
+  _liveCtx = { kind:'bracket', phaseId };
+  await openLiveMatch(id);
+}
+
+/* ---- Iniciar EN VIVO: leg de bracket ida/vuelta ---- */
+async function startLiveBracketLeg(baseSlotId, phaseId, legNum, teamA, teamB, roundIdx, matchIdx){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+  phaseId = parseInt(phaseId, 10);
+  const slotId = baseSlotId + '_leg' + legNum;
+  const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+  if(await _blockIfOtherLive(existing[0]?.id)) return;
+  const now = new Date().toISOString();
+  let id;
+  if(existing.length){
+    id = existing[0].id;
+    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true, liveStartAt: existing[0].liveStartAt||now, liveEndAt:null });
+  } else {
+    id = await dbAdd('matches', {
+      slotId, phaseId, teamA, teamB,
+      goalsA:0, goalsB:0, penA:null, penB:null,
+      roundIdx, matchIdx, leg:legNum, season:STATE.season,
       live:true, liveStartAt:now, liveEndAt:null, date:now,
     });
   }
@@ -363,7 +397,9 @@ async function liveFinalize(matchId){
   // empate en la vuelta pediría penales sin sumar la ida.
   const ptype      = phase?.type;
   const defaultLegs= (ptype==='playoff' || ptype==='single') ? 2 : 1;
-  const legsCount  = parseInt(phase?.config?.legs) || defaultLegs;
+  // 'double' no es un número → parseInt('double')=NaN; convertirlo a 2 explícitamente.
+  const configLegs = phase?.config?.legs;
+  const legsCount  = (configLegs==='double') ? 2 : (parseInt(configLegs)||defaultLegs);
   const isKnockout = ['bracket','single','playoff'].includes(ptype);
   // Nº de leg: del campo, o derivado del slotId (`..._legN`) si el campo falta.
   const slotLegMatch = /_leg(\d+)$/.exec(String(m.slotId||''));
@@ -400,9 +436,27 @@ async function liveFinalize(matchId){
   });
   if(typeof appendOrUpdateHistory==='function') await appendOrUpdateHistory(matchId);
   if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+  // Guardar contexto ANTES de cerrar (closeLiveMatch lo pone a null).
+  const _savedCtx = _liveCtx ? {..._liveCtx} : null;
   showToast(`Partido finalizado · ${ga}-${gb}`);
   closeLiveMatch();
-  _liveRefreshBackground();
+  // Re-render forzado con setTimeout(0) para garantizar que la DB ya refleja
+  // live:false antes de leer (evita que caché de Firestore devuelva dato viejo).
+  if(_savedCtx){
+    setTimeout(async()=>{
+      try{
+        if(_savedCtx.kind==='playoff'||_savedCtx.kind==='single'){
+          const cid=document.querySelector('[id^="playoff-container-"]')?.id;
+          if(cid) await renderPlayoff(_savedCtx.phaseId, cid, true);
+        } else if(_savedCtx.kind==='bracket'){
+          const cid=document.querySelector('[id^="bracket-container-"]')?.id;
+          if(cid) await renderBracket(_savedCtx.phaseId, cid, true);
+        } else if(_savedCtx.kind==='group' && typeof showMatchGroupTable==='function'){
+          showMatchGroupTable(_savedCtx.phaseId, _savedCtx.groupIdx);
+        }
+      }catch(e){ console.error('[LiveMatch] re-render post-finalizar:', e); }
+    }, 0);
+  }
 }
 
 /* Cancela el partido EN VIVO sin dejarlo como jugado.
