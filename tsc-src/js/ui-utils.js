@@ -47,12 +47,11 @@ function setTheme(theme){
 function toggleTheme(){
   setTheme(STATE.theme === 'light' ? 'dark' : 'light');
 }
-/* Sincroniza el gradiente del slider de volumen con el valor actual */
+/* Sincroniza el fill del custom slider de volumen con el valor actual */
 function _syncVolGradient(val){
-  const el = document.getElementById('snd-vol');
-  if (!el) return;
-  const pct = Math.round(Math.max(0, Math.min(100, parseFloat(val) || 0))) + '%';
-  el.style.setProperty('--vol-pct', pct);
+  const fill = document.getElementById('vol-range-fill');
+  if (!fill) return;
+  fill.style.width = Math.max(0, Math.min(100, parseFloat(val) || 0)) + '%';
 }
 
 /* ----------------------------------------------------------
@@ -60,13 +59,14 @@ function _syncVolGradient(val){
    ---------------------------------------------------------- */
 function openSettings(){
   openModal('settings-modal');
+  initVolSlider();
   // Sonido
-  const on = document.getElementById('snd-on');
+  const on  = document.getElementById('snd-on');
   const vol = document.getElementById('snd-vol');
-  if (on && window.SFX)  on.checked = window.SFX.enabled !== false;
-  if (vol && window.SFX){
+  if (on && window.SFX) on.checked = window.SFX.enabled !== false;
+  if (window.SFX){
     const v = Math.round((window.SFX.getVolume ? window.SFX.getVolume() : 0.85) * 100);
-    vol.value = v;
+    if (vol) vol.value = v;
     _syncVolGradient(v);
   }
   // Zona horaria — poblar datalist una sola vez y restaurar valor guardado
@@ -98,6 +98,169 @@ function setSoundVol(v){
 function sndPreview(){
   if (window.SFX && window.SFX.enabled !== false){ window.SFX.unlock(); window.SFX.radarPing(); }
 }
+
+/* ============================================================
+   ELASTIC VOLUME SLIDER — vanilla JS (sin framer-motion, sin thumb)
+   Replica el comportamiento del componente React/framer-motion original:
+   · Row: opacity 0.7→1 + scale 1→1.08 en hover/drag
+   · Track: height 6px→12px en hover/drag
+   · Overflow elástico (sigmoid decay) al arrastrar más allá de los bordes
+   · Icons: translateX + bounce (scale 1→1.4→1) al entrar en overflow
+   · Spring-back con overshoot ligero al soltar
+   ============================================================ */
+let _volSliderInited = false;
+
+function initVolSlider(){
+  if (_volSliderInited) return;
+  const wrap       = document.getElementById('vol-wrap');
+  const trackOuter = document.getElementById('vol-track-outer');
+  const track      = document.getElementById('vol-track');
+  const fill       = document.getElementById('vol-range-fill');
+  const iconL      = document.getElementById('vol-icon-left');
+  const iconR      = document.getElementById('vol-icon-right');
+  const hiddenIn   = document.getElementById('snd-vol');
+  if (!wrap || !trackOuter || !track || !fill) return;
+  _volSliderInited = true;
+
+  const MAX_OVF = 50;          // px máximos de overflow visual
+  let dragging   = false;
+  let lastRegion = 'mid';      // 'mid' | 'left' | 'right'
+  let springId   = null;
+
+  /* Sigmoid decay: entrada raw px → overflow visual acotado */
+  function decay(raw, max){
+    const sigmoid = 2 * (1 / (1 + Math.exp(-raw / max)) - 0.5);
+    return sigmoid * max;
+  }
+
+  /* Escribe valor en fill + input oculto + audio */
+  function commitVal(pct){
+    const v = Math.max(0, Math.min(100, pct));
+    fill.style.width = v + '%';
+    if (hiddenIn) hiddenIn.value = Math.round(v);
+    setSoundVol(v);
+  }
+
+  /* Calcula % desde posición X del pointer vs bounding box del track */
+  function pctFromX(clientX){
+    const r = track.getBoundingClientRect();
+    return ((clientX - r.left) / r.width) * 100;
+  }
+
+  /* Aplica distorsión elástica: track scaleX/scaleY + desplazamiento iconos */
+  function applyOvf(ovf, region){
+    const w      = track.getBoundingClientRect().width || 200;
+    const scaleX = 1 + ovf / w;
+    const scaleY = 1 - (ovf / MAX_OVF) * 0.2;           // 1 → 0.8
+    const origin = region === 'left' ? 'right center' : 'left center';
+    track.style.transformOrigin = origin;
+    track.style.transform = `scaleX(${scaleX}) scaleY(${scaleY})`;
+    const shift = ovf * 0.9;
+    if (iconL) iconL.style.transform = region === 'left'  ? `translateX(${-shift}px)` : '';
+    if (iconR) iconR.style.transform = region === 'right' ? `translateX(${shift}px)`  : '';
+  }
+
+  /* Limpia distorsión inmediatamente (cancel / reset) */
+  function clearOvfImmediate(){
+    track.style.transform      = '';
+    track.style.transformOrigin = '';
+    if (iconL) iconL.style.transform = '';
+    if (iconR) iconR.style.transform = '';
+  }
+
+  /* Animación spring-back con leve overshoot al soltar */
+  function springBack(){
+    cancelAnimationFrame(springId);
+    const m  = track.style.transform || '';
+    const sx = parseFloat(m.match(/scaleX\(([^)]+)\)/)?.[1] ?? 1);
+    const sy = parseFloat(m.match(/scaleY\(([^)]+)\)/)?.[1] ?? 1);
+    const il = parseFloat(iconL?.style.transform?.match(/translateX\((-?[\d.]+)px\)/)?.[1] ?? 0);
+    const ir = parseFloat(iconR?.style.transform?.match(/translateX\((-?[\d.]+)px\)/)?.[1] ?? 0);
+    if (Math.abs(sx - 1) < 0.001 && Math.abs(sy - 1) < 0.001) return;
+
+    const DUR = 430;
+    let t0 = null;
+
+    function step(ts){
+      if (!t0) t0 = ts;
+      const t    = Math.min((ts - t0) / DUR, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      /* Pequeño overshoot: seno con envolvente exponencial */
+      const spring = ease + Math.sin(t * Math.PI * 2.8) * Math.exp(-t * 6) * 0.07;
+      const inv    = 1 - Math.min(spring, 1);
+
+      track.style.transform = `scaleX(${1 + (sx - 1) * inv}) scaleY(${1 + (sy - 1) * inv})`;
+      if (iconL && il !== 0) iconL.style.transform = `translateX(${il * inv}px)`;
+      if (iconR && ir !== 0) iconR.style.transform = `translateX(${ir * inv}px)`;
+
+      if (t < 1) springId = requestAnimationFrame(step);
+      else       clearOvfImmediate();
+    }
+    springId = requestAnimationFrame(step);
+  }
+
+  /* ---- Hover state ---- */
+  wrap.addEventListener('mouseenter', () => wrap.classList.add('vol-active'));
+  wrap.addEventListener('mouseleave', () => { if (!dragging) wrap.classList.remove('vol-active'); });
+
+  /* ---- Pointer down — inicia arrastre ---- */
+  trackOuter.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    trackOuter.setPointerCapture(e.pointerId);
+    cancelAnimationFrame(springId);
+    dragging = true;
+    wrap.classList.add('vol-active');
+    commitVal(pctFromX(e.clientX));
+  });
+
+  /* ---- Pointer move — arrastra + overflow elástico ---- */
+  trackOuter.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const rect = track.getBoundingClientRect();
+    let ovf = 0, region = 'mid';
+
+    if (e.clientX < rect.left) {
+      region = 'left';
+      ovf    = decay(rect.left - e.clientX, MAX_OVF);
+    } else if (e.clientX > rect.right) {
+      region = 'right';
+      ovf    = decay(e.clientX - rect.right, MAX_OVF);
+    }
+
+    /* Bounce del icono al entrar por primera vez en zona overflow */
+    if (region !== 'mid' && region !== lastRegion) {
+      const icon = region === 'left' ? iconL : iconR;
+      if (icon){ icon.classList.remove('vol-pulse'); void icon.offsetWidth; icon.classList.add('vol-pulse'); }
+    }
+    lastRegion = region;
+
+    if (ovf > 0) {
+      applyOvf(ovf, region);
+      commitVal(region === 'left' ? 0 : 100);   // valor pinned al límite
+    } else {
+      clearOvfImmediate();
+      commitVal(pctFromX(e.clientX));
+    }
+  });
+
+  /* ---- Pointer up — suelta, spring-back, preview ---- */
+  trackOuter.addEventListener('pointerup', () => {
+    if (!dragging) return;
+    dragging   = false;
+    lastRegion = 'mid';
+    springBack();
+    if (!wrap.matches(':hover')) wrap.classList.remove('vol-active');
+    try { sndPreview(); } catch(_){}
+  });
+
+  trackOuter.addEventListener('pointercancel', () => {
+    dragging   = false;
+    lastRegion = 'mid';
+    clearOvfImmediate();
+    wrap.classList.remove('vol-active');
+  });
+}
+
 function settingsUpdateTzPreview(){
   const tz = document.getElementById('settings-timezone')?.value.trim();
   const el = document.getElementById('settings-tz-preview');

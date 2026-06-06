@@ -256,48 +256,61 @@
 [data-theme="light"] .theme-pill-ghost .theme-icon-moon{ display:block; }
 
 /* ============================================================
-   VOLUME SLIDER (settings)
+   VOLUME SLIDER — custom elástico (sin thumb, estilo framer-motion)
    ============================================================ */
 .vol-wrap{
-  display:flex;align-items:center;gap:10px;
+  display:flex;align-items:center;gap:14px;
   margin-top:10px;padding:4px 0;
-  transition:transform 0.2s;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+  opacity:0.7;
+  transform:scale(1);
+  transition:opacity 0.3s ease,transform 0.3s ease;
 }
-.vol-wrap:hover{ transform:scaleY(1.06); }
-.vol-icon{
-  background:none;border:none;padding:3px;cursor:pointer;
-  color:var(--txt3);transition:color 0.15s,transform 0.15s;
-  flex-shrink:0;display:flex;align-items:center;
+.vol-wrap.vol-active{
+  opacity:1;
+  transform:scale(1.08);
 }
-.vol-icon:hover{ color:var(--txt);transform:scale(1.15); }
-.vol-icon-max:hover{ color:var(--gold); }
+/* Iconos laterales */
+.vol-icon-el{
+  flex-shrink:0;color:var(--txt);
+  display:flex;align-items:center;
+  will-change:transform;
+}
+@keyframes vol-bounce{
+  0%,100%{ transform:scale(1); }
+  45%    { transform:scale(1.4); }
+}
+.vol-icon-el.vol-pulse{ animation:vol-bounce 0.28s ease-out; }
 
-/* Pista del slider */
-.vol-range{
-  flex:1;-webkit-appearance:none;appearance:none;
-  height:4px;border-radius:2px;outline:none;cursor:pointer;
-  background:linear-gradient(
-    to right,
-    var(--gold) 0%,
-    var(--gold) var(--vol-pct,50%),
-    var(--brd2) var(--vol-pct,50%),
-    var(--brd2) 100%
-  );
-  transition:height 0.15s;
+/* Zona clicable amplia (padding agranda hitbox) */
+.vol-track-outer{
+  flex:1;min-width:0;
+  padding:14px 0;
+  cursor:grab;
+  display:flex;align-items:center;
 }
-.vol-range:hover{ height:6px; }
-/* Thumb Webkit */
-.vol-range::-webkit-slider-thumb{
-  -webkit-appearance:none;
-  width:14px;height:14px;border-radius:50%;
-  background:var(--gold);cursor:pointer;
-  box-shadow:0 0 6px rgba(201,168,76,0.55);
-  transition:transform 0.15s,box-shadow 0.15s;
+.vol-track-outer:active{ cursor:grabbing; }
+
+/* Pista */
+.vol-track{
+  width:100%;
+  border-radius:999px;
+  background:var(--brd2);
+  overflow:hidden;
+  height:6px;
+  transition:height 0.2s ease,margin 0.2s ease;
+  will-change:transform;
 }
-.vol-range:hover::-webkit-slider-thumb{ transform:scale(1.3); }
-/* Thumb Firefox */
-.vol-range::-moz-range-thumb{
-  width:14px;height:14px;border-radius:50%;
-  background:var(--gold);border:none;cursor:pointer;
-  box-shadow:0 0 6px rgba(201,168,76,0.55);
+.vol-wrap.vol-active .vol-track{
+  height:12px;
+  margin-top:-3px;
+  margin-bottom:-3px;
+}
+/* Relleno — color foreground (blanco dark / oscuro light) sin thumb visible */
+.vol-range-fill{
+  height:100%;
+  background:var(--txt);
+  border-radius:999px;
+  width:85%;       /* actualizado por JS en cada movimiento */
+  pointer-events:none;
 }
