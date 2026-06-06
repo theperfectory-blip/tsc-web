@@ -158,6 +158,35 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   font-size:13px;white-space:nowrap;z-index:400;pointer-events:none;
 }
 
+/* Sub-ítems de Competiciones en el sidebar */
+.pub-sidebar-sub{overflow:hidden;}
+.pub-sub-comp{
+  display:flex;align-items:center;
+  padding:6px 14px 6px 38px;
+  font-family:'Barlow Condensed';font-size:14px;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.4px;
+  color:var(--txt2);cursor:pointer;
+  border-left:2px solid transparent;
+  transition:color 0.15s,background 0.15s;
+  white-space:nowrap;overflow:hidden;
+}
+.pub-sub-comp:hover{color:var(--txt);background:var(--gold-l);}
+.pub-sub-comp.active{background:var(--gold-l);}
+.pub-sub-phase{
+  display:flex;align-items:center;gap:7px;
+  padding:5px 14px 5px 50px;
+  font-family:'Barlow Condensed';font-size:12px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.3px;
+  color:var(--txt3);cursor:pointer;
+  transition:color 0.15s,background 0.15s;
+  white-space:nowrap;overflow:hidden;
+}
+.pub-sub-phase:hover{color:var(--txt2);background:var(--gold-l);}
+.pub-sub-phase.active{color:var(--gold);}
+.pub-sub-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;}
+/* Ocultar sub-ítems en estado colapsado */
+#pub-sidebar.collapsed .pub-sidebar-sub{display:none;}
+
 /* Hamburguesa en topbar (solo móvil) */
 #pub-menu-btn{display:none;}
 

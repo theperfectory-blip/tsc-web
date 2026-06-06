@@ -47,30 +47,6 @@ async function renderPubPanel(){
   }
   const selPhase = phases.find(p=>p.id===window._pubState.phaseId);
 
-  // ── Botones de competición ──
-  const compBtns = active.map(c=>`
-    <button onclick="pubSelectComp(${c.id})"
-      style="padding:7px 16px;font-family:'Barlow Condensed';font-weight:700;font-size:14px;
-        text-transform:uppercase;letter-spacing:0.5px;border-radius:20px;cursor:pointer;
-        border:2px solid ${c.id===selComp.id?(c.color||'var(--gold)'):'var(--brd)'};
-        background:${c.id===selComp.id?'var(--card2)':'transparent'};
-        color:${c.id===selComp.id?(c.color||'var(--gold)'):'var(--txt2)'};
-        transition:all 0.15s;">
-      ${c.name}
-    </button>`).join('');
-
-  // ── Botones de fase ──
-  const phaseBtns = phases.map(p=>`
-    <button onclick="pubSelectPhase(${p.id})"
-      style="padding:5px 14px;font-family:'Barlow Condensed';font-weight:700;font-size:13px;
-        text-transform:uppercase;letter-spacing:0.5px;border-radius:20px;cursor:pointer;
-        border:2px solid ${p.id===selPhase?.id?'var(--gold)':'var(--brd)'};
-        background:${p.id===selPhase?.id?'var(--gold-l)':'transparent'};
-        color:${p.id===selPhase?.id?'var(--gold)':'var(--txt2)'};
-        transition:all 0.15s;">
-      ${p.name}
-    </button>`).join('');
-
   const phaseContentId = `pub-phase-content-${selComp.id}-${selPhase?.id}`;
 
   // v1.7.001: aviso si no hay fases activas en esta comp
@@ -117,14 +93,11 @@ async function renderPubPanel(){
 
   el.innerHTML = `
     ${liveBlock}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      ${compBtns}
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--brd);">
-      ${phaseBtns}
-    </div>
     ${noPhasesMsg}
     <div id="${phaseContentId}"></div>`;
+
+  // Actualizar sub-menú del sidebar con comps/fases
+  if(typeof renderPubSidebarComps === 'function') renderPubSidebarComps().catch(()=>{});
 
   // v1.7.001: blindar render para que un error en una fase no deje en blanco el panel
   if(selPhase){

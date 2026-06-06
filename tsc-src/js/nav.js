@@ -121,6 +121,8 @@ function goPublicPage(page, navEl){
       if(t.dataset.page === page) t.classList.add('active');
     });
   }
+  // Actualizar/limpiar sub-ítems del sidebar (para páginas no-panel)
+  if(page !== 'panel') renderPubSidebarComps().catch(()=>{});
   // En móvil: cerrar el cajón al navegar
   closePubSidebar();
   renderPublicPage(page);
@@ -231,6 +233,59 @@ async function refreshSorteoTabVisibility(){
       t.classList.toggle('active', t.dataset.page==='panel');
     });
   }
+}
+
+/* Renderiza competiciones y fases como sub-ítems del sidebar público */
+async function renderPubSidebarComps(){
+  const container = document.getElementById('pub-sidebar-comps');
+  if(!container) return;
+  if(STATE.publicPage !== 'panel'){
+    container.innerHTML = '';
+    return;
+  }
+  window._pubState = window._pubState || {};
+  const comps = await getForSeason('competitions').catch(()=>[]);
+  const isActiveSt = s => {
+    if(s==null) return true;
+    const n = String(s).trim().toLowerCase();
+    return n==='active'||n==='activa'||n==='';
+  };
+  const active = comps.filter(c=>isActiveSt(c.status));
+  if(!active.length){ container.innerHTML=''; return; }
+
+  const selCompId = window._pubState.compId || active[0].id;
+  const selComp   = active.find(c=>c.id===selCompId) || active[0];
+
+  const allPhases = await dbGetAll('phases', p=>p.compId===selComp.id).catch(()=>[]);
+  const phases = allPhases.filter(p=>{
+    if(p.status==null) return true;
+    const n = String(p.status).trim().toLowerCase();
+    return n==='active'||n==='activa'||n==='';
+  }).sort((a,b)=>(a.order||0)-(b.order||0));
+  const selPhaseId = window._pubState.phaseId || phases[0]?.id;
+
+  let html = '';
+  for(const c of active){
+    const isSel = c.id===selComp.id;
+    const col   = c.color || 'var(--gold)';
+    html += `<div class="pub-sub-comp${isSel?' active':''}"
+      onclick="pubSelectComp(${c.id})"
+      title="${c.name}"
+      ${isSel?`style="color:${col};border-left-color:${col};"`:''}>
+      ${c.name}
+    </div>`;
+    if(isSel){
+      for(const p of phases){
+        const isPSel = p.id===selPhaseId;
+        html += `<div class="pub-sub-phase${isPSel?' active':''}"
+          onclick="pubSelectPhase(${p.id})"
+          title="${p.name}">
+          <span class="pub-sub-dot"></span>${p.name}
+        </div>`;
+      }
+    }
+  }
+  container.innerHTML = html;
 }
 
 /* Stubs temporales */
