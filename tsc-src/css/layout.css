@@ -146,7 +146,10 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 /* Flyout flotante al hacer hover (solo escritorio) */
 #pub-sidebar.collapsed.hover-expand{
   width:220px;
-  box-shadow:4px 0 24px rgba(0,0,0,0.4);
+  background:var(--nav-glass);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  box-shadow:4px 0 28px rgba(0,0,0,0.45);
   z-index:350;
   transition:width 0.2s;
 }
@@ -175,7 +178,7 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   white-space:nowrap;overflow:hidden;
 }
 .pub-sub-comp:hover{color:var(--txt);background:var(--gold-l);}
-.pub-sub-comp.active{background:var(--gold-l);}
+.pub-sub-comp.active{color:var(--gold);border-left-color:var(--gold);background:var(--gold-l);}
 .pub-sub-phase{
   display:flex;align-items:center;gap:7px;
   padding:5px 14px 5px 50px;

@@ -140,8 +140,9 @@ function goPublicPage(page, navEl){
       if(t.dataset.page === page) t.classList.add('active');
     });
   }
-  // Actualizar/limpiar sub-ítems del sidebar (para páginas no-panel)
-  if(page !== 'panel') renderPubSidebarComps().catch(()=>{});
+  // Actualizar/limpiar sub-ítems del sidebar según página
+  if(page !== 'panel')    renderPubSidebarComps().catch(()=>{});
+  if(page !== 'historial') renderPubSidebarHistorial();
   // En móvil: cerrar el cajón al navegar
   closePubSidebar();
   renderPublicPage(page);
@@ -252,6 +253,26 @@ async function refreshSorteoTabVisibility(){
       t.classList.toggle('active', t.dataset.page==='panel');
     });
   }
+}
+
+/* Renderiza sub-ítems de Historial (Partidos | Tabla histórica) */
+function renderPubSidebarHistorial(activeTab){
+  const container = document.getElementById('pub-sidebar-historial');
+  if(!container) return;
+  if(STATE.publicPage !== 'historial'){
+    container.innerHTML = '';
+    return;
+  }
+  const tab = activeTab || 'partidos';
+  container.innerHTML = `
+    <div class="pub-sub-comp${tab==='partidos'?' active':''}"
+      onclick="renderPubHistory()" title="Partidos">
+      Partidos
+    </div>
+    <div class="pub-sub-comp${tab==='tabla'?' active':''}"
+      onclick="renderPubHistoryStandings()" title="Tabla histórica">
+      Tabla histórica
+    </div>`;
 }
 
 /* Renderiza competiciones y fases como sub-ítems del sidebar público */

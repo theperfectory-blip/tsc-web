@@ -313,6 +313,7 @@ async function renderAdmHistory(){
 
 async function renderPubHistory(){
   _histState.mode = 'public';
+  if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('partidos');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
   await _renderHistoryFull(el, false);
@@ -865,6 +866,7 @@ async function renderAdmHistoryStandings(){
 
 async function renderPubHistoryStandings(){
   _histStdState.mode = 'public';
+  if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('tabla');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
   await _renderHistoryStandingsInto(el, false);
@@ -973,14 +975,7 @@ function _histStdRowHTML(s, i){
    Solo en vista pública: en admin la navegación se hace por el sidebar.
 */
 function _renderHistorySubNav(active, isAdmin){
-  if(isAdmin) return '';
-  const tabStyle = (act)=>`padding:6px 14px;font-family:'Barlow Condensed';font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;border-radius:20px;cursor:pointer;border:2px solid ${act?'var(--gold)':'var(--brd)'};background:${act?'var(--gold-l)':'transparent'};color:${act?'var(--gold)':'var(--txt2)'};transition:all 0.15s;`;
-  return `
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-      <button onclick="renderPubHistory()" style="${tabStyle(active==='partidos')}">Partidos</button>
-      <button onclick="renderPubHistoryStandings()" style="${tabStyle(active==='tabla')}">Tabla histórica</button>
-    </div>
-  `;
+  return ''; // Sub-nav movido al sidebar público
 }
 
 async function histStdSetFilter(key, value){
