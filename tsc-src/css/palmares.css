@@ -16,6 +16,21 @@
 }
 
 /* ============================================================
+   TEMA LIGHT — el parqué y las pantallas de detalle SIEMPRE usan
+   colores dark (todos tienen fondo navy/oscuro propio).
+   El .tr-header (título + subtítulo) queda con el tema de la página.
+   ============================================================ */
+[data-theme="light"] .tr-room,
+[data-theme="light"] .tr-side-panel,
+[data-theme="light"] .tr-fullscreen {
+  --txt:  #F0EDE6;
+  --txt2: #8B8F9A;
+  --txt3: #555A66;
+  --brd:  rgba(255,255,255,0.07);
+  --brd2: rgba(255,255,255,0.13);
+}
+
+/* ============================================================
    PÚBLICO — Sala de Trofeos
    ============================================================ */
 #pub-palmares-content {
