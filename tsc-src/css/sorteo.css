@@ -1,8 +1,23 @@
 /* ============================================================
    SORTEO — Animación chibi + reveal de equipo
-   Copia este archivo a tu proyecto e impórtalo después
-   de components.css.
    ============================================================ */
+
+/* --- Tokens del sorteo — siempre dark (el stage tiene fondo oscuro propio) ---
+   Se definen aquí porque el sorteo no fue portado al sistema global de tokens.
+   NO cambiar en [data-theme="light"]: el stage siempre luce sobre fondo navy. */
+:root {
+  --bg-1:             #0D1118;
+  --bg-2:             #141820;
+  --bg-3:             #1A1F2B;
+  --text:             #F0EDE6;
+  --text-dim:         #8B8F9A;
+  --text-mute:        #555A66;
+  --border:           rgba(255,255,255,0.08);
+  --border-soft:      rgba(255,255,255,0.05);
+  --radius-xl:        14px;
+  --radius-lg:        8px;
+  --sorteo-glow-soft: rgba(201,168,76,0.18);
+}
 
 /* ---------- Layout de la página ---------- */
 .sorteo-grid {

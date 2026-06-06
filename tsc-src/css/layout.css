@@ -89,7 +89,7 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 }
 .nav-item:hover{color:var(--txt);background:var(--gold-l);}
 .nav-item.active{color:var(--gold);border-left-color:var(--gold);background:var(--gold-l);}
-.nav-item-icon{font-size:17px;width:18px;text-align:center;flex-shrink:0;}
+.nav-item-icon{font-size:17px;width:18px;text-align:center;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;}
 
 /* ============================================================
    PUBLIC SIDEBAR (reemplaza #pubnav)
@@ -139,7 +139,7 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 }
 .pub-nav-item:hover{color:var(--txt);background:var(--gold-l);}
 .pub-nav-item.active{color:var(--gold);border-left-color:var(--gold);background:var(--gold-l);}
-.pub-nav-icon{font-size:18px;width:20px;text-align:center;flex-shrink:0;}
+.pub-nav-icon{font-size:18px;width:20px;text-align:center;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;}
 .pub-nav-label{transition:opacity 0.2s;}
 
 /* Estado colapsado: solo muestra el botón toggle, sin iconos ni labels */
