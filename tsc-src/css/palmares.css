@@ -413,29 +413,27 @@
     0 24px 60px -8px rgba(0,0,0,0.75);
 }
 
-/* Navegación */
+/* Navegación — minimalista, sin círculo */
 .tr-nav {
   position: absolute;
   top: 45%;
-  width: 44px; height: 44px;
+  width: 40px; height: 56px;
   display: grid; place-items: center;
-  background: rgba(10,18,32,0.7);
-  border: 1px solid rgba(255,255,255,0.12);
-  color: #fff;
-  border-radius: 50%;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.28);
   cursor: pointer;
   z-index: 200;
-  backdrop-filter: blur(4px);
-  transition: 160ms;
+  transition: color 200ms, transform 200ms;
+  padding: 0;
 }
 .tr-nav:hover {
-  background: rgba(20,32,52,0.85);
-  border-color: var(--tr-gold);
-  color: var(--tr-gold-2);
-  transform: translateY(-2px);
+  color: rgba(255,255,255,0.9);
+  transform: translateY(-1px);
 }
-.tr-nav-prev { left: 12px; }
-.tr-nav-next { right: 12px; }
+.tr-nav svg { display: block; }
+.tr-nav-prev { left: 6px; }
+.tr-nav-next { right: 6px; }
 
 .tr-mute {
   position: absolute;

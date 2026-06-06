@@ -39,8 +39,20 @@ function setTheme(theme){
   STATE.theme = theme;
   document.documentElement.setAttribute('data-theme',theme);
   localStorage.setItem('tsc_theme',theme);
-  document.getElementById('theme-dark-btn').classList.toggle('btn-primary',theme==='dark');
-  document.getElementById('theme-light-btn').classList.toggle('btn-primary',theme==='light');
+  // El pill toggle se actualiza solo vía CSS (data-theme en <html>), no necesita JS extra.
+  // Compatibilidad con los viejos botones si quedaran en el DOM:
+  document.getElementById('theme-dark-btn')?.classList.toggle('btn-primary',theme==='dark');
+  document.getElementById('theme-light-btn')?.classList.toggle('btn-primary',theme==='light');
+}
+function toggleTheme(){
+  setTheme(STATE.theme === 'light' ? 'dark' : 'light');
+}
+/* Sincroniza el gradiente del slider de volumen con el valor actual */
+function _syncVolGradient(val){
+  const el = document.getElementById('snd-vol');
+  if (!el) return;
+  const pct = Math.round(Math.max(0, Math.min(100, parseFloat(val) || 0))) + '%';
+  el.style.setProperty('--vol-pct', pct);
 }
 
 /* ----------------------------------------------------------
@@ -52,7 +64,11 @@ function openSettings(){
   const on = document.getElementById('snd-on');
   const vol = document.getElementById('snd-vol');
   if (on && window.SFX)  on.checked = window.SFX.enabled !== false;
-  if (vol && window.SFX) vol.value = Math.round((window.SFX.getVolume ? window.SFX.getVolume() : 0.85) * 100);
+  if (vol && window.SFX){
+    const v = Math.round((window.SFX.getVolume ? window.SFX.getVolume() : 0.85) * 100);
+    vol.value = v;
+    _syncVolGradient(v);
+  }
   // Zona horaria — poblar datalist una sola vez y restaurar valor guardado
   const tzInput = document.getElementById('settings-timezone');
   const tzList  = document.getElementById('settings-tz-list');

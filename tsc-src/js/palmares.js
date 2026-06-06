@@ -764,10 +764,10 @@ async function renderPubPalmares(){
         <div class="tr-stage" id="tr-stage">${compData.map((d, i) => buildCase(d, i, teamById)).join('')}</div>
 
         <button class="tr-nav tr-nav-prev" id="tr-prev" aria-label="Copa anterior">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <button class="tr-nav tr-nav-next" id="tr-next" aria-label="Copa siguiente">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
 
         <div class="tr-drag-hint" id="tr-drag-hint">
