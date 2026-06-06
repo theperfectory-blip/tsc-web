@@ -489,7 +489,7 @@
         if (b) {
           const drawnSet = new Set(b.drawn.map(d => d.teamId));
           const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id));
-          if (!remaining.length && b.drawn.length) flashHint(`🎉 ${b.name} completo`, true);
+          if (!remaining.length && b.drawn.length) flashHint(`${b.name} completo`, true);
         }
         // Público en vivo: si llegó un sorteo durante esta animación, procesarlo ahora.
         if (readOnly && _pendingSnap) {
@@ -641,7 +641,7 @@
     SFX.setEnabled(!SFX.enabled);
     btnSound.classList.toggle('off', !SFX.enabled);
     btnSound.title = SFX.enabled ? 'Sonido activado' : 'Sonido silenciado';
-    btnSound.textContent = SFX.enabled ? '🔊' : '🔇';
+    btnSound.innerHTML = SFX.enabled ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>' : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
   }
 
   /* ---------------- Render ---------------- */
@@ -892,7 +892,7 @@
       const phases = await dbGetAll('phases', p => p.compId === cid && (p.type === 'groups' || p.type === 'bracket'));
       phaseSel.innerHTML = phases.length
         ? phases.map(p => {
-            const tag = p.type === 'bracket' ? '◉' : '◈';
+            const tag = p.type === 'bracket' ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
             return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${tag} ${escapeHtml(p.name || ('Fase '+p.id))}</option>`;
           }).join('')
         : '<option value="">Sin fases tipo grupos / bracket</option>';
@@ -1244,7 +1244,7 @@
               <span class="num">0</span><span class="total">/ 0</span>
               <span class="lbl">en la urna</span>
             </div>
-            <button id="btn-sound" class="icon-mini" title="Sonido">🔊</button>
+            <button id="btn-sound" class="icon-mini" title="Sonido"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
           </div>
         </div>
 
@@ -1275,7 +1275,7 @@
           <div class="side-hdr">
             <h3>Bombos</h3>
             <div class="bombos-actions">
-              <button class="icon-mini" id="btn-rename-bombo" title="Renombrar bombo activo">✎</button>
+              <button class="icon-mini" id="btn-rename-bombo" title="Renombrar bombo activo"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
               <button class="icon-mini" id="btn-delete-bombo" title="Eliminar bombo activo">✕</button>
               <button class="icon-mini primary" id="btn-add-bombo" title="Añadir bombo">＋</button>
             </div>

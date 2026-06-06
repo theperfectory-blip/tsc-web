@@ -792,10 +792,10 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
       var _legTag=slot.twoLeg?(slot.leg1Live?' · Ida':slot.leg2Live?' · Vuelta':''):'';
       topSection='<div style="display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;background:rgba(239,68,68,0.15);border-bottom:1px solid rgba(239,68,68,0.25);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo<span style="opacity:0.7;font-weight:400;margin-left:2px;">'+_legTag+'</span></div>';
     } else if(isAdmin&&!anyLiveInPhase&&!aTbd&&!bTbd&&!hasResult){
-      var _lbOnclick='', _lbLabel='🔴 En vivo';
+      var _lbOnclick='', _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo';
       if(slot.twoLeg){
-        if(!leg1Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',1,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='🔴 Vivo · Ida'; }
-        else if(!leg2Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',2,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='🔴 Vivo · Vuelta'; }
+        if(!leg1Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',1,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Ida'; }
+        else if(!leg2Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',2,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Vuelta'; }
       } else {
         _lbOnclick='event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')';
       }

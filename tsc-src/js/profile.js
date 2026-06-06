@@ -66,7 +66,7 @@ async function renderProfileBody(){
 
   const verBadge = verified
     ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
-    : `<span style="color:#FFC107;font-size:11px;font-weight:600;">⚠ sin verificar</span>
+    : `<span style="color:#FFC107;font-size:11px;font-weight:600;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> sin verificar</span>
        <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`;
 
   const editBadge = `
@@ -104,8 +104,8 @@ async function renderProfileBody(){
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
-      <button class="btn btn-sm" onclick="profileTogglePasswordChange()">🔑 Cambiar contraseña</button>
-      <button class="btn btn-sm" onclick="profileToggleEmailChange()">✉ Cambiar email</button>
+      <button class="btn btn-sm" onclick="profileTogglePasswordChange()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Cambiar contraseña</button>
+      <button class="btn btn-sm" onclick="profileToggleEmailChange()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Cambiar email</button>
     </div>
 
     <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
@@ -153,7 +153,7 @@ async function renderProfileBody(){
     html += `
       <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
       <div class="section-lbl" style="margin-bottom:10px;">Mi club</div>
-      ${locked ? `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);margin-bottom:12px;">🔒 El administrador bloqueó la edición de nombre y escudo.</div>` : ''}
+      ${locked ? `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> El administrador bloqueó la edición de nombre y escudo.</div>` : ''}
     `;
 
     if (stats) html += _statsHTML(stats);
@@ -174,7 +174,7 @@ async function renderProfileBody(){
           <input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}>
         </div>
       </div>
-      <button class="btn btn-sm" onclick="profileViewMyMatches()">⟁ Ver el historial de mi club</button>
+      <button class="btn btn-sm" onclick="profileViewMyMatches()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg> Ver el historial de mi club</button>
     `;
   } else if (AUTH.role === 'president'){
     html += `
@@ -511,7 +511,7 @@ function profileSelectLogo(input){
 async function profileResendVerification(){
   try {
     await AUTH.user.sendEmailVerification();
-    showToast('📧 Correo de verificación enviado · revisa tu SPAM');
+    showToast('Correo de verificación enviado · revisa tu SPAM');
   } catch(e){ showToast('Error: '+(e.code||e.message),'error'); }
 }
 
@@ -543,7 +543,7 @@ async function profileChangeEmail(){
     const cred = firebase.auth.EmailAuthProvider.credential(AUTH.user.email, pass);
     await AUTH.user.reauthenticateWithCredential(cred);
     await AUTH.user.verifyBeforeUpdateEmail(newEmail);
-    showToast('📧 Correo de verificación enviado a '+newEmail+' · revisa tu SPAM');
+    showToast('Correo de verificación enviado a '+newEmail+' · revisa tu SPAM');
     profileToggleEmailChange();
   } catch(e){
     showToast(errMap[e.code] || ('Error: '+(e.message||e)), 'error');
@@ -579,7 +579,7 @@ async function profileChangePassword(){
     const cred = firebase.auth.EmailAuthProvider.credential(AUTH.user.email, currPass);
     await AUTH.user.reauthenticateWithCredential(cred);
     await AUTH.user.updatePassword(newPw);
-    showToast('✅ Contraseña actualizada');
+    showToast('Contraseña actualizada');
     profileTogglePasswordChange();
   } catch(e){
     showToast(errMap[e.code] || ('Error: '+(e.message||e)), 'error');

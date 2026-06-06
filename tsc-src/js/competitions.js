@@ -1,7 +1,7 @@
 const COMP_TYPES = [
-  {id:'league',  icon:'◈', name:'Liga / Grupos',       desc:'Round robin por grupos'},
-  {id:'cup',     icon:'◉', name:'Eliminación directa', desc:'Bracket con ida/vuelta'},
-  {id:'playoff', icon:'⇄', name:'Playoff cruzado',     desc:'Cruza clasificados'},
+  {id:'league',  icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', name:'Liga / Grupos',       desc:'Round robin por grupos'},
+  {id:'cup',     icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', name:'Eliminación directa', desc:'Bracket con ida/vuelta'},
+  {id:'playoff', icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>', name:'Playoff cruzado',     desc:'Cruza clasificados'},
   {id:'super',   icon:'★', name:'Superclásico',        desc:'Partido único o serie'},
 ];
 
@@ -29,7 +29,7 @@ async function renderAdmComps(){
     <div style="font-size:14px;color:var(--txt2);">${comps.length} competición(es) en ${seasonName}</div>
     <button class="btn btn-primary" onclick="openCompModal()" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Nueva competición</button>
   </div>
-  ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;">⚠ Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
+  ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
   <div id="comps-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;"></div>
   <div id="comp-modal-wrap"></div>`;
 
@@ -131,7 +131,7 @@ async function openCompModal(id=null){
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
             <div id="comp-color-preview" style="width:32px;height:32px;border-radius:6px;background:${selColor};border:1px solid var(--brd2);cursor:pointer;flex-shrink:0;" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })"></div>
             <span id="comp-color-hex" style="font-size:13px;color:var(--txt2);font-family:monospace;">${selColor}</span>
-            <button class="btn btn-sm" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })">🎨 Cambiar color</button>
+            <button class="btn btn-sm" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Cambiar color</button>
           </div>
         </div>
         <div class="form-group" style="margin-bottom:0;">

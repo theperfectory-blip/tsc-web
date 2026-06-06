@@ -196,7 +196,7 @@ async function openTeamModal(id=null){
           <div id="tf-prev-names" style="display:flex;flex-direction:column;gap:6px;"></div>
           <div style="font-size:11px;color:var(--txt3);margin-top:4px;">
             Cada caja es un nombre histórico distinto.
-            ${team ? '<strong style="color:var(--txt2);">💡 Si cambias el nombre, el actual se agregará automáticamente.</strong>' : ''}
+            ${team ? '<strong style="color:var(--txt2);"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Si cambias el nombre, el actual se agregará automáticamente.</strong>' : ''}
             Aparecerán con ⓘ en el historial de partidos.
           </div>
         </div>

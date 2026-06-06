@@ -95,7 +95,7 @@ async function renderAdmUsuarios(){
 async function adminSetUserLock(uid, locked){
   try {
     await firebase.firestore().collection('users').doc(uid).update({ lockEdits: locked });
-    showToast(locked ? '🔒 Edición de club bloqueada para este usuario' : 'Edición de club habilitada');
+    showToast(locked ? 'Edición de club bloqueada para este usuario' : 'Edición de club habilitada');
   } catch(e){
     showToast('Error: '+(e.code||e.message), 'error');
     renderAdmUsuarios();

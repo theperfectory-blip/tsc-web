@@ -265,7 +265,7 @@
 }
 .btn-sorteo:active:not(:disabled) { transform: translateY(0); }
 .btn-sorteo:disabled {
-  background: #2a313c; color: var(--text-mute); border-color: var(--border);
+  background: #2a313c; color: rgba(255,255,255,0.38); border-color: var(--border);
   box-shadow: none; cursor: not-allowed;
 }
 .btn-ghost {

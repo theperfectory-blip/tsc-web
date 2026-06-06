@@ -8,8 +8,8 @@ async function renderAdmData(){
       <div style="font-family:'Barlow Condensed';font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Exportar datos</div>
       <p style="font-size:14px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">Backup completo de toda la base de datos en JSON.</p>
       <div style="display:flex;flex-direction:column;gap:8px;">
-        <button class="btn btn-primary" onclick="exportFullDB()">📥 Exportar todo</button>
-        <button class="btn" onclick="exportSeason()">📥 Solo ${seasonName}</button>
+        <button class="btn btn-primary" onclick="exportFullDB()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar todo</button>
+        <button class="btn" onclick="exportSeason()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Solo ${seasonName}</button>
       </div>
     </div>
     <div class="card" style="padding:18px;">
@@ -20,8 +20,8 @@ async function renderAdmData(){
         <input type="file" id="import-file" accept=".json" style="padding:8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);width:100%;">
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" onclick="importDB('merge')">📤 Fusionar</button>
-        <button class="btn btn-danger" onclick="importDB('overwrite')">⚠ Sobrescribir</button>
+        <button class="btn btn-primary" onclick="importDB('merge')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Fusionar</button>
+        <button class="btn btn-danger" onclick="importDB('overwrite')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Sobrescribir</button>
       </div>
     </div>
   </div>

@@ -45,7 +45,7 @@ function _injectAuthModal(){
           <div style="position:relative;">
             <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px;width:100%;box-sizing:border-box;">
             <button type="button" id="auth-eye" onclick="toggleAuthPass()" title="Mostrar/ocultar contraseña"
-              style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:17px;line-height:1;padding:2px;">👁️</button>
+              style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;line-height:1;padding:2px;display:flex;align-items:center;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
         <div id="auth-error" style="color:#e74c3c;font-size:13px;min-height:18px;"></div>
@@ -86,7 +86,7 @@ function _renderAuthModalMode(){
   const pass = document.getElementById('auth-pass');
   const eye  = document.getElementById('auth-eye');
   if (pass) pass.type = 'password';
-  if (eye)  eye.textContent = '👁️';
+  if (eye)  eye.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
   document.getElementById('auth-error').textContent = '';
 }
 
@@ -95,8 +95,8 @@ function toggleAuthPass(){
   const inp = document.getElementById('auth-pass');
   const eye = document.getElementById('auth-eye');
   if (!inp) return;
-  if (inp.type === 'password'){ inp.type = 'text';     if (eye) eye.textContent = '🙈'; }
-  else                        { inp.type = 'password'; if (eye) eye.textContent = '👁️'; }
+  if (inp.type === 'password'){ inp.type = 'text';     if (eye) eye.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'; }
+  else                        { inp.type = 'password'; if (eye) eye.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'; }
 }
 
 /* Recuperar cuenta: envía email de restablecimiento de contraseña */
@@ -110,9 +110,9 @@ async function authForgotPassword(){
     // Aviso persistente con advertencia de SPAM (no se cierra el modal)
     errEl.style.color = '';
     errEl.innerHTML = `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:10px;color:var(--txt);text-align:left;line-height:1.45;font-size:13px;">
-      📧 Te enviamos un correo a <b>${_authEsc(email)}</b>.<br>
-      ⚠️ <b>Revisa tu carpeta de SPAM</b> / correo no deseado si no lo ves en unos minutos.</div>`;
-    showToast('📧 Correo enviado · revisa tu carpeta de SPAM');
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Te enviamos un correo a <b>${_authEsc(email)}</b>.<br>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <b>Revisa tu carpeta de SPAM</b> / correo no deseado si no lo ves en unos minutos.</div>`;
+    showToast('Correo enviado · revisa tu carpeta de SPAM');
   } catch(e){
     errEl.style.color = '#e74c3c';
     errEl.textContent = _authErrorMsg(e);

@@ -52,7 +52,7 @@ function renderCoinsTable(teams, maxCoins){
         ${t.logo?`<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${t.ini||'?'}</span>`}
       </div></td>
       <td style="font-weight:600;">${t.name}</td>
-      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${String(p).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
+      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${String(p).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td style="text-align:right;font-family:'Bebas Neue';font-size:22px;color:var(--gold);">${coins.toLocaleString('es-CL')}</td>
       <td><div style="display:flex;align-items:center;gap:6px;">
         <div style="flex:1;height:4px;background:var(--brd2);border-radius:2px;overflow:hidden;">
@@ -63,7 +63,7 @@ function renderCoinsTable(teams, maxCoins){
       <td><div style="display:flex;gap:4px;">
         <button class="btn btn-xs btn-primary" onclick="openCoinsModal(${t.id},'add')">+ Coins</button>
         <button class="btn btn-xs btn-danger" onclick="openCoinsModal(${t.id},'sub')">- Coins</button>
-        <button class="btn btn-xs" onclick="openCoinsHistory(${t.id})">📋</button>
+        <button class="btn btn-xs" onclick="openCoinsHistory(${t.id})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></button>
       </div></td>
     </tr>`;
   }).join('');

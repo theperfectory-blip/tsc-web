@@ -291,7 +291,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
           ${legHtml}
           ${allPlayed&&totA===totB&&!winner?`<div style="font-size:10px;color:var(--yellow);text-align:center;">Define por ${awayGoal&&legsCount>=2?'visita o ':''}penales</div>`:''}
           ${isAdmin?(isSingle
-            ?`<button class="btn btn-xs" onclick="openSupercopaTeamAssign(${phaseId},${i})" style="font-size:11px;margin-top:4px;">✎ Asignar equipos</button>`
+            ?`<button class="btn btn-xs" onclick="openSupercopaTeamAssign(${phaseId},${i})" style="font-size:11px;margin-top:4px;display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Asignar equipos</button>`
             :`<div style="display:flex;gap:6px;margin-top:2px;">
               <button class="btn btn-xs" onclick="openSlotRefModal(${phaseId},${i},'A','playoff')" style="font-size:10px;opacity:0.75;">Ref A</button>
               <button class="btn btn-xs" onclick="openSlotRefModal(${phaseId},${i},'B','playoff')" style="font-size:10px;opacity:0.75;">Ref B</button>
@@ -377,7 +377,7 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
         </div>`:''}
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        ${cur?`<button class="btn btn-danger btn-sm" onclick="closePlayoffLegModal();deletePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg})">🗑 Borrar</button>`:'<div></div>'}
+        ${cur?`<button class="btn btn-danger btn-sm" onclick="closePlayoffLegModal();deletePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Borrar</button>`:'<div></div>'}
         <div style="display:flex;gap:8px;">
           <button class="btn" onclick="closePlayoffLegModal()">Cancelar</button>
           <button class="btn btn-primary" onclick="savePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg},'${teamA.replace(/'/g,"\\'")}','${teamB.replace(/'/g,"\\'")}')">Guardar</button>

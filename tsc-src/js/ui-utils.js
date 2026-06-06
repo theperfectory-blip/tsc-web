@@ -267,7 +267,7 @@ function settingsUpdateTzPreview(){
   if (!el) return;
   if (!tz){ el.textContent = ''; return; }
   try {
-    el.textContent = '🕐 ' + new Intl.DateTimeFormat('es',{
+    el.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + new Intl.DateTimeFormat('es',{
       timeZone:tz, weekday:'short', day:'numeric', month:'short',
       hour:'2-digit', minute:'2-digit', timeZoneName:'short'
     }).format(new Date());

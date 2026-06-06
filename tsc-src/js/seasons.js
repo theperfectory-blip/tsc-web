@@ -29,9 +29,9 @@ async function renderAdmSeasons(){
       </div>
       <div style="display:flex;gap:6px;">
         ${s.number!==STATE.season?`<button class="btn btn-sm" onclick="switchToSeason(${s.number})">Ir</button>`:''}
-        <button class="btn btn-sm" onclick="openSeasonModal(${s.number})" ${s.status==='finished'?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✎ Editar</button>
+        <button class="btn btn-sm" onclick="openSeasonModal(${s.number})" ${s.status==='finished'?'disabled style="opacity:0.5;cursor:not-allowed;"':''} style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editar</button>
         ${s.status==='active'?`<button class="btn btn-sm btn-danger" onclick="confirmFinalizeSeason(${s.number})">Finalizar</button>`:''}
-        ${s.status==='finished'?`<button class="btn btn-sm" onclick="confirmReactivateSeason(${s.number})">🔄 Reactivar</button>`:''}
+        ${s.status==='finished'?`<button class="btn btn-sm" onclick="confirmReactivateSeason(${s.number})" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reactivar</button>`:''}
       </div>
     </div>`).join('')}
   </div>

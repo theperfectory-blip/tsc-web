@@ -58,7 +58,7 @@ async function renderAdmFases(){
     </select>
     <button class="btn btn-primary btn-sm" onclick="openPhaseModal()" ${!_currentCompId||isFinalized?'disabled':''} style="${isFinalized?'opacity:0.5;cursor:not-allowed;':''}">+ Nueva fase</button>
   </div>
-  ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;">⚠ Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
+  ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
   <div id="phases-list" style="display:flex;flex-direction:column;gap:10px;"></div>
   <div id="phase-modal-wrap"></div>`;
 
