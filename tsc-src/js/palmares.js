@@ -1159,22 +1159,32 @@ function initTrophyRoom(root, compData, teamById){
     sideEl.innerHTML = buildInfoPanel(data, teamById);
   }
 
-  /* Focos dinámicos: cambia el color de los focos cenitales según el
-     color del equipo campeón (o color de la competición como fallback). */
+  /* Focos dinámicos: los 7 focos alternan entre color primario y secundario
+     del equipo campeón. Fallback: color de la copa o dorado cálido. */
   function updateSpotlights(idx){
     const data = compData[idx];
     if (!data) return;
     const champTeam = data.champTeam;
-    let hex = (champTeam && champTeam.color && /^#[0-9a-fA-F]{6}$/.test(champTeam.color))
-      ? champTeam.color
-      : (data.comp.color && /^#[0-9a-fA-F]{6}$/.test(data.comp.color)
-        ? data.comp.color : '#ffd479');
-    const r = parseInt(hex.slice(1,3), 16);
-    const g = parseInt(hex.slice(3,5), 16);
-    const b = parseInt(hex.slice(5,7), 16);
-    room.style.setProperty('--spot-color', hex);
-    room.style.setProperty('--spot-glow',  `rgba(${r},${g},${b},0.45)`);
-    room.style.setProperty('--spot-cone',  `rgba(${r},${g},${b},0.10)`);
+    const isHex = h => h && /^#[0-9a-fA-F]{6}$/.test(h);
+
+    const hex1 = isHex(champTeam?.color)  ? champTeam.color
+               : isHex(data.comp.color)   ? data.comp.color
+               : '#ffd479';
+    const hex2 = isHex(champTeam?.color2) ? champTeam.color2
+               : hex1; // si no hay secundario, repite el primario
+
+    function applySpot(spot, hex){
+      const r = parseInt(hex.slice(1,3), 16);
+      const g = parseInt(hex.slice(3,5), 16);
+      const b = parseInt(hex.slice(5,7), 16);
+      spot.style.setProperty('--spot-color', hex);
+      spot.style.setProperty('--spot-glow',  `rgba(${r},${g},${b},0.45)`);
+      spot.style.setProperty('--spot-cone',  `rgba(${r},${g},${b},0.10)`);
+    }
+
+    room.querySelectorAll('.tr-spot').forEach((spot, i) => {
+      applySpot(spot, i % 2 === 0 ? hex1 : hex2);
+    });
   }
 
   function onPointerDown(e){
