@@ -18,6 +18,7 @@
      ============================================================ -->
 <div id="topbar">
   <div class="topbar-brand">
+    <button class="icon-btn" id="pub-menu-btn" onclick="togglePubSidebar()" title="Menú" style="display:none;">☰</button>
     <div class="topbar-logo">TSC</div>
     <div class="topbar-name">Teams Subs <span>Cup</span></div>
   </div>
@@ -33,16 +34,34 @@
 </div>
 
 <!-- ============================================================
-     NAV PÚBLICO
+     PUBLIC SIDEBAR (reemplaza #pubnav)
      ============================================================ -->
-<div id="pubnav">
-  <div class="pubnav-inner">
-    <div class="pub-tab active" onclick="goPublicPage('palmares',this)">Palmarés</div>
-    <div class="pub-tab" onclick="goPublicPage('panel',this)">Competiciones</div>
-    <div class="pub-tab" onclick="goPublicPage('equipos',this)">Equipos</div>
-    <div class="pub-tab" id="pub-tab-sorteo" onclick="goPublicPage('sorteo',this)" style="display:none;">Sorteo</div>
-    <div class="pub-tab" onclick="goPublicPage('historial',this)">Historial</div>
-  </div>
+<div id="pub-sidebar-backdrop" onclick="closePubSidebar()"></div>
+
+<div id="pub-sidebar">
+  <button class="pub-sidebar-toggle" id="pub-sidebar-toggle" onclick="togglePubSidebar()" title="Colapsar menú">«</button>
+  <nav class="pub-sidebar-nav">
+    <div class="pub-nav-item active" onclick="goPublicPage('palmares',this)" data-page="palmares" title="Palmarés">
+      <span class="pub-nav-icon">♛</span>
+      <span class="pub-nav-label">Palmarés</span>
+    </div>
+    <div class="pub-nav-item" onclick="goPublicPage('panel',this)" data-page="panel" title="Competiciones">
+      <span class="pub-nav-icon">◉</span>
+      <span class="pub-nav-label">Competiciones</span>
+    </div>
+    <div class="pub-nav-item" onclick="goPublicPage('equipos',this)" data-page="equipos" title="Equipos">
+      <span class="pub-nav-icon">⚑</span>
+      <span class="pub-nav-label">Equipos</span>
+    </div>
+    <div class="pub-nav-item" id="pub-nav-sorteo" onclick="goPublicPage('sorteo',this)" data-page="sorteo" title="Sorteo" style="display:none;">
+      <span class="pub-nav-icon">⚪</span>
+      <span class="pub-nav-label">Sorteo</span>
+    </div>
+    <div class="pub-nav-item" onclick="goPublicPage('historial',this)" data-page="historial" title="Historial">
+      <span class="pub-nav-icon">⟁</span>
+      <span class="pub-nav-label">Historial</span>
+    </div>
+  </nav>
 </div>
 
 <!-- ============================================================

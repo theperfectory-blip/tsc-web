@@ -1,4 +1,76 @@
 /* ----------------------------------------------------------
+   PUBLIC SIDEBAR — estado y funciones
+   ---------------------------------------------------------- */
+let _pubSidebarCollapsed = localStorage.getItem('tsc_pub_sidebar') === 'collapsed';
+
+function _applyPubSidebar(visible){
+  const sidebar  = document.getElementById('pub-sidebar');
+  const backdrop = document.getElementById('pub-sidebar-backdrop');
+  const main     = document.getElementById('main');
+  const menuBtn  = document.getElementById('pub-menu-btn');
+  const toggleEl = document.getElementById('pub-sidebar-toggle');
+  if(!sidebar) return;
+
+  if(!visible){
+    sidebar.classList.remove('open');
+    if(backdrop) backdrop.classList.remove('open');
+    if(menuBtn)  menuBtn.style.display = 'none';
+    return;
+  }
+
+  const mobile = window.innerWidth <= 768;
+
+  if(mobile){
+    // Móvil: hamburguesa visible, sidebar solo se abre al pulsar
+    if(menuBtn) menuBtn.style.display = '';
+    sidebar.classList.remove('collapsed');
+    if(main){ main.style.marginLeft = ''; main.style.marginTop = '60px'; }
+    return;
+  }
+
+  // Escritorio: sidebar siempre visible
+  if(menuBtn) menuBtn.style.display = 'none';
+  sidebar.classList.add('open');
+  sidebar.classList.toggle('collapsed', _pubSidebarCollapsed);
+  if(toggleEl) toggleEl.textContent = _pubSidebarCollapsed ? '»' : '«';
+  if(main){
+    main.style.marginLeft = _pubSidebarCollapsed ? '54px' : '220px';
+    main.style.marginTop  = '60px';
+  }
+}
+
+function togglePubSidebar(){
+  const sidebar  = document.getElementById('pub-sidebar');
+  const backdrop = document.getElementById('pub-sidebar-backdrop');
+  const main     = document.getElementById('main');
+  const toggleEl = document.getElementById('pub-sidebar-toggle');
+  if(!sidebar) return;
+
+  const mobile = window.innerWidth <= 768;
+  if(mobile){
+    // Móvil: abrir/cerrar cajón
+    const isOpen = sidebar.classList.contains('open');
+    sidebar.classList.toggle('open', !isOpen);
+    if(backdrop) backdrop.classList.toggle('open', !isOpen);
+    return;
+  }
+
+  // Escritorio: colapsar/expandir
+  _pubSidebarCollapsed = !_pubSidebarCollapsed;
+  localStorage.setItem('tsc_pub_sidebar', _pubSidebarCollapsed ? 'collapsed' : 'expanded');
+  sidebar.classList.toggle('collapsed', _pubSidebarCollapsed);
+  if(toggleEl) toggleEl.textContent = _pubSidebarCollapsed ? '»' : '«';
+  if(main) main.style.marginLeft = _pubSidebarCollapsed ? '54px' : '220px';
+}
+
+function closePubSidebar(){
+  // Solo útil en móvil (backdrop o navegación auto-cierre)
+  if(window.innerWidth > 768) return;
+  document.getElementById('pub-sidebar')?.classList.remove('open');
+  document.getElementById('pub-sidebar-backdrop')?.classList.remove('open');
+}
+
+/* ----------------------------------------------------------
    MODO: PÚBLICO / ADMIN
    ---------------------------------------------------------- */
 function setMode(mode){
@@ -14,13 +86,22 @@ function setMode(mode){
   const isAdmin = mode==='admin';
   // Al salir de admin, cerrar el centro de partido en vivo (es solo-gestión).
   if(!isAdmin){ const _lm=document.getElementById('live-match-wrap'); if(_lm) _lm.innerHTML=''; }
-  document.getElementById('pubnav').classList.toggle('open',!isAdmin);
+
+  // Admin sidebar
   document.getElementById('sidebar').classList.toggle('open',isAdmin);
-  document.getElementById('main').classList.toggle('with-sidebar',isAdmin);
-  document.getElementById('btn-pub').classList.toggle('active',!isAdmin);
-  document.getElementById('btn-adm').classList.toggle('active',isAdmin);
-  // Ajustar margin-top según nav visible
-  document.getElementById('main').style.marginTop = isAdmin ? '60px' : '92px';
+
+  if(isAdmin){
+    // Public sidebar oculto + limpiar inline margin para que .with-sidebar CSS actúe
+    _applyPubSidebar(false);
+    const main = document.getElementById('main');
+    if(main){ main.classList.add('with-sidebar'); main.style.marginLeft=''; main.style.marginTop='60px'; }
+  } else {
+    document.getElementById('main')?.classList.remove('with-sidebar');
+    _applyPubSidebar(true);
+  }
+
+  document.getElementById('btn-pub')?.classList.toggle('active',!isAdmin);
+  document.getElementById('btn-adm')?.classList.toggle('active',isAdmin);
   if(isAdmin){ goAdminPage(STATE.adminPage); }
   else { goPublicPage(STATE.publicPage); }
 }
@@ -28,17 +109,20 @@ function setMode(mode){
 /* ----------------------------------------------------------
    NAVEGACIÓN PÚBLICA
    ---------------------------------------------------------- */
-function goPublicPage(page, tabEl){
+function goPublicPage(page, navEl){
   STATE.publicPage = page;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
-  document.querySelectorAll('.pub-tab').forEach(t=>t.classList.remove('active'));
-  if(tabEl) tabEl.classList.add('active');
+  // Marcar ítem activo en el pub-sidebar
+  document.querySelectorAll('.pub-nav-item').forEach(t=>t.classList.remove('active'));
+  if(navEl && navEl.classList.contains('pub-nav-item')) navEl.classList.add('active');
   else{
-    document.querySelectorAll('.pub-tab').forEach(t=>{
-      if(t.getAttribute('onclick')?.includes("'"+page+"'")) t.classList.add('active');
+    document.querySelectorAll('.pub-nav-item').forEach(t=>{
+      if(t.dataset.page === page) t.classList.add('active');
     });
   }
+  // En móvil: cerrar el cajón al navegar
+  closePubSidebar();
   renderPublicPage(page);
 }
 
@@ -130,7 +214,7 @@ async function renderPubSorteo(){
    temporada actual (algún bombo con equipos). Llamado por renderPublicPage,
    onSeasonChange y por el propio módulo al recibir mensajes de broadcast. */
 async function refreshSorteoTabVisibility(){
-  const tab = document.getElementById('pub-tab-sorteo');
+  const tab = document.getElementById('pub-nav-sorteo');
   if(!tab) return;
   let show = false;
   try{
@@ -143,6 +227,9 @@ async function refreshSorteoTabVisibility(){
     STATE.publicPage = 'panel';
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById('page-panel')?.classList.add('active');
+    document.querySelectorAll('.pub-nav-item').forEach(t=>{
+      t.classList.toggle('active', t.dataset.page==='panel');
+    });
   }
 }
 
