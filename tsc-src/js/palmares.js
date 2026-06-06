@@ -752,7 +752,7 @@ async function renderPubPalmares(){
     <div class="tr-root" id="tr-root">
       <header class="tr-header">
         <h1 class="tr-title">Sala de Trofeos</h1>
-        <div class="tr-subtitle">Arrastra para explorar · Doble click para vista grande · ${PALMARES_COMPS.length} competiciones · ${totalTitles} títulos · ${totalChampions} campeones</div>
+        <div class="tr-subtitle">Arrastra para explorar · ${PALMARES_COMPS.length} competiciones · ${totalTitles} títulos · ${totalChampions} campeones</div>
       </header>
 
       <div class="tr-room" id="tr-room">
@@ -772,7 +772,7 @@ async function renderPubPalmares(){
 
         <div class="tr-drag-hint" id="tr-drag-hint">
           <svg viewBox="0 0 64 24" width="58" height="22"><path d="M2 12h60M8 6l-6 6 6 6M56 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Arrastra · Doble click para vista grande</span>
+          <span>Arrastra · Doble click (o mantén pulsado) para ver más</span>
         </div>
 
         <aside class="tr-side-panel" id="tr-side-panel"></aside>
@@ -905,8 +905,14 @@ function buildInfoPanel(data, teamById){
     </div>`;
 }
 
-/* Modal fullscreen "campeón en pleno" — abre con doble click */
+/* Modal fullscreen "campeón en pleno" — doble click (escritorio) o long-press (móvil) */
 function openChampionFullscreen(data, teamById, sourceRect){
+  // En móvil: vista simplificada con swipe vertical para navegar campeones
+  if (window.innerWidth <= 768 || window.matchMedia('(pointer:coarse)').matches) {
+    openChampionFullscreenMobile(data, teamById, sourceRect);
+    return;
+  }
+
   const wrap = _palmModalWrap();
   const accent = data.comp.color;
   // Calcular la transformación inicial para que el modal parezca expandirse
@@ -940,6 +946,107 @@ function openChampionFullscreen(data, teamById, sourceRect){
   // Close on ESC or click on backdrop
   document.addEventListener('keydown', _trFsEsc);
   wrap.querySelector('#tr-fs')?.addEventListener('click', (e) => {
+    if (e.target.id === 'tr-fs') closeChampionFullscreen();
+  });
+}
+
+/* Fullscreen móvil: un campeón a la vez, swipe up/down para navegar en el historial */
+function openChampionFullscreenMobile(data, teamById, sourceRect){
+  if (!data.records || !data.records.length) return;
+  const wrap = _palmModalWrap();
+  const accent = data.comp.color;
+  let currentIdx = 0;  // empieza por el vigente (index 0 = más reciente)
+  const records = data.records; // ya ordenados: más reciente primero
+
+  function cardHTML(idx){
+    const rec = records[idx];
+    if (!rec) return '';
+    const team = teamById[rec.teamId] || {};
+    const teamColor = team.color || '#666';
+    const tags = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
+    const isVigente = idx === 0;
+    const logoHtml = team.logo
+      ? `<img src="${_esc(team.logo)}" alt="">`
+      : `<span>${_esc(team.ini || (team.name||'?').slice(0,2))}</span>`;
+    const canUp   = idx < records.length - 1;
+    const canDown = idx > 0;
+    return `
+      <div class="tr-fs-mob-card" style="--accent:${accent}">
+        <div class="tr-fs-mob-halo" style="background:radial-gradient(circle at 35% 30%, ${teamColor}88, transparent 65%)"></div>
+        <div class="tr-fs-mob-trophy">${renderTrophy(data.comp.key, 200)}</div>
+        <div class="tr-fs-mob-comp">${_esc(data.comp.label)}</div>
+        <div class="tr-fs-mob-champ-row">
+          <div class="tr-fs-mob-logo" style="background:${teamColor}">${logoHtml}</div>
+          <div>
+            <div class="tr-fs-mob-name">${_esc(team.name || '—')}</div>
+            ${tags ? `<div class="tr-fs-mob-tags">${_esc(tags)}</div>` : ''}
+            ${isVigente ? `<div class="tr-fs-mob-badge">VIGENTE</div>` : ''}
+          </div>
+        </div>
+        <div class="tr-fs-mob-pos">${idx + 1} / ${records.length}</div>
+      </div>
+      <div class="tr-fs-mob-arrows">
+        <button class="tr-fs-mob-arr" id="tr-fs-mob-up" ${!canUp?'disabled':''} title="Campeón anterior">▲</button>
+        <button class="tr-fs-mob-arr" id="tr-fs-mob-down" ${!canDown?'disabled':''} title="Campeón siguiente">▼</button>
+      </div>
+      <div class="tr-fs-mob-hint">↕ Desliza para navegar</div>`;
+  }
+
+  function render(){
+    const content = wrap.querySelector('#tr-fs-mob-content');
+    if (content) content.innerHTML = cardHTML(currentIdx);
+    // Re-bind arrow buttons
+    wrap.querySelector('#tr-fs-mob-up')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (currentIdx < records.length - 1) { currentIdx++; render(); }
+    });
+    wrap.querySelector('#tr-fs-mob-down')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (currentIdx > 0) { currentIdx--; render(); }
+    });
+  }
+
+  let originStyle = '';
+  if (sourceRect) {
+    const cx = sourceRect.left + sourceRect.width / 2;
+    const cy = sourceRect.top + sourceRect.height / 2;
+    const tx = cx - window.innerWidth / 2;
+    const ty = cy - window.innerHeight / 2;
+    originStyle = ` --tr-fs-tx:${Math.round(tx)}px; --tr-fs-ty:${Math.round(ty)}px;`;
+  }
+  try { playPalmZoom(); } catch(e){}
+
+  wrap.innerHTML = `
+    <div class="tr-fullscreen tr-fullscreen-mob" id="tr-fs" style="--accent:${accent};${originStyle}">
+      <button class="tr-fs-close" onclick="closeChampionFullscreen()" aria-label="Cerrar">×</button>
+      <div class="tr-fs-spotlight"></div>
+      <div id="tr-fs-mob-content"></div>
+    </div>`;
+
+  render();
+
+  // Swipe vertical para navegar
+  let touchStartY = 0;
+  const fs = wrap.querySelector('#tr-fs');
+  fs.addEventListener('touchstart', (e) => {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  fs.addEventListener('touchend', (e) => {
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dy) < 45) return;
+    if (dy < 0 && currentIdx < records.length - 1) {
+      // Swipe arriba → campeón más antiguo (índice mayor)
+      currentIdx++;
+      render();
+    } else if (dy > 0 && currentIdx > 0) {
+      // Swipe abajo → campeón más reciente (índice menor)
+      currentIdx--;
+      render();
+    }
+  }, { passive: true });
+
+  document.addEventListener('keydown', _trFsEsc);
+  fs.addEventListener('click', (e) => {
     if (e.target.id === 'tr-fs') closeChampionFullscreen();
   });
 }
@@ -1034,6 +1141,7 @@ function initTrophyRoom(root, compData, teamById){
       snapped = currentSnap;
       updateDots(currentSnap);
       renderSidePanel(currentSnap);
+      updateSpotlights(currentSnap);
       // El primer asentamiento no dispara cinemática (evita ruido al cargar).
       if (!firstSnap) triggerCinematicSnap(currentSnap);
       firstSnap = false;
@@ -1049,6 +1157,24 @@ function initTrophyRoom(root, compData, teamById){
     const data = compData[idx];
     if (!data) { sideEl.innerHTML = ''; return; }
     sideEl.innerHTML = buildInfoPanel(data, teamById);
+  }
+
+  /* Focos dinámicos: cambia el color de los focos cenitales según el
+     color del equipo campeón (o color de la competición como fallback). */
+  function updateSpotlights(idx){
+    const data = compData[idx];
+    if (!data) return;
+    const champTeam = data.champTeam;
+    let hex = (champTeam && champTeam.color && /^#[0-9a-fA-F]{6}$/.test(champTeam.color))
+      ? champTeam.color
+      : (data.comp.color && /^#[0-9a-fA-F]{6}$/.test(data.comp.color)
+        ? data.comp.color : '#ffd479');
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    room.style.setProperty('--spot-color', hex);
+    room.style.setProperty('--spot-glow',  `rgba(${r},${g},${b},0.45)`);
+    room.style.setProperty('--spot-cone',  `rgba(${r},${g},${b},0.10)`);
   }
 
   function onPointerDown(e){
@@ -1074,7 +1200,11 @@ function initTrophyRoom(root, compData, teamById){
     const dx = e.clientX - dragStartX;
     // Threshold 15px: tolera micro-movimientos involuntarios entre los dos
     // clicks de un doble click humano (antes era 4px, demasiado estricto).
-    if (Math.abs(dx) > 15) movedDuringDrag = true;
+    if (Math.abs(dx) > 15) {
+      movedDuringDrag = true;
+      // Cancelar long-press si el usuario está arrastrando
+      if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+    }
     const newTarget = dragStartPos - dx / STEP_X;
     velocity = newTarget - target;
     target   = newTarget;
@@ -1092,25 +1222,50 @@ function initTrophyRoom(root, compData, teamById){
   window.addEventListener('pointercancel', onPointerUp);
 
   // Click: si la card no fue arrastrada, la enfoca.
-  // Doble click manual (timing): el nativo dblclick no dispara confiable
-  // porque las cards están en transform 3D y se mueven entre clicks por el
-  // lerp, lo que rompe el doble-click del navegador. Detectamos dos clicks
-  // consecutivos sobre la misma card en <450ms.
+  // Doble click manual (timing) — solo escritorio: el nativo dblclick no dispara
+  // confiable porque las cards están en transform 3D. Detectamos dos clicks
+  // consecutivos sobre la misma card en <600ms.
+  // Móvil: usa long-press (500ms) en su lugar.
   const DBL_MS = 600;
+  const LONG_MS = 500;
   let _lastClickIdx = -1, _lastClickT = 0;
+  let _longPressTimer = null;
+
   cards.forEach((c, i) => {
-    c.addEventListener('click', () => {
+    // Long-press para móvil: abre fullscreen al mantener pulsado 500ms
+    c.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return; // solo touch
+      _longPressTimer = setTimeout(() => {
+        _longPressTimer = null;
+        if (movedDuringDrag) return;
+        // Centrar la card si no lo está
+        const idx = ((Math.round(target) % N) + N) % N;
+        if (idx !== i) { setActive(i); snapTarget(); }
+        const srcRect = c.getBoundingClientRect();
+        openChampionFullscreen(compData[i], teamById, srcRect);
+      }, LONG_MS);
+    });
+    c.addEventListener('pointerup', () => {
+      if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+    });
+    c.addEventListener('pointercancel', () => {
+      if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+    });
+
+    c.addEventListener('click', (e) => {
       if (movedDuringDrag) return;
+      // En móvil el fullscreen lo maneja el long-press; el click solo enfoca la card.
+      if (window.matchMedia('(pointer:coarse)').matches) {
+        setActive(i);
+        return;
+      }
+      // Escritorio: doble click detectado manualmente
       const now = performance.now();
       const isDouble = _lastClickIdx === i && (now - _lastClickT) < DBL_MS;
       if (isDouble) {
         _lastClickIdx = -1; _lastClickT = 0;
-        // Asegurar foco en esa card y abrir fullscreen tras el snap.
         const idx = ((Math.round(target) % N) + N) % N;
         if (idx !== i) { setActive(i); snapTarget(); }
-        // Capturar la posición/tamaño actual de la card para que el zoom
-        // arranque desde ahí (sourceRect se calcula en el momento del setTimeout
-        // para reflejar la posición post-snap).
         setTimeout(() => {
           const srcRect = c.getBoundingClientRect();
           openChampionFullscreen(compData[i], teamById, srcRect);
@@ -1121,6 +1276,7 @@ function initTrophyRoom(root, compData, teamById){
       }
     });
   });
+
 
   prevBtn.addEventListener('click', () => { setActive(target - 1); snapTarget(); });
   nextBtn.addEventListener('click', () => { setActive(target + 1); snapTarget(); });
