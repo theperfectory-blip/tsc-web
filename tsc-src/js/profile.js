@@ -1,13 +1,6 @@
 'use strict';
 /* ============================================================
    PERFIL DE USUARIO
-   - Foto de perfil propia (independiente del escudo del club)
-   - Nombre de usuario único (@handle)
-   - Nombre para mostrar + cambio de contraseña
-   - Cambio de email con re-autenticación
-   - Verificación de email
-   - Estadísticas del club (gráfico W/D/L + GF/GC)
-   - Si vinculado a club: editar nombre/escudo del club
    ============================================================ */
 
 let _profileAvatarData;
@@ -55,7 +48,6 @@ async function renderProfileBody(){
   const body = document.getElementById('profile-body');
   if (!body) return;
 
-  // Carga equipo primero, luego stats (stats necesitan el objeto team para comparar nombres)
   const team  = AUTH.teamId != null ? await dbGet('teams', AUTH.teamId).catch(()=>null) : null;
   const stats = team ? await _loadTeamStats(AUTH.teamId, team) : null;
   const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
@@ -67,28 +59,30 @@ async function renderProfileBody(){
   const verified = AUTH.user.emailVerified;
   const roleLbl  = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
 
-  // Avatar del usuario (≠ escudo del club)
   const avatarSrc = _profileAvatarData !== undefined ? _profileAvatarData : (AUTH.profile?.photoURL || null);
   const avatarInner = avatarSrc
     ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;">`
     : `<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:block;color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
 
-  // Badge de verificación de email
   const verBadge = verified
     ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
     : `<span style="color:#FFC107;font-size:11px;font-weight:600;">⚠ sin verificar</span>
        <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`;
 
+  const editBadge = `
+    <span style="position:absolute;bottom:3px;right:3px;background:var(--gold);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.5);pointer-events:none;">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    </span>`;
+
   let html = `
     <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
-      <div id="profile-avatar-preview" style="width:72px;height:72px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
-        ${avatarInner}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profilePreviewAvatar(this)">
-        <button class="btn btn-sm" onclick="document.getElementById('profile-avatar-file').click()">Cambiar foto</button>
-        <button class="btn btn-xs btn-danger" id="profile-avatar-remove-btn" onclick="profileRemoveAvatar()" style="${avatarSrc ? '' : 'display:none;'}">Quitar foto</button>
-      </div>
+      <label for="profile-avatar-file" style="position:relative;width:72px;height:72px;flex:none;cursor:pointer;" title="Cambiar foto de perfil">
+        <div id="profile-avatar-preview" style="width:72px;height:72px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
+          ${avatarInner}
+        </div>
+        ${editBadge}
+      </label>
+      <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
     </div>
 
     <div class="form-group">
@@ -149,36 +143,36 @@ async function renderProfileBody(){
     </div>
   `;
 
-  // ── Sección Club ────────────────────────────────────────────
+  // ── Sección Club ──────────────────────────────────────────────
   if (team){
     const currentLogo = _profileLogoData !== undefined ? _profileLogoData : team.logo;
     const logoInner = currentLogo
       ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;">`
       : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3))}</span>`;
-    const dis = locked ? 'disabled' : '';
+
     html += `
       <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
       <div class="section-lbl" style="margin-bottom:10px;">Mi club</div>
       ${locked ? `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);margin-bottom:12px;">🔒 El administrador bloqueó la edición de nombre y escudo.</div>` : ''}
     `;
 
-    // Stats + donut chart
     if (stats) html += _statsHTML(stats);
 
     html += `
       <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px;">
-        <div id="profile-logo-preview" style="width:64px;height:64px;border-radius:12px;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:${_pfEsc(team.color||'#333')};">
-          ${logoInner}
+        <label for="profile-logo-file" style="position:relative;width:64px;height:64px;flex:none;${locked?'':'cursor:pointer;'}" title="${locked?'':'Cambiar escudo'}">
+          <div id="profile-logo-preview" style="width:64px;height:64px;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${_pfEsc(team.color||'#333')};">
+            ${logoInner}
+          </div>
+          ${!locked ? `<span style="position:absolute;bottom:3px;right:3px;background:var(--gold);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.5);pointer-events:none;">
+            <svg viewBox="0 0 24 24" width="11" height="11" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          </span>` : ''}
+        </label>
+        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
+        <div class="form-group" style="flex:1;margin:0;">
+          <label>Nombre del club</label>
+          <input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}>
         </div>
-        <div style="display:flex;flex-direction:column;gap:6px;">
-          <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" onchange="profilePreviewLogo(this)">
-          <button class="btn btn-sm" ${dis} onclick="document.getElementById('profile-logo-file').click()">Cambiar escudo</button>
-          ${currentLogo && !locked ? `<button class="btn btn-xs btn-danger" onclick="profileRemoveLogo()">Quitar</button>` : ''}
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Nombre del club</label>
-        <input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${dis}>
       </div>
       <button class="btn btn-sm" onclick="profileViewMyMatches()">⟁ Ver el historial de mi club</button>
     `;
@@ -208,7 +202,6 @@ async function _loadTeamStats(teamId, team){
     ...((Array.isArray(team.previousNames) ? team.previousNames : []).map(_norm))
   ].filter(Boolean));
 
-  // Usa exactamente los mismos datos resueltos que la tabla histórica
   const rows = await _getResolvedRecords();
 
   let W=0, D=0, L=0, GF=0, GA=0;
@@ -285,31 +278,209 @@ function _statsHTML(s){
     </div>`;
 }
 
-/* ── Avatar del usuario (foto de perfil, ≠ escudo del club) ── */
+/* ── Cropper de imagen ──────────────────────────────────────── */
 
-function profilePreviewAvatar(input){
-  const file = input.files[0];
-  if (!file) return;
-  _profileAvatarFile = file;
-  _profileAvatarTouched = true;
-  const url = URL.createObjectURL(file);
-  _profileAvatarData = url;
-  const prev = document.getElementById('profile-avatar-preview');
-  if (prev) prev.innerHTML = `<img src="${_pfEsc(url)}" style="width:100%;height:100%;object-fit:cover;">`;
-  const removeBtn = document.getElementById('profile-avatar-remove-btn');
-  if (removeBtn) removeBtn.style.display = '';
-  _updateTopbarAvatar(url);
+const _crop = {
+  type: 'avatar', imageEl: null,
+  x: 0, y: 0, scale: 1, minScale: 1,
+  drag: false, dsx: 0, dsy: 0, lastDist: 0,
+  onConfirm: null,
+};
+const _CVP = 280; // tamaño del viewport del cropper (px)
+
+function _injectCropModal(){
+  if (document.getElementById('crop-modal')) return;
+  const el = document.createElement('div');
+  el.className = 'modal-overlay';
+  el.id = 'crop-modal';
+  el.innerHTML = `
+    <div class="modal" style="max-width:340px;">
+      <div class="modal-hdr">
+        <div class="modal-title">Ajustar imagen</div>
+        <button class="modal-close" onclick="closeCropModal()">×</button>
+      </div>
+      <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <div id="crop-vp" style="width:${_CVP}px;height:${_CVP}px;overflow:hidden;position:relative;cursor:grab;background:#111;flex:none;touch-action:none;">
+          <img id="crop-img" style="position:absolute;top:0;left:0;transform-origin:0 0;user-select:none;" draggable="false">
+        </div>
+        <div style="font-size:11px;color:var(--txt3);">Arrastra · Rueda o desliza para zoom</div>
+        <div style="display:flex;align-items:center;gap:8px;width:100%;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2.5"/></svg>
+          <input type="range" id="crop-zoom-sl" min="0" max="100" value="0" style="flex:1;accent-color:var(--gold);" oninput="cropZoomSlider(this.value)">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2.5"/><line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="8" x2="11" y2="14" stroke="currentColor" stroke-width="2"/></svg>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button class="btn btn-sm" onclick="closeCropModal()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" onclick="confirmCrop()">Confirmar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  const vp = el.querySelector('#crop-vp');
+
+  // Mouse drag
+  vp.addEventListener('mousedown', e => {
+    e.preventDefault();
+    _crop.drag = true; _crop.dsx = e.clientX - _crop.x; _crop.dsy = e.clientY - _crop.y;
+    vp.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', e => {
+    if (!_crop.drag) return;
+    _crop.x = e.clientX - _crop.dsx; _crop.y = e.clientY - _crop.dsy;
+    _cropClamp(); _cropApply();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!_crop.drag) return;
+    _crop.drag = false;
+    const v = document.getElementById('crop-vp'); if (v) v.style.cursor = 'grab';
+  });
+
+  // Wheel zoom
+  vp.addEventListener('wheel', e => {
+    e.preventDefault();
+    _cropZoomAt(1 + (e.deltaY < 0 ? 0.1 : -0.1), e.clientX, e.clientY);
+  }, { passive: false });
+
+  // Touch drag + pinch
+  vp.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1){
+      _crop.drag = true;
+      _crop.dsx = e.touches[0].clientX - _crop.x;
+      _crop.dsy = e.touches[0].clientY - _crop.y;
+    } else if (e.touches.length === 2){
+      _crop.drag = false;
+      _crop.lastDist = _touchDist(e.touches);
+    }
+  }, { passive: false });
+  vp.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && _crop.drag){
+      _crop.x = e.touches[0].clientX - _crop.dsx;
+      _crop.y = e.touches[0].clientY - _crop.dsy;
+      _cropClamp(); _cropApply();
+    } else if (e.touches.length === 2){
+      const dist = _touchDist(e.touches);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      _cropZoomAt(dist / _crop.lastDist, midX, midY);
+      _crop.lastDist = dist;
+    }
+  }, { passive: false });
+  vp.addEventListener('touchend', () => { _crop.drag = false; });
 }
 
-function profileRemoveAvatar(){
-  _profileAvatarData = null;
-  _profileAvatarFile = null;
-  _profileAvatarTouched = true;
-  const prev = document.getElementById('profile-avatar-preview');
-  if (prev) prev.innerHTML = `<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:block;color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
-  const removeBtn = document.getElementById('profile-avatar-remove-btn');
-  if (removeBtn) removeBtn.style.display = 'none';
-  _updateTopbarAvatar(null);
+function _touchDist(touches){
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+function _cropApply(){
+  const img = document.getElementById('crop-img');
+  if (img) img.style.transform = `translate(${_crop.x}px,${_crop.y}px) scale(${_crop.scale})`;
+}
+
+function _cropClamp(){
+  const iW = _crop.imageEl.naturalWidth * _crop.scale;
+  const iH = _crop.imageEl.naturalHeight * _crop.scale;
+  _crop.x = iW <= _CVP ? (_CVP - iW) / 2 : Math.max(Math.min(0, _crop.x), _CVP - iW);
+  _crop.y = iH <= _CVP ? (_CVP - iH) / 2 : Math.max(Math.min(0, _crop.y), _CVP - iH);
+}
+
+function _cropZoomAt(factor, screenX, screenY){
+  const newScale = Math.max(_crop.minScale, Math.min(_crop.minScale * 5, _crop.scale * factor));
+  const vp = document.getElementById('crop-vp');
+  if (!vp) return;
+  const rect = vp.getBoundingClientRect();
+  const r = newScale / _crop.scale;
+  _crop.x = (screenX - rect.left) - r * ((screenX - rect.left) - _crop.x);
+  _crop.y = (screenY - rect.top)  - r * ((screenY - rect.top)  - _crop.y);
+  _crop.scale = newScale;
+  _cropClamp(); _cropApply();
+  // sincronizar slider
+  const sl = document.getElementById('crop-zoom-sl');
+  if (sl) sl.value = Math.round(((newScale - _crop.minScale) / (_crop.minScale * 4)) * 100);
+}
+
+function cropZoomSlider(pct){
+  const target = _crop.minScale * (1 + (pct / 100) * 4);
+  const r = target / _crop.scale;
+  _crop.x = _CVP/2 - r * (_CVP/2 - _crop.x);
+  _crop.y = _CVP/2 - r * (_CVP/2 - _crop.y);
+  _crop.scale = target;
+  _cropClamp(); _cropApply();
+}
+
+function openCropModal(file, type, onConfirm){
+  _injectCropModal();
+  _crop.type = type;
+  _crop.onConfirm = onConfirm;
+  _crop.drag = false;
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    _crop.imageEl = img;
+    const minS = Math.max(_CVP / img.naturalWidth, _CVP / img.naturalHeight);
+    _crop.scale = minS; _crop.minScale = minS;
+    _crop.x = (_CVP - img.naturalWidth  * minS) / 2;
+    _crop.y = (_CVP - img.naturalHeight * minS) / 2;
+
+    const ci = document.getElementById('crop-img');
+    if (ci){ ci.src = url; ci.style.width = img.naturalWidth+'px'; ci.style.height = img.naturalHeight+'px'; }
+
+    const vp = document.getElementById('crop-vp');
+    if (vp) vp.style.borderRadius = type === 'avatar' ? '50%' : '14px';
+
+    const sl = document.getElementById('crop-zoom-sl');
+    if (sl) sl.value = '0';
+
+    _cropApply();
+  };
+  img.src = url;
+  openModal('crop-modal');
+}
+
+function closeCropModal(){
+  closeModal('crop-modal');
+}
+
+function confirmCrop(){
+  const img = _crop.imageEl;
+  if (!img) return;
+  const OUT = 420;
+  const canvas = document.createElement('canvas');
+  canvas.width = OUT; canvas.height = OUT;
+  canvas.getContext('2d').drawImage(
+    img,
+    -_crop.x / _crop.scale, -_crop.y / _crop.scale,
+    _CVP / _crop.scale, _CVP / _crop.scale,
+    0, 0, OUT, OUT
+  );
+  canvas.toBlob(blob => {
+    const file = new File([blob], 'img.jpg', { type: 'image/jpeg' });
+    const blobUrl = URL.createObjectURL(blob);
+    closeModal('crop-modal');
+    if (_crop.onConfirm) _crop.onConfirm(blobUrl, file);
+  }, 'image/jpeg', 0.9);
+}
+
+/* ── Selección de foto de perfil ────────────────────────────── */
+
+function profileSelectAvatar(input){
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  openCropModal(file, 'avatar', (url, croppedFile) => {
+    _profileAvatarData = url;
+    _profileAvatarFile = croppedFile;
+    _profileAvatarTouched = true;
+    const prev = document.getElementById('profile-avatar-preview');
+    if (prev) prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
+    _updateTopbarAvatar(url);
+  });
 }
 
 function _updateTopbarAvatar(url){
@@ -320,26 +491,19 @@ function _updateTopbarAvatar(url){
     : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
 }
 
-/* ── Escudo del club ────────────────────────────────────────── */
+/* ── Selección de escudo del club ───────────────────────────── */
 
-function profilePreviewLogo(input){
+function profileSelectLogo(input){
   const file = input.files[0];
   if (!file) return;
-  _profileLogoFile = file;
-  _profileLogoTouched = true;
-  const url = URL.createObjectURL(file);
-  _profileLogoData = url;
-  const prev = document.getElementById('profile-logo-preview');
-  if (prev) prev.innerHTML = `<img src="${_pfEsc(url)}" style="width:100%;height:100%;object-fit:cover;">`;
-}
-
-function profileRemoveLogo(){
-  _profileLogoData = null;
-  _profileLogoFile = null;
-  _profileLogoTouched = true;
-  const team = window._profileTeam || {};
-  const prev = document.getElementById('profile-logo-preview');
-  if (prev) prev.innerHTML = `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3))}</span>`;
+  input.value = '';
+  openCropModal(file, 'logo', (url, croppedFile) => {
+    _profileLogoData = url;
+    _profileLogoFile = croppedFile;
+    _profileLogoTouched = true;
+    const prev = document.getElementById('profile-logo-preview');
+    if (prev) prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
+  });
 }
 
 /* ── Verificación y cambio de email ────────────────────────── */
@@ -356,11 +520,11 @@ function profileToggleEmailChange(){
   if (!sec) return;
   const open = sec.style.display === 'none' || !sec.style.display;
   sec.style.display = open ? '' : 'none';
-  if (open){
-    document.getElementById('profile-new-email')?.focus();
-  } else {
-    if (document.getElementById('profile-new-email'))     document.getElementById('profile-new-email').value = '';
-    if (document.getElementById('profile-curr-pass-email')) document.getElementById('profile-curr-pass-email').value = '';
+  if (open) document.getElementById('profile-new-email')?.focus();
+  else {
+    const a = document.getElementById('profile-new-email');
+    const b = document.getElementById('profile-curr-pass-email');
+    if (a) a.value = ''; if (b) b.value = '';
   }
 }
 
@@ -386,27 +550,16 @@ async function profileChangeEmail(){
   }
 }
 
-/* Helper global — formatea una fecha respetando la zona horaria del usuario con DST automático */
-function formatInUserTZ(date, opts = {}){
-  const tz = (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
-    || localStorage.getItem('tsc_timezone')
-    || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return new Intl.DateTimeFormat('es', { timeZone: tz, ...opts }).format(new Date(date));
-}
-
-/* ── Cambio de contraseña (con re-autenticación) ───────────── */
+/* ── Cambio de contraseña con re-autenticación ──────────────── */
 
 function profileTogglePasswordChange(){
   const sec = document.getElementById('profile-password-change-section');
   if (!sec) return;
   const open = sec.style.display === 'none' || !sec.style.display;
   sec.style.display = open ? '' : 'none';
-  if (open){
-    document.getElementById('profile-curr-pass-pw')?.focus();
-  } else {
-    ['profile-curr-pass-pw','profile-new-pw','profile-new-pw2']
-      .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-  }
+  if (open) document.getElementById('profile-curr-pass-pw')?.focus();
+  else ['profile-curr-pass-pw','profile-new-pw','profile-new-pw2']
+         .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
 }
 
 async function profileChangePassword(){
@@ -442,6 +595,14 @@ function profileViewMyMatches(){
   goPublicPage('historial');
 }
 
+/* Helper global — formatea una fecha en la zona horaria del usuario (DST automático) */
+function formatInUserTZ(date, opts = {}){
+  const tz = (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
+    || localStorage.getItem('tsc_timezone')
+    || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return new Intl.DateTimeFormat('es', { timeZone: tz, ...opts }).format(new Date(date));
+}
+
 /* ── Guardar todo ───────────────────────────────────────────── */
 
 async function saveProfile(){
@@ -452,7 +613,7 @@ async function saveProfile(){
     const userRef = firebase.firestore().collection('users').doc(AUTH.user.uid);
     const upd     = {};
 
-    // 1. Foto de perfil del usuario (independiente del escudo del club)
+    // 1. Foto de perfil
     if (_profileAvatarTouched){
       let newPhotoURL = _profileAvatarData ?? null;
       if (_profileAvatarFile){
@@ -465,16 +626,13 @@ async function saveProfile(){
     }
 
     // 2. Nombre para mostrar
-    if (newName && newName !== (AUTH.profile?.displayName || '')){
-      upd.displayName = newName;
-    }
+    if (newName && newName !== (AUTH.profile?.displayName || '')) upd.displayName = newName;
 
     // 3. Nombre de usuario (@handle) con verificación de unicidad
     if (newUsername !== (AUTH.profile?.username || '')){
       if (newUsername){
         const snap = await firebase.firestore().collection('users').where('username','==',newUsername).get();
-        const taken = snap.docs.some(d => d.id !== AUTH.user.uid);
-        if (taken){ showToast('Ese nombre de usuario ya está en uso','error'); return; }
+        if (snap.docs.some(d => d.id !== AUTH.user.uid)){ showToast('Ese nombre de usuario ya está en uso','error'); return; }
       }
       upd.username = newUsername || null;
     }
@@ -487,7 +645,7 @@ async function saveProfile(){
     if ('photoURL' in upd) _updateTopbarAvatar(upd.photoURL);
     if (typeof renderAuthUI === 'function') renderAuthUI();
 
-    // 4. Escudo y nombre del club — solo si no está bloqueado
+    // 4. Escudo y nombre del club
     if (team){
       const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
       if (!locked){
