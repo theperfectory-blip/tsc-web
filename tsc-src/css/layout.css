@@ -110,7 +110,7 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   transition:width 0.25s;overflow:hidden;
 }
 #pub-sidebar.open{display:flex;}
-#pub-sidebar.collapsed{width:54px;}
+#pub-sidebar.collapsed{width:44px;}
 
 /* Botón colapsar/expandir dentro del sidebar */
 .pub-sidebar-toggle{
@@ -140,23 +140,27 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 .pub-nav-icon{font-size:18px;width:20px;text-align:center;flex-shrink:0;}
 .pub-nav-label{transition:opacity 0.2s;}
 
-/* Estado colapsado: solo iconos */
-#pub-sidebar.collapsed .pub-nav-item{
-  padding:10px 0;justify-content:center;border-left-color:transparent;
-}
-#pub-sidebar.collapsed .pub-nav-item.active{background:var(--gold-l);}
-#pub-sidebar.collapsed .pub-nav-label{opacity:0;width:0;overflow:hidden;}
+/* Estado colapsado: solo muestra el botón toggle, sin iconos ni labels */
+#pub-sidebar.collapsed .pub-sidebar-nav{display:none;}
 
-/* Tooltip en estado colapsado */
-#pub-sidebar.collapsed .pub-nav-item{position:relative;}
-#pub-sidebar.collapsed .pub-nav-item:hover::after{
-  content:attr(title);
-  position:absolute;left:calc(100% + 8px);top:50%;
-  transform:translateY(-50%);
-  background:var(--card2);border:1px solid var(--brd2);
-  color:var(--txt);padding:4px 10px;border-radius:var(--r);
-  font-size:13px;white-space:nowrap;z-index:400;pointer-events:none;
+/* Flyout flotante al hacer hover (solo escritorio) */
+#pub-sidebar.collapsed.hover-expand{
+  width:220px;
+  box-shadow:4px 0 24px rgba(0,0,0,0.4);
+  z-index:350;
+  transition:width 0.2s;
 }
+#pub-sidebar.collapsed.hover-expand .pub-sidebar-toggle{
+  justify-content:flex-end;padding:9px 14px;
+}
+#pub-sidebar.collapsed.hover-expand .pub-sidebar-nav{
+  display:flex;flex-direction:column;
+}
+#pub-sidebar.collapsed.hover-expand .pub-nav-item{
+  padding:10px 16px;justify-content:flex-start;
+}
+#pub-sidebar.collapsed.hover-expand .pub-nav-label{opacity:1;width:auto;}
+#pub-sidebar.collapsed.hover-expand .pub-sidebar-sub{display:block;}
 
 /* Sub-ítems de Competiciones en el sidebar */
 .pub-sidebar-sub{overflow:hidden;}

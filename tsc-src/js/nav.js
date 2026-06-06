@@ -2,6 +2,22 @@
    PUBLIC SIDEBAR — estado y funciones
    ---------------------------------------------------------- */
 let _pubSidebarCollapsed = localStorage.getItem('tsc_pub_sidebar') === 'collapsed';
+let _pubHoverTimer = null;
+
+/* Inicializa el flyout-hover del sidebar colapsado (una sola vez, solo escritorio) */
+function _initPubSidebarHover(sidebar){
+  if(sidebar._hoverInit) return;
+  sidebar._hoverInit = true;
+  sidebar.addEventListener('mouseenter', ()=>{
+    if(!_pubSidebarCollapsed || window.innerWidth <= 768) return;
+    clearTimeout(_pubHoverTimer);
+    sidebar.classList.add('hover-expand');
+  });
+  sidebar.addEventListener('mouseleave', ()=>{
+    if(!_pubSidebarCollapsed) return;
+    _pubHoverTimer = setTimeout(()=> sidebar.classList.remove('hover-expand'), 120);
+  });
+}
 
 function _applyPubSidebar(visible){
   const sidebar  = document.getElementById('pub-sidebar');
@@ -12,7 +28,7 @@ function _applyPubSidebar(visible){
   if(!sidebar) return;
 
   if(!visible){
-    sidebar.classList.remove('open');
+    sidebar.classList.remove('open','hover-expand');
     if(backdrop) backdrop.classList.remove('open');
     if(menuBtn)  menuBtn.style.display = 'none';
     return;
@@ -23,18 +39,20 @@ function _applyPubSidebar(visible){
   if(mobile){
     // Móvil: hamburguesa visible, sidebar solo se abre al pulsar
     if(menuBtn) menuBtn.style.display = '';
-    sidebar.classList.remove('collapsed');
+    sidebar.classList.remove('collapsed','hover-expand');
     if(main){ main.style.marginLeft = ''; main.style.marginTop = '60px'; }
     return;
   }
 
-  // Escritorio: sidebar siempre visible
+  // Escritorio: sidebar siempre visible, hover flyout si colapsado
   if(menuBtn) menuBtn.style.display = 'none';
   sidebar.classList.add('open');
   sidebar.classList.toggle('collapsed', _pubSidebarCollapsed);
-  if(toggleEl) toggleEl.textContent = _pubSidebarCollapsed ? '»' : '«';
+  if(_pubSidebarCollapsed) sidebar.classList.remove('hover-expand');
+  if(toggleEl) toggleEl.textContent = _pubSidebarCollapsed ? '☰' : '«';
+  _initPubSidebarHover(sidebar);
   if(main){
-    main.style.marginLeft = _pubSidebarCollapsed ? '54px' : '220px';
+    main.style.marginLeft = _pubSidebarCollapsed ? '44px' : '220px';
     main.style.marginTop  = '60px';
   }
 }
@@ -59,8 +77,9 @@ function togglePubSidebar(){
   _pubSidebarCollapsed = !_pubSidebarCollapsed;
   localStorage.setItem('tsc_pub_sidebar', _pubSidebarCollapsed ? 'collapsed' : 'expanded');
   sidebar.classList.toggle('collapsed', _pubSidebarCollapsed);
-  if(toggleEl) toggleEl.textContent = _pubSidebarCollapsed ? '»' : '«';
-  if(main) main.style.marginLeft = _pubSidebarCollapsed ? '54px' : '220px';
+  sidebar.classList.remove('hover-expand');
+  if(toggleEl) toggleEl.textContent = _pubSidebarCollapsed ? '☰' : '«';
+  if(main) main.style.marginLeft = _pubSidebarCollapsed ? '44px' : '220px';
 }
 
 function closePubSidebar(){
