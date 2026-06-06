@@ -147,8 +147,8 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 #pub-sidebar.collapsed.hover-expand{
   width:220px;
   background:var(--nav-glass);
-  backdrop-filter:blur(14px);
-  -webkit-backdrop-filter:blur(14px);
+  backdrop-filter:blur(7px);
+  -webkit-backdrop-filter:blur(7px);
   box-shadow:4px 0 28px rgba(0,0,0,0.45);
   z-index:350;
   transition:width 0.2s;
