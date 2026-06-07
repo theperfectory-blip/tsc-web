@@ -132,3 +132,21 @@ Rules:
 
 - **Nunca usar emojis en la UI.** Cualquier icono nuevo debe ser SVG inline estilo Lucide: `stroke`, no `fill`, `currentColor`, `stroke-width="1.7–2.2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`.
 - Esto aplica a botones, badges, labels, toasts, modales, hints — cualquier elemento visual nuevo o modificado.
+
+## Seguridad — reglas estrictas (NUNCA violar)
+
+### Archivos prohibidos en git
+- **NUNCA** tocar `tsc-src/js/firebase-config.js` ni `tsc-src/js/cloudinary.js` para commitearlos — están en `.gitignore` por diseño. Si se necesita config, editar solo los archivos `.example.js`.
+- **NUNCA** escribir credenciales, API keys, tokens o passwords inline en código. Firebase usa el objeto `firebaseConfig` importado del archivo ignorado.
+- **NUNCA** commitear archivos `*serviceAccount*.json` ni `*-firebase-adminsdk-*.json`.
+
+### Código seguro
+- **innerHTML con datos de usuario:** siempre escapar con la función `_esc()` / `_uaEsc()` disponible en cada módulo. Solo se permite `innerHTML` con HTML generado internamente (nunca con input del usuario sin escapar).
+- **No agregar `TODO: fix security`** sin crear un issue asociado. Si se detecta una vulnerabilidad, documentarla en SECURITY.md o abrir issue — no dejarla como comentario suelto.
+- **Reglas Firestore:** no modificar lógica de roles (`isAdmin()`, `isUser()`) sin verificar que las reglas en Firestore console siguen siendo consistentes.
+
+### Checklist antes de cada commit
+- [ ] `firebase-config.js` y `cloudinary.js` NO están en el staging area
+- [ ] Ningún valor hardcodeado de credencial en los archivos modificados
+- [ ] `innerHTML` con datos externos usa `_esc()` o equivalente
+- [ ] Sin `TODO: fix security` sueltos
