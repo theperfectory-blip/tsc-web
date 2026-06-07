@@ -156,6 +156,7 @@ async function togglePhasePublish(phaseId){
    ---------------------------------------------------------- */
 async function openPhaseModal(id=null){
   let phase = id ? await dbGet('phases',id) : null;
+  if(typeof loadPalmaresComps === 'function') await loadPalmaresComps();
   const wrap = document.getElementById('phase-modal-wrap');
   let selType = phase?.type || 'groups';
   let zones = phase?.zones ? JSON.parse(JSON.stringify(phase.zones)) : [
@@ -264,6 +265,13 @@ async function openPhaseModal(id=null){
             <label>Final a partido único</label>
             <label class="toggle"><input type="checkbox" id="pf-finalonly" ${phase?.config?.finalSingle!==false?'checked':''}><span class="toggle-slider"></span></label>
           </div>
+          <div class="form-group" style="margin-top:10px;">
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--txt3);">Copa del bracket</label>
+            <select id="pf-bracket-copa">
+              <option value="">¿? Sin copa asignada</option>
+              ${PALMARES_COMPS.map(c=>`<option value="${c.key}" ${phase?.bracketCopaKey===c.key?'selected':''}>${c.label}</option>`).join('')}
+            </select>
+          </div>
         </div>
 
         <!-- Config: Playoff -->
@@ -321,6 +329,13 @@ async function openPhaseModal(id=null){
           <div class="toggle-row">
             <label>Gol de visitante como desempate</label>
             <label class="toggle"><input type="checkbox" id="pf-single-awaygoal" ${phase?.config?.awayGoal?'checked':''}><span class="toggle-slider"></span></label>
+          </div>
+          <div class="form-group" style="margin-top:10px;">
+            <label style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--txt3);">Copa del bracket</label>
+            <select id="pf-single-copa">
+              <option value="">¿? Sin copa asignada</option>
+              ${PALMARES_COMPS.map(c=>`<option value="${c.key}" ${phase?.bracketCopaKey===c.key?'selected':''}>${c.label}</option>`).join('')}
+            </select>
           </div>
         </div>
 
@@ -730,9 +745,14 @@ async function savePhase(id){
   }
 
   const zones = window._zonesGetter?.() || [];
+  const bracketCopaKey =
+    type==='bracket' ? (document.getElementById('pf-bracket-copa')?.value || null) :
+    type==='single'  ? (document.getElementById('pf-single-copa')?.value || null)  :
+    null;
   const data  = {
     name, type, status, order, config,
     zones: type==='groups' ? zones : [],
+    bracketCopaKey: bracketCopaKey || null,
     compId: _currentCompId,
     updatedAt: new Date().toISOString(),
   };

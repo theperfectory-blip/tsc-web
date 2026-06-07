@@ -405,6 +405,9 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   // Escalar bracket para llenar ancho disponible sin scroll
   requestAnimationFrame(()=>{ scaleBracket(phase.id); setTimeout(()=>scaleBracket(phase.id),150); });
 
+  // Asegurar que PALMARES_COMPS esté actualizado (para la copa del bracket)
+  if(typeof loadPalmaresComps === 'function') await loadPalmaresComps();
+
   // Cargar logos async
   loadBracketLogos(slots);
 
@@ -699,27 +702,20 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
   const rightSlots = slots.map(r => r.slice(Math.ceil(r.length/2)));
   const hasRight   = rightSlots[0] && rightSlots[0].length > 0;
 
-  /* ── SVG Trofeo ── */
-  const trophySVG = '<svg viewBox="0 0 140 200" xmlns="http://www.w3.org/2000/svg" style="width:130px;height:185px;filter:drop-shadow(0 0 28px rgba(201,168,76,0.9));display:block;margin:0 auto;">'
-    +'<defs>'
-    +'<linearGradient id="tga" x1="0%" y1="0%" x2="60%" y2="100%"><stop offset="0%" stop-color="#FFF0A0"/><stop offset="30%" stop-color="#E8C84A"/><stop offset="65%" stop-color="#C9A030"/><stop offset="100%" stop-color="#8A6010"/></linearGradient>'
-    +'<linearGradient id="tgb" x1="100%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FFF0A0"/><stop offset="50%" stop-color="#C9A84C"/><stop offset="100%" stop-color="#705010"/></linearGradient>'
-    +'</defs>'
-    +'<rect x="28" y="185" width="84" height="11" rx="5" fill="url(#tga)"/>'
-    +'<rect x="36" y="175" width="68" height="12" rx="4" fill="url(#tgb)"/>'
-    +'<rect x="57" y="135" width="26" height="42" rx="6" fill="url(#tga)"/>'
-    +'<ellipse cx="70" cy="136" rx="32" ry="8" fill="url(#tgb)"/>'
-    +'<path d="M38 80 Q28 118 70 136 Q112 118 102 80 Z" fill="url(#tga)"/>'
-    +'<path d="M48 80 Q40 112 70 128 Q100 112 92 80 Z" fill="url(#tgb)" opacity="0.5"/>'
-    +'<ellipse cx="70" cy="80" rx="32" ry="9" fill="url(#tga)"/>'
-    +'<ellipse cx="70" cy="34" rx="28" ry="8" fill="url(#tga)"/>'
-    +'<path d="M42 34 L38 80 Q70 90 102 80 L98 34 Z" fill="url(#tga)" opacity="0.9"/>'
-    +'<path d="M38 80 Q10 76 12 48 Q14 26 42 28" fill="none" stroke="url(#tga)" stroke-width="9" stroke-linecap="round"/>'
-    +'<path d="M38 80 Q12 76 14 50 Q16 30 42 32" fill="none" stroke="url(#tgb)" stroke-width="4" stroke-linecap="round" opacity="0.6"/>'
-    +'<path d="M102 80 Q130 76 128 48 Q126 26 98 28" fill="none" stroke="url(#tga)" stroke-width="9" stroke-linecap="round"/>'
-    +'<path d="M102 80 Q128 76 126 50 Q124 30 98 32" fill="none" stroke="url(#tgb)" stroke-width="4" stroke-linecap="round" opacity="0.6"/>'
-    +'<text x="70" y="100" text-anchor="middle" font-size="28" fill="rgba(0,0,0,0.18)" font-family="serif">\u2605</text>'
-    +'</svg>';
+  /* -- Trofeo del bracket (copa configurada o placeholder) -- */
+  const _bkCopaKey = phase.bracketCopaKey || null;
+  let trophyHTML;
+  if(_bkCopaKey && typeof renderTrophy === 'function' && typeof PALMARES_COMPS !== 'undefined'){
+    const _copaMatch = PALMARES_COMPS.find(c => c.key === _bkCopaKey);
+    trophyHTML = _copaMatch
+      ? '<div style="display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 28px rgba(201,168,76,0.7));">'+renderTrophy(_bkCopaKey, 110)+'</div>'
+      : null;
+  }
+  if(!trophyHTML){
+    trophyHTML = '<div style="width:110px;height:132px;display:flex;align-items:center;justify-content:center;margin:0 auto;">'
+      +'<span style="font-family:\'Bebas Neue\';font-size:80px;color:var(--gold);line-height:1;letter-spacing:-2px;">¿?</span>'
+      +'</div>';
+  }
 
   function ini(n){ return n ? n.substring(0,3).toUpperCase() : '?'; }
 
@@ -905,10 +901,10 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
   var colH = nFirst * ROW_H * 2;
 
   var champSection = champ
-    ? '<div style="text-align:center;margin-top:24px;padding-bottom:8px;">'+trophySVG
+    ? '<div style="text-align:center;margin-top:24px;padding-bottom:8px;">'+trophyHTML
       +'<div style="font-family:\'Barlow Condensed\';font-size:13px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;margin-top:10px;">Campe&oacute;n</div>'
       +'<div style="font-family:\'Bebas Neue\';font-size:34px;letter-spacing:2px;color:var(--txt);line-height:1;">'+champ+'</div></div>'
-    : '<div style="text-align:center;margin-top:24px;padding-bottom:8px;opacity:0.5;">'+trophySVG
+    : '<div style="text-align:center;margin-top:24px;padding-bottom:8px;opacity:0.5;">'+trophyHTML
       +'<div style="font-family:\'Barlow Condensed\';font-size:12px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase;margin-top:10px;">Campe&oacute;n por definir</div></div>';
 
   var centerW = CARD_W + 40;
