@@ -158,7 +158,8 @@ async function onMatchPhaseChange(phaseId){
     if(cont){
       const cid = `bracket-container-${phaseId}`;
       cont.innerHTML = `<div id="${cid}"></div>`;
-      await renderBracket(parseInt(phaseId), cid, true);
+      try { await renderBracket(parseInt(phaseId), cid, true); }
+      catch(e){ console.error('[bracket] render error:', e); cont.innerHTML=`<div style="padding:16px;color:var(--txt3);">Error al cargar el bracket. <button class="btn btn-sm" onclick="onMatchPhaseChange(${phaseId})">Reintentar</button></div>`; }
     }
     const ml = document.getElementById('matches-list-container');
     if(ml) ml.innerHTML='';
@@ -185,7 +186,8 @@ async function onMatchPhaseChange(phaseId){
       if(teams===4){
         const cid = `bracket-container-${phaseId}`;
         cont.innerHTML = `<div id="${cid}"></div>`;
-        await renderBracket(parseInt(phaseId), cid, true);
+        try { await renderBracket(parseInt(phaseId), cid, true); }
+        catch(e){ console.error('[bracket] render error:', e); cont.innerHTML=`<div style="padding:16px;color:var(--txt3);">Error al cargar el bracket. <button class="btn btn-sm" onclick="onMatchPhaseChange(${phaseId})">Reintentar</button></div>`; }
       } else {
         const cid = `playoff-container-${phaseId}`;
         cont.innerHTML = `<div id="${cid}"></div>`;
