@@ -7,31 +7,42 @@
    Por defecto: pts → dg → gf → enfrentamiento directo
    ---------------------------------------------------------- */
 const DEFAULT_CRITERIA = [
-  {id:'pts',   name:'Puntos',                          key:(a)=>a.pts},
-  {id:'dg',    name:'Diferencia de goles',             key:(a)=>a.gf-a.gc},
-  {id:'gf',    name:'Goles a favor',                   key:(a)=>a.gf},
-  {id:'direct',name:'Enfrentamiento directo',          key:null}, // especial
-  {id:'gf_dir',name:'Goles a favor (enfr. directo)',   key:null}, // especial
-  {id:'gc',    name:'Goles en contra',                 key:(a)=>-(a.gc)},
-  {id:'custom',name:'Criterio personalizado',          key:null}, // manual
+  {id:'pts',    name:'Puntos',                 key:(a)=>a.pts},
+  {id:'dg',     name:'Diferencia de goles',    key:(a)=>a.gf-a.gc},
+  {id:'gf',     name:'Goles a favor',          key:(a)=>a.gf},
+  {id:'direct', name:'Enfrentamiento directo', key:null},
+  {id:'custom', name:'Orden alfabético',       key:null},
 ];
 
-// Obtener criterios de una fase (o usar default)
+// Obtener criterios activos de una fase (o usar default)
 async function getCriteria(phaseId){
   const phase = await dbGet('phases', phaseId);
   if(phase?.criteria && phase.criteria.length>0) return phase.criteria;
   return DEFAULT_CRITERIA.map(c=>c.id);
 }
 
-async function saveCriteria(phaseId, criteriaIds){
+// Nombre del criterio custom para esta fase
+async function getCustomCriterionName(phaseId){
   const phase = await dbGet('phases', phaseId);
-  if(phase){ await dbPut('phases',{...phase, criteria:criteriaIds}); }
+  return phase?.customCriterionName || 'Orden alfabético';
+}
+
+async function saveCriteria(phaseId, criteriaIds, disabledIds=[], customName=null){
+  const phase = await dbGet('phases', phaseId);
+  if(phase){
+    await dbPut('phases',{
+      ...phase,
+      criteria: criteriaIds,
+      criteriaDisabled: disabledIds,
+      ...(customName !== null ? {customCriterionName: customName} : {})
+    });
+  }
 }
 
 /* ----------------------------------------------------------
    CALCULAR STANDINGS con criterios configurables
    ---------------------------------------------------------- */
-function calcGroupStandings(teamIds, matchesInGroup, criteriaIds, allGroupMatches){
+function calcGroupStandings(teamIds, matchesInGroup, criteriaIds, allGroupMatches, teamNamesById={}){
   // Init stats using teamIds as keys
   const stats = {};
   teamIds.forEach(tid=>{
@@ -62,32 +73,32 @@ function calcGroupStandings(teamIds, matchesInGroup, criteriaIds, allGroupMatche
       const crit = DEFAULT_CRITERIA.find(c=>c.id===cid);
       if(!crit) continue;
 
-      if(crit.id==='direct'||crit.id==='gf_dir'){
+      if(crit.id==='direct'){
         // Enfrentamiento directo entre a y b — solo partidos jugados
         const directMatches = allGroupMatches.filter(m=>{
           const ma = parseInt(m.teamA), mb = parseInt(m.teamB);
           return ((ma===a.id&&mb===b.id)||(ma===b.id&&mb===a.id))
             && m.goalsA!=null && m.goalsB!=null;
         });
-        let ptsa=0,ptsb=0,gfa=0,gfb=0;
+        let ptsa=0,ptsb=0;
         directMatches.forEach(m=>{
           if(parseInt(m.teamA)===a.id){
-            gfa+=m.goalsA;gfb+=m.goalsB;
             if(m.goalsA>m.goalsB) ptsa+=3;
             else if(m.goalsA===m.goalsB){ptsa++;ptsb++;}
             else ptsb+=3;
           } else {
-            gfa+=m.goalsB;gfb+=m.goalsA;
             if(m.goalsB>m.goalsA) ptsa+=3;
             else if(m.goalsA===m.goalsB){ptsa++;ptsb++;}
             else ptsb+=3;
           }
         });
-        if(crit.id==='direct'){
-          if(ptsb!==ptsa) return ptsb-ptsa;
-        } else {
-          if(gfb!==gfa) return gfb-gfa;
-        }
+        if(ptsb!==ptsa) return ptsb-ptsa;
+      } else if(crit.id==='custom'){
+        // Orden alfabético por nombre de equipo
+        const na = (teamNamesById[a.id]||'').toLowerCase();
+        const nb = (teamNamesById[b.id]||'').toLowerCase();
+        if(na<nb) return -1;
+        if(na>nb) return 1;
       } else if(crit.key){
         const va=crit.key(a), vb=crit.key(b);
         if(vb!==va) return vb-va;
@@ -167,6 +178,11 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
   // Obtener todos los partidos de esta fase
   const allMatches = await dbGetAll('matches', m=>m.phaseId===phaseId);
 
+  // Nombres de equipos para criterio alfabético
+  const _allTeams = await dbGetAll('teams', t=>t.season===STATE.season||!t.season);
+  const teamNamesById = {};
+  _allTeams.forEach(t=>{ teamNamesById[t.id] = t.name||''; });
+
   // Obtener equipos asignados a esta fase (grupos)
   const groupAssignments = phase.groups||{}; // {groupIdx: [teamNames]}
 
@@ -190,7 +206,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
     if(!teamIds.length) continue;
 
     const groupMatches = allMatches.filter(m=>m.groupIdx===gi);
-    const standings    = calcGroupStandings(teamIds, groupMatches, criteriaIds, groupMatches);
+    const standings    = calcGroupStandings(teamIds, groupMatches, criteriaIds, groupMatches, teamNamesById);
 
     // Zona de cada posición — usa positions por grupo si existe
     const getZone = (pos, groupIdx)=>{
@@ -348,21 +364,90 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
    MODAL CRITERIOS DE CLASIFICACIÓN
    ---------------------------------------------------------- */
 let _criteriaPhaseId=null, _criteriaContainerId=null, _criteriaIsAdmin=false;
+let _dragId=null, _dragOverId=null;
+
+function _criteriaItemName(c, customName){
+  return c.id==='custom' ? (customName||'Orden alfabético') : c.name;
+}
 
 async function openCriteriaModal(phaseId, containerId, isAdmin){
   _criteriaPhaseId=phaseId; _criteriaContainerId=containerId; _criteriaIsAdmin=isAdmin;
-  const criteriaIds = await getCriteria(phaseId);
 
-  // Ordenar criterios según config actual
-  const ordered = criteriaIds.map(id=>DEFAULT_CRITERIA.find(c=>c.id===id)).filter(Boolean);
-  const rest = DEFAULT_CRITERIA.filter(c=>!criteriaIds.includes(c.id));
+  const phase = await dbGet('phases', phaseId);
+  const savedActive   = (phase?.criteria?.length>0) ? phase.criteria : DEFAULT_CRITERIA.map(c=>c.id);
+  const savedDisabled = phase?.criteriaDisabled || [];
+  const savedCustom   = phase?.customCriterionName || 'Orden alfabético';
+
+  // Init state (preserve in-progress changes if modal is re-rendering)
+  if(window._criteriaInitPhase !== phaseId){
+    window._activeCriteria   = [...savedActive];
+    window._disabledCriteria = [...savedDisabled];
+    window._customCriterionName = savedCustom;
+    window._criteriaInitPhase = phaseId;
+  }
+
+  const active   = window._activeCriteria   || [];
+  const disabled = window._disabledCriteria || [];
+  const customName = window._customCriterionName || 'Orden alfabético';
+
+  const activeItems   = active.map(id=>DEFAULT_CRITERIA.find(c=>c.id===id)).filter(Boolean);
+  const disabledItems = disabled.map(id=>DEFAULT_CRITERIA.find(c=>c.id===id)).filter(Boolean);
 
   let wrap = document.getElementById('criteria-modal-wrap');
-  if(!wrap){
-    wrap = document.createElement('div');
-    wrap.id = 'criteria-modal-wrap';
-    document.body.appendChild(wrap);
-  }
+  if(!wrap){ wrap=document.createElement('div'); wrap.id='criteria-modal-wrap'; document.body.appendChild(wrap); }
+
+  const _adminDesc = isAdmin
+    ? `<div style="font-size:13px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">
+        Arrastra para reordenar. La × mueve el criterio a "en desuso" (no se borra).
+        Los cambios se aplican en tiempo real al guardar.
+       </div>`
+    : `<div style="font-size:13px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">
+        Criterios de desempate aplicados en orden de prioridad.
+       </div>`;
+
+  const _activeRows = activeItems.map((c,i)=>{
+    const displayName = _criteriaItemName(c, customName);
+    if(!isAdmin){
+      return `<div style="padding:6px 10px;font-size:14px;color:var(--txt);">${i+1}. ${displayName}</div>`;
+    }
+    const nameCell = c.id==='custom'
+      ? `<input id="criteria-custom-name" value="${displayName.replace(/"/g,'&quot;')}"
+           style="font-size:14px;flex:1;background:transparent;border:none;border-bottom:1px solid var(--brd2);color:var(--txt);outline:none;padding:1px 2px;"
+           oninput="window._customCriterionName=this.value"
+           placeholder="Nombre del criterio">`
+      : `<span style="font-size:14px;flex:1;">${i+1}. ${displayName}</span>`;
+    return `
+    <div draggable="true" data-id="${c.id}"
+      ondragstart="criteriaDragStart(event)"
+      ondragover="criteriaDragOver(event)"
+      ondragleave="criteriaDragLeave(event)"
+      ondrop="criteriaDrop(event)"
+      ondragend="criteriaDragEnd()"
+      style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--r);cursor:grab;transition:background 0.15s,border-color 0.15s;">
+      <span style="color:var(--txt3);display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+        <svg viewBox="0 0 16 10" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <line x1="1" y1="2" x2="15" y2="2"/><line x1="1" y1="5" x2="15" y2="5"/><line x1="1" y1="8" x2="15" y2="8"/>
+        </svg>
+      </span>
+      <span style="font-size:12px;font-weight:700;color:var(--txt3);min-width:16px;">${i+1}.</span>
+      ${nameCell}
+      <button onclick="criteriaDisable('${c.id}')" title="Mover a en desuso"
+        style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:18px;line-height:1;padding:0 2px;flex-shrink:0;"
+        onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+    </div>`;
+  }).join('');
+
+  const _disabledSection = (isAdmin && disabledItems.length) ? `
+    <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1.2px;margin:16px 0 8px;border-top:1px solid var(--brd);padding-top:14px;">
+      Criterios en desuso
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      ${disabledItems.map(c=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--card2);border:1px dashed var(--brd);border-radius:var(--r);opacity:0.7;">
+        <span style="font-size:13px;color:var(--txt2);">${_criteriaItemName(c,customName)}</span>
+        <button onclick="criteriaRestore('${c.id}')" class="btn btn-xs" title="Restaurar criterio">+ Restaurar</button>
+      </div>`).join('')}
+    </div>` : '';
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="criteria-modal">
@@ -372,32 +457,14 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
         <button class="modal-close" onclick="closeCriteriaModal()">×</button>
       </div>
       <div class="modal-body">
-        <div style="font-size:14px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">
-          Los criterios se aplican en orden de prioridad para desempatar equipos con los mismos puntos. Arrastra para reordenar.
+        ${_adminDesc}
+        <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;">Criterios activos (en orden)</div>
+        <div id="criteria-active"
+          style="display:flex;flex-direction:column;gap:5px;min-height:44px;padding:6px;background:var(--card2);border-radius:var(--r);border:1px solid var(--brd);"
+          ${isAdmin?'ondragover="event.preventDefault()" ondrop="criteriaDropOnContainer(event)"':''}>
+          ${_activeRows || '<div style="padding:8px;font-size:13px;color:var(--txt3);">Sin criterios activos.</div>'}
         </div>
-
-        <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Criterios activos (en orden)</div>
-        <div id="criteria-active" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;min-height:40px;padding:6px;background:var(--card2);border-radius:var(--r);border:1px solid var(--brd);">
-          ${ordered.map((c,i)=>`
-          <div draggable="true" data-id="${c.id}" data-active="1"
-            ondragstart="criteriaDragStart(event)"
-            ondragover="criteriaDragOver(event)"
-            ondrop="criteriaDrop(event,'active')"
-            style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--r);cursor:grab;">
-            <span style="font-size:17px;color:var(--txt3);">⠿</span>
-            <span style="font-size:14px;flex:1;">${i+1}. ${c.name}</span>
-            <button onclick="removeCriterion('${c.id}')" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:17px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
-          </div>`).join('')}
-        </div>
-
-        <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Criterios disponibles</div>
-        <div id="criteria-available" style="display:flex;flex-direction:column;gap:5px;">
-          ${rest.map(c=>`
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);">
-            <span style="font-size:14px;color:var(--txt2);">${c.name}</span>
-            <button onclick="addCriterion('${c.id}')" class="btn btn-xs btn-primary">+ Agregar</button>
-          </div>`).join('')}
-        </div>
+        ${_disabledSection}
       </div>
       <div class="modal-footer">
         ${isAdmin?`<button class="btn btn-primary" onclick="saveCriteriaAndRefresh()">Guardar y aplicar</button>`:''}
@@ -405,48 +472,108 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
       </div>
     </div>
   </div>`;
-
-  window._activeCriteria = [...criteriaIds];
 }
 
 function closeCriteriaModal(){
   const el = document.getElementById('criteria-modal-wrap');
   if(el) el.innerHTML='';
+  window._criteriaInitPhase = null; // reset state on close
 }
 
-// Drag & drop simplificado
-let _dragId=null;
-function criteriaDragStart(e){ _dragId=e.currentTarget.dataset.id; }
-function criteriaDragOver(e){ e.preventDefault(); }
-function criteriaDrop(e,zone){
+/* ── Drag & drop ── */
+function criteriaDragStart(e){
+  _dragId = e.currentTarget.dataset.id;
+  e.currentTarget.style.opacity='0.45';
+  e.dataTransfer.effectAllowed='move';
+}
+function criteriaDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  const el = e.currentTarget;
+  const id = el.dataset?.id;
+  if(id && id!==_dragId && id!==_dragOverId){
+    _dragOverId=id;
+    // Remove highlight from all, add to target
+    document.querySelectorAll('#criteria-active [data-id]').forEach(el=>{ el.style.borderColor=''; el.style.background=''; });
+    el.style.borderColor='var(--gold)';
+    el.style.background='rgba(201,168,76,0.08)';
+  }
+}
+function criteriaDragLeave(e){
+  e.currentTarget.style.borderColor='';
+  e.currentTarget.style.background='';
+}
+function criteriaDragEnd(){
+  document.querySelectorAll('#criteria-active [data-id]').forEach(el=>{ el.style.opacity=''; el.style.borderColor=''; el.style.background=''; });
+  _dragId=null; _dragOverId=null;
+}
+function criteriaDrop(e){
+  e.preventDefault(); e.stopPropagation();
+  if(!_dragId) return;
+  const targetId = e.currentTarget.dataset?.id;
+  if(!targetId || targetId===_dragId){ criteriaDragEnd(); return; }
+  const ac=[...(window._activeCriteria||[])];
+  const from=ac.indexOf(_dragId), to=ac.indexOf(targetId);
+  if(from===-1||to===-1){ criteriaDragEnd(); return; }
+  ac.splice(from,1); ac.splice(to,0,_dragId);
+  window._activeCriteria=ac;
+  _renderCriteriaModal();
+}
+function criteriaDropOnContainer(e){
+  // Drop on container itself (empty area) — move dragged item to end
   e.preventDefault();
   if(!_dragId) return;
-  const ac = window._activeCriteria||[];
-  const from = ac.indexOf(_dragId);
-  const target = e.currentTarget.dataset.id;
-  const to = ac.indexOf(target);
-  if(from===-1||to===-1||from===to) return;
-  ac.splice(from,1); ac.splice(to,0,_dragId);
-  window._activeCriteria = ac;
-  openCriteriaModal(_criteriaPhaseId,_criteriaContainerId,_criteriaIsAdmin);
+  const ac=[...(window._activeCriteria||[])];
+  const from=ac.indexOf(_dragId);
+  if(from===-1) return;
+  ac.splice(from,1); ac.push(_dragId);
+  window._activeCriteria=ac;
+  _renderCriteriaModal();
 }
 
-function addCriterion(id){
-  if(!window._activeCriteria) window._activeCriteria=[];
-  if(!window._activeCriteria.includes(id)) window._activeCriteria.push(id);
-  openCriteriaModal(_criteriaPhaseId,_criteriaContainerId,_criteriaIsAdmin);
-}
-
-function removeCriterion(id){
+function criteriaDisable(id){
   window._activeCriteria=(window._activeCriteria||[]).filter(x=>x!==id);
-  openCriteriaModal(_criteriaPhaseId,_criteriaContainerId,_criteriaIsAdmin);
+  if(!(window._disabledCriteria||[]).includes(id))
+    window._disabledCriteria=[...(window._disabledCriteria||[]),id];
+  _renderCriteriaModal();
+}
+
+function criteriaRestore(id){
+  window._disabledCriteria=(window._disabledCriteria||[]).filter(x=>x!==id);
+  if(!(window._activeCriteria||[]).includes(id))
+    window._activeCriteria=[...(window._activeCriteria||[]),id];
+  _renderCriteriaModal();
+}
+
+function _renderCriteriaModal(){
+  openCriteriaModal(_criteriaPhaseId, _criteriaContainerId, _criteriaIsAdmin);
 }
 
 async function saveCriteriaAndRefresh(){
-  await saveCriteria(_criteriaPhaseId, window._activeCriteria||[]);
-  closeCriteriaModal();
-  showToast('Criterios guardados. Tabla actualizada.');
-  renderGroupTable(_criteriaPhaseId, _criteriaContainerId, _criteriaIsAdmin);
+  const phase = await dbGet('phases', _criteriaPhaseId);
+  const savedActive   = phase?.criteria || DEFAULT_CRITERIA.map(c=>c.id);
+  const savedDisabled = phase?.criteriaDisabled || [];
+  const savedCustom   = phase?.customCriterionName || 'Orden alfabético';
+  const newActive     = window._activeCriteria  || [];
+  const newDisabled   = window._disabledCriteria || [];
+  const newCustom     = window._customCriterionName || 'Orden alfabético';
+
+  const changed = JSON.stringify(newActive) !== JSON.stringify(savedActive)
+               || JSON.stringify(newDisabled) !== JSON.stringify(savedDisabled)
+               || newCustom !== savedCustom;
+
+  if(!changed){ closeCriteriaModal(); return; }
+
+  showConfirm(
+    '¿Aplicar cambios a los criterios?',
+    'La tabla de clasificación se recalculará en tiempo real con el nuevo orden.',
+    async () => {
+      await saveCriteria(_criteriaPhaseId, newActive, newDisabled, newCustom);
+      closeCriteriaModal();
+      showToast('Criterios guardados. Tabla actualizada.');
+      renderGroupTable(_criteriaPhaseId, _criteriaContainerId, _criteriaIsAdmin);
+    }
+  );
 }
 
 /* ----------------------------------------------------------
