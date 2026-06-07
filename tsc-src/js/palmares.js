@@ -925,8 +925,6 @@ function openChampionFullscreen(data, teamById, sourceRect){
     const ty = cy - window.innerHeight / 2;
     originStyle = ` --tr-fs-tx:${Math.round(tx)}px; --tr-fs-ty:${Math.round(ty)}px;`;
   }
-  // Disparar sonido de expansión justo antes de abrir
-  try { playPalmZoom(); } catch(e){}
   wrap.innerHTML = `
     <div class="tr-fullscreen" id="tr-fs" style="--accent:${accent};${originStyle}">
       <button class="tr-fs-close" onclick="closeChampionFullscreen()" aria-label="Cerrar">×</button>
@@ -986,8 +984,12 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
         <div class="tr-fs-mob-pos">${idx + 1} / ${records.length}</div>
       </div>
       <div class="tr-fs-mob-arrows">
-        <button class="tr-fs-mob-arr" id="tr-fs-mob-up" ${!canUp?'disabled':''} title="Campeón anterior">▲</button>
-        <button class="tr-fs-mob-arr" id="tr-fs-mob-down" ${!canDown?'disabled':''} title="Campeón siguiente">▼</button>
+        <button class="tr-fs-mob-arr" id="tr-fs-mob-up" ${!canUp?'disabled':''} title="Campeón anterior">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+        </button>
+        <button class="tr-fs-mob-arr" id="tr-fs-mob-down" ${!canDown?'disabled':''} title="Campeón siguiente">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
       <div class="tr-fs-mob-hint">↕ Desliza para navegar</div>`;
   }
@@ -1014,7 +1016,6 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
     const ty = cy - window.innerHeight / 2;
     originStyle = ` --tr-fs-tx:${Math.round(tx)}px; --tr-fs-ty:${Math.round(ty)}px;`;
   }
-  try { playPalmZoom(); } catch(e){}
 
   wrap.innerHTML = `
     <div class="tr-fullscreen tr-fullscreen-mob" id="tr-fs" style="--accent:${accent};${originStyle}">
@@ -1053,10 +1054,13 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
 function _trFsEsc(e){ if (e.key === 'Escape') closeChampionFullscreen(); }
 function closeChampionFullscreen(){
   const wrap = _palmModalWrap();
-  const wasOpen = wrap && wrap.innerHTML.trim() !== '';
-  if (wrap) wrap.innerHTML = '';
-  document.removeEventListener('keydown', _trFsEsc);
-  if (wasOpen) { try { playPalmZoomOut(); } catch(e){} }
+  const fs = wrap && wrap.querySelector('#tr-fs');
+  if (!fs) { document.removeEventListener('keydown', _trFsEsc); return; }
+  fs.classList.add('tr-fs-closing');
+  setTimeout(() => {
+    if (wrap) wrap.innerHTML = '';
+    document.removeEventListener('keydown', _trFsEsc);
+  }, 280);
 }
 
 /* ---------------- Trophy Room interactivity ---------------- */
