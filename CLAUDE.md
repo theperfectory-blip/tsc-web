@@ -124,6 +124,11 @@ phases.js → renderPubComps (usa bracket.js + standings.js)
 This project has a graphify knowledge graph at `tsc-src/graphify-out/`.
 
 Rules:
-- Before answering architecture or codebase questions, read `tsc-src/graphify-out/GRAPH_REPORT.md` for god nodes and community structure
+- **GRAPH FIRST — always:** before searching for ANY function, file, or dependency, read `tsc-src/graphify-out/GRAPH_REPORT.md`. Identify the relevant community by name and the god nodes involved. Only then use grep/Read. This applies to every task, not just architecture questions.
 - If `tsc-src/graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
 - After modifying code files in this session, run `graphify update .` inside `tsc-src/` to keep the graph current (AST-only, no API cost)
+
+## Iconos — SVG obligatorio
+
+- **Nunca usar emojis en la UI.** Cualquier icono nuevo debe ser SVG inline estilo Lucide: `stroke`, no `fill`, `currentColor`, `stroke-width="1.7–2.2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`.
+- Esto aplica a botones, badges, labels, toasts, modales, hints — cualquier elemento visual nuevo o modificado.
