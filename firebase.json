@@ -1,4 +1,7 @@
 {
+  "storage": {
+    "rules": "firebase/storage.rules"
+  },
   "firestore": {
     "rules": "firebase/firestore.rules",
     "indexes": "firebase/firestore.indexes.json"
@@ -10,7 +13,8 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "**/graphify-out/**"
+      "**/graphify-out/**",
+      "**/trophies-upload/**"
     ],
     "headers": [
       {

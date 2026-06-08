@@ -1,0 +1,14 @@
+[
+  {
+    "origin": [
+      "https://teamsubscup.web.app",
+      "https://tsc-web-yuna.web.app",
+      "https://tsc-web-yuna.firebaseapp.com",
+      "http://localhost:3000",
+      "http://localhost:5000"
+    ],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Content-Length", "Range"]
+  }
+]

@@ -412,6 +412,60 @@ function renderTrophyByStyle(styleId, size=120){
   return fn ? fn(size) : '<svg viewBox="0 0 200 240" width="'+(size)+'" height="'+(size*1.2)+'"><rect x="10" y="10" width="180" height="220" fill="#ddd" stroke="#999"/></svg>';
 }
 
+/* ---- 3-D GLB — Firebase Storage (bucket: tsc-web-yuna.firebasestorage.app) ---- */
+const _TROPHY_STORAGE_BASE = 'https://firebasestorage.googleapis.com/v0/b/tsc-web-yuna.firebasestorage.app/o/trophies%2F';
+const TROPHY_GLB_MAP = {
+  classica:    'copa_1.glb',
+  imperial:    'copa_2.glb',
+  konami:      'copa_3.glb',
+  orejona:     'copa_4.glb',
+  sobria:      'copa_5.glb',
+  moderno:     'copa_6.glb',
+  celtica:     'copa_7.glb',
+  barroca:     'copa_8.glb',
+  geometrica:  'copa_9.glb',
+  minimalista: 'copa_10.glb',
+  nebula:      'copa_11.glb'
+};
+function getTrophyGlbUrl(styleId){
+  const file = TROPHY_GLB_MAP[styleId];
+  return file ? `${_TROPHY_STORAGE_BASE}${file}?alt=media` : null;
+}
+
+/* Render trofeo 3D con <model-viewer> (desktop) · fallback SVG si no hay GLB.
+   - La etiqueta <model-viewer> queda siempre en el DOM aunque el script de
+     model-viewer aún no haya terminado de cargar (el navegador la define
+     cuando el módulo esté listo; el slot "poster" muestra el SVG entretanto).
+   - En móvil (pointer:coarse o ancho ≤768) se usa siempre el SVG para ahorrar
+     datos y batería. */
+function renderTrophy3D(compKey, svgSize=320){
+  const comp = palmaresCompByKey(compKey);
+  if (!comp) return '';
+  const glbUrl = getTrophyGlbUrl(comp.trophy);
+  const isMobile = window.innerWidth <= 768 || window.matchMedia('(pointer:coarse)').matches;
+  if (!glbUrl || isMobile){
+    return `<div class="tr-fs-trophy">${renderTrophy(compKey, svgSize)}</div>`;
+  }
+  const svgPoster = renderTrophy(compKey, svgSize);
+  return `<div class="tr-fs-trophy tr-fs-trophy--3d">
+    <model-viewer
+      src="${glbUrl}"
+      alt="${_esc(comp.label)}"
+      auto-rotate
+      auto-rotate-delay="800"
+      rotation-per-second="18deg"
+      camera-controls
+      shadow-intensity="0.5"
+      exposure="1.15"
+      environment-image="neutral"
+      style="width:320px;height:384px;--poster-color:transparent;"
+      loading="eager"
+      reveal="auto">
+      <div slot="poster" class="tr-mv-poster">${svgPoster}</div>
+    </model-viewer>
+  </div>`;
+}
+
 /* ---------------- Helpers de datos ---------------- */
 async function getAllPalmaresRecords(){ return dbGetAll('palmares'); }
 
@@ -934,7 +988,7 @@ function openChampionFullscreen(data, teamById, sourceRect){
       <div class="tr-fs-grid">
         <div class="tr-fs-trophy-wrap">
           <div class="tr-fs-halo" style="background:radial-gradient(circle, ${accent}55, transparent 65%);"></div>
-          <div class="tr-fs-trophy">${renderTrophy(data.comp.key, 320)}</div>
+          ${renderTrophy3D(data.comp.key, 320)}
           <div class="tr-fs-plaque">
             <div class="tr-fs-plaque-comp">${_esc(data.comp.label)}</div>
             <div class="tr-fs-plaque-count">${data.records.length} ${data.records.length===1?'edición':'ediciones'}</div>
