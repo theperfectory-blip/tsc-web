@@ -2,9 +2,9 @@
    SORTEO — Animación chibi + reveal de equipo
    ============================================================ */
 
-/* --- Tokens del sorteo — siempre dark (el stage tiene fondo oscuro propio) ---
-   Se definen aquí porque el sorteo no fue portado al sistema global de tokens.
-   NO cambiar en [data-theme="light"]: el stage siempre luce sobre fondo navy. */
+/* --- Tokens del sorteo — dark por defecto (el stage tiene fondo oscuro propio) ---
+   .sorteo-stage usa estos tokens y siempre es dark.
+   .sorteo-side los redefine en [data-theme="light"] para adaptar las tarjetas. */
 :root {
   --bg-1:             #0D1118;
   --bg-2:             #141820;
@@ -17,6 +17,19 @@
   --radius-xl:        14px;
   --radius-lg:        8px;
   --sorteo-glow-soft: rgba(201,168,76,0.18);
+}
+
+/* Light mode: remap tokens solo en el sidebar (las tarjetas de bombos/equipos).
+   El .sorteo-stage queda intacto con sus valores dark. */
+[data-theme="light"] .sorteo-side {
+  --bg-1:        var(--card);
+  --bg-2:        var(--card2);
+  --bg-3:        var(--card2);
+  --text:        var(--txt);
+  --text-dim:    var(--txt2);
+  --text-mute:   var(--txt3);
+  --border:      var(--brd);
+  --border-soft: var(--brd);
 }
 
 /* ---------- Layout de la página ---------- */

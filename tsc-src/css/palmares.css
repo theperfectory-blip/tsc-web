@@ -30,6 +30,18 @@
   --brd2: rgba(255,255,255,0.13);
 }
 
+/* Móvil: .tr-side-panel sale del room (fila 2, fondo de página).
+   Restaurar colores light para que el texto sea legible. */
+@media (max-width: 980px) {
+  [data-theme="light"] .tr-side-panel {
+    --txt:  #1A1A1A;
+    --txt2: #555555;
+    --txt3: #999999;
+    --brd:  rgba(0,0,0,0.08);
+    --brd2: rgba(0,0,0,0.15);
+  }
+}
+
 /* ============================================================
    PÚBLICO — Sala de Trofeos
    ============================================================ */

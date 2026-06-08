@@ -907,6 +907,8 @@ function buildInfoPanel(data, teamById){
 
 /* Modal fullscreen "campeón en pleno" — doble click (escritorio) o long-press (móvil) */
 function openChampionFullscreen(data, teamById, sourceRect){
+  // Bloquear scroll del fondo mientras el fullscreen está abierto
+  document.body.style.overflow = 'hidden';
   // En móvil: vista simplificada con swipe vertical para navegar campeones
   if (window.innerWidth <= 768 || window.matchMedia('(pointer:coarse)').matches) {
     openChampionFullscreenMobile(data, teamById, sourceRect);
@@ -1060,6 +1062,7 @@ function closeChampionFullscreen(){
   setTimeout(() => {
     if (wrap) wrap.innerHTML = '';
     document.removeEventListener('keydown', _trFsEsc);
+    document.body.style.overflow = '';
   }, 280);
 }
 
