@@ -1026,7 +1026,7 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
     return `
       <div class="tr-fs-mob-card" style="--accent:${accent}">
         <div class="tr-fs-mob-halo" style="background:radial-gradient(circle at 35% 30%, ${teamColor}88, transparent 65%)"></div>
-        <div class="tr-fs-mob-trophy">${renderTrophy(data.comp.key, 200)}</div>
+        <div class="tr-fs-mob-trophy">${renderTrophy3D(data.comp.key, 200)}</div>
         <div class="tr-fs-mob-comp">${_esc(data.comp.label)}</div>
         <div class="tr-fs-mob-champ-row">
           <div class="tr-fs-mob-logo" style="background:${teamColor}">${logoHtml}</div>

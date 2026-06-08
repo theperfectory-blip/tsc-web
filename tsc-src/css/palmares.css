@@ -1272,6 +1272,15 @@
   margin-bottom: 18px;
 }
 .tr-fs-mob-trophy .palm-trophy { animation: none; }
+/* 3D: sin bob ni drop-shadow rectangular sobre el canvas de model-viewer */
+.tr-fs-mob-trophy:has(model-viewer) {
+  animation: none;
+  filter: none;
+}
+.tr-fs-mob-trophy model-viewer {
+  width: 280px;
+  height: 336px;
+}
 .tr-fs-mob-comp {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 15px;
