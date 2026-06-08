@@ -58,9 +58,10 @@ service cloud.firestore {
     }
 
     // --- Contadores de IDs enteros (emulan autoIncrement) ---
+    // Solo admin: un presidente no debe poder manipular IDs
     match /_counters/{c} {
       allow read:  if true;
-      allow write: if isAdmin() || isPresident();
+      allow write: if isAdmin();
     }
   }
 }

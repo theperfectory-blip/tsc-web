@@ -1,3 +1,5 @@
+function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 const COMP_TYPES = [
   {id:'league',  icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', name:'Liga / Grupos',       desc:'Round robin por grupos'},
   {id:'cup',     icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', name:'Eliminación directa', desc:'Bracket con ida/vuelta'},
@@ -57,8 +59,8 @@ async function renderCompsGrid(comps){
     <div class="card" style="border-top:4px solid ${c.color||'var(--gold)'};transition:border-color 0.15s;" onmouseover="this.style.boxShadow='0 0 0 1px ${c.color||'var(--gold)'}'" onmouseout="this.style.boxShadow=''">
       <div class="card-hdr">
         <div>
-          <div style="font-size:17px;font-weight:600;">${c.name}</div>
-          <div style="font-size:13px;color:var(--txt3);margin-top:2px;">${seasonMap[c.season]}</div>
+          <div style="font-size:17px;font-weight:600;">${_esc(c.name)}</div>
+          <div style="font-size:13px;color:var(--txt3);margin-top:2px;">${_esc(seasonMap[c.season])}</div>
         </div>
         <span class="badge ${statusCls}">${statusLbl}</span>
       </div>
@@ -69,7 +71,7 @@ async function renderCompsGrid(comps){
         <div style="display:flex;gap:14px;margin-bottom:8px;">
           <div style="font-size:13px;color:var(--txt2);">Equipos: <span style="color:var(--txt);font-weight:600;">${c.totalTeams||'—'}</span></div>
         </div>
-        ${c.desc?`<div style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:10px;">${c.desc}</div>`:''}
+        ${c.desc?`<div style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:10px;">${_esc(c.desc)}</div>`:''}
         <div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--brd);">
           <button class="btn btn-sm" data-cid="${c.id}" data-cname="${c.name.replace(/"/g,'&quot;')}" onclick="openFasesForComp(this.dataset.cid,this.dataset.cname)">Ver fases</button>
           <button class="btn btn-sm" onclick="openCompModal(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>

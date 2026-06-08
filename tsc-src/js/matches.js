@@ -1,3 +1,5 @@
+function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 /* ----------------------------------------------------------
    TIEMPO REAL EN ADMIN (Fase 6A para admin)
    El modo público ya se suscribe a 'matches' (nav.js). Aquí hacemos
@@ -64,7 +66,7 @@ async function renderAdmMatches(){
   const compOpts = comps.map(c=>{
     const cphases = phasesByComp[c.id]||[];
     if(!cphases.length) return '';
-    return `<optgroup label="${c.name}">${cphases.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</optgroup>`;
+    return `<optgroup label="${_esc(c.name)}">${cphases.map(p=>`<option value="${p.id}">${_esc(p.name)}</option>`).join('')}</optgroup>`;
   }).join('');
 
   el.innerHTML = `

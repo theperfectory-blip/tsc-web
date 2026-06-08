@@ -2,6 +2,8 @@
    PARTE 2 — MÓDULO DE EQUIPOS
    ========================================================== */
 
+function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 /* ----------------------------------------------------------
    RENDER ADMIN — EQUIPOS
    ---------------------------------------------------------- */
@@ -490,11 +492,11 @@ function renderPubTeamsGrid(teams){
       <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${t.color||'#333'};margin:0 auto 8px;border:2px solid var(--brd2);">
         ${t.logo
           ? `<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`
-          : `<span style="font-family:'Bebas Neue';font-size:13px;color:#fff;">${t.ini||'?'}</span>`
+          : `<span style="font-family:'Bebas Neue';font-size:13px;color:#fff;">${_esc(t.ini||'?')}</span>`
         }
       </div>
-      <div style="font-size:14px;font-weight:600;line-height:1.3;">${t.name}</div>
-      ${t.pres?`<div style="font-size:12px;color:var(--txt3);margin-top:3px;">${t.pres}</div>`:''}
+      <div style="font-size:14px;font-weight:600;line-height:1.3;">${_esc(t.name)}</div>
+      ${t.pres?`<div style="font-size:12px;color:var(--txt3);margin-top:3px;">${_esc(t.pres)}</div>`:''}
       <div style="margin-top:6px;">
         <span style="font-family:'Bebas Neue';font-size:17px;color:var(--gold);">${t.yunacoin||0}</span>
         <span style="font-size:11px;color:var(--txt3);"> coins</span>
