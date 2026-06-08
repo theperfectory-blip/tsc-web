@@ -386,12 +386,20 @@ async function saveTeam(id){
   // Subir el logo nuevo a la nube (Cloudinary) → guardamos solo la URL.
   let logoUrl = window._logoData || null;
   if(window._logoFile){
+    const _f = window._logoFile;
+    const _allowed = ['image/jpeg','image/jpg','image/png','image/webp'];
+    if(!_allowed.includes(_f.type)){
+      showToast('Formato no permitido. Usa JPG, PNG o WebP.','error'); return;
+    }
+    if(_f.size > 2 * 1024 * 1024){
+      showToast('El archivo supera el límite de 2 MB.','error'); return;
+    }
     if(typeof cloudReady==='function' && !cloudReady()){
       showToast('Configura Cloudinary (js/cloudinary.js) para subir logos','error'); return;
     }
     try {
       showToast('Subiendo logo...');
-      logoUrl = await uploadImageToCloud(window._logoFile);
+      logoUrl = await uploadImageToCloud(_f);
     } catch(e){ showToast('No se pudo subir el logo: '+(e.message||e),'error'); return; }
   }
 
