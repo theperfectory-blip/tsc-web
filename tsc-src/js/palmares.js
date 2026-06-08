@@ -442,8 +442,7 @@ function renderTrophy3D(compKey, svgSize=320){
   const comp = palmaresCompByKey(compKey);
   if (!comp) return '';
   const glbUrl = getTrophyGlbUrl(comp.trophy);
-  const isMobile = window.innerWidth <= 768 || window.matchMedia('(pointer:coarse)').matches;
-  if (!glbUrl || isMobile){
+  if (!glbUrl){
     return `<div class="tr-fs-trophy">${renderTrophy(compKey, svgSize)}</div>`;
   }
   const svgPoster = renderTrophy(compKey, svgSize);
@@ -452,13 +451,13 @@ function renderTrophy3D(compKey, svgSize=320){
       src="${glbUrl}"
       alt="${_esc(comp.label)}"
       auto-rotate
-      auto-rotate-delay="800"
-      rotation-per-second="18deg"
-      camera-controls
+      auto-rotate-delay="600"
+      rotation-per-second="20deg"
       shadow-intensity="0.5"
       exposure="1.15"
       environment-image="neutral"
-      style="width:320px;height:384px;--poster-color:transparent;"
+      interaction-prompt="none"
+      style="width:320px;height:384px;--poster-color:transparent;touch-action:none;"
       loading="eager"
       reveal="auto">
       <div slot="poster" class="tr-mv-poster">${svgPoster}</div>

@@ -684,7 +684,7 @@
   animation: tr-fs-trophy-zoom 900ms cubic-bezier(.2,1.4,.3,1) 180ms both;
   /* Sin bob ni rotate-3D: model-viewer auto-rotate ya lo hace */
   filter: drop-shadow(0 22px 38px rgba(0,0,0,0.75));
-  pointer-events: auto; /* camera-controls necesita recibir eventos */
+  pointer-events: none; /* solo giro automático, sin interacción */
 }
 .tr-fs-trophy--3d model-viewer {
   background: transparent;
