@@ -195,7 +195,12 @@ async function renderPublicPage(page){
       await renderPubTeams();
       _sub('equipos', ['teams'], ()=>renderPubTeams());
       break;
-    case 'calendario':    await renderPubCalendar();    break;
+    case 'calendario':
+      await renderPubCalendar();
+      // Calendario: partidos (programación), fases/equipos (nombres) y
+      // calDayLabels (texto del cronograma) → días con texto aparecen al instante.
+      _sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());
+      break;
     case 'sorteo':        await renderPubSorteo();      break; // tiempo real propio (módulo SORTEO)
     case 'historial':
       await renderPubHistory();

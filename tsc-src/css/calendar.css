@@ -163,6 +163,21 @@
 .cal-pub-day-cnt{
   font-size:12px;color:var(--txt3);
 }
+/* etiqueta del cronograma (texto del admin) junto al nombre del día */
+.cal-pub-day-tag{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:12px;font-weight:700;letter-spacing:.4px;
+  text-transform:uppercase;
+  color:var(--gold);background:var(--gold-l);
+  padding:2px 9px;border-radius:99px;
+  white-space:nowrap;
+}
+/* día con texto pero sin partidos programados */
+.cal-pub-day-empty{
+  font-size:13px;color:var(--txt3);font-style:italic;
+  padding:10px 14px;
+  border:1px dashed var(--brd);border-radius:var(--r);
+}
 
 /* Cards */
 .cal-pub-cards{

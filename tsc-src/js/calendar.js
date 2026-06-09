@@ -561,7 +561,21 @@ async function renderPubCalendar(){
       return ka<kb?-1:1;
     });
 
-  if(!upcoming.length){
+  const byDate={};
+  for(const m of upcoming){
+    if(!byDate[m.scheduledDate]) byDate[m.scheduledDate]=[];
+    byDate[m.scheduledDate].push(m);
+  }
+
+  /* fechas con texto del cronograma (de hoy en adelante) */
+  const labelDatesFuture = dayLabels
+    .filter(l => l.text && l.text.trim() && l.date >= today)
+    .map(l => l.date);
+
+  /* unión de días: con partidos ∪ con texto — ordenada */
+  const allDates = [...new Set([...Object.keys(byDate), ...labelDatesFuture])].sort();
+
+  if(!allDates.length){
     el.innerHTML=`
     <div class="cal-pub-empty">
       <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -569,12 +583,6 @@ async function renderPubCalendar(){
       <div class="cal-pub-empty-sub">Los próximos partidos aparecerán aquí en cuanto el admin los programe</div>
     </div>`;
     return;
-  }
-
-  const byDate={};
-  for(const m of upcoming){
-    if(!byDate[m.scheduledDate]) byDate[m.scheduledDate]=[];
-    byDate[m.scheduledDate].push(m);
   }
 
   const cardHtml=(m)=>{
@@ -621,9 +629,8 @@ async function renderPubCalendar(){
 
   /* ── Metro-line timeline ─────────────────────────────────── */
   const timelineHtml = ()=>{
-    const dates = Object.keys(byDate);
-    const stations = dates.map(dateStr=>{
-      const ms     = byDate[dateStr];
+    const stations = allDates.map(dateStr=>{
+      const ms     = byDate[dateStr] || [];
       const isPast = dateStr < today;
       const isToday= dateStr === today;
       const cls    = isPast ? 'past' : isToday ? 'now' : 'future';
@@ -643,29 +650,33 @@ async function renderPubCalendar(){
         <div class="cal-tl-info">
           <div class="cal-tl-info-date">${_esc(_calFormatDay(dateStr))}</div>
           ${adminLabel ? `<div class="cal-tl-info-label">${_esc(adminLabel)}</div>` : ''}
-          <div class="cal-tl-info-cnt">${cnt} partido${cnt!==1?'s':''}</div>
+          <div class="cal-tl-info-cnt">${cnt>0 ? `${cnt} partido${cnt!==1?'s':''}` : 'Sin partidos'}</div>
         </div>
       </div>`;
     });
-    return `<nav class="cal-tl" aria-label="Días con partidos">${stations.join('')}</nav>`;
+    return `<nav class="cal-tl" aria-label="Días del cronograma">${stations.join('')}</nav>`;
   };
 
-  /* ── Match list ─────────────────────────────────────────── */
+  /* ── Match list (incluye días con solo texto del cronograma) ─ */
   let daysHtml = '';
-  for(const [dateStr,ms] of Object.entries(byDate)){
-    const isToday=dateStr===today;
+  for(const dateStr of allDates){
+    const ms      = byDate[dateStr] || [];
+    const isToday = dateStr===today;
+    const adminLabel = labelByDate[dateStr] || '';
     daysHtml+=`
     <div class="cal-pub-day" data-cal-date="${dateStr}">
       <div class="cal-pub-day-hdr${isToday?' cal-pub-day-hdr--today':''}">
         <div class="cal-pub-day-pill">
           ${isToday?'<span class="cal-pub-dot"></span>':''}
           <span class="cal-pub-day-name">${_calFormatDay(dateStr)}</span>
+          ${adminLabel ? `<span class="cal-pub-day-tag">${_esc(adminLabel)}</span>` : ''}
         </div>
-        <span class="cal-pub-day-cnt">${ms.length} partido${ms.length!==1?'s':''}</span>
+        <span class="cal-pub-day-cnt">${ms.length>0 ? `${ms.length} partido${ms.length!==1?'s':''}` : ''}</span>
       </div>
-      <div class="cal-pub-cards">
-        ${ms.map(cardHtml).join('')}
-      </div>
+      ${ms.length>0
+        ? `<div class="cal-pub-cards">${ms.map(cardHtml).join('')}</div>`
+        : `<div class="cal-pub-day-empty">Sin partidos programados</div>`
+      }
     </div>`;
   }
 
