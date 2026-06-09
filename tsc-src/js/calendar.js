@@ -276,11 +276,12 @@ async function renderAdmCalendar(){
           if(!leg1Done){
             entries.push({...baseEntry, slotId:sid1, slotLeg:1,
               scheduledDate: leg1?.scheduledDate||null, scheduledTime: leg1?.scheduledTime||null});
-          } else if(!leg2Done){
+          }
+          if(!leg2Done){
             entries.push({...baseEntry, slotId:sid2, slotLeg:2,
               scheduledDate: leg2?.scheduledDate||null, scheduledTime: leg2?.scheduledTime||null});
           }
-          /* si ambos jugados → no aparece */
+          /* si ambos jugados → no aparece ninguno */
         }
       }
       continue;
