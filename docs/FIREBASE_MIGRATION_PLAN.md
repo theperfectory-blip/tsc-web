@@ -24,8 +24,10 @@ para el volumen de este proyecto. Ver sección *Costos*.
 - ✅ **Fase 4** completa: reglas de seguridad por rol **desplegadas y probadas**
   (lectura pública, escritura solo admin, presidente edita su equipo,
   auto-registro seguro sin posibilidad de auto-ascenso). Ya NO en modo prueba.
-- ⏳ **Siguiente — Fase 5**: pantalla admin "Usuarios" (vincular presidentes a
-  equipos, gestionar admins) + pestaña Perfil. Luego Fase 6 (push) y 7 (APK).
+- ✅ **Fases 5–6A/6B** completas: usuarios vinculados, tiempo real onSnapshot, partidos en vivo (grupos/bracket/playoff), audio, Cloudinary logos, calendario con cronograma admin + línea de metro pública en tiempo real.
+- ⏳ **Siguiente — Fase 6 (resto)**: transmisión en vivo (embed YouTube + toggle admin + notificaciones).
+- ⏭️ **Fase 7**: Rediseño visual "motion site".
+- ⏭️ **Fase 8**: APK Android (Capacitor) + FCM push nativo para presidentes.
 
 ---
 
@@ -276,11 +278,16 @@ JSON. Pipeline:
 | **3** | Auth: login, `users`, quitar toggle Público/Admin, rol+teamId | Medio | 2–3 días |
 | **4** | Reglas de seguridad por rol + pruebas | Medio-alto | 1–2 días |
 | **5** | Pestaña Perfil + Admin→Usuarios (vincular usuario↔equipo) | Medio | 1–2 días |
-| **6** | Tiempo real (`onSnapshot`) + push FCM (worker) "en vivo" | Medio | 2–3 días |
-| **7** | Porteo a APK (Capacitor) + lock landscape + manifest | Medio | 1–2 días |
+| **6** | Tiempo real (`onSnapshot`) + transmisión en vivo (embed YouTube, toggle admin) | Medio | 1–2 días |
+| **7** | Rediseño visual completo ("motion site") — nueva identidad, animaciones, UX premium | Alto | 3–5 días |
+| **8** | APK Android (Capacitor) + FCM push nativo + lock landscape + Web App Manifest | Medio | 2–3 días |
 
 > Las fases 0–2 son la columna vertebral y se pueden hacer **sin tocar la UI**.
 > A partir de la fase 1 ya tienes datos compartidos entre dispositivos.
+>
+> **Nota Fase 8:** las notificaciones push a presidentes ("tu equipo juega hoy" / "próximo partido")
+> se implementan junto al APK con FCM nativo. No se implementan antes (PWA push descartada,
+> Telegram/email descartados) — el APK lo resuelve de una manera superior.
 
 ---
 
