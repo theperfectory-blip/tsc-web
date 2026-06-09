@@ -233,36 +233,36 @@
    METRO-LINE TIMELINE
    ================================================================ */
 
-/* Layout: sidebar izquierdo + días */
+/* Layout: días izquierda + timeline derecha */
 .cal-pub-layout{
-  display:flex;gap:24px;align-items:flex-start;
+  display:flex;flex-direction:row-reverse;gap:24px;align-items:flex-start;
 }
 .cal-pub-days{ flex:1;min-width:0; }
 
-/* ── Timeline (vertical desktop) ─────────────────────────── */
+/* ── Timeline (vertical desktop — lado derecho) ──────────── */
 .cal-tl{
-  width:120px;flex-shrink:0;
+  width:116px;flex-shrink:0;
   position:sticky;top:20px;
   display:flex;flex-direction:column;
   gap:0;
-  /* línea vertical continua */
-  border-left:3px solid var(--brd);
-  padding-left:0;
-  margin-left:16px;
+  /* línea vertical: en el borde DERECHO (el dot cuelga de ella) */
+  border-right:3px solid var(--brd);
+  margin-right:16px;
 }
 
 .cal-tl-station{
   position:relative;
-  display:flex;align-items:center;gap:10px;
-  padding:10px 0 10px 18px;
+  display:flex;align-items:center;
+  /* texto a la izquierda, espacio a la derecha para el dot */
+  padding:10px 24px 10px 4px;
   cursor:pointer;
   transition:opacity .2s;
 }
 .cal-tl-station:hover{ opacity:1!important; }
 
-/* Dot sobre la línea */
+/* Dot sobre la línea (borde derecho) */
 .cal-tl-dot{
-  position:absolute;left:-9px;
+  position:absolute;right:-9px;
   width:15px;height:15px;border-radius:50%;
   border:3px solid var(--card);
   transition:transform .2s, box-shadow .2s;
@@ -290,17 +290,18 @@
 .cal-tl-station--past   .cal-tl-label{ color:var(--txt3); }
 .cal-tl-station--active .cal-tl-label{ color:var(--txt); }
 
-/* Popup info (hover) — cristal translúcido igual al sidebar */
+/* Popup info (hover) — cristal translúcido, aparece a la IZQUIERDA */
 .cal-tl-info{
-  position:absolute;left:calc(100% + 12px);top:50%;
+  position:absolute;
+  right:calc(100% + 16px);top:50%;
   background:var(--nav-glass);
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
   border-radius:var(--r);
-  box-shadow:4px 0 28px rgba(0,0,0,0.45);
+  box-shadow:-4px 0 28px rgba(0,0,0,0.45);
   padding:10px 14px;min-width:160px;max-width:240px;
   opacity:0;pointer-events:none;
   transition:opacity .18s, transform .18s;
-  transform:translateY(-50%) translateX(-6px);
+  transform:translateY(-50%) translateX(6px);
   z-index:50;
 }
 .cal-tl-station:hover .cal-tl-info{
@@ -324,12 +325,12 @@
   /* Layout pasa a columna: timeline arriba, días abajo */
   .cal-pub-layout{ flex-direction:column;gap:0; }
 
-  /* Timeline horizontal sticky */
+  /* Timeline horizontal sticky (overrides el posicionamiento de desktop) */
   .cal-tl{
     width:100%;
     flex-direction:row;
-    border-left:none;border-bottom:3px solid var(--brd);
-    margin-left:0;padding-left:0;
+    border-right:none;border-bottom:3px solid var(--brd);
+    margin-right:0;
     position:sticky;top:0;z-index:20;
     background:var(--bg);
     overflow-x:auto;
@@ -353,9 +354,9 @@
   }
   .cal-tl-label{ order:1;font-size:11px; }
 
-  /* Popup: aparece ABAJO en móvil */
+  /* Popup: aparece ARRIBA de la estación en móvil */
   .cal-tl-info{
-    left:50%;top:auto;bottom:calc(100% + 10px);
+    right:auto;left:50%;top:auto;bottom:calc(100% + 10px);
     transform:translateX(-50%) translateY(4px);
     min-width:150px;max-width:210px;
     box-shadow:0 -4px 20px rgba(0,0,0,0.4);
@@ -456,6 +457,19 @@
   box-shadow:0 0 0 2px rgba(37,168,100,0.15)!important;
   transition:border-color .08s;
 }
+
+/* Separador de mes dentro del track */
+.cal-lbl-month-sep{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:11px;font-weight:800;
+  text-transform:uppercase;letter-spacing:1px;
+  color:var(--txt3);
+  padding:10px 0 6px 4px;
+  margin-left:-3px; /* compensa el border-left del track */
+  border-top:1px solid var(--brd);
+  margin-top:4px;
+}
+.cal-lbl-month-sep:first-child{ border-top:none;margin-top:0;padding-top:4px; }
 
 @media(max-width:640px){
   .cal-lbl-date{ width:40px;font-size:11px; }

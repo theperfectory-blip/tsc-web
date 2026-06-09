@@ -457,43 +457,50 @@ async function _calSaveDayLabel(dateStr, text){
   }, 600);
 }
 
-/* Renderiza la sección de cronograma (todos los días del mes con inputs) */
+/* Renderiza el cronograma: mes actual + mes siguiente */
 async function renderAdmCalendarLabels(){
   const el = document.getElementById('adm-calendar-labels');
   if(!el) return;
 
-  const [labels] = await Promise.all([
-    dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]),
-  ]);
+  const labels = await dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]);
   const labelByDate = Object.fromEntries(labels.map(l => [l.date, l.text || '']));
 
   const today = _calTodayStr();
-  const [ty, tm] = today.split('-').map(Number);
-  const daysInMonth = new Date(ty, tm, 0).getDate(); /* último día del mes */
+  const [cy, cm] = today.split('-').map(Number);
 
-  const monthName = _CAL_MESES[tm - 1].charAt(0).toUpperCase() + _CAL_MESES[tm - 1].slice(1);
+  /* mes siguiente (puede cruzar año) */
+  const ny = cm === 12 ? cy + 1 : cy;
+  const nm = cm === 12 ? 1 : cm + 1;
 
-  const days = [];
-  for(let d = 1; d <= daysInMonth; d++){
-    const dateStr  = `${ty}-${String(tm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isPast   = dateStr < today;
-    const isToday  = dateStr === today;
-    const cls      = isPast ? 'past' : isToday ? 'today' : 'future';
-    const dayAbbr  = _CAL_DIAS[new Date(ty, tm - 1, d).getDay()].substring(0, 3);
-    const shortDate= `${d} ${_CAL_MESES[tm-1].substring(0,3)}`;
-    const val      = labelByDate[dateStr] || '';
+  /* genera el bloque de días de un mes */
+  const buildMonthDays = (year, month) => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const rows = [];
+    for(let d = 1; d <= daysInMonth; d++){
+      const dateStr  = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isPast   = dateStr < today;
+      const isToday  = dateStr === today;
+      const cls      = isPast ? 'past' : isToday ? 'today' : 'future';
+      const dayAbbr  = _CAL_DIAS[new Date(year, month - 1, d).getDay()].substring(0, 3);
+      const shortDate= `${d} ${_CAL_MESES[month-1].substring(0,3)}`;
+      const val      = labelByDate[dateStr] || '';
+      rows.push(`
+      <div class="cal-lbl-day cal-lbl-day--${cls}">
+        <span class="cal-lbl-dot"></span>
+        <span class="cal-lbl-date" title="${_esc(dayAbbr)}">${_esc(shortDate)}</span>
+        <input class="cal-lbl-inp" type="text" maxlength="64"
+          placeholder="Ej: Fecha 4 · 2da División"
+          data-date="${_esc(dateStr)}"
+          value="${_esc(val)}"
+          oninput="_calSaveDayLabel(this.dataset.date, this.value)">
+      </div>`);
+    }
+    return rows.join('');
+  };
 
-    days.push(`
-    <div class="cal-lbl-day cal-lbl-day--${cls}">
-      <span class="cal-lbl-dot"></span>
-      <span class="cal-lbl-date" title="${_esc(dayAbbr)}">${_esc(shortDate)}</span>
-      <input class="cal-lbl-inp" type="text" maxlength="64"
-        placeholder="Ej: Fecha 4 · 2da División"
-        data-date="${_esc(dateStr)}"
-        value="${_esc(val)}"
-        oninput="_calSaveDayLabel(this.dataset.date, this.value)">
-    </div>`);
-  }
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const curName  = cap(_CAL_MESES[cm - 1]);
+  const nextName = cap(_CAL_MESES[nm - 1]);
 
   el.innerHTML = `
   <div class="cal-lbl-section">
@@ -501,9 +508,14 @@ async function renderAdmCalendarLabels(){
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
       </svg>
-      Cronograma &mdash; ${_esc(monthName)} ${ty}
+      Cronograma
     </div>
-    <div class="cal-lbl-track">${days.join('')}</div>
+    <div class="cal-lbl-track">
+      <div class="cal-lbl-month-sep">${_esc(curName)} ${cy}</div>
+      ${buildMonthDays(cy, cm)}
+      <div class="cal-lbl-month-sep">${_esc(nextName)} ${ny}</div>
+      ${buildMonthDays(ny, nm)}
+    </div>
   </div>`;
 }
 
