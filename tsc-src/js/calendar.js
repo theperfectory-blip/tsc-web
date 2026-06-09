@@ -174,18 +174,17 @@ async function renderAdmCalendar(){
       continue;
     }
 
-    /* ── BRACKET (copa / eliminación directa) ────────── */
-    if(phase.type === 'bracket'){
-      const matchups  = typeof getMatchupsCount==='function' ? getMatchupsCount(phase) : (parseInt(phase?.config?.matchups)||1);
-      const twoLeg    = phase.config?.legs === 'double';
+    /* ── BRACKET / PLAYOFF / SINGLE ────────────────────
+       Todos usan slotRefs para definir cruces. El matchupCount
+       se deriva del slotIdx máximo en slotRefs (no de config.matchups
+       que puede no existir). Para dos vueltas se muestran leg1 y leg2
+       de forma independiente según cuál esté sin resultado.
+       ─────────────────────────────────────────────────── */
+    if(phase.type==='bracket' || phase.type==='playoff' || phase.type==='single'){
+      const refs      = phase.slotRefs || [];
+      const isBracket = phase.type==='bracket';
 
-      /* slotRefs lookup: matchIdx → {A, B} */
-      const refBySlot = {};
-      for(const ref of (phase.slotRefs||[])){
-        if(!refBySlot[ref.slotIdx]) refBySlot[ref.slotIdx] = {};
-        refBySlot[ref.slotIdx][ref.side] = ref;
-      }
-
+      /* resolver un slotRef a {id, label} */
       const resolveRef = (ref)=>{
         if(!ref) return {id:null, label:'Por definir'};
         if(ref.type==='team'){
@@ -200,92 +199,89 @@ async function renderAdmCalendar(){
         return {id:null, label:'Por definir'};
       };
 
-      for(let mi=0; mi<matchups; mi++){
-        /* docs para este slot (cualquier leg) */
-        const slotDocs = phasMs.filter(m=>
-          m.matchIdx===mi && (m.roundIdx===0 || m.roundIdx==null)
-        );
-        const hasResult = slotDocs.some(m=>m.goalsA!=null);
-        if(hasResult) continue;
+      /* dos vueltas: bracket con legs=double, playoff/single con legs="2" */
+      const twoLeg = isBracket
+        ? phase.config?.legs === 'double'
+        : String(phase.config?.legs) === '2';
 
-        const refs  = refBySlot[mi]||{};
-        const rA    = resolveRef(refs.A);
-        const rB    = resolveRef(refs.B);
-        const taId  = rA.id;
-        const tbId  = rB.id;
-
-        /* labelA/B: nombre real si es equipo directo, sino label */
-        const labelA = teamById[taId]?.name || rA.label;
-        const labelB = teamById[tbId]?.name || rB.label;
-
-        /* sin ninguna asignación (slot vacío) → skip */
-        if(!refs.A && !refs.B && !slotDocs.length) continue;
-
-        /* slotId para el placeholder — debe coincidir con lo que saveBracketMatch busca */
-        const baseSlotId     = `${phase.id}_r0_m${mi}`;
-        const placeholderSid = twoLeg ? baseSlotId+'_leg1' : baseSlotId;
-        const schedDoc       = slotDocs.find(m=>m.scheduledDate);
-
-        entries.push({
-          phase, comp,
-          matchId: null,
-          slotId:       placeholderSid,
-          slotPhaseId:  phase.id,
-          slotTeamAId:  taId,
-          slotTeamBId:  tbId,
-          slotMatchIdx: mi,
-          slotRoundIdx: 0,
-          slotLeg:      twoLeg ? 1 : null,
-          teamA:   teamById[taId]||null,
-          teamB:   teamById[tbId]||null,
-          labelA,
-          labelB,
-          scheduledDate: schedDoc?.scheduledDate||null,
-          scheduledTime: schedDoc?.scheduledTime||null,
-        });
+      /* agrupar refs por slotIdx */
+      const refBySlot = {};
+      for(const ref of refs){
+        if(!refBySlot[ref.slotIdx]) refBySlot[ref.slotIdx] = {};
+        refBySlot[ref.slotIdx][ref.side] = ref;
       }
-      continue;
-    }
 
-    /* ── PLAYOFF / SINGLE / SUPERCOPA ────────────────── */
-    if(phase.type==='playoff' || phase.type==='single'){
-      const slots = phase.playoffSlots||[];
+      /* si hay playoffSlots con equipos asignados manualmente, usarlos como fuente alternativa */
+      const manualSlots = (phase.playoffSlots||[]).filter(s=>s?.teamA!=null||s?.teamB!=null);
 
-      for(let mi=0; mi<slots.length; mi++){
-        const slot = slots[mi];
-        if(!slot) continue;
-        if(!slot.teamA && !slot.teamB && !slot.labelA && !slot.labelB) continue;
+      /* número de cruces = max slotIdx de refs, o largo de playoffSlots si no hay refs */
+      let matchupCount;
+      if(refs.length){
+        matchupCount = refs.reduce((mx,r)=>Math.max(mx,r.slotIdx),-1)+1;
+      } else if(manualSlots.length){
+        matchupCount = (phase.playoffSlots||[]).length;
+      } else {
+        continue;
+      }
 
-        const slotDocs     = phasMs.filter(m=>m.matchIdx===mi);
-        const hasAllResult = slotDocs.length>0 && slotDocs.every(m=>m.goalsA!=null && m.goalsB!=null);
-        if(hasAllResult) continue;
+      for(let mi=0; mi<matchupCount; mi++){
+        /* resolver equipo A y B */
+        let taId=null, tbId=null, labelA='Por definir', labelB='Por definir';
+        const curRefs = refBySlot[mi];
+        if(curRefs){
+          const rA = resolveRef(curRefs.A);
+          const rB = resolveRef(curRefs.B);
+          taId   = rA.id; tbId   = rB.id;
+          labelA = teamById[taId]?.name || rA.label;
+          labelB = teamById[tbId]?.name || rB.label;
+        } else if(manualSlots[mi]){
+          const s = manualSlots[mi];
+          taId   = s.teamA ? parseInt(s.teamA) : null;
+          tbId   = s.teamB ? parseInt(s.teamB) : null;
+          labelA = teamById[taId]?.name || s.labelA || 'Por definir';
+          labelB = teamById[tbId]?.name || s.labelB || 'Por definir';
+        } else {
+          continue;
+        }
 
-        const taId   = slot.teamA ? parseInt(slot.teamA) : null;
-        const tbId   = slot.teamB ? parseInt(slot.teamB) : null;
-        const labelA = teamById[taId]?.name || slot.labelA || 'Por definir';
-        const labelB = teamById[tbId]?.name || slot.labelB || 'Por definir';
-
-        /* slotId debe coincidir con lo que savePlayoffLeg busca */
-        const placeholderSid = `${phase.id}_m${mi}_leg1`;
-        const schedDoc       = slotDocs.find(m=>m.scheduledDate);
-
-        entries.push({
+        const baseEntry = {
           phase, comp,
           matchId: null,
-          slotId:       placeholderSid,
           slotPhaseId:  phase.id,
           slotTeamAId:  taId,
           slotTeamBId:  tbId,
           slotMatchIdx: mi,
-          slotRoundIdx: null,
-          slotLeg:      1,
+          slotRoundIdx: isBracket ? 0 : null,
           teamA:   teamById[taId]||null,
           teamB:   teamById[tbId]||null,
           labelA,
           labelB,
-          scheduledDate: schedDoc?.scheduledDate||null,
-          scheduledTime: schedDoc?.scheduledTime||null,
-        });
+        };
+
+        if(!twoLeg){
+          /* vuelta única */
+          const slotId = `${phase.id}_r0_m${mi}`;
+          const doc    = phasMs.find(m=>m.slotId===slotId);
+          if(doc && doc.goalsA!=null) continue;
+          entries.push({...baseEntry, slotId, slotLeg:null,
+            scheduledDate: doc?.scheduledDate||null, scheduledTime: doc?.scheduledTime||null});
+        } else {
+          /* dos vueltas: mostrar el leg pendiente */
+          const sid1 = isBracket ? `${phase.id}_r0_m${mi}_leg1` : `${phase.id}_m${mi}_leg1`;
+          const sid2 = isBracket ? `${phase.id}_r0_m${mi}_leg2` : `${phase.id}_m${mi}_leg2`;
+          const leg1 = phasMs.find(m=>m.slotId===sid1);
+          const leg2 = phasMs.find(m=>m.slotId===sid2);
+          const leg1Done = leg1 && leg1.goalsA!=null;
+          const leg2Done = leg2 && leg2.goalsA!=null;
+          if(!leg1Done){
+            entries.push({...baseEntry, slotId:sid1, slotLeg:1,
+              scheduledDate: leg1?.scheduledDate||null, scheduledTime: leg1?.scheduledTime||null});
+          } else if(!leg2Done){
+            entries.push({...baseEntry, slotId:sid2, slotLeg:2,
+              scheduledDate: leg2?.scheduledDate||null, scheduledTime: leg2?.scheduledTime||null});
+          }
+          /* si ambos jugados → no aparece */
+        }
       }
       continue;
     }
