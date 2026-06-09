@@ -14,39 +14,118 @@ function _calTodayStr(){
 }
 
 /* ─ logo helper ──────────────────────────────────────────── */
-function _calLogo(team, size){
+function _calLogo(team, size, fallbackLabel){
   const s = size||36;
-  if(!team) return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;font-size:${Math.floor(s/3)}px;">?</div>`;
+  if(!team){
+    const initials = fallbackLabel ? String(fallbackLabel).substring(0,2).toUpperCase() : '?';
+    return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:#555;font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
+  }
   if(team.logo) return `<img class="cal-logo" src="${_esc(team.logo)}" style="width:${s}px;height:${s}px;" alt="${_esc(team.name)}">`;
   const initials = (team.name||'?').substring(0,2).toUpperCase();
   const bg = team.color||'#555';
   return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:${_esc(bg)};font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
 }
 
-/* ─ guardar programación con debounce ────────────────────── */
+/* ================================================================
+   GUARDADO — debounced
+   ================================================================ */
 const _calTimer = {};
 
-function _calSave(matchId, dateStr, timeStr){
-  clearTimeout(_calTimer[matchId]);
-  _calTimer[matchId] = setTimeout(async ()=>{
+/* Grupo: actualiza doc de partido existente */
+function _calSave(matchId, dateStr, timeStr, rkey){
+  const key = rkey || String(matchId);
+  clearTimeout(_calTimer[key]);
+  _calTimer[key] = setTimeout(async ()=>{
     const m = await dbGet('matches', matchId);
     if(!m) return;
     await dbPut('matches', {...m, scheduledDate: dateStr||null, scheduledTime: timeStr||null});
-    const row = document.querySelector(`.cal-adm-row[data-mid="${matchId}"]`);
-    if(row){ row.classList.add('cal-adm-row--ok'); setTimeout(()=>row.classList.remove('cal-adm-row--ok'),1200); }
+    _calRowOk(key);
   }, 700);
 }
 
-async function calClearSchedule(matchId){
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
+/* Bracket / playoff: crea o actualiza placeholder doc */
+function _calSaveSlot(phaseId, slotId, teamA, teamB, labelA, labelB, matchIdx, roundIdx, leg, dateStr, timeStr, rkey){
+  const key = rkey || slotId;
+  clearTimeout(_calTimer[key]);
+  _calTimer[key] = setTimeout(async ()=>{
+    const existing = await dbGetAll('matches', m => m.slotId===slotId && m.phaseId===phaseId);
+    if(existing.length){
+      // Preservar resultado si ya existe — solo actualizar schedule
+      for(const doc of existing){
+        await dbPut('matches', {...doc, scheduledDate: dateStr||null, scheduledTime: timeStr||null});
+      }
+    } else {
+      const data = {
+        slotId,
+        phaseId,
+        teamA: teamA!=null ? teamA : null,
+        teamB: teamB!=null ? teamB : null,
+        labelA: labelA || null,
+        labelB: labelB || null,
+        goalsA: null,
+        goalsB: null,
+        season: STATE.season,
+        scheduledDate: dateStr||null,
+        scheduledTime: timeStr||null,
+      };
+      if(matchIdx != null) data.matchIdx = matchIdx;
+      if(roundIdx != null) data.roundIdx = roundIdx;
+      if(leg      != null) data.leg      = leg;
+      await dbAdd('matches', data);
+    }
+    _calRowOk(key);
+  }, 700);
+}
+
+function _calRowOk(key){
+  const row = document.querySelector(`.cal-adm-row[data-rkey="${key}"]`);
+  if(row){ row.classList.add('cal-adm-row--ok'); setTimeout(()=>row.classList.remove('cal-adm-row--ok'),1200); }
+}
+
+/* Handler unificado para los inputs de fecha/hora */
+function _calOnChange(input){
+  const row    = input.closest('.cal-adm-row');
+  const date   = row.querySelector('.cal-inp-date').value;
+  const time   = row.querySelector('.cal-inp-time').value;
+  const rkey   = row.dataset.rkey;
+  const mid    = row.dataset.mid;
+  if(mid){
+    _calSave(parseInt(mid), date, time, rkey);
+    return;
+  }
+  const sid  = row.dataset.sid;
+  const pid  = parseInt(row.dataset.pid);
+  const ta   = row.dataset.ta  ? parseInt(row.dataset.ta)  : null;
+  const tb   = row.dataset.tb  ? parseInt(row.dataset.tb)  : null;
+  const la   = row.dataset.la  || '';
+  const lb   = row.dataset.lb  || '';
+  const mi   = row.dataset.mi  !== '' && row.dataset.mi  != null ? parseInt(row.dataset.mi)  : null;
+  const ri   = row.dataset.ri  !== '' && row.dataset.ri  != null ? parseInt(row.dataset.ri)  : null;
+  const leg  = row.dataset.leg !== '' && row.dataset.leg != null ? parseInt(row.dataset.leg) : null;
+  _calSaveSlot(pid, sid, ta, tb, la, lb, mi, ri, leg, date, time, rkey);
+}
+
+async function calClearSchedule(matchId, phaseId, slotId){
+  if(matchId!=null && matchId!=='null'){
+    const m = await dbGet('matches', parseInt(matchId));
+    if(m) await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
+  } else if(slotId && phaseId!=null){
+    const pid = parseInt(phaseId);
+    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===pid);
+    for(const m of existing){
+      if(m.goalsA==null && m.goalsB==null){
+        await dbDelete('matches', m.id);
+      } else {
+        await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
+      }
+    }
+  }
   showToast('Programación eliminada');
   await renderAdmCalendar();
 }
 
 /* ================================================================
-   VISTA ADMIN
+   VISTA ADMIN — renderAdmCalendar
    ================================================================ */
 async function renderAdmCalendar(){
   const el = document.getElementById('adm-calendar-content');
@@ -61,12 +140,158 @@ async function renderAdmCalendar(){
   ]);
 
   const teamById  = Object.fromEntries(teams.map(t=>[t.id, t]));
-  const phaseById = Object.fromEntries(allPhases.map(p=>[p.id, p]));
   const compById  = Object.fromEntries(comps.map(c=>[c.id, c]));
 
-  const pending = allMatches.filter(m=> m.goalsA==null && m.teamA && m.teamB);
+  /* agrupar matches por phaseId para búsqueda rápida */
+  const byPhase = {};
+  for(const m of allMatches){
+    if(!byPhase[m.phaseId]) byPhase[m.phaseId] = [];
+    byPhase[m.phaseId].push(m);
+  }
 
-  if(!pending.length){
+  /* ── Construir lista unificada de "entradas pendientes" ─────── */
+  const entries = [];
+
+  for(const phase of allPhases){
+    const comp   = compById[phase.compId];
+    const phasMs = byPhase[phase.id] || [];
+
+    /* ── GRUPOS ─────────────────────────────────────── */
+    if(phase.type === 'groups'){
+      for(const m of phasMs){
+        if(m.goalsA!=null || !m.teamA || !m.teamB) continue;
+        entries.push({
+          phase, comp,
+          matchId: m.id,
+          teamA:   teamById[m.teamA] || null,
+          teamB:   teamById[m.teamB] || null,
+          labelA:  teamById[m.teamA]?.name || String(m.teamA),
+          labelB:  teamById[m.teamB]?.name || String(m.teamB),
+          scheduledDate: m.scheduledDate||null,
+          scheduledTime: m.scheduledTime||null,
+        });
+      }
+      continue;
+    }
+
+    /* ── BRACKET (copa / eliminación directa) ────────── */
+    if(phase.type === 'bracket'){
+      const matchups  = typeof getMatchupsCount==='function' ? getMatchupsCount(phase) : (parseInt(phase?.config?.matchups)||1);
+      const twoLeg    = phase.config?.legs === 'double';
+
+      /* slotRefs lookup: matchIdx → {A, B} */
+      const refBySlot = {};
+      for(const ref of (phase.slotRefs||[])){
+        if(!refBySlot[ref.slotIdx]) refBySlot[ref.slotIdx] = {};
+        refBySlot[ref.slotIdx][ref.side] = ref;
+      }
+
+      const resolveRef = (ref)=>{
+        if(!ref) return {id:null, label:'Por definir'};
+        if(ref.type==='team'){
+          const id = parseInt(ref.teamId);
+          return {id, label: teamById[id]?.name || '?'};
+        }
+        if(ref.type==='ref'){
+          const g = String.fromCharCode(65+parseInt(ref.groupIdx));
+          return {id:null, label:`Pos ${ref.place} G${g}`};
+        }
+        if(ref.type==='playoff_winner') return {id:null, label:`Gan. Llave ${(ref.matchIdx||0)+1}`};
+        return {id:null, label:'Por definir'};
+      };
+
+      for(let mi=0; mi<matchups; mi++){
+        /* docs para este slot (cualquier leg) */
+        const slotDocs = phasMs.filter(m=>
+          m.matchIdx===mi && (m.roundIdx===0 || m.roundIdx==null)
+        );
+        const hasResult = slotDocs.some(m=>m.goalsA!=null);
+        if(hasResult) continue;
+
+        const refs  = refBySlot[mi]||{};
+        const rA    = resolveRef(refs.A);
+        const rB    = resolveRef(refs.B);
+        const taId  = rA.id;
+        const tbId  = rB.id;
+
+        /* labelA/B: nombre real si es equipo directo, sino label */
+        const labelA = teamById[taId]?.name || rA.label;
+        const labelB = teamById[tbId]?.name || rB.label;
+
+        /* sin ninguna asignación (slot vacío) → skip */
+        if(!refs.A && !refs.B && !slotDocs.length) continue;
+
+        /* slotId para el placeholder — debe coincidir con lo que saveBracketMatch busca */
+        const baseSlotId     = `${phase.id}_r0_m${mi}`;
+        const placeholderSid = twoLeg ? baseSlotId+'_leg1' : baseSlotId;
+        const schedDoc       = slotDocs.find(m=>m.scheduledDate);
+
+        entries.push({
+          phase, comp,
+          matchId: null,
+          slotId:       placeholderSid,
+          slotPhaseId:  phase.id,
+          slotTeamAId:  taId,
+          slotTeamBId:  tbId,
+          slotMatchIdx: mi,
+          slotRoundIdx: 0,
+          slotLeg:      twoLeg ? 1 : null,
+          teamA:   teamById[taId]||null,
+          teamB:   teamById[tbId]||null,
+          labelA,
+          labelB,
+          scheduledDate: schedDoc?.scheduledDate||null,
+          scheduledTime: schedDoc?.scheduledTime||null,
+        });
+      }
+      continue;
+    }
+
+    /* ── PLAYOFF / SINGLE / SUPERCOPA ────────────────── */
+    if(phase.type==='playoff' || phase.type==='single'){
+      const slots = phase.playoffSlots||[];
+
+      for(let mi=0; mi<slots.length; mi++){
+        const slot = slots[mi];
+        if(!slot) continue;
+        if(!slot.teamA && !slot.teamB && !slot.labelA && !slot.labelB) continue;
+
+        const slotDocs     = phasMs.filter(m=>m.matchIdx===mi);
+        const hasAllResult = slotDocs.length>0 && slotDocs.every(m=>m.goalsA!=null && m.goalsB!=null);
+        if(hasAllResult) continue;
+
+        const taId   = slot.teamA ? parseInt(slot.teamA) : null;
+        const tbId   = slot.teamB ? parseInt(slot.teamB) : null;
+        const labelA = teamById[taId]?.name || slot.labelA || 'Por definir';
+        const labelB = teamById[tbId]?.name || slot.labelB || 'Por definir';
+
+        /* slotId debe coincidir con lo que savePlayoffLeg busca */
+        const placeholderSid = `${phase.id}_m${mi}_leg1`;
+        const schedDoc       = slotDocs.find(m=>m.scheduledDate);
+
+        entries.push({
+          phase, comp,
+          matchId: null,
+          slotId:       placeholderSid,
+          slotPhaseId:  phase.id,
+          slotTeamAId:  taId,
+          slotTeamBId:  tbId,
+          slotMatchIdx: mi,
+          slotRoundIdx: null,
+          slotLeg:      1,
+          teamA:   teamById[taId]||null,
+          teamB:   teamById[tbId]||null,
+          labelA,
+          labelB,
+          scheduledDate: schedDoc?.scheduledDate||null,
+          scheduledTime: schedDoc?.scheduledTime||null,
+        });
+      }
+      continue;
+    }
+  }
+
+  if(!entries.length){
     el.innerHTML = `<div class="cal-empty">
       <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       <p>No hay partidos pendientes de programar</p>
@@ -74,79 +299,101 @@ async function renderAdmCalendar(){
     return;
   }
 
-  const sortKey = m => (m.scheduledDate||'9999')+(m.scheduledTime||'00:00');
-  const scheduled   = pending.filter(m=>  m.scheduledDate).sort((a,b)=>sortKey(a)<sortKey(b)?-1:1);
-  const unscheduled = pending.filter(m=> !m.scheduledDate);
+  /* split: programados / sin programar */
+  const scheduled   = entries.filter(e=>  e.scheduledDate).sort((a,b)=>{
+    const ka=a.scheduledDate+(a.scheduledTime||'00:00');
+    const kb=b.scheduledDate+(b.scheduledTime||'00:00');
+    return ka<kb?-1:1;
+  });
+  const unscheduled = entries.filter(e=> !e.scheduledDate);
 
-  const byDate = {};
-  for(const m of scheduled){
-    if(!byDate[m.scheduledDate]) byDate[m.scheduledDate] = [];
-    byDate[m.scheduledDate].push(m);
+  const byDate={};
+  for(const e of scheduled){
+    if(!byDate[e.scheduledDate]) byDate[e.scheduledDate]=[];
+    byDate[e.scheduledDate].push(e);
   }
 
-  const rowHtml = (m)=>{
-    const ta    = teamById[m.teamA];
-    const tb    = teamById[m.teamB];
-    const phase = phaseById[m.phaseId];
-    const comp  = phase ? compById[phase.compId] : null;
-    const taN   = ta?.name || String(m.teamA);
-    const tbN   = tb?.name || String(m.teamB);
-    const phN   = phase?.name || '';
-    const col   = comp?.color || 'var(--gold)';
-    const hasSched = !!m.scheduledDate;
+  /* ── row HTML ───────────────────────────────────────────── */
+  const rowHtml = (e)=>{
+    const col      = e.comp?.color||'var(--gold)';
+    const compN    = e.comp?.name||'';
+    const phN      = e.phase?.name||'';
+    const badge    = [compN,phN].filter(Boolean).join(' · ');
+    const hasSched = !!e.scheduledDate;
+
+    /* data-* attributes para _calOnChange */
+    const rkey = e.matchId ? String(e.matchId) : String(e.slotId);
+    let dataAttrs = `data-rkey="${_esc(rkey)}"`;
+    if(e.matchId){
+      dataAttrs += ` data-mid="${e.matchId}"`;
+    } else {
+      dataAttrs += ` data-sid="${_esc(e.slotId)}"`;
+      dataAttrs += ` data-pid="${e.slotPhaseId}"`;
+      dataAttrs += ` data-ta="${e.slotTeamAId!=null?e.slotTeamAId:''}"`;
+      dataAttrs += ` data-tb="${e.slotTeamBId!=null?e.slotTeamBId:''}"`;
+      dataAttrs += ` data-la="${_esc(e.labelA)}"`;
+      dataAttrs += ` data-lb="${_esc(e.labelB)}"`;
+      dataAttrs += ` data-mi="${e.slotMatchIdx!=null?e.slotMatchIdx:''}"`;
+      dataAttrs += ` data-ri="${e.slotRoundIdx!=null?e.slotRoundIdx:''}"`;
+      dataAttrs += ` data-leg="${e.slotLeg!=null?e.slotLeg:''}"`;
+    }
+
+    /* clear call */
+    const clearCall = e.matchId
+      ? `calClearSchedule('${e.matchId}',null,null)`
+      : `calClearSchedule(null,'${e.slotPhaseId}','${_esc(e.slotId)}')`;
+
     return `
-    <div class="cal-adm-row${hasSched?' cal-adm-row--sched':''}" data-mid="${m.id}">
+    <div class="cal-adm-row${hasSched?' cal-adm-row--sched':''}" ${dataAttrs}>
       <div class="cal-adm-teams">
-        ${_calLogo(ta,28)}
-        <span class="cal-adm-tname">${_esc(taN)}</span>
+        ${_calLogo(e.teamA, 28, e.labelA)}
+        <span class="cal-adm-tname">${_esc(e.labelA)}</span>
         <span class="cal-adm-vs">vs</span>
-        <span class="cal-adm-tname">${_esc(tbN)}</span>
-        ${_calLogo(tb,28)}
+        <span class="cal-adm-tname">${_esc(e.labelB)}</span>
+        ${_calLogo(e.teamB, 28, e.labelB)}
       </div>
       <div class="cal-adm-controls">
-        <span class="cal-adm-phase" style="color:${col};border-color:${col};">${_esc(phN)}</span>
-        <input type="date" class="cal-inp cal-inp-date" value="${m.scheduledDate||''}"
-          title="Fecha" aria-label="Fecha del partido"
-          onchange="_calSave(${m.id},this.value,this.closest('.cal-adm-row').querySelector('.cal-inp-time').value)">
-        <input type="time" class="cal-inp cal-inp-time" value="${m.scheduledTime||''}"
-          title="Hora" aria-label="Hora del partido"
-          onchange="_calSave(${m.id},this.closest('.cal-adm-row').querySelector('.cal-inp-date').value,this.value)">
-        ${hasSched?`<button class="btn btn-xs cal-adm-clear" onclick="calClearSchedule(${m.id})" title="Quitar fecha">
+        <span class="cal-adm-phase" style="color:${col};border-color:${col};">${_esc(badge)}</span>
+        <input type="date" class="cal-inp cal-inp-date" value="${e.scheduledDate||''}"
+          title="Fecha" onchange="_calOnChange(this)">
+        <input type="time" class="cal-inp cal-inp-time" value="${e.scheduledTime||''}"
+          title="Hora" onchange="_calOnChange(this)">
+        ${hasSched?`<button class="btn btn-xs cal-adm-clear" onclick="${clearCall}" title="Quitar fecha">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>`:''}
       </div>
     </div>`;
   };
 
-  const sectionHdr = (label, icon, count, muted)=>`
+  const sectionHdr=(label,icon,count,muted)=>`
     <div class="cal-adm-hdr${muted?' cal-adm-hdr--muted':''}">
       ${icon}
       <span>${label}</span>
       <span class="cal-adm-hdr-count">${count} partido${count!==1?'s':''}</span>
     </div>`;
 
-  const icoCalendar = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
-  const icoInfo     = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+  const icoCalendar=`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+  const icoInfo    =`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
 
-  let html = '';
-  for(const [dateStr, ms] of Object.entries(byDate)){
-    html += `<section class="cal-adm-section">
-      ${sectionHdr(_calFormatDay(dateStr), icoCalendar, ms.length, false)}
+  let html='';
+  for(const [dateStr,ms] of Object.entries(byDate)){
+    html+=`<section class="cal-adm-section">
+      ${sectionHdr(_calFormatDay(dateStr),icoCalendar,ms.length,false)}
       ${ms.map(rowHtml).join('')}
     </section>`;
   }
   if(unscheduled.length){
-    html += `<section class="cal-adm-section cal-adm-section--unsched">
-      ${sectionHdr('Sin programar', icoInfo, unscheduled.length, true)}
+    html+=`<section class="cal-adm-section cal-adm-section--unsched">
+      ${sectionHdr('Sin programar',icoInfo,unscheduled.length,true)}
       ${unscheduled.map(rowHtml).join('')}
     </section>`;
   }
 
-  el.innerHTML = html;
+  el.innerHTML=html;
 }
 
 /* ================================================================
-   VISTA PÚBLICA
+   VISTA PÚBLICA — renderPubCalendar
    ================================================================ */
 async function renderPubCalendar(){
   const el = document.getElementById('pub-calendar-content');
@@ -165,16 +412,17 @@ async function renderPubCalendar(){
   const compById  = Object.fromEntries(comps.map(c=>[c.id, c]));
   const today     = _calTodayStr();
 
+  /* incluir partidos de CUALQUIER tipo que tengan scheduledDate y sin resultado */
   const upcoming = allMatches
-    .filter(m=> m.scheduledDate && m.scheduledDate>=today && m.goalsA==null && m.teamA && m.teamB)
+    .filter(m=> m.scheduledDate && m.scheduledDate>=today && m.goalsA==null)
     .sort((a,b)=>{
-      const ka = a.scheduledDate+(a.scheduledTime||'00:00');
-      const kb = b.scheduledDate+(b.scheduledTime||'00:00');
+      const ka=a.scheduledDate+(a.scheduledTime||'00:00');
+      const kb=b.scheduledDate+(b.scheduledTime||'00:00');
       return ka<kb?-1:1;
     });
 
   if(!upcoming.length){
-    el.innerHTML = `
+    el.innerHTML=`
     <div class="cal-pub-empty">
       <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       <div class="cal-pub-empty-title">Sin partidos programados</div>
@@ -183,54 +431,56 @@ async function renderPubCalendar(){
     return;
   }
 
-  const byDate = {};
+  const byDate={};
   for(const m of upcoming){
-    if(!byDate[m.scheduledDate]) byDate[m.scheduledDate] = [];
+    if(!byDate[m.scheduledDate]) byDate[m.scheduledDate]=[];
     byDate[m.scheduledDate].push(m);
   }
 
-  const cardHtml = (m)=>{
-    const ta    = teamById[m.teamA];
-    const tb    = teamById[m.teamB];
+  const cardHtml=(m)=>{
+    const ta    = teamById[m.teamA]||null;
+    const tb    = teamById[m.teamB]||null;
     const phase = phaseById[m.phaseId];
     const comp  = phase ? compById[phase.compId] : null;
-    const taN   = ta?.name || String(m.teamA);
-    const tbN   = tb?.name || String(m.teamB);
-    const compN = comp?.name || '';
-    const phN   = phase?.name || '';
-    const col   = comp?.color || 'var(--gold)';
+
+    /* nombres: team object > labelA/B del doc > fallback */
+    const taN   = ta?.name || m.labelA || 'Por definir';
+    const tbN   = tb?.name || m.labelB || 'Por definir';
+    const compN = comp?.name||'';
+    const phN   = phase?.name||'';
+    const col   = comp?.color||'var(--gold)';
     const time  = m.scheduledTime ? m.scheduledTime.substring(0,5) : null;
-    const label = [compN, phN].filter(Boolean).join(' · ');
+    const label = [compN,phN].filter(Boolean).join(' · ');
 
     return `
     <div class="cal-pub-card" style="--cc:${col};">
       <div class="cal-pub-card-head">
         <span class="cal-pub-comp" style="color:${col};">${_esc(label)}</span>
-        ${time?`<span class="cal-pub-time">
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          ${_esc(time)}
-        </span>`:'<span class="cal-pub-time cal-pub-time--tbd">Hora por definir</span>'}
+        ${time
+          ?`<span class="cal-pub-time"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${_esc(time)}</span>`
+          :`<span class="cal-pub-time cal-pub-time--tbd">Hora por definir</span>`
+        }
       </div>
       <div class="cal-pub-matchup">
         <div class="cal-pub-team">
-          ${_calLogo(ta, 44)}
+          ${_calLogo(ta, 44, taN)}
           <span class="cal-pub-tname">${_esc(taN)}</span>
         </div>
         <span class="cal-pub-vs">VS</span>
         <div class="cal-pub-team cal-pub-team--r">
           <span class="cal-pub-tname">${_esc(tbN)}</span>
-          ${_calLogo(tb, 44)}
+          ${_calLogo(tb, 44, tbN)}
         </div>
       </div>
     </div>`;
   };
 
-  const total = upcoming.length;
-  let html = `<div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>`;
+  const total=upcoming.length;
+  let html=`<div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>`;
 
-  for(const [dateStr, ms] of Object.entries(byDate)){
-    const isToday = dateStr === today;
-    html += `
+  for(const [dateStr,ms] of Object.entries(byDate)){
+    const isToday=dateStr===today;
+    html+=`
     <div class="cal-pub-day">
       <div class="cal-pub-day-hdr${isToday?' cal-pub-day-hdr--today':''}">
         <div class="cal-pub-day-pill">
@@ -245,5 +495,5 @@ async function renderPubCalendar(){
     </div>`;
   }
 
-  el.innerHTML = html;
+  el.innerHTML=html;
 }

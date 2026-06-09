@@ -462,14 +462,26 @@ async function openPlayoffTeamAssign(phaseId, matchIdx){
   // ── Construir pools disponibles ────────────────────────────
   const pools = await buildPlayoffPools(phaseId);
 
+  // IDs ya usados en OTROS cruces (no el actual)
+  const usedElsewhere = new Set();
+  slots.forEach((s,i)=>{
+    if(i===matchIdx) return;
+    if(s?.teamA!=null) usedElsewhere.add(String(s.teamA));
+    if(s?.teamB!=null) usedElsewhere.add(String(s.teamB));
+  });
+  // IDs del cruce actual (siempre visibles para poder cambiarlos)
+  const curUsed = new Set([cur.teamA, cur.teamB].filter(v=>v!=null).map(String));
+
   // Generar HTML de optgroups. `selected` puede ser ID number o string legacy.
   const buildOpts = (selected) => {
     const selStr = selected==null ? '' : String(selected);
     let html = `<option value="">— Seleccionar —</option>`;
     pools.forEach(pool=>{
-      if(!pool.options.length) return;
+      // Filtrar opciones ya asignadas en otros cruces (excepto las del cruce actual)
+      const opts = pool.options.filter(o=>!usedElsewhere.has(String(o.value))||curUsed.has(String(o.value)));
+      if(!opts.length) return;
       html += `<optgroup label="${pool.label}">`;
-      pool.options.forEach(opt=>{
+      opts.forEach(opt=>{
         const sel = String(opt.value)===selStr ? ' selected' : '';
         html += `<option value="${String(opt.value).replace(/"/g,'&quot;')}"${sel}>${opt.label}</option>`;
       });
