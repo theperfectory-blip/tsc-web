@@ -15,9 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # 1) Hosting (la web)
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TSC_WEB_YUNA }}
           channelId: live
           projectId: tsc-web-yuna
+
+      # 2) Reglas de Firestore (seguridad) — se despliegan en cada push a main
+      - name: Deploy Firestore rules
+        uses: w9jds/firebase-action@v14.13.1
+        with:
+          args: deploy --only firestore:rules --project tsc-web-yuna
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TSC_WEB_YUNA }}

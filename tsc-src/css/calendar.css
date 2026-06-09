@@ -310,14 +310,14 @@
 }
 .cal-tl-info-date{
   font-size:10px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.6px;color:var(--txt3);margin-bottom:5px;
+  letter-spacing:.6px;color:var(--txt);opacity:.85;margin-bottom:5px;
 }
 .cal-tl-info-label{
   font-size:13px;font-weight:700;color:var(--txt);
   line-height:1.35;margin-bottom:4px;
 }
 .cal-tl-info-cnt{
-  font-size:11px;color:var(--txt3);margin-top:2px;
+  font-size:11px;color:var(--txt);opacity:.9;margin-top:2px;
 }
 
 /* ── Responsive ───────────────────────────────────────────── */
@@ -458,18 +458,25 @@
   transition:border-color .08s;
 }
 
-/* Separador de mes dentro del track */
-.cal-lbl-month-sep{
-  font-family:'Barlow Condensed',sans-serif;
-  font-size:11px;font-weight:800;
-  text-transform:uppercase;letter-spacing:1px;
-  color:var(--txt3);
-  padding:10px 0 6px 4px;
-  margin-left:-3px; /* compensa el border-left del track */
-  border-top:1px solid var(--brd);
-  margin-top:4px;
+/* Navegación de mes (‹ Mes Año ›) */
+.cal-lbl-nav{
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  margin-bottom:16px;
 }
-.cal-lbl-month-sep:first-child{ border-top:none;margin-top:0;padding-top:4px; }
+.cal-lbl-arrow{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;flex-shrink:0;
+  background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);color:var(--txt2);cursor:pointer;
+  transition:border-color .15s,color .15s,background .15s;
+}
+.cal-lbl-arrow:hover{ border-color:var(--gold);color:var(--gold);background:var(--gold-l); }
+.cal-lbl-nav-title{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:16px;font-weight:800;
+  text-transform:uppercase;letter-spacing:1px;
+  color:var(--txt);min-width:150px;text-align:center;
+}
 
 @media(max-width:640px){
   .cal-lbl-date{ width:40px;font-size:11px; }
