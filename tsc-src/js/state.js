@@ -15,6 +15,6 @@ const STATE = {
    BASE DE DATOS (IndexedDB)
    ---------------------------------------------------------- */
 const DB_NAME = 'TSC_v4';
-const DB_VER  = 5;
-const STORES  = ['seasons','teams','competitions','phases','matches','coins','history','settings','matchHistory','sorteo','palmares','palmares-comps'];
+const DB_VER  = 6;
+const STORES  = ['seasons','teams','competitions','phases','matches','coins','history','settings','matchHistory','sorteo','palmares','palmares-comps','calDayLabels'];
 let db;

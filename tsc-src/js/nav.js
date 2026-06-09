@@ -219,7 +219,7 @@ async function renderAdminPage(page){
     case 'historial-admin':       await renderAdmHistory();           break;
     case 'historial-tabla-admin': await renderAdmHistoryStandings();   break;
     case 'palmares-admin':        await renderAdmPalmares();           break;
-    case 'calendario-admin':      await renderAdmCalendar();           break;
+    case 'calendario-admin':      await renderAdmCalendar(); await renderAdmCalendarLabels(); break;
   }
 }
 

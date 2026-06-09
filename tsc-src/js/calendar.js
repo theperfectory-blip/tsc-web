@@ -429,6 +429,80 @@ async function renderAdmCalendar(){
 }
 
 /* ================================================================
+   CRONOGRAMA ADMIN — labels de días
+   ================================================================ */
+
+/* Guarda (debounced) el texto del label de un día */
+const _calLblTimer = {};
+async function _calSaveDayLabel(dateStr, text){
+  clearTimeout(_calLblTimer[dateStr]);
+  _calLblTimer[dateStr] = setTimeout(async ()=>{
+    const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
+    if(existing.length){
+      await dbPut('calDayLabels', {...existing[0], text: text || ''});
+    } else if(text && text.trim()){
+      await dbAdd('calDayLabels', {season: STATE.season, date: dateStr, text});
+    }
+    /* feedback visual en el input */
+    const inp = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
+    if(inp){
+      inp.classList.add('cal-lbl-inp--saved');
+      setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900);
+    }
+  }, 600);
+}
+
+/* Renderiza la sección de cronograma (todos los días del mes con inputs) */
+async function renderAdmCalendarLabels(){
+  const el = document.getElementById('adm-calendar-labels');
+  if(!el) return;
+
+  const [labels] = await Promise.all([
+    dbGetAll('calDayLabels', r => r.season === STATE.season),
+  ]);
+  const labelByDate = Object.fromEntries(labels.map(l => [l.date, l.text || '']));
+
+  const today = _calTodayStr();
+  const [ty, tm] = today.split('-').map(Number);
+  const daysInMonth = new Date(ty, tm, 0).getDate(); /* último día del mes */
+
+  const monthName = _CAL_MESES[tm - 1].charAt(0).toUpperCase() + _CAL_MESES[tm - 1].slice(1);
+
+  const days = [];
+  for(let d = 1; d <= daysInMonth; d++){
+    const dateStr  = `${ty}-${String(tm).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isPast   = dateStr < today;
+    const isToday  = dateStr === today;
+    const cls      = isPast ? 'past' : isToday ? 'today' : 'future';
+    const dayAbbr  = _CAL_DIAS[new Date(ty, tm - 1, d).getDay()].substring(0, 3);
+    const shortDate= `${d} ${_CAL_MESES[tm-1].substring(0,3)}`;
+    const val      = labelByDate[dateStr] || '';
+
+    days.push(`
+    <div class="cal-lbl-day cal-lbl-day--${cls}">
+      <span class="cal-lbl-dot"></span>
+      <span class="cal-lbl-date" title="${_esc(dayAbbr)}">${_esc(shortDate)}</span>
+      <input class="cal-lbl-inp" type="text" maxlength="64"
+        placeholder="Ej: Fecha 4 · 2da División"
+        data-date="${_esc(dateStr)}"
+        value="${_esc(val)}"
+        oninput="_calSaveDayLabel(this.dataset.date, this.value)">
+    </div>`);
+  }
+
+  el.innerHTML = `
+  <div class="cal-lbl-section">
+    <div class="cal-lbl-hdr">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+      Cronograma &mdash; ${_esc(monthName)} ${ty}
+    </div>
+    <div class="cal-lbl-track">${days.join('')}</div>
+  </div>`;
+}
+
+/* ================================================================
    VISTA PÚBLICA — renderPubCalendar
    ================================================================ */
 async function renderPubCalendar(){
@@ -436,17 +510,19 @@ async function renderPubCalendar(){
   if(!el) return;
   el.innerHTML = '<div class="cal-loading">Cargando...</div>';
 
-  const [allMatches, teams, allPhases, comps] = await Promise.all([
+  const [allMatches, teams, allPhases, comps, dayLabels] = await Promise.all([
     getForSeason('matches'),
     getForSeason('teams'),
     getForSeason('phases'),
     getForSeason('competitions'),
+    dbGetAll('calDayLabels', r => r.season === STATE.season),
   ]);
 
-  const teamById  = Object.fromEntries(teams.map(t=>[t.id, t]));
-  const phaseById = Object.fromEntries(allPhases.map(p=>[p.id, p]));
-  const compById  = Object.fromEntries(comps.map(c=>[c.id, c]));
-  const today     = _calTodayStr();
+  const teamById   = Object.fromEntries(teams.map(t=>[t.id, t]));
+  const phaseById  = Object.fromEntries(allPhases.map(p=>[p.id, p]));
+  const compById   = Object.fromEntries(comps.map(c=>[c.id, c]));
+  const labelByDate= Object.fromEntries(dayLabels.map(l=>[l.date, l.text||'']));
+  const today      = _calTodayStr();
 
   /* incluir partidos de CUALQUIER tipo que tengan scheduledDate y sin resultado */
   const upcoming = allMatches
@@ -519,25 +595,18 @@ async function renderPubCalendar(){
   const timelineHtml = ()=>{
     const dates = Object.keys(byDate);
     const stations = dates.map(dateStr=>{
-      const ms  = byDate[dateStr];
-      const isPast   = dateStr < today;
-      const isToday  = dateStr === today;
-      const cls = isPast ? 'past' : isToday ? 'now' : 'future';
+      const ms     = byDate[dateStr];
+      const isPast = dateStr < today;
+      const isToday= dateStr === today;
+      const cls    = isPast ? 'past' : isToday ? 'now' : 'future';
 
       /* fecha corta: "9 Jun" */
-      const [y,mo,d] = dateStr.split('-').map(Number);
+      const [,mo,d] = dateStr.split('-').map(Number);
       const shortDate = `${d} ${_CAL_MESES[mo-1].substring(0,3)}`;
 
-      /* partidos del día para la info card */
-      const matchLines = ms.map(m=>{
-        const taN = teamById[m.teamA]?.name || m.labelA || '?';
-        const tbN = teamById[m.teamB]?.name || m.labelB || '?';
-        const t   = m.scheduledTime ? m.scheduledTime.substring(0,5) : '';
-        return `<div class="cal-tl-match">
-          <span class="cal-tl-match-time">${_esc(t)}</span>
-          <span class="cal-tl-match-teams">${_esc(taN)} <span>vs</span> ${_esc(tbN)}</span>
-        </div>`;
-      }).join('');
+      /* texto del cronograma (escrito por el admin) */
+      const adminLabel = labelByDate[dateStr] || '';
+      const cnt        = ms.length;
 
       return `
       <div class="cal-tl-station cal-tl-station--${cls}" data-date="${dateStr}">
@@ -545,7 +614,8 @@ async function renderPubCalendar(){
         <span class="cal-tl-label">${_esc(shortDate)}</span>
         <div class="cal-tl-info">
           <div class="cal-tl-info-date">${_esc(_calFormatDay(dateStr))}</div>
-          ${matchLines}
+          ${adminLabel ? `<div class="cal-tl-info-label">${_esc(adminLabel)}</div>` : ''}
+          <div class="cal-tl-info-cnt">${cnt} partido${cnt!==1?'s':''}</div>
         </div>
       </div>`;
     });
