@@ -195,6 +195,7 @@ async function renderPublicPage(page){
       await renderPubTeams();
       _sub('equipos', ['teams'], ()=>renderPubTeams());
       break;
+    case 'calendario':    await renderPubCalendar();    break;
     case 'sorteo':        await renderPubSorteo();      break; // tiempo real propio (módulo SORTEO)
     case 'historial':
       await renderPubHistory();
@@ -218,6 +219,7 @@ async function renderAdminPage(page){
     case 'historial-admin':       await renderAdmHistory();           break;
     case 'historial-tabla-admin': await renderAdmHistoryStandings();   break;
     case 'palmares-admin':        await renderAdmPalmares();           break;
+    case 'calendario-admin':      await renderAdmCalendar();           break;
   }
 }
 
