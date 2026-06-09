@@ -492,17 +492,19 @@ async function renderPubCalendar(){
     <div class="cal-pub-card" style="--cc:${col};">
       <div class="cal-pub-card-head">
         <span class="cal-pub-comp" style="color:${col};">${_esc(label)}</span>
-        ${time
-          ?`<span class="cal-pub-time"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${_esc(time)}</span>`
-          :`<span class="cal-pub-time cal-pub-time--tbd">Hora por definir</span>`
-        }
       </div>
       <div class="cal-pub-matchup">
         <div class="cal-pub-team">
           ${_calLogo(ta, 44, taN)}
           <span class="cal-pub-tname">${_esc(taN)}</span>
         </div>
-        <span class="cal-pub-vs">VS</span>
+        <div class="cal-pub-vs-wrap">
+          ${time
+            ?`<span class="cal-pub-time"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${_esc(time)}</span>`
+            :`<span class="cal-pub-time cal-pub-time--tbd">—</span>`
+          }
+          <span class="cal-pub-vs">VS</span>
+        </div>
         <div class="cal-pub-team cal-pub-team--r">
           <span class="cal-pub-tname">${_esc(tbN)}</span>
           ${_calLogo(tb, 44, tbN)}
