@@ -437,17 +437,22 @@ const _calLblTimer = {};
 async function _calSaveDayLabel(dateStr, text){
   clearTimeout(_calLblTimer[dateStr]);
   _calLblTimer[dateStr] = setTimeout(async ()=>{
-    const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
-    if(existing.length){
-      await dbPut('calDayLabels', {...existing[0], text: text || ''});
-    } else if(text && text.trim()){
-      await dbAdd('calDayLabels', {season: STATE.season, date: dateStr, text});
-    }
-    /* feedback visual en el input */
-    const inp = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
-    if(inp){
-      inp.classList.add('cal-lbl-inp--saved');
-      setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900);
+    try {
+      const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
+      if(existing.length){
+        await dbPut('calDayLabels', {...existing[0], text: text || ''});
+      } else if(text && text.trim()){
+        await dbAdd('calDayLabels', {season: STATE.season, date: dateStr, text});
+      }
+      /* feedback visual en el input */
+      const inp = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
+      if(inp){
+        inp.classList.add('cal-lbl-inp--saved');
+        setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900);
+      }
+    } catch(e){
+      console.warn('[calDayLabels] Error al guardar:', e.code || e.message);
+      showToast('Error al guardar. Verifica permisos de Firestore.');
     }
   }, 600);
 }
@@ -458,7 +463,7 @@ async function renderAdmCalendarLabels(){
   if(!el) return;
 
   const [labels] = await Promise.all([
-    dbGetAll('calDayLabels', r => r.season === STATE.season),
+    dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]),
   ]);
   const labelByDate = Object.fromEntries(labels.map(l => [l.date, l.text || '']));
 
@@ -515,7 +520,7 @@ async function renderPubCalendar(){
     getForSeason('teams'),
     getForSeason('phases'),
     getForSeason('competitions'),
-    dbGetAll('calDayLabels', r => r.season === STATE.season),
+    dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]),
   ]);
 
   const teamById   = Object.fromEntries(teams.map(t=>[t.id, t]));
