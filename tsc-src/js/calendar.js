@@ -388,6 +388,7 @@ async function renderAdmCalendar(){
         ${_calLogo(e.teamB, 28, e.labelB)}
       </div>
       <div class="cal-adm-controls">
+        ${e.slotLeg===1?'<span class="cal-adm-leg cal-adm-leg--ida">IDA</span>':e.slotLeg===2?'<span class="cal-adm-leg cal-adm-leg--vuelta">VUELTA</span>':''}
         <span class="cal-adm-phase" style="color:${col};border-color:${col};">${_esc(badge)}</span>
         <input type="date" class="cal-inp cal-inp-date" value="${e.scheduledDate||''}"
           title="Fecha" onchange="_calOnChange(this)">
