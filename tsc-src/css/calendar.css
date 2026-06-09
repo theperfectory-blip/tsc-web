@@ -229,7 +229,145 @@
   color:var(--txt3);letter-spacing:2px;
 }
 
-/* ─ Responsive ───────────────────────────────────────────── */
+/* ================================================================
+   METRO-LINE TIMELINE
+   ================================================================ */
+
+/* Layout: sidebar izquierdo + días */
+.cal-pub-layout{
+  display:flex;gap:24px;align-items:flex-start;
+}
+.cal-pub-days{ flex:1;min-width:0; }
+
+/* ── Timeline (vertical desktop) ─────────────────────────── */
+.cal-tl{
+  width:120px;flex-shrink:0;
+  position:sticky;top:20px;
+  display:flex;flex-direction:column;
+  gap:0;
+  /* línea vertical continua */
+  border-left:3px solid var(--brd);
+  padding-left:0;
+  margin-left:16px;
+}
+
+.cal-tl-station{
+  position:relative;
+  display:flex;align-items:center;gap:10px;
+  padding:10px 0 10px 18px;
+  cursor:pointer;
+  transition:opacity .2s;
+}
+.cal-tl-station:hover{ opacity:1!important; }
+
+/* Dot sobre la línea */
+.cal-tl-dot{
+  position:absolute;left:-9px;
+  width:15px;height:15px;border-radius:50%;
+  border:3px solid var(--card);
+  transition:transform .2s, box-shadow .2s;
+  flex-shrink:0;
+}
+.cal-tl-station:hover .cal-tl-dot,
+.cal-tl-station--active .cal-tl-dot{
+  transform:scale(1.25);
+}
+
+/* Colores por estado */
+.cal-tl-station--past   .cal-tl-dot{ background:var(--green); box-shadow:0 0 0 2px rgba(37,168,100,.25); }
+.cal-tl-station--now    .cal-tl-dot{ background:var(--gold);  box-shadow:0 0 0 4px var(--gold-l); animation:calDotPulse 2.2s ease-in-out infinite; }
+.cal-tl-station--future .cal-tl-dot{ background:var(--red);   box-shadow:0 0 0 2px rgba(220,60,60,.2); }
+
+.cal-tl-station--past   { opacity:.6; }
+.cal-tl-station--active { opacity:1!important; }
+
+/* Label de fecha */
+.cal-tl-label{
+  font-size:12px;font-weight:700;color:var(--txt2);
+  white-space:nowrap;letter-spacing:.2px;
+}
+.cal-tl-station--now    .cal-tl-label{ color:var(--gold); }
+.cal-tl-station--past   .cal-tl-label{ color:var(--txt3); }
+.cal-tl-station--active .cal-tl-label{ color:var(--txt); }
+
+/* Popup info (hover) */
+.cal-tl-info{
+  position:absolute;left:calc(100% + 12px);top:50%;transform:translateY(-50%);
+  background:var(--card);border:1px solid var(--brd2);border-radius:var(--r);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+  padding:10px 12px;min-width:220px;
+  opacity:0;pointer-events:none;
+  transition:opacity .18s, transform .18s;
+  transform:translateY(-50%) translateX(-6px);
+  z-index:10;
+}
+.cal-tl-station:hover .cal-tl-info{
+  opacity:1;pointer-events:auto;
+  transform:translateY(-50%) translateX(0);
+}
+.cal-tl-info-date{
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--txt3);margin-bottom:8px;
+}
+.cal-tl-match{
+  display:flex;align-items:baseline;gap:6px;
+  padding:4px 0;border-bottom:1px solid var(--brd);
+}
+.cal-tl-match:last-child{ border-bottom:none; }
+.cal-tl-match-time{
+  font-size:10px;font-weight:700;color:var(--gold);
+  white-space:nowrap;flex-shrink:0;min-width:32px;
+}
+.cal-tl-match-teams{
+  font-size:11px;color:var(--txt2);line-height:1.4;
+}
+.cal-tl-match-teams span{ color:var(--txt3);font-size:9px;font-weight:700; }
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media(max-width:700px){
+  /* Layout pasa a columna: timeline arriba, días abajo */
+  .cal-pub-layout{ flex-direction:column;gap:0; }
+
+  /* Timeline horizontal sticky */
+  .cal-tl{
+    width:100%;
+    flex-direction:row;
+    border-left:none;border-bottom:3px solid var(--brd);
+    margin-left:0;padding-left:0;
+    position:sticky;top:0;z-index:20;
+    background:var(--bg);
+    overflow-x:auto;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    gap:0;
+    padding:12px 8px 0;
+  }
+  .cal-tl-station{
+    flex-direction:column;
+    align-items:center;
+    padding:0 12px 12px;
+    min-width:64px;
+    scroll-snap-align:center;
+  }
+  .cal-tl-dot{
+    position:static;
+    /* en horizontal: el dot queda al fondo de la estación, sobre la línea */
+    order:2;margin-top:6px;
+    width:13px;height:13px;
+  }
+  .cal-tl-label{ order:1;font-size:11px; }
+
+  /* Popup: aparece ABAJO en móvil */
+  .cal-tl-info{
+    left:50%;top:auto;bottom:calc(100% + 12px);
+    transform:translateX(-50%) translateY(4px);
+    min-width:180px;
+  }
+  .cal-tl-station:hover .cal-tl-info{
+    transform:translateX(-50%) translateY(0);
+  }
+}
+
 @media(max-width:640px){
   .cal-pub-day-name{ font-size:16px; }
   .cal-pub-tname{ font-size:13px; }

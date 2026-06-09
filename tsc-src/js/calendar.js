@@ -514,12 +514,50 @@ async function renderPubCalendar(){
   };
 
   const total=upcoming.length;
-  let html=`<div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>`;
 
+  /* ── Metro-line timeline ─────────────────────────────────── */
+  const timelineHtml = ()=>{
+    const dates = Object.keys(byDate);
+    const stations = dates.map(dateStr=>{
+      const ms  = byDate[dateStr];
+      const isPast   = dateStr < today;
+      const isToday  = dateStr === today;
+      const cls = isPast ? 'past' : isToday ? 'now' : 'future';
+
+      /* fecha corta: "9 Jun" */
+      const [y,mo,d] = dateStr.split('-').map(Number);
+      const shortDate = `${d} ${_CAL_MESES[mo-1].substring(0,3)}`;
+
+      /* partidos del día para la info card */
+      const matchLines = ms.map(m=>{
+        const taN = teamById[m.teamA]?.name || m.labelA || '?';
+        const tbN = teamById[m.teamB]?.name || m.labelB || '?';
+        const t   = m.scheduledTime ? m.scheduledTime.substring(0,5) : '';
+        return `<div class="cal-tl-match">
+          <span class="cal-tl-match-time">${_esc(t)}</span>
+          <span class="cal-tl-match-teams">${_esc(taN)} <span>vs</span> ${_esc(tbN)}</span>
+        </div>`;
+      }).join('');
+
+      return `
+      <div class="cal-tl-station cal-tl-station--${cls}" data-date="${dateStr}">
+        <div class="cal-tl-dot"></div>
+        <span class="cal-tl-label">${_esc(shortDate)}</span>
+        <div class="cal-tl-info">
+          <div class="cal-tl-info-date">${_esc(_calFormatDay(dateStr))}</div>
+          ${matchLines}
+        </div>
+      </div>`;
+    });
+    return `<nav class="cal-tl" aria-label="Días con partidos">${stations.join('')}</nav>`;
+  };
+
+  /* ── Match list ─────────────────────────────────────────── */
+  let daysHtml = '';
   for(const [dateStr,ms] of Object.entries(byDate)){
     const isToday=dateStr===today;
-    html+=`
-    <div class="cal-pub-day">
+    daysHtml+=`
+    <div class="cal-pub-day" data-cal-date="${dateStr}">
       <div class="cal-pub-day-hdr${isToday?' cal-pub-day-hdr--today':''}">
         <div class="cal-pub-day-pill">
           ${isToday?'<span class="cal-pub-dot"></span>':''}
@@ -533,5 +571,34 @@ async function renderPubCalendar(){
     </div>`;
   }
 
-  el.innerHTML=html;
+  el.innerHTML=`
+    <div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>
+    <div class="cal-pub-layout">
+      ${timelineHtml()}
+      <div class="cal-pub-days">${daysHtml}</div>
+    </div>`;
+
+  /* ── Scroll al hacer click en estación ───────────────────── */
+  el.querySelectorAll('.cal-tl-station').forEach(st=>{
+    st.addEventListener('click', ()=>{
+      const date = st.dataset.date;
+      const target = el.querySelector(`.cal-pub-day[data-cal-date="${date}"]`);
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+      el.querySelectorAll('.cal-tl-station').forEach(s=>s.classList.remove('cal-tl-station--active'));
+      st.classList.add('cal-tl-station--active');
+    });
+  });
+
+  /* ── IntersectionObserver: activa estación al scrollar ───── */
+  const observer = new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        const date = entry.target.dataset.calDate;
+        el.querySelectorAll('.cal-tl-station').forEach(s=>{
+          s.classList.toggle('cal-tl-station--active', s.dataset.date===date);
+        });
+      }
+    });
+  },{threshold:0.4});
+  el.querySelectorAll('.cal-pub-day[data-cal-date]').forEach(d=>observer.observe(d));
 }
