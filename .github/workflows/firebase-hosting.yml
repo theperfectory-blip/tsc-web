@@ -15,19 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # 1) Hosting (la web)
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TSC_WEB_YUNA }}
           channelId: live
           projectId: tsc-web-yuna
-
-      # 2) Reglas de Firestore (seguridad) — se despliegan en cada push a main
-      - name: Deploy Firestore rules
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only firestore:rules --project tsc-web-yuna
-        env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TSC_WEB_YUNA }}
+      # NOTA: las reglas de Firestore (firebase/firestore.rules) se despliegan
+      # manualmente con `firebase deploy --only firestore:rules`. La service
+      # account de Hosting no tiene permiso IAM para Firestore (403), así que
+      # no se pueden desplegar desde este workflow sin añadir el rol
+      # "Firebase Rules Admin" a esa cuenta en Google Cloud Console.
