@@ -26,7 +26,7 @@ jobs:
 
       # 2) Reglas de Firestore (seguridad) — se despliegan en cada push a main
       - name: Deploy Firestore rules
-        uses: w9jds/firebase-action@v14.13.1
+        uses: w9jds/firebase-action@master
         with:
           args: deploy --only firestore:rules --project tsc-web-yuna
         env:
