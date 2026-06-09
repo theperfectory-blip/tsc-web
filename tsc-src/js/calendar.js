@@ -149,6 +149,59 @@ async function renderAdmCalendar(){
     byPhase[m.phaseId].push(m);
   }
 
+  /* ── Pre-calcular standings de grupos ───────────────────────── */
+  const groupStandings = {}; // {phaseId: {groupIdx: [{id,...}]}}
+  for(const ph of allPhases){
+    if(ph.type !== 'groups') continue;
+    groupStandings[ph.id] = {};
+    const phMs = byPhase[ph.id] || [];
+    for(const [gi, teamIds] of Object.entries(ph.groups || {})){
+      const gIdx = parseInt(gi);
+      const groupMs = phMs.filter(m => m.groupIdx === gIdx);
+      const validIds = (teamIds || []).filter(v => v != null);
+      if(validIds.length){
+        groupStandings[ph.id][gIdx] = calcGroupStandings(validIds, groupMs, ['pts','dg','gf'], groupMs);
+      }
+    }
+  }
+
+  /* ── Pre-calcular ganadores de playoffs ya jugados ──────────── */
+  const playoffWinnersByPhase = {}; // {phaseId: [winnerId|null]}
+  for(const ph of allPhases){
+    if(ph.type !== 'playoff') continue;
+    try {
+      const winners = await getPlayoffWinnersFromPhase(ph.id);
+      playoffWinnersByPhase[ph.id] = winners || [];
+    } catch(e){ playoffWinnersByPhase[ph.id] = []; }
+  }
+
+  /* ── Resolver un slotRef a {id, label} ──────────────────────── */
+  const resolveRef = (ref) => {
+    if(!ref) return {id:null, label:'Por definir'};
+    if(ref.type === 'team'){
+      const id = parseInt(ref.teamId);
+      return {id, label: teamById[id]?.name || '?'};
+    }
+    if(ref.type === 'ref'){
+      const g = String.fromCharCode(65 + parseInt(ref.groupIdx));
+      const defaultLabel = `Pos ${ref.place} G${g}`;
+      const standings = groupStandings[ref.phaseId]?.[ref.groupIdx];
+      if(standings && standings.length >= ref.place){
+        const team = standings[ref.place - 1];
+        if(team) return {id: team.id, label: teamById[team.id]?.name || defaultLabel};
+      }
+      return {id:null, label: defaultLabel};
+    }
+    if(ref.type === 'playoff_winner'){
+      const defaultLabel = `Gan. Llave ${(ref.matchIdx||0)+1}`;
+      const winners = playoffWinnersByPhase[ref.phaseId];
+      const wId = winners?.[ref.matchIdx];
+      if(wId != null) return {id: wId, label: teamById[wId]?.name || defaultLabel};
+      return {id:null, label: defaultLabel};
+    }
+    return {id:null, label:'Por definir'};
+  };
+
   /* ── Construir lista unificada de "entradas pendientes" ─────── */
   const entries = [];
 
@@ -183,21 +236,6 @@ async function renderAdmCalendar(){
     if(phase.type==='bracket' || phase.type==='playoff' || phase.type==='single'){
       const refs      = phase.slotRefs || [];
       const isBracket = phase.type==='bracket';
-
-      /* resolver un slotRef a {id, label} */
-      const resolveRef = (ref)=>{
-        if(!ref) return {id:null, label:'Por definir'};
-        if(ref.type==='team'){
-          const id = parseInt(ref.teamId);
-          return {id, label: teamById[id]?.name || '?'};
-        }
-        if(ref.type==='ref'){
-          const g = String.fromCharCode(65+parseInt(ref.groupIdx));
-          return {id:null, label:`Pos ${ref.place} G${g}`};
-        }
-        if(ref.type==='playoff_winner') return {id:null, label:`Gan. Llave ${(ref.matchIdx||0)+1}`};
-        return {id:null, label:'Por definir'};
-      };
 
       /* dos vueltas: bracket con legs=double, playoff/single con legs="2" */
       const twoLeg = isBracket
