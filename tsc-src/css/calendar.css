@@ -290,18 +290,18 @@
 .cal-tl-station--past   .cal-tl-label{ color:var(--txt3); }
 .cal-tl-station--active .cal-tl-label{ color:var(--txt); }
 
-/* Popup info (hover) — cristal translúcido, aparece a la IZQUIERDA */
+/* Popup info (hover) — cristal translúcido, aparece a la DERECHA */
 .cal-tl-info{
   position:absolute;
-  right:calc(100% + 16px);top:50%;
+  left:calc(100% + 14px);top:50%;
   background:var(--nav-glass);
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
   border-radius:var(--r);
-  box-shadow:-4px 0 28px rgba(0,0,0,0.45);
+  box-shadow:4px 0 28px rgba(0,0,0,0.45);
   padding:10px 14px;min-width:160px;max-width:240px;
   opacity:0;pointer-events:none;
   transition:opacity .18s, transform .18s;
-  transform:translateY(-50%) translateX(6px);
+  transform:translateY(-50%) translateX(-6px);
   z-index:50;
 }
 .cal-tl-station:hover .cal-tl-info{

@@ -27,6 +27,7 @@ service cloud.firestore {
     match /sorteo/{id}         { allow read: if true; allow write: if isAdmin(); }
     match /palmares/{id}       { allow read: if true; allow write: if isAdmin(); }
     match /palmares-comps/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /calDayLabels/{id}   { allow read: if true; allow write: if isAdmin(); }
 
     // --- Equipos: el presidente edita SU equipo ---
     match /teams/{teamId} {
