@@ -433,29 +433,30 @@ async function renderAdmCalendar(){
    CRONOGRAMA ADMIN — labels de días
    ================================================================ */
 
-/* Guarda (debounced) el texto del label de un día */
+/* Guarda (debounced) texto Y tipo de un día — lee ambos desde el DOM */
 const _calLblTimer = {};
-async function _calSaveDayLabel(dateStr, text){
+async function _calSaveDayLabel(dateStr){
   clearTimeout(_calLblTimer[dateStr]);
   _calLblTimer[dateStr] = setTimeout(async ()=>{
     try {
+      const inp  = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
+      const sel  = document.querySelector(`.cal-lbl-type[data-date="${CSS.escape(dateStr)}"]`);
+      const text = inp ? (inp.value || '') : '';
+      const type = sel ? (sel.value || '') : '';
       const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
+      const payload = { season: STATE.season, date: dateStr, text, type };
       if(existing.length){
-        await dbPut('calDayLabels', {...existing[0], text: text || ''});
-      } else if(text && text.trim()){
-        await dbAdd('calDayLabels', {season: STATE.season, date: dateStr, text});
+        await dbPut('calDayLabels', {...existing[0], ...payload});
+      } else if(text.trim() || type){
+        await dbAdd('calDayLabels', payload);
       }
       /* feedback visual en el input */
-      const inp = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
-      if(inp){
-        inp.classList.add('cal-lbl-inp--saved');
-        setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900);
-      }
+      if(inp){ inp.classList.add('cal-lbl-inp--saved'); setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900); }
     } catch(e){
       console.warn('[calDayLabels] Error al guardar:', e.code || e.message);
       showToast('Error al guardar. Verifica permisos de Firestore.');
     }
-  }, 600);
+  }, 400);
 }
 
 /* Offset de mes mostrado en el cronograma admin (0 = mes actual) */
@@ -473,7 +474,7 @@ async function renderAdmCalendarLabels(){
   if(!el) return;
 
   const labels = await dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]);
-  const labelByDate = Object.fromEntries(labels.map(l => [l.date, l.text || '']));
+  const labelByDate = Object.fromEntries(labels.map(l => [l.date, {text: l.text||'', type: l.type||''}]));
 
   const today = _calTodayStr();
   const [cy, cm] = today.split('-').map(Number);
@@ -492,16 +493,22 @@ async function renderAdmCalendarLabels(){
     const cls      = isPast ? 'past' : isToday ? 'today' : 'future';
     const dayAbbr  = _CAL_DIAS[new Date(year, month - 1, d).getDay()].substring(0, 3);
     const shortDate= `${d} ${_CAL_MESES[month-1].substring(0,3)}`;
-    const val      = labelByDate[dateStr] || '';
+    const val      = labelByDate[dateStr] || {text:'', type:''};
+    const selOpts  = [
+      ['', '—'],
+      ['libre', 'Libre'],
+      ['sorteo', 'Sorteo'],
+    ].map(([v,l])=>`<option value="${v}" ${val.type===v?'selected':''}>${l}</option>`).join('');
     rows.push(`
     <div class="cal-lbl-day cal-lbl-day--${cls}">
       <span class="cal-lbl-dot"></span>
       <span class="cal-lbl-date" title="${_esc(dayAbbr)}">${_esc(shortDate)}</span>
+      <select class="cal-lbl-type" data-date="${_esc(dateStr)}" onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
       <input class="cal-lbl-inp" type="text" maxlength="64"
-        placeholder="Ej: Fecha 4 · 2da División"
+        placeholder="Etiqueta del día..."
         data-date="${_esc(dateStr)}"
-        value="${_esc(val)}"
-        oninput="_calSaveDayLabel(this.dataset.date, this.value)">
+        value="${_esc(val.text)}"
+        oninput="_calSaveDayLabel(this.dataset.date)">
     </div>`);
   }
 
@@ -550,10 +557,10 @@ async function renderPubCalendar(){
   const teamById   = Object.fromEntries(teams.map(t=>[t.id, t]));
   const phaseById  = Object.fromEntries(allPhases.map(p=>[p.id, p]));
   const compById   = Object.fromEntries(comps.map(c=>[c.id, c]));
-  const labelByDate= Object.fromEntries(dayLabels.map(l=>[l.date, l.text||'']));
+  const labelByDate= Object.fromEntries(dayLabels.map(l=>[l.date, {text:l.text||'', type:l.type||''}]));
   const today      = _calTodayStr();
 
-  /* incluir partidos de CUALQUIER tipo que tengan scheduledDate y sin resultado */
+  /* partidos próximos (sin resultado, desde hoy) */
   const upcoming = allMatches
     .filter(m=> m.scheduledDate && m.scheduledDate>=today && m.goalsA==null)
     .sort((a,b)=>{
@@ -568,13 +575,13 @@ async function renderPubCalendar(){
     byDate[m.scheduledDate].push(m);
   }
 
-  /* fechas con texto del cronograma (de hoy en adelante) */
-  const labelDatesFuture = dayLabels
-    .filter(l => l.text && l.text.trim() && l.date >= today)
+  /* TODOS los días con label/tipo (incluyendo pasados — se muestran apagados) */
+  const labelDatesAll = dayLabels
+    .filter(l => (l.text && l.text.trim()) || l.type)
     .map(l => l.date);
 
-  /* unión de días: con partidos ∪ con texto — ordenada */
-  const allDates = [...new Set([...Object.keys(byDate), ...labelDatesFuture])].sort();
+  /* unión de días: con partidos ∪ con label — ordenada */
+  const allDates = [...new Set([...Object.keys(byDate), ...labelDatesAll])].sort();
 
   if(!allDates.length){
     el.innerHTML=`
@@ -640,8 +647,8 @@ async function renderPubCalendar(){
       const [,mo,d] = dateStr.split('-').map(Number);
       const shortDate = `${d} ${_CAL_MESES[mo-1].substring(0,3)}`;
 
-      /* texto del cronograma (escrito por el admin) */
-      const adminLabel = labelByDate[dateStr] || '';
+      const lbl        = labelByDate[dateStr] || {text:'', type:''};
+      const infoLabel  = lbl.type==='libre' ? 'Libre' : lbl.type==='sorteo' ? 'Sorteo' : lbl.text;
       const cnt        = ms.length;
 
       return `
@@ -650,7 +657,7 @@ async function renderPubCalendar(){
         <span class="cal-tl-label">${_esc(shortDate)}</span>
         <div class="cal-tl-info">
           <div class="cal-tl-info-date">${_esc(_calFormatDay(dateStr))}</div>
-          ${adminLabel ? `<div class="cal-tl-info-label">${_esc(adminLabel)}</div>` : ''}
+          ${infoLabel ? `<div class="cal-tl-info-label">${_esc(infoLabel)}</div>` : ''}
           <div class="cal-tl-info-cnt">${cnt>0 ? `${cnt} partido${cnt!==1?'s':''}` : 'Sin partidos'}</div>
         </div>
       </div>`;
@@ -658,25 +665,49 @@ async function renderPubCalendar(){
     return `<nav class="cal-tl" aria-label="Días del cronograma">${stations.join('')}</nav>`;
   };
 
-  /* ── Match list (incluye días con solo texto del cronograma) ─ */
+  /* SVG + texto para días especiales */
+  const _specialCard = (type) => {
+    if(type==='libre') return `
+      <div class="cal-pub-day-special cal-pub-day-special--libre">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <div class="cal-pub-special-title">Día Libre</div>
+        <div class="cal-pub-special-desc">No habrá directo este día.</div>
+      </div>`;
+    if(type==='sorteo') return `
+      <div class="cal-pub-day-special cal-pub-day-special--sorteo">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+        <div class="cal-pub-special-title">Sorteo</div>
+        <div class="cal-pub-special-desc">Luis realizará el sorteo de grupos en directo.</div>
+      </div>`;
+    return '';
+  };
+
+  /* ── Match list (incluye días pasados con label y días con solo texto del cronograma) ─ */
   let daysHtml = '';
   for(const dateStr of allDates){
     const ms      = byDate[dateStr] || [];
+    const isPast  = dateStr < today;
     const isToday = dateStr===today;
-    const adminLabel = labelByDate[dateStr] || '';
+    const lbl     = labelByDate[dateStr] || {text:'', type:''};
+    /* Tag: el tipo tiene prioridad sobre el texto libre */
+    const tagText = lbl.type==='libre' ? 'LIBRE' : lbl.type==='sorteo' ? 'SORTEO' : lbl.text;
+    const tagCls  = lbl.type==='libre' ? ' cal-pub-day-tag--libre' : lbl.type==='sorteo' ? ' cal-pub-day-tag--sorteo' : '';
+    const specialHtml = _specialCard(lbl.type);
     daysHtml+=`
-    <div class="cal-pub-day" data-cal-date="${dateStr}">
+    <div class="cal-pub-day${isPast?' cal-pub-day--past':''}" data-cal-date="${dateStr}">
       <div class="cal-pub-day-hdr${isToday?' cal-pub-day-hdr--today':''}">
         <div class="cal-pub-day-pill">
           ${isToday?'<span class="cal-pub-dot"></span>':''}
           <span class="cal-pub-day-name">${_calFormatDay(dateStr)}</span>
-          ${adminLabel ? `<span class="cal-pub-day-tag">${_esc(adminLabel)}</span>` : ''}
+          ${tagText ? `<span class="cal-pub-day-tag${tagCls}">${_esc(tagText)}</span>` : ''}
         </div>
         <span class="cal-pub-day-cnt">${ms.length>0 ? `${ms.length} partido${ms.length!==1?'s':''}` : ''}</span>
       </div>
-      ${ms.length>0
-        ? `<div class="cal-pub-cards">${ms.map(cardHtml).join('')}</div>`
-        : `<div class="cal-pub-day-empty">Sin partidos programados</div>`
+      ${specialHtml
+        ? specialHtml + (ms.length>0 ? `<div class="cal-pub-cards">${ms.map(cardHtml).join('')}</div>` : '')
+        : ms.length>0
+          ? `<div class="cal-pub-cards">${ms.map(cardHtml).join('')}</div>`
+          : `<div class="cal-pub-day-empty">Sin partidos programados</div>`
       }
     </div>`;
   }

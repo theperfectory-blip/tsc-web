@@ -172,6 +172,36 @@
   padding:2px 9px;border-radius:99px;
   white-space:nowrap;
 }
+.cal-pub-day-tag--libre  { color:#64b5f6;background:rgba(100,181,246,.12); }
+.cal-pub-day-tag--sorteo { color:#ce93d8;background:rgba(206,147,216,.12); }
+
+/* día pasado: apagado */
+.cal-pub-day--past{ opacity:.55; }
+
+/* Cards especiales: Libre / Sorteo */
+.cal-pub-day-special{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 16px;border-radius:var(--r);
+  margin-bottom:4px;
+}
+.cal-pub-day-special--libre{
+  background:rgba(100,181,246,.07);
+  border:1px solid rgba(100,181,246,.18);
+  color:#64b5f6;
+}
+.cal-pub-day-special--sorteo{
+  background:rgba(206,147,216,.07);
+  border:1px solid rgba(206,147,216,.18);
+  color:#ce93d8;
+}
+.cal-pub-special-title{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:16px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+}
+.cal-pub-special-desc{
+  font-size:12px;opacity:.75;margin-top:2px;color:var(--txt2);
+}
+
 /* día con texto pero sin partidos programados */
 .cal-pub-day-empty{
   font-size:13px;color:var(--txt3);font-style:italic;
@@ -476,6 +506,16 @@
 .cal-lbl-day--future .cal-lbl-date{ color:var(--txt2); }
 
 /* input de texto */
+.cal-lbl-type{
+  padding:4px 6px;
+  background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);color:var(--txt);
+  font-size:12px;font-family:inherit;
+  cursor:pointer;flex-shrink:0;
+  transition:border-color .15s;
+}
+.cal-lbl-type:focus{ outline:none;border-color:var(--gold); }
+.cal-lbl-type option{ background:var(--card); }
 .cal-lbl-inp{
   flex:1;min-width:0;
   padding:4px 9px;
