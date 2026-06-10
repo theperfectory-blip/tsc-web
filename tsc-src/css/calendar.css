@@ -327,7 +327,7 @@
 .cal-tl-station--now .cal-tl-dot{ animation:calDotBlinkGold 1.6s ease-in-out infinite; }
 
 /* Pasados: color gris explícito — sin opacity para que sean sólidos, no translúcidos */
-.cal-tl-station--past .cal-tl-dot{ background:var(--txt3); border-color:var(--txt3); box-shadow:none; }
+.cal-tl-station--past .cal-tl-dot{ background:var(--txt3); border-color:var(--red); box-shadow:none; }
 .cal-tl-station--active { opacity:1!important; }
 
 @keyframes calDotBlinkGold{
