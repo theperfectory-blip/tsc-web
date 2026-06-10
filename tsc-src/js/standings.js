@@ -186,8 +186,8 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
   // Obtener equipos asignados a esta fase (grupos)
   const groupAssignments = phase.groups||{}; // {groupIdx: [teamNames]}
 
-  // Si no hay asignaciones, mostrar mensaje
-  if(!Object.keys(groupAssignments).length){
+  // Si no hay asignaciones ni refs de siembra, mostrar mensaje
+  if(!Object.keys(groupAssignments).length && !(phase.groupRefs||[]).length){
     el.innerHTML = isAdmin
       ? `<div style="text-align:center;padding:24px;color:var(--txt3);border:1px dashed var(--brd2);border-radius:var(--rl);">
           <div style="font-size:16px;margin-bottom:10px;">No hay grupos configurados aún.</div>
@@ -203,10 +203,20 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
     if(filterGroupIdx!==null && gi!==parseInt(filterGroupIdx)) continue;
     const groupName  = `Grupo ${String.fromCharCode(65+gi)}`;
     const teamIds    = (groupAssignments[gi]||[]).filter(t=>t!=null);
-    if(!teamIds.length) continue;
 
+    // Equipos sembrados por referencia (resolución en vivo desde la tabla origen)
+    const refEntries = (phase.groupRefs||[]).some(r=>parseInt(r.tGroup)===gi)
+      ? await resolveGroupRefsFor(phase, gi)
+      : [];
+    const refResolved = refEntries.filter(e=>e.teamId!=null && !teamIds.includes(e.teamId));
+    const refResolvedIds = new Set(refResolved.map(e=>e.teamId));
+    const refPending = refEntries.filter(e=>e.teamId==null);
+
+    if(!teamIds.length && !refEntries.length) continue;
+
+    const calcIds = [...teamIds, ...refResolved.map(e=>e.teamId)];
     const groupMatches = allMatches.filter(m=>m.groupIdx===gi);
-    const standings    = calcGroupStandings(teamIds, groupMatches, criteriaIds, groupMatches, teamNamesById);
+    const standings    = calcGroupStandings(calcIds, groupMatches, criteriaIds, groupMatches, teamNamesById);
 
     // Zona de cada posición — usa positions por grupo si existe
     const getZone = (pos, groupIdx)=>{
@@ -256,6 +266,11 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
         ? `<span style="font-size:11px;font-weight:700;color:${zone?.color||'var(--txt3)'};margin-left:3px;">✓</span>`
         : '';
 
+      // Badge para equipos que llegan por referencia (aún no fijados al grupo)
+      const refBadge = refResolvedIds.has(s.id)
+        ? `<span title="Llega por referencia desde otra fase — se fija al crear su primera fecha" style="font-size:9px;font-weight:700;color:var(--gold);background:var(--gold-l);border:1px dashed var(--gold-b);border-radius:3px;padding:1px 4px;margin-left:5px;letter-spacing:0.5px;">REF</span>`
+        : '';
+
       const dots = last3.map(r=>{
         const bg = r==='w'?'#25A864':r==='d'?'var(--txt3)':r==='l'?'#E84040':'var(--brd2)';
         return `<div style="width:8px;height:8px;border-radius:50%;background:${bg};flex-shrink:0;"></div>`;
@@ -270,7 +285,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
             <div style="width:24px;height:24px;border-radius:50%;background:${displayColor};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;overflow:hidden;" id="tlogo-${phaseId}-${gi}-${i}">
               ${displayIni.substring(0,3).toUpperCase()}
             </div>
-            <span style="font-size:14px;font-weight:500;">${displayName}</span>${confBadge}
+            <span style="font-size:14px;font-weight:500;">${displayName}</span>${confBadge}${refBadge}
           </div>
         </td>
         <td style="padding:7px 8px;font-weight:700;font-size:16px;">${s.pts}</td>
@@ -327,7 +342,20 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
               <th style="padding:6px 8px;font-size:12px;color:var(--txt3);font-weight:700;text-transform:uppercase;text-align:right;">Últ.</th>
             </tr>
           </thead>
-          <tbody>${rows.join('')}</tbody>
+          <tbody>${rows.join('')}${refPending.map(e=>`
+            <tr style="opacity:0.65;">
+              <td style="padding:7px 8px;">
+                <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:var(--card2);color:var(--txt3);">·</div>
+              </td>
+              <td style="padding:7px 8px;" colspan="10">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="width:24px;height:24px;border-radius:50%;border:1px dashed var(--brd2);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--txt3);flex-shrink:0;">?</div>
+                  <span style="font-size:14px;color:var(--txt3);font-style:italic;">Por definir</span>
+                  ${refBadgeHTML(e.label)}
+                  <span style="font-size:11px;color:var(--txt3);">· se resuelve cuando termine la fase origen</span>
+                </div>
+              </td>
+            </tr>`).join('')}</tbody>
         </table>
       </div>
       <div style="padding:8px 12px;border-top:1px solid var(--brd);display:flex;gap:12px;flex-wrap:wrap;">
@@ -701,12 +729,47 @@ async function openGroupAssignModal(phaseId, groupIdx=null){
 
   window._assignGroups = groups;
   window._assignPhaseId = phaseId;
+  window._assignPhaseCompId = phase?.compId ?? null;
   window._assignAllTeams = teams;
+  // Refs de siembra (staged): se persisten junto con los grupos al guardar.
+  window._assignGroupRefs = phase?.groupRefs ? JSON.parse(JSON.stringify(phase.groupRefs)) : [];
   // Snapshot inicial para "Deshacer cambios" (deep clone, robusto ante sparse).
   window._assignOriginalGroups = JSON.parse(JSON.stringify(groups));
+  window._assignOriginalGroupRefs = JSON.parse(JSON.stringify(window._assignGroupRefs));
 
   renderAssignGroupSlots();
   renderAssignTeamsList(teams, groups);
+}
+
+/* ── Refs de siembra en el modal de asignación ── */
+function _groupRefsOf(gi){
+  return (window._assignGroupRefs||[])
+    .map((r,idx)=>({r,idx}))
+    .filter(x=>parseInt(x.r.tGroup)===parseInt(gi));
+}
+
+/* Llamado por saveSlotRef (bracket.js) cuando targetType==='group' */
+function addGroupRefFromModal(ref){
+  const gi = parseInt(ref.tGroup);
+  const caps = window._assignGroupCapacities || [];
+  const cap = caps[gi];
+  const teamCount = ((window._assignGroups||{})[gi]||[]).filter(t=>t!=null).length;
+  const refCount  = _groupRefsOf(gi).length;
+  if(cap!=null && teamCount+refCount >= cap){
+    showToast(`Grupo ${String.fromCharCode(65+gi)} está completo (${cap}/${cap})`,'error');
+    return;
+  }
+  if(!window._assignGroupRefs) window._assignGroupRefs = [];
+  window._assignGroupRefs.push(ref);
+  renderAssignGroupSlots();
+  renderAssignTeamsList(window._assignAllTeams||[], window._assignGroups||{});
+  showToast('Referencia añadida · se guarda con "Guardar grupos"');
+}
+
+function removeGroupRef(idx){
+  (window._assignGroupRefs||[]).splice(idx,1);
+  renderAssignGroupSlots();
+  renderAssignTeamsList(window._assignAllTeams||[], window._assignGroups||{});
 }
 
 function renderAssignTeamsList(teams, groups){
@@ -755,7 +818,7 @@ function renderAssignTeamsList(teams, groups){
         style="padding:3px 6px;background:var(--card);border:1px solid var(--brd);border-radius:3px;color:var(--txt);font-size:12px;cursor:pointer;flex-shrink:0;">
         <option value="">→ Gr.</option>
         ${Array.from({length:ngroups},(_,i)=>{
-          const count = (groups[i]||[]).filter(t=>t!=null).length;
+          const count = (groups[i]||[]).filter(t=>t!=null).length + _groupRefsOf(i).length;
           const cap   = caps[i];
           const full  = cap!=null && count>=cap;
           const label = full
@@ -783,8 +846,8 @@ function addToGroup(groupIdx, teamId){
   const arr = window._assignGroups[gi];
   const caps = window._assignGroupCapacities || [];
   const cap  = caps[gi];
-  // Capacidad real = equipos ya presentes (no contar slots reservados).
-  const filledCount = arr.filter(t=>t!=null).length;
+  // Capacidad real = equipos presentes + refs de siembra (no contar slots reservados).
+  const filledCount = arr.filter(t=>t!=null).length + _groupRefsOf(gi).length;
   if(cap!=null && filledCount >= cap){
     const letter = String.fromCharCode(65+gi);
     if(typeof showToast==='function'){
@@ -821,12 +884,44 @@ async function renderAssignGroupSlots(){
   const ngroups = Object.keys(groups).length;
   const el = document.getElementById('groups-slots');
   if(!el) return;
+
+  // Resolver preview en vivo de cada ref staged (equipo actual según tabla origen)
+  const refRows = {}; // gi -> html[]
+  for(let gi=0; gi<ngroups; gi++){
+    refRows[gi] = [];
+    for(const {r, idx} of _groupRefsOf(gi)){
+      let label, resolvedName;
+      if(r.type==='team'){
+        const t = teamById[r.teamId] || allTeams.find(x=>x.id===parseInt(r.teamId));
+        label = 'Directo'; resolvedName = t?.name || `#${r.teamId}`;
+      } else {
+        label = (typeof refLabel==='function') ? await refLabel(r, window._assignPhaseCompId) : 'Ref';
+        let tid = null;
+        if(typeof resolveSlotRef==='function'){
+          if(r.type==='ref' && r.phaseId!=null && typeof invalidateStandingsCache==='function')
+            invalidateStandingsCache(parseInt(r.phaseId));
+          tid = await resolveSlotRef(r).catch(()=>null);
+        }
+        resolvedName = tid!=null ? (teamById[tid]?.name || `#${tid}`) : 'Por definir';
+      }
+      const badge = (typeof refBadgeHTML==='function' && r.type!=='team') ? refBadgeHTML(label) : `<span style="font-size:11px;color:var(--txt3);">${label}</span>`;
+      refRows[gi].push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 6px;background:var(--card);border:1px dashed var(--gold-b);border-radius:3px;font-size:13px;">
+        <span style="display:flex;align-items:center;gap:6px;min-width:0;">
+          ${badge}
+          <span style="color:${resolvedName==='Por definir'?'var(--txt3)':'var(--txt)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escTxt(resolvedName)}</span>
+        </span>
+        <button onclick="removeGroupRef(${idx})" title="Quitar referencia" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+      </div>`);
+    }
+  }
+
   el.innerHTML = Array.from({length:ngroups},(_,i)=>{
     const arr = groups[i]||[];
     // null = slot reservado (sorteo). No cuenta como equipo ni se muestra como "Team null".
     const nonNull = arr.filter(t=>t!=null);
-    const count = nonNull.length;
-    const reserved = arr.length - count;
+    const refCount = refRows[i].length;
+    const count = nonNull.length + refCount;
+    const reserved = arr.length - nonNull.length;
     const cap   = caps[i];
     const full  = cap!=null && count>=cap;
     const near  = cap!=null && !full && (cap-count)<=2;
@@ -841,6 +936,9 @@ async function renderAssignGroupSlots(){
         <span>Grupo ${String.fromCharCode(65+i)}</span>
         <span style="font-weight:400;color:${counterColor};margin-left:6px;">(${counterText})</span>
         ${fullBadge}${reservedBadge}
+        <button onclick="openSlotRefModal(${window._assignPhaseId},${i},'R','group')" title="Sembrar desde otra fase (posición de grupo, ganador de llave...)"
+          style="margin-left:auto;background:none;border:1px solid var(--gold-b);border-radius:3px;color:var(--gold);cursor:pointer;font-size:10px;padding:1px 6px;text-transform:none;font-family:'Barlow';font-weight:600;"
+          onmouseover="this.style.background='var(--gold-l)'" onmouseout="this.style.background='none'">+ Por referencia</button>
       </div>
       <div id="gslot-${i}" style="padding:6px 8px;min-height:36px;display:flex;flex-direction:column;gap:4px;">
         ${nonNull.map(tid=>{
@@ -851,6 +949,7 @@ async function renderAssignGroupSlots(){
             <button onclick="removeFromGroup(${i},${tid})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
           </div>`;
         }).join('')}
+        ${refRows[i].join('')}
         ${reserved>0 ? Array.from({length:reserved},()=>`<div style="display:flex;align-items:center;padding:3px 6px;background:transparent;border:1px dashed var(--brd);border-radius:3px;font-size:12px;color:var(--txt3);">slot reservado</div>`).join('') : ''}
       </div>
     </div>`;
@@ -880,7 +979,7 @@ async function saveGroupAssign(phaseId){
     }
   }
 
-  await dbPut('phases',{...phase, groups:newGroups});
+  await dbPut('phases',{...phase, groups:newGroups, groupRefs: window._assignGroupRefs||[]});
   showToast('Grupos guardados');
   closeGroupAssignModal();
   // Refrescar si la tabla está visible
@@ -897,6 +996,7 @@ async function saveGroupAssign(phaseId){
 function undoAssignChanges(){
   if(!window._assignOriginalGroups) return;
   window._assignGroups = JSON.parse(JSON.stringify(window._assignOriginalGroups));
+  window._assignGroupRefs = JSON.parse(JSON.stringify(window._assignOriginalGroupRefs||[]));
   renderAssignGroupSlots();
   renderAssignTeamsList(window._assignAllTeams||[], window._assignGroups||{});
   if(typeof showToast === 'function') showToast('Cambios deshechos');
@@ -906,6 +1006,8 @@ function closeGroupAssignModal(){
   const el = document.getElementById('group-assign-wrap');
   if(el) el.innerHTML='';
   delete window._assignOriginalGroups;
+  delete window._assignOriginalGroupRefs;
+  delete window._assignGroupRefs;
 }
 
 /* ----------------------------------------------------------

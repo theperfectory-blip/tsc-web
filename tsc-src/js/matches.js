@@ -581,6 +581,28 @@ async function openRondaModal(phaseId, groupIdx, editRonda=null){
   const phase = await dbGet('phases', phaseId);
   const groups = phase?.groups||{};
   const teamIds = (groups[groupIdx]||[]).slice().map(t=>Number(t));
+
+  // Siembra por referencia: si hay refs de este grupo ya resueltas, fijarlas
+  // al grupo antes de crear fechas (la tabla origen deja de moverlas).
+  if(typeof resolveGroupRefsFor==='function' && (phase?.groupRefs||[]).some(r=>parseInt(r.tGroup)===parseInt(groupIdx))){
+    const entries = await resolveGroupRefsFor(phase, groupIdx);
+    const pend = entries.filter(e=>e.teamId!=null && !teamIds.includes(Number(e.teamId)));
+    if(pend.length){
+      const allT = await dbGetAll('teams');
+      const names = pend.map(e=>allT.find(t=>t.id===e.teamId)?.name||('#'+e.teamId)).join(', ');
+      showConfirm('Fijar equipos por referencia',
+        `Llegan por referencia y ya están definidos: ${names}. Para crear fechas se fijarán al grupo (la tabla de origen ya no los cambiará). ¿Continuar?`,
+        async ()=>{
+          await materializeGroupRefs(phaseId, groupIdx);
+          await showMatchGroupTable(phaseId, groupIdx);
+          openRondaModal(phaseId, groupIdx, editRonda);
+        });
+      return;
+    }
+    const unres = entries.filter(e=>e.teamId==null);
+    if(unres.length) showToast(`${unres.length} cupo(s) por referencia aún sin definir — la fecha se crea solo con los equipos fijados`,'error');
+  }
+
   if(teamIds.length<2){
     showToast('El grupo necesita al menos 2 equipos','error');
     return;

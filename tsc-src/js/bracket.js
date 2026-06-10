@@ -513,15 +513,65 @@ async function resolveSlotRef(ref){
   return null;
 }
 
-/* Etiqueta legible de una ref para mostrar en slot TBD */
-async function refLabel(ref){
+/* ----------------------------------------------------------
+   SIEMBRA DE GRUPOS POR REFERENCIA (phase.groupRefs)
+   Cada entrada: {type:'ref'|'playoff_winner'|'team', tGroup, ...}
+   con los mismos campos de origen que slotRefs. Se resuelven en
+   vivo contra las tablas; al crear la primera fecha del grupo se
+   materializan (pasan a phase.groups y la ref se elimina).
+   ---------------------------------------------------------- */
+async function resolveGroupRefsFor(phase, groupIdx){
+  const refs = (phase?.groupRefs||[]).filter(r=>parseInt(r.tGroup)===parseInt(groupIdx));
+  const out = [];
+  for(const r of refs){
+    // Lectura en vivo: invalidar el caché de la fase origen antes de resolver
+    if(r.type==='ref' && r.phaseId!=null) invalidateStandingsCache(parseInt(r.phaseId));
+    const teamId = await resolveSlotRef(r);
+    const label  = await refLabel(r, phase.compId);
+    out.push({ ref:r, teamId, label });
+  }
+  return out;
+}
+
+async function materializeGroupRefs(phaseId, groupIdx){
+  const phase  = await dbGet('phases', phaseId);
+  if(!phase) return;
+  const groups = phase.groups ? JSON.parse(JSON.stringify(phase.groups)) : {};
+  const g      = (groups[groupIdx]||[]).slice();
+  const keep   = [];
+  for(const r of (phase.groupRefs||[])){
+    if(parseInt(r.tGroup)!==parseInt(groupIdx)){ keep.push(r); continue; }
+    if(r.type==='ref' && r.phaseId!=null) invalidateStandingsCache(parseInt(r.phaseId));
+    const tid = await resolveSlotRef(r);
+    if(tid!=null && !g.includes(tid)) g.push(tid);
+    else if(tid==null) keep.push(r); // sin resolver aún: la ref se conserva
+  }
+  groups[groupIdx] = g;
+  await dbPut('phases', {...phase, groups, groupRefs: keep});
+  invalidateStandingsCache(phaseId);
+}
+
+/* Etiqueta legible de una ref para mostrar en slot TBD.
+   ctxCompId: competición de la fase que CONTIENE la ref; si la fase
+   origen pertenece a otra competición, se añade su nombre para
+   desambiguar (dos "GA-1ro" de torneos distintos no son lo mismo). */
+async function refLabel(ref, ctxCompId=null){
   if(!ref) return 'Por definir';
   if(ref.type==='fixed') return ref.team||'Por definir';
   if(ref.type==='team') return 'Sorteo';
   if(ref.type==='ref'){
     const ordinal = ['1ro','2do','3ro','4to','5to','6to','7mo','8vo','9no'][ref.place-1]||`${ref.place}°`;
     const groupLetter = String.fromCharCode(65+ref.groupIdx);
-    return `G${groupLetter}-${ordinal}`;
+    let ctx = '';
+    if(ctxCompId!=null){
+      const srcPhase = await dbGet('phases', parseInt(ref.phaseId));
+      if(srcPhase && srcPhase.compId!==ctxCompId){
+        const comp = await dbGet('competitions', srcPhase.compId);
+        // Sanitizar: este texto termina en innerHTML vía refBadgeHTML
+        if(comp?.name) ctx = '·'+String(comp.name).replace(/[<>&"']/g,'').toUpperCase();
+      }
+    }
+    return `G${groupLetter}-${ordinal}${ctx}`;
   }
   if(ref.type==='playoff_winner'){
     const phase = await dbGet('phases', parseInt(ref.phaseId));
@@ -535,18 +585,22 @@ async function refLabel(ref){
 const GROUP_COLORS = ['#3B82F6','#25A864','#E84040','#8B5CF6','#F97316','#14B8A6','#EC4899','#EAB308'];
 const PLACE_COLORS = ['#C9A84C','#9CA3AF','#CD7F32','#6366F1','#F87171','#34D399','#60A5FA','#F472B6'];
 
-/* Renderiza un badge coloreado a partir de un label "GX-Nro" */
+/* Renderiza un badge coloreado a partir de un label "GX-Nro" o "GX-Nro·COMP" */
 function refBadgeHTML(label){
-  const m = label.match(/^G([A-Z])-(.+)$/);
+  const m = label.match(/^G([A-Z])-([^·]+)(?:·(.+))?$/);
   if(!m) return `<span style="font-size:11px;color:var(--txt3);">${label}</span>`;
   const groupIdx = m[1].charCodeAt(0)-65;
   const placeIdx = ['1ro','2do','3ro','4to','5to','6to','7mo','8vo'].indexOf(m[2]);
   const gColor = GROUP_COLORS[groupIdx % GROUP_COLORS.length];
   const pColor = PLACE_COLORS[Math.max(0,placeIdx) % PLACE_COLORS.length];
+  const ctxHtml = m[3]
+    ? `<span style="color:var(--txt3);font-size:9px;font-weight:600;margin-left:3px;">${m[3]}</span>`
+    : '';
   return `<span style="font-size:11px;font-weight:700;font-family:'Barlow Condensed';letter-spacing:0.3px;">` +
     `<span style="color:${gColor};">G${m[1]}</span>` +
     `<span style="color:var(--txt3);">-</span>` +
     `<span style="color:${pColor};">${m[2]}</span>` +
+    ctxHtml +
     `</span>`;
 }
 
@@ -572,7 +626,7 @@ async function buildBracketSlots(phase, rounds, matchMap){
     const {slotIdx, side} = ref;
     if(!slots[0][slotIdx]) continue;
     const team  = await resolveSlotRef(ref);
-    const label = await refLabel(ref);
+    const label = await refLabel(ref, phase.compId);
     if(side==='A'){
       slots[0][slotIdx].teamA  = team;
       slots[0][slotIdx].refA   = ref;
@@ -992,27 +1046,43 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
   const phase = await dbGet('phases', phaseId);
   if(!phase) return;
   window._slotRefTargetType = targetType;
+  const isGroupTarget = targetType==='group';
 
-  // Referencias por tabla (misma competición)
-  const groupPhases = await dbGetAll('phases', p =>
-    p.type==='groups' && p.compId===phase.compId && (p.season===STATE.season||!p.season) && p.id!==phaseId
+  // Referencias por tabla — CUALQUIER competición de la temporada
+  // (permite sembrar una copa desde los grupos de otra división).
+  const allGroupPhases = await dbGetAll('phases', p =>
+    p.type==='groups' && (p.season===STATE.season||!p.season) && p.id!==phaseId
   );
   // Referencias por llave de playoff (permite cruce de divisiones si comparten temporada)
   const playoffPhases = await dbGetAll('phases', p =>
     p.type==='playoff' && (p.season===STATE.season||!p.season) && p.id!==phaseId
   );
   const competitions = await dbGetAll('competitions');
+  // Solo competiciones que tienen al menos una fase de grupos elegible
+  const compsWithGroups = competitions.filter(c=>allGroupPhases.some(p=>p.compId===c.id));
   const allTeamsRef = (await dbGetAll('teams', t=>(t.status||'ACTIVO')==='ACTIVO'))
     .slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
 
-  // Ref actual para este slot/side
-  const existing = (phase.slotRefs||[]).find(r=>r.slotIdx===slotIdx&&r.side===side);
+  // Ref actual para este slot/side (las refs de grupo no se editan: se quitan y recrean)
+  const existing = isGroupTarget ? null : (phase.slotRefs||[]).find(r=>r.slotIdx===slotIdx&&r.side===side);
 
   let selSourceType = existing?.type==='playoff_winner' ? 'playoff_winner'
                     : existing?.type==='team' ? 'team'
                     : existing?.type==='ref' ? 'ref'
-                    : (groupPhases.length ? 'ref' : 'team'); // sin fase previa → equipo directo
-  let selPhaseId  = existing?.type==='ref' ? existing.phaseId : (groupPhases[0]?.id||null);
+                    : (allGroupPhases.length ? 'ref' : 'team'); // sin fase previa → equipo directo
+  // Competición origen: la de la fase de la ref existente; si no, la propia
+  // competición (cuando tiene grupos) o la primera con grupos.
+  let selCompId = existing?.type==='ref'
+    ? (allGroupPhases.find(p=>p.id===existing.phaseId)?.compId ?? null)
+    : null;
+  if(selCompId==null){
+    selCompId = compsWithGroups.some(c=>c.id===phase.compId)
+      ? phase.compId
+      : (compsWithGroups[0]?.id ?? null);
+  }
+  let selPhaseId  = existing?.type==='ref'
+    ? existing.phaseId
+    : (allGroupPhases.find(p=>p.compId===selCompId)?.id || null);
   let selGroupIdx = existing?.groupIdx ?? 0;
   let selPlace    = existing?.place    ?? 1;
   let selPlayoffPhaseId = existing?.type==='playoff_winner' ? existing.phaseId : (playoffPhases[0]?.id||null);
@@ -1023,6 +1093,9 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
   if(!wrap){ wrap=document.createElement('div'); wrap.id='slot-ref-modal-wrap'; document.body.appendChild(wrap); }
 
   async function buildModal(){
+    // Fases de grupos de la competición seleccionada
+    const groupPhases = allGroupPhases.filter(p=>p.compId===selCompId);
+    if(!groupPhases.find(p=>p.id===selPhaseId)) selPhaseId = groupPhases[0]?.id ?? null;
     const selPhase = groupPhases.find(p=>p.id===selPhaseId);
     const selPlayoff = playoffPhases.find(p=>p.id===selPlayoffPhaseId);
     const groups   = selPhase?.groups||{};
@@ -1030,10 +1103,13 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
     const groupSize= groups[selGroupIdx]?.length || (selPhase?.config?.teamsPerGroup||8);
     const playoffMatchups = getPlayoffMatchupsCount(selPlayoff);
 
-    const phaseOpts = groupPhases.map(p=>{
-      const compName = competitions.find(c=>c.id===p.compId)?.name || '';
-      return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${p.name}${compName ? ' — ' + compName : ''}</option>`;
-    }).join('');
+    const _escOpt = v => String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const compOpts = compsWithGroups.map(c=>
+      `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${_escOpt(c.name)}${c.id===phase.compId?' (esta competición)':''}</option>`
+    ).join('');
+    const phaseOpts = groupPhases.map(p=>
+      `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${_escOpt(p.name)}</option>`
+    ).join('');
     const playoffOpts = playoffPhases.map(p=>{
       const compName = competitions.find(c=>c.id===p.compId)?.name || 'Sin competición';
       const mCount = getPlayoffMatchupsCount(p);
@@ -1115,11 +1191,14 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       ? `<span style="font-size:14px;font-weight:700;color:var(--gold);">${previewTeam}</span>`
       : refBadgeHTML(shortLabel);
 
+    const modalTitle = isGroupTarget
+      ? `Añadir por referencia · Grupo ${String.fromCharCode(65+slotIdx)}`
+      : `Asignar Slot ${side==='A'?'Superior':'Inferior'} · Partido ${slotIdx+1}`;
     wrap.innerHTML = `
     <div class="modal-overlay open" id="slot-ref-modal">
       <div class="modal" style="max-width:420px;">
         <div class="modal-hdr">
-          <div class="modal-title">Asignar Slot ${side==='A'?'Superior':'Inferior'} · Partido ${slotIdx+1}</div>
+          <div class="modal-title">${modalTitle}</div>
           <button class="modal-close" onclick="document.getElementById('slot-ref-modal-wrap').innerHTML=''">×</button>
         </div>
         <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
@@ -1148,8 +1227,12 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
 
           <div id="sref-ref-block" style="display:${selSourceType==='ref'?'block':'none'};">
             <div class="form-group">
+              <label>Competición origen</label>
+              <select id="sref-comp" style="width:100%;" ${compsWithGroups.length?'':'disabled style="opacity:0.6;"'}>${compsWithGroups.length?compOpts:'<option>No hay competiciones con fases de grupos</option>'}</select>
+            </div>
+            <div class="form-group">
             <label>Fase origen</label>
-              <select id="sref-phase" style="width:100%;" ${groupPhases.length?'':('disabled style="opacity:0.6;"')}>${groupPhases.length?phaseOpts:`<option>${phase.compId?'No hay fases de grupos en esta competición':'Esta fase no está vinculada a una competición'}</option>`}</select>
+              <select id="sref-phase" style="width:100%;" ${groupPhases.length?'':('disabled style="opacity:0.6;"')}>${groupPhases.length?phaseOpts:'<option>No hay fases de grupos en esa competición</option>'}</select>
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -1175,11 +1258,13 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
           </div>
 
           <div style="padding:8px 12px;background:var(--card2);border-radius:var(--r);font-size:13px;color:var(--txt2);">
-            💡 El slot se actualizará automáticamente al cambiar la tabla de posiciones.
+            ${isGroupTarget
+              ? '💡 El equipo se resuelve en vivo desde la tabla origen y se fija al grupo al crear su primera fecha.'
+              : '💡 El slot se actualizará automáticamente al cambiar la tabla de posiciones.'}
           </div>
         </div>
         <div class="modal-footer" style="justify-content:space-between;">
-          <button class="btn btn-danger btn-sm" id="slot-ref-remove-btn">Quitar ref</button>
+          ${isGroupTarget?'<span></span>':'<button class="btn btn-danger btn-sm" id="slot-ref-remove-btn">Quitar ref</button>'}
           <div style="display:flex;gap:8px;">
             <button class="btn" onclick="document.getElementById('slot-ref-modal-wrap').innerHTML=''">Cancelar</button>
             <button class="btn btn-primary" id="slot-ref-save-btn">Guardar</button>
@@ -1191,6 +1276,12 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
     // Listeners para preview en tiempo real
     document.getElementById('sref-source')?.addEventListener('change', async e=>{
       selSourceType = e.target.value;
+      await buildModal();
+    });
+    document.getElementById('sref-comp')?.addEventListener('change', async e=>{
+      selCompId   = parseInt(e.target.value);
+      selPhaseId  = null; // buildModal elige la primera fase de esa competición
+      selGroupIdx = 0; selPlace = 1;
       await buildModal();
     });
     document.getElementById('sref-phase')?.addEventListener('change', async e=>{
@@ -1235,35 +1326,52 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
   await buildModal();
 }
 
-async function saveSlotRef(phaseId, slotIdx, side){
-  // Leer directamente del DOM — _slotRefState puede estar desactualizado
+/* Lee del DOM la definición de origen elegida en el modal.
+   Devuelve {type, ...campos} o null si la selección es inválida. */
+async function _readRefSourceFromModal(){
   const sourceType = document.getElementById('sref-source')?.value || 'ref';
-
-  const phase = await dbGet('phases', phaseId);
-  const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
-
   if(sourceType==='team'){
     const teamId = parseInt(document.getElementById('sref-team')?.value);
-    if(!Number.isFinite(teamId)){ showToast('Selecciona un equipo','error'); return; }
-    refs.push({ type:'team', slotIdx, side, teamId });
-  } else if(sourceType==='playoff_winner'){
+    if(!Number.isFinite(teamId)){ showToast('Selecciona un equipo','error'); return null; }
+    return { type:'team', teamId };
+  }
+  if(sourceType==='playoff_winner'){
     const srcPlayoffPhaseId = parseInt(document.getElementById('sref-playoff-phase')?.value);
     const matchIdx = parseInt(document.getElementById('sref-playoff-key')?.value);
-    if(!srcPlayoffPhaseId || isNaN(matchIdx)) return;
+    if(!srcPlayoffPhaseId || isNaN(matchIdx)) return null;
     const srcPlayoffPhase = await dbGet('phases', srcPlayoffPhaseId);
     const maxMatchups = getPlayoffMatchupsCount(srcPlayoffPhase);
     if(matchIdx < 0 || matchIdx >= maxMatchups){
       showToast('La llave seleccionada no es válida para ese playoff','error');
-      return;
+      return null;
     }
-    refs.push({ type:'playoff_winner', slotIdx, side, phaseId:srcPlayoffPhaseId, matchIdx });
-  } else {
-    const srcPhaseId = parseInt(document.getElementById('sref-phase')?.value);
-    const groupIdx   = parseInt(document.getElementById('sref-group')?.value);
-    const place      = parseInt(document.getElementById('sref-place')?.value);
-    if(!srcPhaseId || isNaN(groupIdx) || isNaN(place)) return;
-    refs.push({ type:'ref', slotIdx, side, phaseId:srcPhaseId, groupIdx, place });
+    return { type:'playoff_winner', phaseId:srcPlayoffPhaseId, matchIdx };
   }
+  const srcPhaseId = parseInt(document.getElementById('sref-phase')?.value);
+  const groupIdx   = parseInt(document.getElementById('sref-group')?.value);
+  const place      = parseInt(document.getElementById('sref-place')?.value);
+  if(!srcPhaseId || isNaN(groupIdx) || isNaN(place)) return null;
+  return { type:'ref', phaseId:srcPhaseId, groupIdx, place };
+}
+
+async function saveSlotRef(phaseId, slotIdx, side){
+  // Leer directamente del DOM — _slotRefState puede estar desactualizado
+  const source = await _readRefSourceFromModal();
+  if(!source) return;
+
+  // Destino grupo: la ref va al estado del modal de asignación (staged);
+  // se persiste junto con los grupos en saveGroupAssign.
+  if((window._slotRefTargetType||'bracket')==='group'){
+    if(typeof addGroupRefFromModal==='function'){
+      addGroupRefFromModal({ ...source, tGroup: slotIdx });
+    }
+    document.getElementById('slot-ref-modal-wrap').innerHTML='';
+    return;
+  }
+
+  const phase = await dbGet('phases', phaseId);
+  const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
+  refs.push({ ...source, slotIdx, side });
 
   await dbPut('phases', {...phase, slotRefs:refs});
 
