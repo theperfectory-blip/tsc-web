@@ -1255,6 +1255,12 @@ function initTrophyRoom(root, compData, teamById){
     interacted = true;
     if (hint) hint.classList.add('is-hidden');
   }
+  // Returns the position equivalent to cardIdx (mod N) that is closest to current target.
+  // Prevents setActive(rawIndex) from discarding loop offsets after multiple rotations.
+  function nearestTarget(cardIdx){
+    const k = Math.round((target - cardIdx) / N);
+    return cardIdx + k * N;
+  }
   function snapTarget(){ target = Math.round(target); }
 
   function triggerCinematicSnap(idx){
@@ -1385,9 +1391,9 @@ function initTrophyRoom(root, compData, teamById){
       _longPressTimer = setTimeout(() => {
         _longPressTimer = null;
         if (movedDuringDrag) return;
-        // Centrar la card si no lo está
+        // Centrar la card si no lo está (preserva offset de vueltas)
         const idx = ((Math.round(target) % N) + N) % N;
-        if (idx !== i) { setActive(i); snapTarget(); }
+        if (idx !== i) { setActive(nearestTarget(i)); snapTarget(); }
         const srcRect = c.getBoundingClientRect();
         openChampionFullscreen(compData[i], teamById, srcRect, compData, i);
       }, LONG_MS);
@@ -1403,7 +1409,7 @@ function initTrophyRoom(root, compData, teamById){
       if (movedDuringDrag) return;
       // En móvil el fullscreen lo maneja el long-press; el click solo enfoca la card.
       if (window.matchMedia('(pointer:coarse)').matches) {
-        setActive(i);
+        setActive(nearestTarget(i));
         return;
       }
       // Escritorio: doble click detectado manualmente
@@ -1412,14 +1418,14 @@ function initTrophyRoom(root, compData, teamById){
       if (isDouble) {
         _lastClickIdx = -1; _lastClickT = 0;
         const idx = ((Math.round(target) % N) + N) % N;
-        if (idx !== i) { setActive(i); snapTarget(); }
+        if (idx !== i) { setActive(nearestTarget(i)); snapTarget(); }
         setTimeout(() => {
           const srcRect = c.getBoundingClientRect();
           openChampionFullscreen(compData[i], teamById, srcRect, compData, i);
         }, 180);
       } else {
         _lastClickIdx = i; _lastClickT = now;
-        setActive(i);
+        setActive(nearestTarget(i));
       }
     });
   });
