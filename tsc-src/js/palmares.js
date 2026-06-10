@@ -1767,15 +1767,17 @@ async function openPalmaresCellEdit(teamId, compKey){
                 <div class="palm-rec-row" data-id="${r.id}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);">
                   ${renderTrophy(comp.key, 22)}
                   <span style="flex:1;font-size:14px;">${r.season ? `<b>${_esc(r.season)}</b>` : '<span style="color:var(--txt3);">temp?</span>'}${r.juego ? ` · <span style="color:var(--txt2);">${_esc(r.juego)}</span>` : ''}${r.year ? ` · <small style="color:var(--txt3);">${r.year}</small>` : ''}</span>
-                  <button class="btn btn-xs" onclick="openPalmaresEditRecord(${r.id})">Editar</button>
                   <button class="btn btn-xs btn-danger" onclick="deletePalmaresRecord(${r.id}, ${teamId}, '${_escAttr(compKey)}')">Quitar</button>
                 </div>`).join('')}
         </div>
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brd);display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;">
-          <div><label style="font-size:11px;color:var(--txt3);">Temporada</label><input type="text" id="palm-cell-season" placeholder="T1"></div>
-          <div><label style="font-size:11px;color:var(--txt3);">Juego</label><input type="text" id="palm-cell-juego" placeholder="PES 4"></div>
-          <div><label style="font-size:11px;color:var(--txt3);">Año</label><input type="number" id="palm-cell-year" placeholder="2024" min="1900" max="2100"></div>
-          <button class="btn btn-primary" onclick="addPalmaresRecord(${teamId}, '${_escAttr(compKey)}')">+ Agregar</button>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--brd);">
+          <div style="font-size:11px;font-weight:700;color:var(--txt3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Agregar nuevo título</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;">
+            <div><label style="font-size:11px;color:var(--txt3);">Temporada</label><input type="text" id="palm-cell-season" placeholder="T1"></div>
+            <div><label style="font-size:11px;color:var(--txt3);">Juego</label><input type="text" id="palm-cell-juego" placeholder="PES 4"></div>
+            <div><label style="font-size:11px;color:var(--txt3);">Año</label><input type="number" id="palm-cell-year" placeholder="2024" min="1900" max="2100"></div>
+            <button class="btn btn-primary" onclick="addPalmaresRecord(${teamId}, '${_escAttr(compKey)}')">+ Agregar</button>
+          </div>
         </div>
       </div>
       <div class="modal-footer"><button class="btn" onclick="closePalmaresModals()">Cerrar</button></div>
