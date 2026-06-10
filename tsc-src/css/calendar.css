@@ -256,49 +256,53 @@
 
 /* ── Timeline (vertical desktop — lado derecho) ──────────── */
 .cal-tl{
-  width:116px;flex-shrink:0;
+  width:128px;flex-shrink:0;
   position:sticky;top:20px;
   display:flex;flex-direction:column;
   gap:0;
-  /* línea vertical: en el borde DERECHO (el dot cuelga de ella) */
-  border-right:3px solid var(--brd);
-  margin-right:16px;
+  /* línea de metro vertical: banda roja gruesa en el borde DERECHO */
+  border-right:10px solid var(--red);
+  margin-right:24px;
 }
 
 .cal-tl-station{
   position:relative;
   display:flex;align-items:center;
   /* texto a la izquierda, espacio a la derecha para el dot */
-  padding:10px 24px 10px 4px;
+  padding:12px 30px 12px 4px;
   cursor:pointer;
   transition:opacity .2s;
 }
 .cal-tl-station:hover{ opacity:1!important; }
 
-/* Dot sobre la línea (borde derecho) */
+/* Estación de metro: círculo borde rojo + interior amarillo, centrado SOBRE la línea */
 .cal-tl-dot{
-  position:absolute;right:-9px;
-  width:15px;height:15px;border-radius:50%;
-  border:3px solid var(--card);
+  position:absolute;right:-20px;
+  width:30px;height:30px;border-radius:50%;
+  border:5px solid var(--red);
+  background:var(--gold);
   transition:transform .2s, box-shadow .2s;
   flex-shrink:0;
 }
 .cal-tl-station:hover .cal-tl-dot,
 .cal-tl-station--active .cal-tl-dot{
-  transform:scale(1.25);
+  transform:scale(1.2);
 }
 
-/* Colores por estado — estilo metro: pasados sin brillo, futuros amarillo, hoy amarillo parpadeante */
-.cal-tl-station--past   .cal-tl-dot{ background:var(--txt3); box-shadow:none; }
-.cal-tl-station--now    .cal-tl-dot{ background:var(--gold);  box-shadow:0 0 0 4px var(--gold-l); animation:calDotPulse 2.2s ease-in-out infinite; }
-.cal-tl-station--future .cal-tl-dot{ background:var(--gold);  box-shadow:none; }
+/* Estados: pasados visibles pero apagados, hoy parpadea */
+.cal-tl-station--now .cal-tl-dot{ animation:calDotBlinkGold 1.6s ease-in-out infinite; }
 
-.cal-tl-station--past   { opacity:.6; }
+.cal-tl-station--past   { opacity:.55; }
 .cal-tl-station--active { opacity:1!important; }
+
+@keyframes calDotBlinkGold{
+  0%,100%{ box-shadow:0 0 0 0 rgba(201,168,76,0); filter:brightness(1); }
+  50%    { box-shadow:0 0 0 8px var(--gold-l);    filter:brightness(1.65); }
+}
 
 /* Label de fecha */
 .cal-tl-label{
-  font-size:12px;font-weight:700;color:var(--txt2);
+  font-size:14px;font-weight:700;color:var(--txt2);
   white-space:nowrap;letter-spacing:.2px;
 }
 .cal-tl-station--now    .cal-tl-label{ color:var(--gold); }
@@ -344,31 +348,48 @@
   .cal-tl{
     width:100%;
     flex-direction:row;
-    border-right:none;border-bottom:none;
-    box-shadow:inset 0 -3px 0 var(--brd);
+    border-right:none;
     margin-right:0;
     position:sticky;top:0;z-index:20;
-    background:var(--bg);
-    overflow-x:auto;
+    /* línea de metro: banda roja gruesa dibujada como background
+       (fija al contenedor → siempre cruza todo el ancho visible) */
+    background-color:var(--bg);
+    background-image:linear-gradient(var(--red),var(--red));
+    background-repeat:no-repeat;
+    background-size:100% 12px;
+    background-position:left bottom 17px;
+    overflow-x:auto;overflow-y:hidden;
     scroll-snap-type:x mandatory;
     -webkit-overflow-scrolling:touch;
+    /* sin scrollbars visibles */
+    scrollbar-width:none;-ms-overflow-style:none;
     gap:0;
-    padding:12px 8px 0;
+    padding:6px 10px 10px;
   }
+  .cal-tl::-webkit-scrollbar{ display:none;width:0;height:0; }
   .cal-tl-station{
     flex-direction:column;
     align-items:center;
     justify-content:flex-end;
-    padding:0 12px 0;
-    min-width:64px;
+    padding:0 14px;
+    min-width:72px;
+    height:88px;
     scroll-snap-align:center;
   }
   .cal-tl-dot{
     position:static;
-    order:2;margin-top:6px;
-    width:13px;height:13px;
+    width:26px;height:26px;
+    border-width:5px;
+    margin:0;
   }
-  .cal-tl-label{ order:1;font-size:11px; }
+  /* Label rotado en diagonal sobre su estación (estilo mapa de metro) */
+  .cal-tl-label{
+    position:absolute;
+    left:calc(50% - 6px);bottom:36px;
+    transform:rotate(-55deg);
+    transform-origin:0 100%;
+    font-size:13px;
+  }
 
   /* Popup: aparece ARRIBA de la estación en móvil */
   .cal-tl-info{
