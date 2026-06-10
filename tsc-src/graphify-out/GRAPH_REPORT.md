@@ -1,11 +1,11 @@
-# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-06-09)
+# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-06-10)
 
 ## Corpus Check
-- 31 files · ~346,599 words
+- 31 files · ~348,499 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 638 nodes · 1603 edges · 39 communities detected
+- 638 nodes · 1600 edges · 39 communities detected
 - Extraction: 69% EXTRACTED · 31% INFERRED · 0% AMBIGUOUS · INFERRED: 496 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -67,10 +67,10 @@
   js\auth.js → js\ui-utils.js
 - `getTeamLogo()` --calls--> `dbGetAll()`  [INFERRED]
   js\bracket.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\db.js
+- `openBulkCoinsModal()` --calls--> `dbGetAll()`  [INFERRED]
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\coins.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\db.js
 - `dbGetAll()` --calls--> `openSeasonModal()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\db.js → js\seasons.js
-- `dbGet()` --calls--> `openAssignDateToJornada()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\db.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\matches.js
 - `dbGet()` --calls--> `getCustomCriterionName()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\db.js → js\standings.js
 
@@ -92,39 +92,39 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.07
-Nodes (90): invalidateStandingsCache(), removeSlotRef(), saveBracketMatch(), closeCoinsModal(), filterCoinsTable(), openBulkCoinsModal(), openCoinsHistory(), openCoinsModal() (+82 more)
+Nodes (77): invalidateStandingsCache(), removeSlotRef(), saveBracketMatch(), closeCoinsModal(), saveBulkCoins(), saveCoinsTransaction(), dbAdd(), dbGet() (+69 more)
 
 ### Community 1 - "Community 1"
+Cohesion: 0.06
+Nodes (61): deleteBracketMatch(), closeCompModal(), deleteComp(), openCompModal(), renderAdmComps(), renderCompsGrid(), saveComp(), downloadJSON() (+53 more)
+
+### Community 2 - "Community 2"
 Cohesion: 0.07
 Nodes (55): aggregatePalmaresByTeam(), buildCase(), buildInfoPanel(), closeChampionFullscreen(), createNewCopa(), deleteCopaAndRefresh(), deletePalmaresRecord(), _esc() (+47 more)
 
-### Community 2 - "Community 2"
-Cohesion: 0.1
-Nodes (43): activeBombo(), addBombo(), broadcast(), deleteActiveBombo(), drawNext(), effectiveDrawnIds(), emptyState(), ensureBC() (+35 more)
-
 ### Community 3 - "Community 3"
+Cohesion: 0.1
+Nodes (41): activeBombo(), addBombo(), broadcast(), drawNext(), effectiveDrawnIds(), emptyState(), ensureBC(), ensureDrumAudio() (+33 more)
+
+### Community 4 - "Community 4"
+Cohesion: 0.07
+Nodes (33): buildBracketRounds(), buildBracketSlots(), _cleanup(), closeBracketMatchModal(), _getAudioCtx(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase() (+25 more)
+
+### Community 5 - "Community 5"
 Cohesion: 0.08
 Nodes (35): _authErrorMsg(), _authEsc(), authForgotPassword(), authSignOut(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit() (+27 more)
 
-### Community 4 - "Community 4"
+### Community 6 - "Community 6"
 Cohesion: 0.11
 Nodes (40): _applyFilters(), _buildH2HPanel(), _classifyOutcomeFIFA(), cleanLegacyImportedFromIDB(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc() (+32 more)
 
-### Community 5 - "Community 5"
+### Community 7 - "Community 7"
 Cohesion: 0.09
 Nodes (36): liveRadarStart(), liveRadarStop(), liveStop(), liveSubscribe(), _applyPubSidebar(), closePubSidebar(), goAdminPage(), goPublicPage() (+28 more)
 
-### Community 6 - "Community 6"
-Cohesion: 0.08
-Nodes (29): buildBracketRounds(), buildBracketSlots(), _cleanup(), closeBracketMatchModal(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase(), getTeamLogo() (+21 more)
-
-### Community 7 - "Community 7"
-Cohesion: 0.08
-Nodes (24): _getAudioCtx(), Rocket, _soundExplosion(), _soundRocketLaunch(), cloudReady(), uploadImageToCloud(), saveProfile(), closeTeamModal() (+16 more)
-
 ### Community 8 - "Community 8"
-Cohesion: 0.08
-Nodes (30): deleteBracketMatch(), closeAssignDateModal(), closeEditResultModal(), closeMatchInputModal(), closeRondaModal(), deleteMatch(), deleteRonda(), formatJornadaDateRange() (+22 more)
+Cohesion: 0.1
+Nodes (21): cloudReady(), uploadImageToCloud(), saveProfile(), closeTeamModal(), deleteTeam(), filterPubTeams(), filterTeamsTable(), openTeamModal() (+13 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.12
@@ -135,28 +135,28 @@ Cohesion: 0.11
 Nodes (23): addToGroup(), buildTeamCompMap(), calcGroupStandings(), closeCriteriaModal(), closeGroupAssignModal(), criteriaDisable(), criteriaDragEnd(), criteriaDrop() (+15 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.11
-Nodes (24): closeCompModal(), deleteComp(), openCompModal(), renderAdmComps(), renderCompsGrid(), downloadJSON(), exportFullDB(), exportSeason() (+16 more)
-
-### Community 12 - "Community 12"
 Cohesion: 0.24
 Nodes (12): calClearSchedule(), _calFormatDay(), calLblNavMonth(), _calLogo(), _calOnChange(), _calSave(), _calSaveSlot(), _calTodayStr() (+4 more)
 
-### Community 13 - "Community 13"
+### Community 12 - "Community 12"
 Cohesion: 0.16
 Nodes (15): Change: competitions.js COMP_TYPES reduced 6 to 4, PHASE_TYPES reduced 5 to 4, Change: history.js _teamCellHTML() shows historical name tooltip, Change: phases.js removed derived phase type logic, Change: teams.js auto-backup of historical names in saveTeam(), Change: ui-utils.js notifyTeamChanged() calls refreshHistoryForSeason(), dbAdd (16 edges God Node), dbGet (51 edges God Node), dbGetAll (77 edges God Node) (+7 more)
 
-### Community 14 - "Community 14"
+### Community 13 - "Community 13"
 Cohesion: 0.16
 Nodes (14): Football Ball Topper Design Pattern, Silver/Chrome Trophy Visual Style, Trophy 03 - Konami, Trophy 03 - Konami (PNG), Trophy 04 - Orejona, Trophy 04 - Orejona (PNG), Trophy 08 - Barroca, Trophy 08 - Barroca (PNG) (+6 more)
 
-### Community 15 - "Community 15"
+### Community 14 - "Community 14"
 Cohesion: 0.23
 Nodes (12): Chibi Character Frame 01: Idle Stance, Chibi Character Frame 02: Reaching into Draw Bowl, Chibi Character Frame 03: Grabbing Ball from Bowl, Chibi Character Frame 04: Holding Ball Up, Chibi Character Frame 05: Showing/Presenting Ball, Chibi Character Frame 06: Cracking Ball Open, Chibi Character Frame 07: Ball Opened Reveal Moment, Chibi Character Frame 08: Celebration thumbs up (+4 more)
 
-### Community 16 - "Community 16"
+### Community 15 - "Community 15"
 Cohesion: 0.2
 Nodes (11): Gold Trophy Visual Style, Trophy 01 - Classica, Trophy 01 - Classica (PNG), Trophy 02 - Imperial, Trophy 02 - Imperial (PNG), Trophy 05 - Sobria, Trophy 05 - Sobria (PNG), Trophy 06 - Moderno (+3 more)
+
+### Community 16 - "Community 16"
+Cohesion: 0.27
+Nodes (7): filterCoinsTable(), openBulkCoinsModal(), openCoinsHistory(), openCoinsModal(), renderAdmCoins(), renderCoinsTable(), updateCoinsPreview()
 
 ### Community 17 - "Community 17"
 Cohesion: 0.5
@@ -291,11 +291,11 @@ Nodes (1): Drumroll Sound Effect
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dbGetAll()` connect `Community 0` to `Community 1`, `Community 2`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`?**
+- **Why does `dbGetAll()` connect `Community 1` to `Community 0`, `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 16`?**
   _High betweenness centrality (0.226) - this node is a cross-community bridge._
-- **Why does `showToast()` connect `Community 0` to `Community 1`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`?**
+- **Why does `showToast()` connect `Community 0` to `Community 1`, `Community 2`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`?**
   _High betweenness centrality (0.161) - this node is a cross-community bridge._
-- **Why does `dbGet()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 10`, `Community 11`, `Community 12`?**
+- **Why does `dbGet()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 10`, `Community 11`, `Community 16`?**
   _High betweenness centrality (0.115) - this node is a cross-community bridge._
 - **Are the 102 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
   _`dbGetAll()` has 102 INFERRED edges - model-reasoned connections that need verification._
