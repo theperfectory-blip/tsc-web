@@ -341,7 +341,7 @@
 .tr-case-base {
   position: absolute;
   left: 4%; right: 4%; bottom: 0;
-  min-height: 120px;
+  min-height: 86px;
   background: none;
   border: none;
   display: flex; align-items: center; justify-content: center;
