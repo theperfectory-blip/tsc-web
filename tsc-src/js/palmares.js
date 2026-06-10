@@ -839,9 +839,8 @@ async function renderPubPalmares(){
 
 function buildCase(data, idx, teamById){
   const { comp, champion, champTeam } = data;
-  // Meta combinada: temporada + juego (formato "T1 · PES 4"). Año se omite
-  // porque la temporada+juego ya identifican el período.
-  const metaBits = champion ? [champion.season, champion.juego].filter(Boolean) : [];
+  // Meta combinada: temporada + juego + año (formato "T1 · PES 4 · 2024").
+  const metaBits = champion ? [champion.season, champion.juego, champion.year].filter(Boolean) : [];
   const metaTxt = metaBits.join(' · ');
   return `
     <div class="tr-case" data-idx="${idx}" style="--accent:${comp.color}">
@@ -1015,6 +1014,37 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
     const fs = wrap.querySelector('#tr-fs');
     /* Cerrar al click en fondo */
     fs.addEventListener('click', (e) => { if (e.target.id === 'tr-fs') closeChampionFullscreen(); });
+
+    /* Tilt 3D leve de las placas doradas siguiendo el mouse.
+       Delegado en #tr-fs: sobrevive a los re-render del side panel. */
+    const PLQ_GOLD_SEL = '.tr-fs-side .tr-hist-row, .tr-fs-side .tr-hist-vig, .tr-fs-plaque';
+    const TILT_MAX = 7; // grados
+    let _tiltEl = null, _tiltRaf = null;
+    const resetTilt = (el) => {
+      ['--plq-rx','--plq-ry','--plq-mx','--plq-my'].forEach(p => el.style.removeProperty(p));
+    };
+    fs.addEventListener('mousemove', (e) => {
+      if (_tiltRaf) return;
+      _tiltRaf = requestAnimationFrame(() => {
+        _tiltRaf = null;
+        const plq = e.target.closest ? e.target.closest(PLQ_GOLD_SEL) : null;
+        if (_tiltEl && _tiltEl !== plq) { resetTilt(_tiltEl); _tiltEl = null; }
+        if (!plq) return;
+        _tiltEl = plq;
+        const r = plq.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        const px = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+        const py = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+        plq.style.setProperty('--plq-ry', ((px - 0.5) *  TILT_MAX).toFixed(2) + 'deg');
+        plq.style.setProperty('--plq-rx', ((0.5 - py) *  TILT_MAX).toFixed(2) + 'deg');
+        plq.style.setProperty('--plq-mx', (px * 100).toFixed(0) + '%');
+        plq.style.setProperty('--plq-my', (py * 100).toFixed(0) + '%');
+      });
+    });
+    fs.addEventListener('mouseleave', () => {
+      if (_tiltRaf) { cancelAnimationFrame(_tiltRaf); _tiltRaf = null; }
+      if (_tiltEl) { resetTilt(_tiltEl); _tiltEl = null; }
+    });
 
     /* Navegación entre competiciones */
     wrap.querySelector('#tr-fs-cp')?.addEventListener('click', (e) => {
