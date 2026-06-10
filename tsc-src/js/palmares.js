@@ -868,9 +868,10 @@ function buildCase(data, idx, teamById){
   `;
 }
 
-/* Panel de campeones: bloque destacado grande arriba (por defecto el
-   vigente) + resto como filas/placas. selRecId permite destacar otro
-   registro al hacer click en su fila — el anterior vuelve al tamaño normal. */
+/* Panel de campeones: una sola lista en orden cronológico. El registro
+   destacado (default: vigente) lleva la clase --exp y se muestra GRANDE
+   en su propia posición de la lista. Al hacer click en otra fila, las
+   clases se intercambian y CSS anima la expansión/compresión in situ. */
 function buildInfoPanel(data, teamById, selRecId){
   const { records, champion } = data;
   const sorted = [...records].sort(_palmCompareChrono);
@@ -878,47 +879,41 @@ function buildInfoPanel(data, teamById, selRecId){
     return `<div class="tr-history"><div class="tr-history-empty">No hay títulos registrados en esta competición.</div></div>`;
   }
 
-  const featured = (selRecId != null && sorted.find(r => r.id === selRecId)) || champion || sorted[0];
-  const fTeam = teamById[featured.teamId] || {};
-  const fTags = [featured.season, featured.juego, featured.year].filter(Boolean).join(' · ');
-  const featIsVig = champion && featured.id === champion.id;
+  const expanded = (selRecId != null && sorted.find(r => r.id === selRecId)) || champion || sorted[0];
 
-  const featBlock = `
-    <div class="tr-hist-vig">
-      ${fTags ? `<div class="tr-hist-vig-tags">${_esc(fTags)}</div>` : ''}
-      <div class="tr-hist-vig-row">
-        <span class="tr-hist-vig-logo" style="background:${fTeam.color || '#333'}">
-          ${fTeam.logo ? `<img src="${_esc(fTeam.logo)}" alt="">` : `<span>${_esc(fTeam.ini || (fTeam.name||'?').slice(0,2))}</span>`}
-        </span>
-        <span class="tr-hist-vig-name">${_esc(fTeam.name || '—')}</span>
-        ${featIsVig ? `<span class="tr-hist-badge">VIGENTE</span>` : ''}
-      </div>
-    </div>`;
-
-  const rest = sorted.filter(r => r.id !== featured.id);
-  const list = rest.map((r) => {
+  const list = sorted.map((r) => {
     const team = teamById[r.teamId] || {};
+    const isExp = r.id === expanded.id;
+    const isVig = champion && r.id === champion.id;
     const primary = r.season || (r.year ? String(r.year) : '—');
     const secondary = [r.juego, r.season && r.year ? r.year : null].filter(Boolean).join(' · ');
-    const vigTag = (champion && r.id === champion.id) ? `<span class="tr-hist-badge tr-hist-badge--sm">VIGENTE</span>` : '';
+    const tags = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
     return `
-      <li class="tr-hist-row tr-hist-row--btn" data-rec-id="${r.id}" tabindex="0" role="button">
+      <li class="tr-hist-row tr-hist-row--btn${isExp ? ' tr-hist-row--exp' : ''}" data-rec-id="${r.id}" tabindex="0" role="button">
+        ${tags ? `<span class="tr-hist-tags">${_esc(tags)}</span>` : ''}
         <span class="tr-hist-year">${_esc(primary)}${secondary?`<small>${_esc(secondary)}</small>`:''}</span>
         <span class="tr-hist-team">
           <span class="tr-hist-logo" style="background:${team.color || '#333'}">
             ${team.logo ? `<img src="${_esc(team.logo)}" alt="">` : `<span>${_esc(team.ini || (team.name||'?').slice(0,2))}</span>`}
           </span>
           <span class="tr-hist-name">${_esc(team.name || '—')}</span>
-          ${vigTag}
+          ${isVig ? `<span class="tr-hist-badge">VIGENTE</span>` : ''}
         </span>
       </li>`;
   }).join('');
 
   return `
     <div class="tr-history">
-      ${featBlock}
-      ${list ? `<ul class="tr-history-list">${list}</ul>` : ''}
+      <ul class="tr-history-list">${list}</ul>
     </div>`;
+}
+
+/* Intercambia la fila expandida dentro de un contenedor (toggle de clases,
+   sin re-render — las transiciones CSS animan el cambio de tamaño). */
+function _palmSwapExpanded(container, row){
+  if (!row || row.classList.contains('tr-hist-row--exp')) return;
+  container.querySelectorAll('.tr-hist-row--exp').forEach(r => r.classList.remove('tr-hist-row--exp'));
+  row.classList.add('tr-hist-row--exp');
 }
 
 /* Modal fullscreen "campeón en pleno" — doble click (escritorio) o long-press (móvil) */
@@ -1030,14 +1025,14 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
       if (currentCompIdx < compArr.length - 1) { currentCompIdx++; buildDesktopShell(); }
     });
 
-    /* Campeones anteriores clicables: el clickeado pasa a ser el bloque
-       destacado (grande) y el destacado anterior vuelve a la lista */
+    /* Campeones clicables: el clickeado se expande EN su lugar de la lista
+       y el expandido anterior se comprime en el suyo (animación CSS) */
     const side = wrap.querySelector('#tr-fs-side-inner');
     side?.addEventListener('click', (e) => {
       const row = e.target.closest('.tr-hist-row--btn');
       if (!row) return;
       e.stopPropagation();
-      side.innerHTML = buildInfoPanel(curComp(), teamById, Number(row.dataset.recId));
+      _palmSwapExpanded(side, row);
     });
   }
 
@@ -1274,18 +1269,18 @@ function initTrophyRoom(root, compData, teamById){
     frame = requestAnimationFrame(tick);
   }
 
-  function renderSidePanel(idx, selRecId){
+  function renderSidePanel(idx){
     if (!sideEl) return;
     const data = compData[idx];
     if (!data) { sideEl.innerHTML = ''; return; }
-    sideEl.innerHTML = buildInfoPanel(data, teamById, selRecId);
+    sideEl.innerHTML = buildInfoPanel(data, teamById);
   }
 
-  /* Click en una fila del historial: ese campeón pasa a ser el destacado */
+  /* Click en una fila: se expande en su lugar; la expandida se comprime */
   sideEl?.addEventListener('click', (e) => {
     const row = e.target.closest('.tr-hist-row--btn');
     if (!row) return;
-    renderSidePanel(snapped, Number(row.dataset.recId));
+    _palmSwapExpanded(sideEl, row);
   });
 
   /* Focos dinámicos: los 7 focos alternan entre color primario y secundario

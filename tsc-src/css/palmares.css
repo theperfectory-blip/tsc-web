@@ -1098,20 +1098,43 @@
   border-radius: 6px;
   background: none;
   border: none;
-  transition: background 140ms, color 140ms;
+  transition: background 140ms, color 140ms, padding 260ms ease;
 }
 .tr-hist-row--btn {
   cursor: pointer;
 }
-.tr-hist-row--btn:hover {
+.tr-hist-row--btn:not(.tr-hist-row--exp):hover {
   background: rgba(255,255,255,0.05);
 }
-.tr-hist-row--btn:hover .tr-hist-name { color: var(--tr-gold-2); }
-.tr-hist-row--sel {
-  background: rgba(var(--accent-rgb, 201,168,76), 0.12);
-  outline: 1px solid rgba(var(--accent-rgb, 201,168,76), 0.3);
+.tr-hist-row--btn:not(.tr-hist-row--exp):hover .tr-hist-name { color: var(--tr-gold-2); }
+
+/* Tags (T1 · PES 4 · 2024) — solo visibles en la fila expandida */
+.tr-hist-tags {
+  display: none;
+  font: 700 11px/1 'Barlow Condensed', sans-serif;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--tr-gold-2);
+  margin-bottom: 8px;
 }
-.tr-hist-row--sel .tr-hist-name { color: var(--tr-gold-2); }
+/* Fila expandida (campeón destacado): crece EN su posición de la lista */
+.tr-hist-row--exp {
+  grid-template-columns: 1fr;
+  padding: 10px 8px 12px;
+  cursor: default;
+}
+.tr-hist-row--exp .tr-hist-year { display: none; }
+.tr-hist-row--exp .tr-hist-tags { display: block; animation: tr-tags-in 280ms ease; }
+@keyframes tr-tags-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.tr-hist-row--exp .tr-hist-logo { width: 40px; height: 40px; }
+.tr-hist-row--exp .tr-hist-logo span { font-size: 14px; }
+.tr-hist-row--exp .tr-hist-name {
+  font-size: clamp(20px, 2vw, 26px);
+  white-space: normal;
+  line-height: 1.05;
+}
 /* Temporada arriba, juego·año debajo — apilados para que nunca se solapen */
 .tr-hist-year {
   font-family: 'Bebas Neue', sans-serif;
@@ -1134,6 +1157,7 @@
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   border: 1.5px solid rgba(255,255,255,0.1);
+  transition: width 260ms ease, height 260ms ease;
 }
 .tr-hist-logo img { width: 100%; height: 100%; object-fit: cover; }
 .tr-hist-logo span { font-family: 'Bebas Neue', sans-serif; font-size: 12px; color: #fff; }
@@ -1144,6 +1168,7 @@
   color: var(--txt, #f0ede6);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   flex: 1 1 auto; min-width: 0;
+  transition: font-size 260ms ease, color 140ms;
 }
 .tr-hist-multi {
   font: 700 11px/1 'Barlow Condensed', sans-serif;
@@ -1162,12 +1187,17 @@
   letter-spacing: 1.2px; white-space: nowrap;
   box-shadow: 0 0 10px color-mix(in srgb, var(--tr-gold) 50%, transparent);
 }
-/* Variante chica: marca al vigente cuando está en la lista (no destacado) */
-.tr-hist-badge--sm {
+/* En las filas el badge es chico; en la expandida crece con transición */
+.tr-hist-row .tr-hist-badge {
   font-size: 8px;
   padding: 2px 6px;
   letter-spacing: 1px;
   flex-shrink: 0;
+  transition: font-size 260ms ease, padding 260ms ease;
+}
+.tr-hist-row--exp .tr-hist-badge {
+  font-size: 10px;
+  padding: 4px 9px;
 }
 .tr-history-empty {
   padding: 18px;
@@ -1494,8 +1524,7 @@
    Tilt 3D leve al mouse vía --plq-rx/--plq-ry (JS en bindDesktopEvents).
    Sheen sigue al mouse vía --plq-mx/--plq-my.
    ============================================================ */
-.tr-fs-side .tr-hist-row,
-.tr-fs-side .tr-hist-vig {
+.tr-fs-side .tr-hist-row {
   --plq-mx: 35%;
   --plq-my: 25%;
   position: relative;
@@ -1529,8 +1558,7 @@
   will-change: transform;
 }
 /* Filete interior (mismo detalle que la placa de vitrina) */
-.tr-fs-side .tr-hist-row::before,
-.tr-fs-side .tr-hist-vig::before {
+.tr-fs-side .tr-hist-row::before {
   content: "";
   position: absolute;
   inset: 4px;
@@ -1543,7 +1571,13 @@
 /* Layout: las placas necesitan más aire que las filas planas */
 .tr-fs-side .tr-history-list { gap: 9px; padding: 4px 8px 4px 2px; }
 .tr-fs-side .tr-hist-row { padding: 9px 14px; }
-.tr-fs-side .tr-hist-vig { padding: 14px 16px 16px; margin-bottom: 14px; }
+/* Expandida: crece en su lugar (la transición de padding anima el cambio) */
+.tr-fs-side .tr-hist-row--exp { padding: 14px 16px 16px; }
+.tr-fs-side .tr-hist-tags {
+  color: #383c44;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.50);
+  position: relative; z-index: 2;
+}
 
 /* Texto grabado oscuro sobre la plata */
 .tr-fs-side .tr-hist-year {
@@ -1565,7 +1599,7 @@
 }
 
 /* Hover: brillo extra + sombra más profunda (el tilt lo pone el JS) */
-.tr-fs-side .tr-hist-row--btn:hover {
+.tr-fs-side .tr-hist-row--btn:not(.tr-hist-row--exp):hover {
   background:
     radial-gradient(
       ellipse 110% 90% at var(--plq-mx) var(--plq-my),
@@ -1590,19 +1624,7 @@
     0 0 0 2.5px rgba(255,255,255,0.18),
     0 7px 18px rgba(0,0,0,0.60);
 }
-.tr-fs-side .tr-hist-row--btn:hover .tr-hist-name { color: #000; }
-
-/* Bloque destacado en plata: tags y nombre grabados */
-.tr-fs-side .tr-hist-vig-tags {
-  color: #383c44;
-  position: relative; z-index: 2;
-}
-.tr-fs-side .tr-hist-vig-row { position: relative; z-index: 2; }
-.tr-fs-side .tr-hist-vig-name {
-  color: #16171c;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.55);
-}
-.tr-fs-side .tr-hist-vig-logo { border-color: rgba(0,0,0,0.25); }
+.tr-fs-side .tr-hist-row--btn:not(.tr-hist-row--exp):hover .tr-hist-name { color: #000; }
 
 /* ============================================================
    Placa del trofeo 3D — latón dorado cepillado (forma de placa
