@@ -347,23 +347,68 @@
   display: flex; align-items: center; justify-content: center;
   padding: 8px 8px 10px;
 }
+/* Placa plateada metálica — reflejo sigue al mouse vía CSS var --plq-mx/--plq-my */
 .tr-case-plaque {
+  position: relative;
   text-align: center;
-  padding: 7px 10px 8px;
-  background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.5));
-  border: 1px solid color-mix(in srgb, var(--accent, gold) 40%, transparent);
-  border-radius: 6px;
+  padding: 9px 10px 12px;
+  border-radius: 4px;
   width: 100%;
+  overflow: hidden;
+  --plq-mx: 35%;
+  --plq-my: 25%;
+  background:
+    radial-gradient(
+      ellipse 110% 90% at var(--plq-mx) var(--plq-my),
+      rgba(255,255,255,0.72) 0%,
+      rgba(255,255,255,0.18) 38%,
+      transparent 62%
+    ),
+    linear-gradient(
+      158deg,
+      #727680 0%,
+      #c4c8cc 14%,
+      #a2a6aa 28%,
+      #e0e4e8 46%,
+      #b0b4b8 60%,
+      #d6dadd 76%,
+      #8a8e94 100%
+    );
   box-shadow:
-    inset 0 0 8px rgba(0,0,0,0.4),
-    0 0 12px color-mix(in srgb, var(--accent, gold) 20%, transparent);
+    inset 1px 1px 0 rgba(255,255,255,0.78),
+    inset -1px -1px 0 rgba(0,0,0,0.28),
+    0 0 0 1px rgba(0,0,0,0.38),
+    0 0 0 2.5px rgba(255,255,255,0.10),
+    0 4px 14px rgba(0,0,0,0.55);
+}
+.tr-case-plaque::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.22);
+  pointer-events: none;
+  z-index: 1;
+}
+.tr-case:hover .tr-case-plaque,
+.tr-case.is-active .tr-case-plaque {
+  box-shadow:
+    inset 1px 1px 0 rgba(255,255,255,0.90),
+    inset -1px -1px 0 rgba(0,0,0,0.30),
+    0 0 0 1px rgba(0,0,0,0.40),
+    0 0 0 2.5px rgba(255,255,255,0.18),
+    0 6px 18px rgba(0,0,0,0.60);
 }
 .tr-case-comp {
   display: block;
+  position: relative; z-index: 2;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 13px;
-  letter-spacing: 1.2px;
-  color: var(--accent, var(--tr-gold));
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #20222a;
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.70),
+    0 -0.5px 0 rgba(0,0,0,0.20);
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
@@ -372,13 +417,13 @@
 .tr-case-champ {
   display: flex; align-items: center; gap: 7px;
   justify-content: center;
-  margin-top: 6px;
+  margin-top: 7px;
   padding: 0 2px;
   font: 700 12px/1 'Barlow Condensed', sans-serif;
-  color: var(--txt, #f0ede6);
   letter-spacing: 0.5px;
   min-width: 0;
   width: 100%;
+  position: relative; z-index: 2;
 }
 .tr-case-champ-logo {
   width: 22px; height: 22px;
@@ -386,18 +431,19 @@
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  border: 1.5px solid rgba(255,255,255,0.12);
+  border: 1.5px solid rgba(0,0,0,0.22);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.50), 0 1px 4px rgba(0,0,0,0.35);
 }
 .tr-case-champ-logo img { width: 100%; height: 100%; object-fit: cover; }
 .tr-case-champ-logo span { font-family: 'Bebas Neue', sans-serif; font-size: 9px; color: #fff; }
-/* Nombre del campeón: hasta 2 líneas, sin truncado, centrado */
+/* Nombre del campeón: hasta 2 líneas, grabado en la placa */
 .tr-case-champ-name {
   flex: 0 1 auto;
   min-width: 0;
   max-width: 130px;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 13px;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.8px;
   line-height: 1.05;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -406,22 +452,32 @@
   white-space: normal;
   text-align: center;
   word-break: break-word;
+  color: #18191f;
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.60),
+    0 -0.5px 0 rgba(0,0,0,0.26);
 }
-/* Meta combinada: T1 · PES 4 (temporada + juego) en una sola línea dorada */
+/* Meta combinada: T1 · PES 4 — grabada más tenue */
 .tr-case-meta {
   display: block;
   margin-top: 5px;
-  font: 700 10.5px/1 'Barlow Condensed', sans-serif;
+  font: 700 9.5px/1 'Barlow Condensed', sans-serif;
   letter-spacing: 1.5px; text-transform: uppercase;
-  color: var(--accent, var(--tr-gold));
+  color: #383c44;
+  text-shadow:
+    0 0.5px 0 rgba(255,255,255,0.55),
+    0 -0.5px 0 rgba(0,0,0,0.12);
+  position: relative; z-index: 2;
 }
 .tr-case-empty {
   display: block;
   margin-top: 5px;
   font: 700 10px/1 'Barlow Condensed', sans-serif;
   letter-spacing: 1px;
-  color: var(--txt3, #888);
+  color: #50545e;
+  text-shadow: 0 0.5px 0 rgba(255,255,255,0.45);
   text-transform: uppercase;
+  position: relative; z-index: 2;
 }
 .tr-case-count {
   display: block;

@@ -1450,6 +1450,31 @@ function initTrophyRoom(root, compData, teamById){
     setTimeout(() => wheelLock = false, 280);
   }, { passive: false });
 
+  /* Reflejo de la placa metálica sigue al mouse */
+  let _plqRaf = null;
+  room.addEventListener('mousemove', (e) => {
+    if (_plqRaf) return;
+    _plqRaf = requestAnimationFrame(() => {
+      _plqRaf = null;
+      cards.forEach((c) => {
+        const plq = c.querySelector('.tr-case-plaque');
+        if (!plq) return;
+        const rect = plq.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(0);
+        const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(0);
+        plq.style.setProperty('--plq-mx', x + '%');
+        plq.style.setProperty('--plq-my', y + '%');
+      });
+    });
+  });
+  room.addEventListener('mouseleave', () => {
+    if (_plqRaf) { cancelAnimationFrame(_plqRaf); _plqRaf = null; }
+    cards.forEach((c) => {
+      const plq = c.querySelector('.tr-case-plaque');
+      if (plq) { plq.style.removeProperty('--plq-mx'); plq.style.removeProperty('--plq-my'); }
+    });
+  });
+
   const ro = new ResizeObserver(() => positionCards());
   ro.observe(room);
 
@@ -1467,7 +1492,6 @@ function initTrophyRoom(root, compData, teamById){
   mo.observe(document.body, { childList: true, subtree: true });
 
   positionCards();
-  updateDots(0);
   tick();
 
   setTimeout(() => { if (!interacted && hint) hint.classList.add('is-hidden'); }, 7000);
