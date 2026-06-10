@@ -288,10 +288,10 @@
   transform:scale(1.25);
 }
 
-/* Colores por estado */
-.cal-tl-station--past   .cal-tl-dot{ background:var(--green); box-shadow:0 0 0 2px rgba(37,168,100,.25); }
+/* Colores por estado — estilo metro: pasados sin brillo, futuros amarillo, hoy amarillo parpadeante */
+.cal-tl-station--past   .cal-tl-dot{ background:var(--txt3); box-shadow:none; }
 .cal-tl-station--now    .cal-tl-dot{ background:var(--gold);  box-shadow:0 0 0 4px var(--gold-l); animation:calDotPulse 2.2s ease-in-out infinite; }
-.cal-tl-station--future .cal-tl-dot{ background:var(--red);   box-shadow:0 0 0 2px rgba(220,60,60,.2); }
+.cal-tl-station--future .cal-tl-dot{ background:var(--gold);  box-shadow:none; }
 
 .cal-tl-station--past   { opacity:.6; }
 .cal-tl-station--active { opacity:1!important; }
@@ -344,7 +344,8 @@
   .cal-tl{
     width:100%;
     flex-direction:row;
-    border-right:none;border-bottom:3px solid var(--brd);
+    border-right:none;border-bottom:none;
+    box-shadow:inset 0 -3px 0 var(--brd);
     margin-right:0;
     position:sticky;top:0;z-index:20;
     background:var(--bg);
@@ -357,13 +358,13 @@
   .cal-tl-station{
     flex-direction:column;
     align-items:center;
-    padding:0 12px 12px;
+    justify-content:flex-end;
+    padding:0 12px 0;
     min-width:64px;
     scroll-snap-align:center;
   }
   .cal-tl-dot{
     position:static;
-    /* en horizontal: el dot queda al fondo de la estación, sobre la línea */
     order:2;margin-top:6px;
     width:13px;height:13px;
   }

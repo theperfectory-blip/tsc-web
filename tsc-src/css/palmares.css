@@ -574,15 +574,13 @@
   }
 }
 
-/* El trofeo grande hace un giro decorativo + zoom dentro del grid */
+/* El trofeo aparece con fade-in suave (sin rotación) */
 .tr-fs-trophy {
-  animation: tr-fs-trophy-zoom 900ms cubic-bezier(.2,1.4,.3,1) 180ms both;
+  animation: tr-fs-trophy-zoom 500ms ease 100ms both;
 }
 @keyframes tr-fs-trophy-zoom {
-  0%   { transform: scale(0.4) rotate(-360deg); opacity: 0; }
-  60%  { transform: scale(1.12) rotate(20deg); opacity: 1; }
-  85%  { transform: scale(0.96) rotate(-6deg); }
-  100% { transform: scale(1) rotate(0); opacity: 1; }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* La placa del trofeo aparece con un fade-up */
@@ -681,7 +679,7 @@
 
 /* ── model-viewer (3-D trofeo en escritorio) ── */
 .tr-fs-trophy--3d {
-  animation: tr-fs-trophy-zoom 900ms cubic-bezier(.2,1.4,.3,1) 180ms both;
+  animation: tr-fs-trophy-zoom 500ms ease 100ms both;
   /* Sin bob ni rotate-3D: model-viewer auto-rotate ya lo hace */
   filter: drop-shadow(0 22px 38px rgba(0,0,0,0.75));
   pointer-events: none; /* solo giro automático, sin interacción */
@@ -1288,7 +1286,15 @@
   text-transform: uppercase;
   color: var(--accent);
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 6px;
+  z-index: 2;
+}
+.tr-fs-mob-comp-pos {
+  font: 700 11px/1 'Barlow Condensed', sans-serif;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  margin-bottom: 14px;
   z-index: 2;
 }
 .tr-fs-mob-champ-row {

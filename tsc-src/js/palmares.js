@@ -959,12 +959,12 @@ function buildInfoPanel(data, teamById){
 }
 
 /* Modal fullscreen "campeón en pleno" — doble click (escritorio) o long-press (móvil) */
-function openChampionFullscreen(data, teamById, sourceRect){
+function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx){
   // Bloquear scroll del fondo mientras el fullscreen está abierto
   document.body.style.overflow = 'hidden';
-  // En móvil: vista simplificada con swipe vertical para navegar campeones
+  // En móvil: vista simplificada con swipe vertical (campeones) + horizontal (competiciones)
   if (window.innerWidth <= 768 || window.matchMedia('(pointer:coarse)').matches) {
-    openChampionFullscreenMobile(data, teamById, sourceRect);
+    openChampionFullscreenMobile(data, teamById, sourceRect, allCompData ?? [data], compIdx ?? 0);
     return;
   }
 
@@ -1003,31 +1003,44 @@ function openChampionFullscreen(data, teamById, sourceRect){
   });
 }
 
-/* Fullscreen móvil: un campeón a la vez, swipe up/down para navegar en el historial */
-function openChampionFullscreenMobile(data, teamById, sourceRect){
-  if (!data.records || !data.records.length) return;
-  const wrap = _palmModalWrap();
-  const accent = data.comp.color;
-  let currentIdx = 0;  // empieza por el vigente (index 0 = más reciente)
-  const records = data.records; // ya ordenados: más reciente primero
+/* Fullscreen móvil: swipe ↕ para campeones del historial, swipe ← → para cambiar competición */
+function openChampionFullscreenMobile(data, teamById, sourceRect, allCompData, compIdx){
+  const compArr = (allCompData && allCompData.length) ? allCompData : [data];
+  let currentCompIdx = (compIdx != null) ? compIdx : Math.max(0, compArr.findIndex(d => d.comp.key === data.comp.key));
+  if (currentCompIdx < 0) currentCompIdx = 0;
+  if (!compArr[currentCompIdx]?.records?.length) return;
+  let currentRecIdx = 0;
 
-  function cardHTML(idx){
-    const rec = records[idx];
+  const hasMultiComp = compArr.length > 1;
+  const wrap = _palmModalWrap();
+
+  function curComp(){ return compArr[currentCompIdx]; }
+
+  function cardHTML(){
+    const comp = curComp();
+    const records = comp.records || [];
+    const rec = records[currentRecIdx];
     if (!rec) return '';
+    const accent = comp.comp.color;
     const team = teamById[rec.teamId] || {};
     const teamColor = team.color || '#666';
     const tags = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
-    const isVigente = idx === 0;
+    const isVigente = currentRecIdx === 0;
     const logoHtml = team.logo
       ? `<img src="${_esc(team.logo)}" alt="">`
       : `<span>${_esc(team.ini || (team.name||'?').slice(0,2))}</span>`;
-    const canUp   = idx < records.length - 1;
-    const canDown = idx > 0;
+    const canUp   = currentRecIdx < records.length - 1;
+    const canDown = currentRecIdx > 0;
+    const compPosHtml = hasMultiComp
+      ? `<div class="tr-fs-mob-comp-pos">${currentCompIdx + 1} / ${compArr.length}</div>`
+      : '';
+    const hint = hasMultiComp ? '← → Competición  ·  ↕ Campeón' : '↕ Desliza para navegar';
     return `
       <div class="tr-fs-mob-card" style="--accent:${accent}">
         <div class="tr-fs-mob-halo" style="background:radial-gradient(circle at 35% 30%, ${teamColor}88, transparent 65%)"></div>
-        <div class="tr-fs-mob-trophy">${renderTrophy3D(data.comp.key, 200)}</div>
-        <div class="tr-fs-mob-comp">${_esc(data.comp.label)}</div>
+        <div class="tr-fs-mob-trophy">${renderTrophy3D(comp.comp.key, 200)}</div>
+        <div class="tr-fs-mob-comp">${_esc(comp.comp.label)}</div>
+        ${compPosHtml}
         <div class="tr-fs-mob-champ-row">
           <div class="tr-fs-mob-logo" style="background:${teamColor}">${logoHtml}</div>
           <div>
@@ -1036,7 +1049,7 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
             ${isVigente ? `<div class="tr-fs-mob-badge">VIGENTE</div>` : ''}
           </div>
         </div>
-        <div class="tr-fs-mob-pos">${idx + 1} / ${records.length}</div>
+        <div class="tr-fs-mob-pos">${currentRecIdx + 1} / ${records.length}</div>
       </div>
       <div class="tr-fs-mob-arrows">
         <button class="tr-fs-mob-arr" id="tr-fs-mob-up" ${!canUp?'disabled':''} title="Campeón anterior">
@@ -1046,20 +1059,20 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
       </div>
-      <div class="tr-fs-mob-hint">↕ Desliza para navegar</div>`;
+      <div class="tr-fs-mob-hint">${hint}</div>`;
   }
 
   function render(){
     const content = wrap.querySelector('#tr-fs-mob-content');
-    if (content) content.innerHTML = cardHTML(currentIdx);
-    // Re-bind arrow buttons
+    if (content) content.innerHTML = cardHTML();
     wrap.querySelector('#tr-fs-mob-up')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (currentIdx < records.length - 1) { currentIdx++; render(); }
+      const recs = curComp().records || [];
+      if (currentRecIdx < recs.length - 1) { currentRecIdx++; render(); }
     });
     wrap.querySelector('#tr-fs-mob-down')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (currentIdx > 0) { currentIdx--; render(); }
+      if (currentRecIdx > 0) { currentRecIdx--; render(); }
     });
   }
 
@@ -1071,9 +1084,9 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
     const ty = cy - window.innerHeight / 2;
     originStyle = ` --tr-fs-tx:${Math.round(tx)}px; --tr-fs-ty:${Math.round(ty)}px;`;
   }
-
+  const initAccent = curComp().comp.color;
   wrap.innerHTML = `
-    <div class="tr-fullscreen tr-fullscreen-mob" id="tr-fs" style="--accent:${accent};${originStyle}">
+    <div class="tr-fullscreen tr-fullscreen-mob" id="tr-fs" style="--accent:${initAccent};${originStyle}">
       <button class="tr-fs-close" onclick="closeChampionFullscreen()" aria-label="Cerrar">×</button>
       <div class="tr-fs-spotlight"></div>
       <div id="tr-fs-mob-content"></div>
@@ -1081,23 +1094,29 @@ function openChampionFullscreenMobile(data, teamById, sourceRect){
 
   render();
 
-  // Swipe vertical para navegar
-  let touchStartY = 0;
+  // Swipe vertical (↕) → navegar campeones · Swipe horizontal (← →) → cambiar competición
+  let touchStartX = 0, touchStartY = 0;
   const fs = wrap.querySelector('#tr-fs');
   fs.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
   }, { passive: true });
   fs.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
-    if (Math.abs(dy) < 45) return;
-    if (dy < 0 && currentIdx < records.length - 1) {
-      // Swipe arriba → campeón más antiguo (índice mayor)
-      currentIdx++;
-      render();
-    } else if (dy > 0 && currentIdx > 0) {
-      // Swipe abajo → campeón más reciente (índice menor)
-      currentIdx--;
-      render();
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 45) {
+      const dir = dx < 0 ? 1 : -1;
+      const newIdx = currentCompIdx + dir;
+      if (newIdx >= 0 && newIdx < compArr.length) {
+        currentCompIdx = newIdx;
+        currentRecIdx = 0;
+        fs.style.setProperty('--accent', curComp().comp.color);
+        render();
+      }
+    } else if (Math.abs(dy) > 45) {
+      const recs = curComp().records || [];
+      if (dy < 0 && currentRecIdx < recs.length - 1) { currentRecIdx++; render(); }
+      else if (dy > 0 && currentRecIdx > 0) { currentRecIdx--; render(); }
     }
   }, { passive: true });
 
@@ -1312,7 +1331,7 @@ function initTrophyRoom(root, compData, teamById){
         const idx = ((Math.round(target) % N) + N) % N;
         if (idx !== i) { setActive(i); snapTarget(); }
         const srcRect = c.getBoundingClientRect();
-        openChampionFullscreen(compData[i], teamById, srcRect);
+        openChampionFullscreen(compData[i], teamById, srcRect, compData, i);
       }, LONG_MS);
     });
     c.addEventListener('pointerup', () => {
@@ -1338,7 +1357,7 @@ function initTrophyRoom(root, compData, teamById){
         if (idx !== i) { setActive(i); snapTarget(); }
         setTimeout(() => {
           const srcRect = c.getBoundingClientRect();
-          openChampionFullscreen(compData[i], teamById, srcRect);
+          openChampionFullscreen(compData[i], teamById, srcRect, compData, i);
         }, 180);
       } else {
         _lastClickIdx = i; _lastClickT = now;
@@ -1358,7 +1377,7 @@ function initTrophyRoom(root, compData, teamById){
     if (e.key === 'ArrowRight') { setActive(target + 1); snapTarget(); }
     if (e.key === 'Enter')      {
       const idx = ((Math.round(target) % N) + N) % N;
-      openChampionFullscreen(compData[idx], teamById);
+      openChampionFullscreen(compData[idx], teamById, undefined, compData, idx);
     }
   }
   window.addEventListener('keydown', onKey);
