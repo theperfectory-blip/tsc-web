@@ -176,7 +176,11 @@
 .cal-pub-day-tag--sorteo { color:#ce93d8;background:rgba(206,147,216,.12); }
 
 /* día pasado: apagado */
-.cal-pub-day--past{ opacity:.55; }
+/* Días pasados: texto gris sólido, no translúcido */
+.cal-pub-day--past .cal-pub-day-name{ color:var(--txt3); }
+.cal-pub-day--past .cal-pub-day-tag { opacity:.6; }
+.cal-pub-day--past .cal-pub-day-empty,
+.cal-pub-day--past .cal-pub-day-special{ opacity:.5; }
 
 /* Cards especiales: Libre / Sorteo */
 .cal-pub-day-special{
@@ -319,10 +323,11 @@
   transform:scale(1.2);
 }
 
-/* Estados: pasados visibles pero apagados, hoy parpadea */
+/* Estados: pasados grises sólidos, hoy parpadea */
 .cal-tl-station--now .cal-tl-dot{ animation:calDotBlinkGold 1.6s ease-in-out infinite; }
 
-.cal-tl-station--past   { opacity:.55; }
+/* Pasados: color gris explícito — sin opacity para que sean sólidos, no translúcidos */
+.cal-tl-station--past .cal-tl-dot{ background:var(--txt3); border-color:var(--txt3); box-shadow:none; }
 .cal-tl-station--active { opacity:1!important; }
 
 @keyframes calDotBlinkGold{

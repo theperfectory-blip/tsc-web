@@ -495,7 +495,7 @@ async function renderAdmCalendarLabels(){
     const shortDate= `${d} ${_CAL_MESES[month-1].substring(0,3)}`;
     const val      = labelByDate[dateStr] || {text:'', type:''};
     const selOpts  = [
-      ['', '—'],
+      ['', 'Partidos'],
       ['libre', 'Libre'],
       ['sorteo', 'Sorteo'],
     ].map(([v,l])=>`<option value="${v}" ${val.type===v?'selected':''}>${l}</option>`).join('');

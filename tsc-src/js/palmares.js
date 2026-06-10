@@ -831,15 +831,6 @@ async function renderPubPalmares(){
         <aside class="tr-side-panel" id="tr-side-panel"></aside>
       </div>
 
-      <nav class="tr-dots" id="tr-dots">
-        ${compData.map((d, i) => `
-          <button class="tr-dot" data-idx="${i}" style="--accent:${d.comp.color}" title="${_esc(d.comp.label)}">
-            <span class="tr-dot-tip">${renderTrophy(d.comp.key, 16)}</span>
-            <span class="tr-dot-label">${_esc(d.comp.short)}</span>
-          </button>
-        `).join('')}
-      </nav>
-
     </div>
   `;
 
@@ -912,7 +903,7 @@ function buildInfoPanel(data, teamById){
     const primary = r.season || (r.year ? String(r.year) : '—');
     const secondary = [r.juego, r.season && r.year ? r.year : null].filter(Boolean).join(' · ');
     return `
-      <li class="tr-hist-row">
+      <li class="tr-hist-row tr-hist-row--btn" data-rec-id="${r.id}" tabindex="0" role="button">
         <span class="tr-hist-year">${_esc(primary)}${secondary?`<small>${_esc(secondary)}</small>`:''}</span>
         <span class="tr-hist-team">
           <span class="tr-hist-logo" style="background:${team.color || '#333'}">
@@ -960,18 +951,22 @@ function buildInfoPanel(data, teamById){
 
 /* Modal fullscreen "campeón en pleno" — doble click (escritorio) o long-press (móvil) */
 function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx){
-  // Bloquear scroll del fondo mientras el fullscreen está abierto
   document.body.style.overflow = 'hidden';
-  // En móvil: vista simplificada con swipe vertical (campeones) + horizontal (competiciones)
   if (window.innerWidth <= 768 || window.matchMedia('(pointer:coarse)').matches) {
     openChampionFullscreenMobile(data, teamById, sourceRect, allCompData ?? [data], compIdx ?? 0);
     return;
   }
 
+  /* ── Desktop: nav entre competiciones + campeones anteriores clicables ── */
+  const compArr = (allCompData && allCompData.length) ? allCompData : [data];
+  let currentCompIdx = (compIdx != null) ? compIdx : Math.max(0, compArr.findIndex(d => d.comp.key === data.comp.key));
+  if (currentCompIdx < 0) currentCompIdx = 0;
+
+  const hasMultiComp = compArr.length > 1;
   const wrap = _palmModalWrap();
-  const accent = data.comp.color;
-  // Calcular la transformación inicial para que el modal parezca expandirse
-  // desde la vitrina clickeada. Si no hay sourceRect, usa center default.
+
+  function curComp(){ return compArr[currentCompIdx]; }
+
   let originStyle = '';
   if (sourceRect) {
     const cx = sourceRect.left + sourceRect.width / 2;
@@ -980,27 +975,95 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
     const ty = cy - window.innerHeight / 2;
     originStyle = ` --tr-fs-tx:${Math.round(tx)}px; --tr-fs-ty:${Math.round(ty)}px;`;
   }
-  wrap.innerHTML = `
-    <div class="tr-fullscreen" id="tr-fs" style="--accent:${accent};${originStyle}">
-      <button class="tr-fs-close" onclick="closeChampionFullscreen()" aria-label="Cerrar">×</button>
-      <div class="tr-fs-spotlight"></div>
-      <div class="tr-fs-grid">
-        <div class="tr-fs-trophy-wrap">
-          <div class="tr-fs-halo" style="background:radial-gradient(circle, ${accent}55, transparent 65%);"></div>
-          ${renderTrophy3D(data.comp.key, 320)}
-          <div class="tr-fs-plaque">
-            <div class="tr-fs-plaque-comp">${_esc(data.comp.label)}</div>
-            <div class="tr-fs-plaque-count">${data.records.length} ${data.records.length===1?'edición':'ediciones'}</div>
+
+  function buildDesktopShell(){
+    const comp   = curComp();
+    const accent = comp.comp.color;
+    const canP   = currentCompIdx > 0;
+    const canN   = currentCompIdx < compArr.length - 1;
+    const nav    = hasMultiComp ? `
+      <div class="tr-fs-comp-nav">
+        <button class="tr-fs-comp-arr" id="tr-fs-cp" ${!canP?'disabled':''} title="Competición anterior">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="tr-fs-comp-pos">${currentCompIdx+1} / ${compArr.length}</span>
+        <button class="tr-fs-comp-arr" id="tr-fs-cn" ${!canN?'disabled':''} title="Competición siguiente">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>` : '';
+    wrap.innerHTML = `
+      <div class="tr-fullscreen" id="tr-fs" style="--accent:${accent};${originStyle}">
+        <button class="tr-fs-close" onclick="closeChampionFullscreen()" aria-label="Cerrar">×</button>
+        ${nav}
+        <div class="tr-fs-spotlight"></div>
+        <div class="tr-fs-grid">
+          <div class="tr-fs-trophy-wrap">
+            <div class="tr-fs-halo" style="background:radial-gradient(circle, ${accent}55, transparent 65%);"></div>
+            ${renderTrophy3D(comp.comp.key, 320)}
+            <div class="tr-fs-plaque">
+              <div class="tr-fs-plaque-comp">${_esc(comp.comp.label)}</div>
+              <div class="tr-fs-plaque-count">${comp.records.length} ${comp.records.length===1?'edición':'ediciones'}</div>
+            </div>
           </div>
+          <div class="tr-fs-side" id="tr-fs-side-inner">${buildInfoPanel(comp, teamById)}</div>
         </div>
-        <div class="tr-fs-side">${buildInfoPanel(data, teamById)}</div>
-      </div>
-    </div>`;
-  // Close on ESC or click on backdrop
+      </div>`;
+    bindDesktopEvents();
+  }
+
+  function bindDesktopEvents(){
+    const fs = wrap.querySelector('#tr-fs');
+    /* Cerrar al click en fondo */
+    fs.addEventListener('click', (e) => { if (e.target.id === 'tr-fs') closeChampionFullscreen(); });
+
+    /* Navegación entre competiciones */
+    wrap.querySelector('#tr-fs-cp')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (currentCompIdx > 0) { currentCompIdx--; buildDesktopShell(); }
+    });
+    wrap.querySelector('#tr-fs-cn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (currentCompIdx < compArr.length - 1) { currentCompIdx++; buildDesktopShell(); }
+    });
+
+    /* Campeones anteriores clicables: actualizan el bloque tr-champ */
+    const side = wrap.querySelector('#tr-fs-side-inner');
+    side?.addEventListener('click', (e) => {
+      const row = e.target.closest('.tr-hist-row--btn');
+      if (!row) return;
+      e.stopPropagation();
+      const recId = Number(row.dataset.recId);
+      const comp  = curComp();
+      const rec   = comp.records.find(r => r.id === recId);
+      if (!rec) return;
+      const team  = teamById[rec.teamId] || {};
+      /* Actualiza solo el bloque tr-champ */
+      const champEl = side.querySelector('.tr-champ');
+      if (champEl) {
+        const colorHalo = team.color || comp.comp.color;
+        const tags = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
+        champEl.style.setProperty('--halo', colorHalo);
+        champEl.innerHTML = `
+          <div class="tr-champ-eyebrow">${_esc(comp.comp.label)}</div>
+          <div class="tr-champ-body">
+            <div class="tr-champ-logo" style="background:${team.color||'#333'}">
+              ${team.logo?`<img src="${_esc(team.logo)}" alt="">`:
+                `<span>${_esc(team.ini||(team.name||'?').slice(0,2))}</span>`}
+            </div>
+            <div class="tr-champ-text">
+              <div class="tr-champ-label">${_esc(tags)}</div>
+              <div class="tr-champ-name">${_esc(team.name||'—')}</div>
+            </div>
+          </div>`;
+      }
+      /* Resaltar fila seleccionada */
+      side.querySelectorAll('.tr-hist-row--btn').forEach(r => r.classList.remove('tr-hist-row--sel'));
+      row.classList.add('tr-hist-row--sel');
+    });
+  }
+
+  buildDesktopShell();
   document.addEventListener('keydown', _trFsEsc);
-  wrap.querySelector('#tr-fs')?.addEventListener('click', (e) => {
-    if (e.target.id === 'tr-fs') closeChampionFullscreen();
-  });
 }
 
 /* Fullscreen móvil: swipe ↕ para campeones del historial, swipe ← → para cambiar competición */
@@ -1144,7 +1207,6 @@ function initTrophyRoom(root, compData, teamById){
   const stage   = root.querySelector('#tr-stage');
   const room    = root.querySelector('#tr-room');
   const flash   = root.querySelector('#tr-flash');
-  const dotsEl  = root.querySelector('#tr-dots');
   const prevBtn = root.querySelector('#tr-prev');
   const nextBtn = root.querySelector('#tr-next');
   const hint    = root.querySelector('#tr-drag-hint');
@@ -1218,7 +1280,6 @@ function initTrophyRoom(root, compData, teamById){
     const currentSnap = ((Math.round(pos) % N) + N) % N;
     if (currentSnap !== snapped) {
       snapped = currentSnap;
-      updateDots(currentSnap);
       renderSidePanel(currentSnap);
       updateSpotlights(currentSnap);
       // El primer asentamiento no dispara cinemática (evita ruido al cargar).
@@ -1228,9 +1289,6 @@ function initTrophyRoom(root, compData, teamById){
     frame = requestAnimationFrame(tick);
   }
 
-  function updateDots(idx){
-    dotsEl.querySelectorAll('.tr-dot').forEach((d, i) => d.classList.toggle('is-active', i === idx));
-  }
   function renderSidePanel(idx){
     if (!sideEl) return;
     const data = compData[idx];
@@ -1369,7 +1427,6 @@ function initTrophyRoom(root, compData, teamById){
 
   prevBtn.addEventListener('click', () => { setActive(target - 1); snapTarget(); });
   nextBtn.addEventListener('click', () => { setActive(target + 1); snapTarget(); });
-  dotsEl.querySelectorAll('.tr-dot').forEach((d, i) => d.addEventListener('click', () => setActive(i)));
 
   function onKey(e){
     if (!root.isConnected) return;
