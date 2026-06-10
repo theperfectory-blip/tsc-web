@@ -33,7 +33,9 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if true;
       allow update: if isAdmin()
-                    || (isPresident() && me().teamId != null && string(me().teamId) == teamId && me().lockEdits != true);
+                    || (isPresident() && me().teamId != null && string(me().teamId) == teamId
+                        && me().lockEdits != true
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'logo']));
       allow create, delete: if isAdmin();
     }
 
