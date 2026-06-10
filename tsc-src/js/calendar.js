@@ -10,7 +10,8 @@ function _calFormatDay(dateStr){
   return `${_CAL_DIAS[dt.getDay()]}, ${d} de ${_CAL_MESES[m-1]}`;
 }
 function _calTodayStr(){
-  return new Date().toISOString().substring(0,10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 /* ─ logo helper ──────────────────────────────────────────── */
