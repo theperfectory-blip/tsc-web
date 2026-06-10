@@ -928,16 +928,6 @@
     overflow-y: visible;
     min-height: auto;
   }
-  .tr-side-panel .tr-champ {
-    background:
-      radial-gradient(ellipse 60% 80% at 80% 20%, color-mix(in srgb, var(--halo, gold) 14%, transparent), transparent 70%),
-      linear-gradient(180deg, var(--card2, #1a1a1a) 0%, var(--card, #111) 100%);
-    border-color: var(--brd, #333);
-  }
-  .tr-side-panel .tr-history {
-    background: linear-gradient(180deg, var(--card2, #1a1a1a) 0%, var(--card, #111) 100%);
-    border-color: var(--brd, #333);
-  }
 }
 
 /* Botones de navegación: en desktop limitarlos al área del carrusel */
@@ -1011,11 +1001,12 @@
 .tr-champ-meta .tr-dotsep { opacity: 0.5; }
 .tr-champ-empty .tr-champ-name { color: var(--txt3, #888); font-size: 22px; }
 
+/* Sin tarjeta contenedora: las placas/filas flotan sobre el fondo */
 .tr-history {
-  background: linear-gradient(180deg, var(--card2, #1a1a1a) 0%, var(--card, #111) 100%);
-  border: 1px solid var(--brd, #333);
-  border-radius: 14px;
-  padding: 16px 18px 14px;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   display: flex; flex-direction: column;
   min-height: 0;
 }
@@ -1100,7 +1091,7 @@
 /* Filas planas del historial — sin marco, sólo respiración */
 .tr-hist-row {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: fit-content(112px) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   padding: 5px 4px;
@@ -1121,15 +1112,19 @@
   outline: 1px solid rgba(var(--accent-rgb, 201,168,76), 0.3);
 }
 .tr-hist-row--sel .tr-hist-name { color: var(--tr-gold-2); }
+/* Temporada arriba, juego·año debajo — apilados para que nunca se solapen */
 .tr-hist-year {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 22px; color: var(--tr-gold);
+  font-size: 20px; color: var(--tr-gold);
   letter-spacing: 1px;
-  display: flex; align-items: baseline; gap: 4px;
+  line-height: 1;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-width: 56px;
 }
 .tr-hist-year small {
-  font: 600 10px/1 'Barlow Condensed', sans-serif;
+  font: 600 10px/1.2 'Barlow Condensed', sans-serif;
   letter-spacing: 1px; color: var(--txt3, #888);
+  white-space: normal;
 }
 .tr-hist-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .tr-hist-logo {
@@ -1167,6 +1162,13 @@
   letter-spacing: 1.2px; white-space: nowrap;
   box-shadow: 0 0 10px color-mix(in srgb, var(--tr-gold) 50%, transparent);
 }
+/* Variante chica: marca al vigente cuando está en la lista (no destacado) */
+.tr-hist-badge--sm {
+  font-size: 8px;
+  padding: 2px 6px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
 .tr-history-empty {
   padding: 18px;
   text-align: center;
@@ -1181,9 +1183,9 @@
   .tr-case { width: 180px; height: 300px; }
   .tr-case-trophy svg { width: 130px !important; height: 156px !important; }
   .tr-nav { width: 38px; height: 38px; }
-  .tr-hist-row { grid-template-columns: 56px 1fr 28px 64px; gap: 8px; }
+  .tr-hist-row { grid-template-columns: fit-content(96px) minmax(0, 1fr); gap: 8px; }
   .tr-hist-name { font-size: 14px; }
-  .tr-hist-year { font-size: 18px; }
+  .tr-hist-year { font-size: 17px; }
 }
 
 /* ============================================================
@@ -1486,56 +1488,54 @@
 .tr-fs-mob-arr:disabled { opacity: 0.15; pointer-events: none; }
 
 /* ============================================================
-   PLACAS DORADAS — SOLO pantalla completa (vista con copa 3D)
-   Marco biselado + panel interior hundido + sheen diagonal.
-   Tilt 3D leve al mouse vía --plq-rx/--plq-ry (JS en initTrophyRoom).
+   PLACAS — SOLO pantalla completa (vista con copa 3D)
+   Lista de campeones: placas PLATEADAS (mismo estilo que la placa
+   de las vitrinas en la vista general).
+   Tilt 3D leve al mouse vía --plq-rx/--plq-ry (JS en bindDesktopEvents).
    Sheen sigue al mouse vía --plq-mx/--plq-my.
    ============================================================ */
 .tr-fs-side .tr-hist-row,
-.tr-fs-side .tr-hist-vig,
-.tr-fs-plaque {
-  --plq-mx: 32%;
-  --plq-my: 22%;
+.tr-fs-side .tr-hist-vig {
+  --plq-mx: 35%;
+  --plq-my: 25%;
   position: relative;
-  border-radius: 3px;
+  border-radius: 4px;
   border: none;
   background:
     radial-gradient(
-      ellipse 130% 110% at var(--plq-mx) var(--plq-my),
-      rgba(255,255,225,0.60) 0%,
-      rgba(255,244,170,0.16) 38%,
+      ellipse 110% 90% at var(--plq-mx) var(--plq-my),
+      rgba(255,255,255,0.72) 0%,
+      rgba(255,255,255,0.18) 38%,
       transparent 62%
     ),
     linear-gradient(
-      128deg,
-      #FFF3B8 0%,
-      #F3D265 15%,
-      #DCAE2A 32%,
-      #BE8E12 48%,
-      #EFC850 64%,
-      #D4A823 80%,
-      #8F6A0E 100%
+      158deg,
+      #727680 0%,
+      #c4c8cc 14%,
+      #a2a6aa 28%,
+      #e0e4e8 46%,
+      #b0b4b8 60%,
+      #d6dadd 76%,
+      #8a8e94 100%
     );
   box-shadow:
-    inset 0 0 0 1px rgba(105,75,8,0.55),
-    inset 2px 2px 3px rgba(255,250,205,0.65),
-    inset -2px -2px 3px rgba(95,65,5,0.45),
-    0 5px 16px rgba(0,0,0,0.50);
+    inset 1px 1px 0 rgba(255,255,255,0.78),
+    inset -1px -1px 0 rgba(0,0,0,0.28),
+    0 0 0 1px rgba(0,0,0,0.38),
+    0 0 0 2.5px rgba(255,255,255,0.10),
+    0 4px 14px rgba(0,0,0,0.55);
   transform: perspective(650px) rotateX(var(--plq-rx, 0deg)) rotateY(var(--plq-ry, 0deg));
   transition: transform 180ms ease, box-shadow 180ms ease;
   will-change: transform;
 }
-/* Marco interior hundido (bisel de placa real) */
+/* Filete interior (mismo detalle que la placa de vitrina) */
 .tr-fs-side .tr-hist-row::before,
-.tr-fs-side .tr-hist-vig::before,
-.tr-fs-plaque::before {
+.tr-fs-side .tr-hist-vig::before {
   content: "";
   position: absolute;
-  inset: 5px;
+  inset: 4px;
   border-radius: 2px;
-  box-shadow:
-    inset 1px 1px 2px rgba(85,58,5,0.50),
-    inset -1px -1px 1px rgba(255,246,185,0.55);
+  border: 1px solid rgba(255,255,255,0.25);
   pointer-events: none;
   z-index: 1;
 }
@@ -1543,86 +1543,153 @@
 /* Layout: las placas necesitan más aire que las filas planas */
 .tr-fs-side .tr-history-list { gap: 9px; padding: 4px 8px 4px 2px; }
 .tr-fs-side .tr-hist-row { padding: 9px 14px; }
-.tr-fs-side .tr-hist-vig { padding: 14px 14px 16px; }
+.tr-fs-side .tr-hist-vig { padding: 14px 16px 16px; margin-bottom: 14px; }
 
-/* Texto grabado oscuro sobre el oro */
+/* Texto grabado oscuro sobre la plata */
 .tr-fs-side .tr-hist-year {
-  color: #6B4A06;
-  text-shadow: 0 1px 0 rgba(255,242,160,0.55);
+  color: #383c44;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.55);
   position: relative; z-index: 2;
 }
-.tr-fs-side .tr-hist-year small { color: #7E5F1E; }
+.tr-fs-side .tr-hist-year small { color: #4a4e58; }
 .tr-fs-side .tr-hist-team { position: relative; z-index: 2; }
 .tr-fs-side .tr-hist-name {
-  color: #241600;
+  color: #18191f;
   text-shadow:
-    0 1px 0 rgba(255,240,150,0.50),
-    0 -0.5px 0 rgba(0,0,0,0.22);
+    0 1px 0 rgba(255,255,255,0.55),
+    0 -0.5px 0 rgba(0,0,0,0.20);
 }
 .tr-fs-side .tr-hist-logo {
-  border-color: rgba(95,65,5,0.40);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  border-color: rgba(0,0,0,0.22);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.30);
 }
 
 /* Hover: brillo extra + sombra más profunda (el tilt lo pone el JS) */
 .tr-fs-side .tr-hist-row--btn:hover {
   background:
     radial-gradient(
-      ellipse 130% 110% at var(--plq-mx) var(--plq-my),
-      rgba(255,255,232,0.72) 0%,
-      rgba(255,247,180,0.20) 38%,
+      ellipse 110% 90% at var(--plq-mx) var(--plq-my),
+      rgba(255,255,255,0.85) 0%,
+      rgba(255,255,255,0.24) 38%,
       transparent 62%
     ),
     linear-gradient(
-      128deg,
-      #FFF3B8 0%,
-      #F3D265 15%,
-      #DCAE2A 32%,
-      #BE8E12 48%,
-      #EFC850 64%,
-      #D4A823 80%,
-      #8F6A0E 100%
+      158deg,
+      #727680 0%,
+      #c4c8cc 14%,
+      #a2a6aa 28%,
+      #e0e4e8 46%,
+      #b0b4b8 60%,
+      #d6dadd 76%,
+      #8a8e94 100%
     );
   box-shadow:
-    inset 0 0 0 1px rgba(105,75,8,0.60),
-    inset 2px 2px 3px rgba(255,252,215,0.75),
-    inset -2px -2px 3px rgba(95,65,5,0.48),
-    0 8px 20px rgba(0,0,0,0.55),
-    0 0 16px rgba(244,215,126,0.30);
+    inset 1px 1px 0 rgba(255,255,255,0.90),
+    inset -1px -1px 0 rgba(0,0,0,0.30),
+    0 0 0 1px rgba(0,0,0,0.40),
+    0 0 0 2.5px rgba(255,255,255,0.18),
+    0 7px 18px rgba(0,0,0,0.60);
 }
 .tr-fs-side .tr-hist-row--btn:hover .tr-hist-name { color: #000; }
 
-/* Seleccionada: aspecto presionado con anillo oscuro */
-.tr-fs-side .tr-hist-row--sel {
-  outline: 2px solid rgba(90,60,0,0.55);
-  outline-offset: -2px;
-  box-shadow:
-    inset 0 0 0 1px rgba(105,75,8,0.65),
-    inset 2px 2px 5px rgba(85,58,5,0.55),
-    inset -1px -1px 2px rgba(255,246,185,0.40),
-    0 3px 10px rgba(0,0,0,0.45);
-}
-.tr-fs-side .tr-hist-row--sel .tr-hist-name { color: #000; }
-
-/* Bloque VIGENTE en oro: tags y nombre grabados, badge invertido */
+/* Bloque destacado en plata: tags y nombre grabados */
 .tr-fs-side .tr-hist-vig-tags {
-  color: #6B4A06;
+  color: #383c44;
   position: relative; z-index: 2;
 }
 .tr-fs-side .tr-hist-vig-row { position: relative; z-index: 2; }
 .tr-fs-side .tr-hist-vig-name {
-  color: #241600;
-  text-shadow: 0 1px 0 rgba(255,240,150,0.50);
+  color: #16171c;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.55);
 }
-.tr-fs-side .tr-hist-vig-logo { border-color: rgba(95,65,5,0.45); }
-.tr-fs-side .tr-hist-vig .tr-hist-badge {
-  background: linear-gradient(180deg, #3A2A08, #241800);
-  color: #F4D77E;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.40);
-}
+.tr-fs-side .tr-hist-vig-logo { border-color: rgba(0,0,0,0.25); }
 
-/* Placa bajo el trofeo 3D: texto grabado oscuro */
-.tr-fs-plaque { padding: 14px 28px; }
+/* ============================================================
+   Placa del trofeo 3D — latón dorado cepillado (forma de placa
+   real: orejas laterales redondeadas con remache + marco interior)
+   ============================================================ */
+.tr-fs-plaque {
+  position: relative;
+  margin-top: 22px;
+  padding: 16px 36px 17px;
+  border: none;
+  border-radius: 10px;
+  --plq-mx: 35%;
+  --plq-my: 30%;
+  background:
+    radial-gradient(
+      ellipse 120% 100% at var(--plq-mx) var(--plq-my),
+      rgba(255,250,215,0.50) 0%,
+      rgba(255,242,180,0.14) 40%,
+      transparent 65%
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,0.055) 0px,
+      rgba(255,255,255,0.055) 1px,
+      rgba(0,0,0,0.035) 2px,
+      transparent 3px
+    ),
+    linear-gradient(
+      180deg,
+      #EBC979 0%,
+      #D9AE4C 26%,
+      #BE9128 48%,
+      #D2A93E 64%,
+      #E5C161 82%,
+      #A87F1E 100%
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255,246,200,0.75),
+    inset 0 -1px 0 rgba(80,55,8,0.55),
+    inset 1px 0 0 rgba(255,240,180,0.35),
+    inset -1px 0 0 rgba(80,55,8,0.35),
+    0 0 0 1px rgba(90,62,8,0.55),
+    0 6px 18px rgba(0,0,0,0.55);
+  transform: perspective(650px) rotateX(var(--plq-rx, 0deg)) rotateY(var(--plq-ry, 0deg));
+  transition: transform 180ms ease;
+  will-change: transform;
+}
+/* Orejas laterales redondeadas con remache */
+.tr-fs-plaque::before,
+.tr-fs-plaque::after {
+  content: "";
+  position: absolute;
+  top: 16%; bottom: 16%;
+  width: 30px;
+  z-index: -1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,246,200,0.65),
+    inset 0 -1px 0 rgba(80,55,8,0.55),
+    0 0 0 1px rgba(90,62,8,0.50),
+    0 4px 10px rgba(0,0,0,0.45);
+}
+.tr-fs-plaque::before {
+  left: -14px;
+  border-radius: 16px 0 0 16px / 50% 0 0 50%;
+  background:
+    radial-gradient(circle at 9px 50%, rgba(255,250,215,0.95) 0 1.5px, #8F6C16 2px 3.5px, rgba(0,0,0,0.25) 4px 4.5px, transparent 5px),
+    linear-gradient(180deg, #E2BC5C 0%, #C49A2E 50%, #9A7418 100%);
+}
+.tr-fs-plaque::after {
+  right: -14px;
+  border-radius: 0 16px 16px 0 / 0 50% 50% 0;
+  background:
+    radial-gradient(circle at calc(100% - 9px) 50%, rgba(255,250,215,0.95) 0 1.5px, #8F6C16 2px 3.5px, rgba(0,0,0,0.25) 4px 4.5px, transparent 5px),
+    linear-gradient(180deg, #E2BC5C 0%, #C49A2E 50%, #9A7418 100%);
+}
+/* Marco interior grabado (filete doble como la referencia) */
+.tr-fs-plaque-frame {
+  position: absolute;
+  inset: 7px;
+  border-radius: 7px;
+  border: 1.5px solid rgba(110,80,16,0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,246,200,0.35),
+    0 0 0 1px rgba(255,246,200,0.25);
+  pointer-events: none;
+  z-index: 1;
+}
 .tr-fs-plaque-comp {
   color: #3A2300;
   text-shadow: 0 1px 0 rgba(255,240,150,0.55);

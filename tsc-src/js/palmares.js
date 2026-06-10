@@ -868,39 +868,39 @@ function buildCase(data, idx, teamById){
   `;
 }
 
-function buildInfoPanel(data, teamById){
-  const { comp, records, champTeam, champion } = data;
-  // Conteo de títulos del campeón vigente en esta copa (para metadata)
-  const champCountInComp = champTeam
-    ? records.filter(r => r.teamId === champTeam.id).length
-    : 0;
-
-  // Vigente como bloque destacado arriba (fuente más grande)
-  let vigenteBlock = '';
-  if (champion && champTeam) {
-    const tags = [champion.season, champion.juego, champion.year].filter(Boolean).join(' · ');
-    vigenteBlock = `
-      <div class="tr-hist-vig">
-        ${tags ? `<div class="tr-hist-vig-tags">${_esc(tags)}</div>` : ''}
-        <div class="tr-hist-vig-row">
-          <span class="tr-hist-vig-logo" style="background:${champTeam.color || '#333'}">
-            ${champTeam.logo ? `<img src="${_esc(champTeam.logo)}" alt="">` : `<span>${_esc(champTeam.ini || champTeam.name.slice(0,2))}</span>`}
-          </span>
-          <span class="tr-hist-vig-name">${_esc(champTeam.name)}</span>
-          <span class="tr-hist-badge">VIGENTE</span>
-        </div>
-      </div>`;
+/* Panel de campeones: bloque destacado grande arriba (por defecto el
+   vigente) + resto como filas/placas. selRecId permite destacar otro
+   registro al hacer click en su fila — el anterior vuelve al tamaño normal. */
+function buildInfoPanel(data, teamById, selRecId){
+  const { records, champion } = data;
+  const sorted = [...records].sort(_palmCompareChrono);
+  if (!sorted.length) {
+    return `<div class="tr-history"><div class="tr-history-empty">No hay títulos registrados en esta competición.</div></div>`;
   }
 
-  // Resto del historial: excluye al vigente y ordena year DESC (más reciente arriba)
-  const restRecords = records
-    .filter(r => !champion || r.id !== champion.id)
-    .sort(_palmCompareChrono);
+  const featured = (selRecId != null && sorted.find(r => r.id === selRecId)) || champion || sorted[0];
+  const fTeam = teamById[featured.teamId] || {};
+  const fTags = [featured.season, featured.juego, featured.year].filter(Boolean).join(' · ');
+  const featIsVig = champion && featured.id === champion.id;
 
-  const list = restRecords.map((r) => {
+  const featBlock = `
+    <div class="tr-hist-vig">
+      ${fTags ? `<div class="tr-hist-vig-tags">${_esc(fTags)}</div>` : ''}
+      <div class="tr-hist-vig-row">
+        <span class="tr-hist-vig-logo" style="background:${fTeam.color || '#333'}">
+          ${fTeam.logo ? `<img src="${_esc(fTeam.logo)}" alt="">` : `<span>${_esc(fTeam.ini || (fTeam.name||'?').slice(0,2))}</span>`}
+        </span>
+        <span class="tr-hist-vig-name">${_esc(fTeam.name || '—')}</span>
+        ${featIsVig ? `<span class="tr-hist-badge">VIGENTE</span>` : ''}
+      </div>
+    </div>`;
+
+  const rest = sorted.filter(r => r.id !== featured.id);
+  const list = rest.map((r) => {
     const team = teamById[r.teamId] || {};
     const primary = r.season || (r.year ? String(r.year) : '—');
     const secondary = [r.juego, r.season && r.year ? r.year : null].filter(Boolean).join(' · ');
+    const vigTag = (champion && r.id === champion.id) ? `<span class="tr-hist-badge tr-hist-badge--sm">VIGENTE</span>` : '';
     return `
       <li class="tr-hist-row tr-hist-row--btn" data-rec-id="${r.id}" tabindex="0" role="button">
         <span class="tr-hist-year">${_esc(primary)}${secondary?`<small>${_esc(secondary)}</small>`:''}</span>
@@ -909,42 +909,15 @@ function buildInfoPanel(data, teamById){
             ${team.logo ? `<img src="${_esc(team.logo)}" alt="">` : `<span>${_esc(team.ini || (team.name||'?').slice(0,2))}</span>`}
           </span>
           <span class="tr-hist-name">${_esc(team.name || '—')}</span>
+          ${vigTag}
         </span>
       </li>`;
   }).join('');
 
-  const colorHalo = champTeam?.color || comp.color;
   return `
-    <div class="tr-champ" style="--halo:${colorHalo}">
-      <div class="tr-champ-eyebrow">${_esc(comp.label)}</div>
-      ${champTeam ? `
-        <div class="tr-champ-body">
-          <div class="tr-champ-logo" style="background:${champTeam.color || '#333'}">
-            ${champTeam.logo ? `<img src="${_esc(champTeam.logo)}" alt="">` : `<span>${_esc(champTeam.ini || champTeam.name.slice(0,2))}</span>`}
-          </div>
-          <div class="tr-champ-text">
-            <div class="tr-champ-label">Campeón vigente</div>
-            <div class="tr-champ-name">${_esc(champTeam.name)}</div>
-            <div class="tr-champ-meta">
-              ${champion.season ? `<span>${_esc(champion.season)}</span>` : ''}
-              ${champion.juego ? `<span class="tr-dotsep">·</span><span>${_esc(champion.juego)}</span>` : ''}
-              ${champion.year ? `<span class="tr-dotsep">·</span><span>${champion.year}</span>` : ''}
-              ${champCountInComp > 1 ? `<span class="tr-dotsep">·</span><span>${champCountInComp} en esta copa</span>` : ''}
-            </div>
-          </div>
-        </div>` : `
-        <div class="tr-champ-empty">
-          <div class="tr-champ-label">Aún sin campeón</div>
-          <div class="tr-champ-name">La primera edición está por jugarse.</div>
-        </div>`}
-    </div>
     <div class="tr-history">
-      <header class="tr-history-hdr">
-        <h2>Historial de campeones</h2>
-        <span class="tr-history-count">${records.length} ${records.length===1?'edición':'ediciones'}</span>
-      </header>
-      ${vigenteBlock}
-      ${list ? `<ul class="tr-history-list">${list}</ul>` : (vigenteBlock ? '' : `<div class="tr-history-empty">No hay títulos registrados en esta competición.</div>`)}
+      ${featBlock}
+      ${list ? `<ul class="tr-history-list">${list}</ul>` : ''}
     </div>`;
 }
 
@@ -1000,6 +973,7 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
             <div class="tr-fs-halo" style="background:radial-gradient(circle, ${accent}55, transparent 65%);"></div>
             ${renderTrophy3D(comp.comp.key, 320)}
             <div class="tr-fs-plaque">
+              <span class="tr-fs-plaque-frame"></span>
               <div class="tr-fs-plaque-comp">${_esc(comp.comp.label)}</div>
               <div class="tr-fs-plaque-count">${comp.records.length} ${comp.records.length===1?'edición':'ediciones'}</div>
             </div>
@@ -1056,39 +1030,14 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
       if (currentCompIdx < compArr.length - 1) { currentCompIdx++; buildDesktopShell(); }
     });
 
-    /* Campeones anteriores clicables: actualizan el bloque tr-champ */
+    /* Campeones anteriores clicables: el clickeado pasa a ser el bloque
+       destacado (grande) y el destacado anterior vuelve a la lista */
     const side = wrap.querySelector('#tr-fs-side-inner');
     side?.addEventListener('click', (e) => {
       const row = e.target.closest('.tr-hist-row--btn');
       if (!row) return;
       e.stopPropagation();
-      const recId = Number(row.dataset.recId);
-      const comp  = curComp();
-      const rec   = comp.records.find(r => r.id === recId);
-      if (!rec) return;
-      const team  = teamById[rec.teamId] || {};
-      /* Actualiza solo el bloque tr-champ */
-      const champEl = side.querySelector('.tr-champ');
-      if (champEl) {
-        const colorHalo = team.color || comp.comp.color;
-        const tags = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
-        champEl.style.setProperty('--halo', colorHalo);
-        champEl.innerHTML = `
-          <div class="tr-champ-eyebrow">${_esc(comp.comp.label)}</div>
-          <div class="tr-champ-body">
-            <div class="tr-champ-logo" style="background:${team.color||'#333'}">
-              ${team.logo?`<img src="${_esc(team.logo)}" alt="">`:
-                `<span>${_esc(team.ini||(team.name||'?').slice(0,2))}</span>`}
-            </div>
-            <div class="tr-champ-text">
-              <div class="tr-champ-label">${_esc(tags)}</div>
-              <div class="tr-champ-name">${_esc(team.name||'—')}</div>
-            </div>
-          </div>`;
-      }
-      /* Resaltar fila seleccionada */
-      side.querySelectorAll('.tr-hist-row--btn').forEach(r => r.classList.remove('tr-hist-row--sel'));
-      row.classList.add('tr-hist-row--sel');
+      side.innerHTML = buildInfoPanel(curComp(), teamById, Number(row.dataset.recId));
     });
   }
 
@@ -1325,12 +1274,19 @@ function initTrophyRoom(root, compData, teamById){
     frame = requestAnimationFrame(tick);
   }
 
-  function renderSidePanel(idx){
+  function renderSidePanel(idx, selRecId){
     if (!sideEl) return;
     const data = compData[idx];
     if (!data) { sideEl.innerHTML = ''; return; }
-    sideEl.innerHTML = buildInfoPanel(data, teamById);
+    sideEl.innerHTML = buildInfoPanel(data, teamById, selRecId);
   }
+
+  /* Click en una fila del historial: ese campeón pasa a ser el destacado */
+  sideEl?.addEventListener('click', (e) => {
+    const row = e.target.closest('.tr-hist-row--btn');
+    if (!row) return;
+    renderSidePanel(snapped, Number(row.dataset.recId));
+  });
 
   /* Focos dinámicos: los 7 focos alternan entre color primario y secundario
      del equipo campeón. Fallback: color de la copa o dorado cálido. */
