@@ -341,19 +341,20 @@
 .tr-case-base {
   position: absolute;
   left: 4%; right: 4%; bottom: 0;
-  min-height: 120px;
+  min-height: 86px;
   background: none;
   border: none;
   display: flex; align-items: center; justify-content: center;
   padding: 8px 8px 12px;
 }
-/* Placa plateada metálica — reflejo sigue al mouse vía CSS var --plq-mx/--plq-my */
+/* Placa plateada metálica — reflejo sigue al mouse vía CSS var --plq-mx/--plq-my.
+   50% del ancho: solo muestra copa + nº de ediciones. */
 .tr-case-plaque {
   position: relative;
   text-align: center;
-  padding: 11px 12px 14px;
+  padding: 9px 10px 11px;
   border-radius: 4px;
-  width: 100%;
+  width: 50%;
   overflow: hidden;
   --plq-mx: 35%;
   --plq-my: 25%;
@@ -409,10 +410,9 @@
   text-shadow:
     0 1px 0 rgba(255,255,255,0.70),
     0 -0.5px 0 rgba(0,0,0,0.20);
-  line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.15;
+  white-space: normal;
+  word-break: break-word;
 }
 .tr-case-champ {
   display: flex; align-items: center; gap: 7px;
@@ -844,9 +844,14 @@
 }
 .tr-side-panel::-webkit-scrollbar { width: 6px; }
 .tr-side-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.20); border-radius: 3px; }
-.tr-side-panel .tr-champ,
-.tr-side-panel .tr-history { margin: 0; }
+.tr-side-panel .tr-champ { margin: 0; }
+/* Centrada verticalmente en la sala (margin auto permite scroll si desborda) */
+.tr-side-panel .tr-history { margin: auto 0; }
 .tr-side-panel .tr-history-list { max-height: none; }
+/* Vista general: lista fija — las filas no son clicables aquí */
+.tr-side-panel .tr-hist-row--btn { cursor: default; }
+.tr-side-panel .tr-hist-row--btn:not(.tr-hist-row--exp):hover { background: none; }
+.tr-side-panel .tr-hist-row--btn:not(.tr-hist-row--exp):hover .tr-hist-name { color: var(--txt, #f0ede6); }
 
 /* Desktop: las "tarjetas" internas dejan de existir como contenedores.
    Sin background, sin borde, sin padding-card. Solo texto con sombra
@@ -1712,12 +1717,56 @@
   pointer-events: none;
   z-index: 1;
 }
+/* Contenido dinámico: copa (eyebrow) + campeón seleccionado + meta */
 .tr-fs-plaque-comp {
-  color: #3A2300;
-  text-shadow: 0 1px 0 rgba(255,240,150,0.55);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #5C4410;
+  text-shadow: 0 1px 0 rgba(255,240,150,0.45);
   position: relative; z-index: 2;
 }
-.tr-fs-plaque-count {
-  color: #5C4410;
+.tr-fs-plaque-champ {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
   position: relative; z-index: 2;
+}
+.tr-fs-plaque-logo {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(90,62,8,0.45);
+  box-shadow: inset 0 1px 0 rgba(255,240,170,0.50), 0 1px 4px rgba(0,0,0,0.35);
+}
+.tr-fs-plaque-logo img { width: 100%; height: 100%; object-fit: cover; }
+.tr-fs-plaque-logo span { font-family: 'Bebas Neue', sans-serif; font-size: 11px; color: #fff; }
+.tr-fs-plaque-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24px;
+  letter-spacing: 1.2px;
+  line-height: 1.05;
+  color: #2A1800;
+  text-shadow:
+    0 1px 0 rgba(255,240,150,0.55),
+    0 -0.5px 0 rgba(0,0,0,0.30);
+}
+.tr-fs-plaque-meta {
+  margin-top: 7px;
+  font: 700 10px/1.3 'Barlow Condensed', sans-serif;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #5C4410;
+  text-shadow: 0 1px 0 rgba(255,240,150,0.40);
+  position: relative; z-index: 2;
+}
+/* Fade corto al cambiar de campeón seleccionado */
+.tr-fs-plaque--swap { animation: tr-plq-swap 240ms ease; }
+@keyframes tr-plq-swap {
+  from { opacity: 0.30; }
+  to   { opacity: 1; }
 }

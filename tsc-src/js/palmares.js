@@ -838,10 +838,10 @@ async function renderPubPalmares(){
 }
 
 function buildCase(data, idx, teamById){
-  const { comp, champion, champTeam } = data;
-  // Meta combinada: temporada + juego + año (formato "T1 · PES 4 · 2024").
-  const metaBits = champion ? [champion.season, champion.juego, champion.year].filter(Boolean) : [];
-  const metaTxt = metaBits.join(' · ');
+  const { comp, records } = data;
+  // La placa de vitrina muestra copa + nº de ediciones (los datos del
+  // campeón viven en la placa dorada del fullscreen).
+  const n = (records || []).length;
   return `
     <div class="tr-case" data-idx="${idx}" style="--accent:${comp.color}">
       <div class="tr-case-niche">
@@ -852,15 +852,7 @@ function buildCase(data, idx, teamById){
         <div class="tr-case-base">
           <div class="tr-case-plaque">
             <span class="tr-case-comp">${_esc(comp.label)}</span>
-            ${champTeam ? `
-              <span class="tr-case-champ">
-                <span class="tr-case-champ-logo" style="background:${champTeam.color||'#333'}">
-                  ${champTeam.logo ? `<img src="${_esc(champTeam.logo)}" alt="">` : `<span>${_esc(champTeam.ini || champTeam.name.slice(0,2))}</span>`}
-                </span>
-                <span class="tr-case-champ-name">${_esc(champTeam.name)}</span>
-              </span>
-              ${metaTxt ? `<span class="tr-case-meta">${_esc(metaTxt)}</span>` : ''}
-            ` : `<span class="tr-case-empty">Sin campeón aún</span>`}
+            ${n ? `<span class="tr-case-meta">${n} ${n===1?'edición':'ediciones'}</span>` : `<span class="tr-case-empty">Sin campeón aún</span>`}
           </div>
         </div>
       </div>
@@ -916,6 +908,25 @@ function _palmSwapExpanded(container, row){
   row.classList.add('tr-hist-row--exp');
 }
 
+/* Contenido de la placa dorada del fullscreen: copa + datos del campeón
+   del registro seleccionado. Se re-renderiza al clickear filas. */
+function _palmFsPlaqueHTML(compEntry, rec, teamById){
+  const team = rec ? (teamById[rec.teamId] || {}) : null;
+  const tags = rec ? [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ') : '';
+  return `
+    <span class="tr-fs-plaque-frame"></span>
+    <div class="tr-fs-plaque-comp">${_esc(compEntry.comp.label)}</div>
+    ${team ? `
+      <div class="tr-fs-plaque-champ">
+        <span class="tr-fs-plaque-logo" style="background:${team.color || '#333'}">
+          ${team.logo ? `<img src="${_esc(team.logo)}" alt="">` : `<span>${_esc(team.ini || (team.name||'?').slice(0,2))}</span>`}
+        </span>
+        <span class="tr-fs-plaque-name">${_esc(team.name || '—')}</span>
+      </div>
+      ${tags ? `<div class="tr-fs-plaque-meta">${_esc(tags)}</div>` : ''}
+    ` : `<div class="tr-fs-plaque-meta">Sin campeón aún</div>`}`;
+}
+
 /* Modal fullscreen "campeón en pleno" — doble click (escritorio) o long-press (móvil) */
 function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx){
   document.body.style.overflow = 'hidden';
@@ -967,11 +978,7 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
           <div class="tr-fs-trophy-wrap">
             <div class="tr-fs-halo" style="background:radial-gradient(circle, ${accent}55, transparent 65%);"></div>
             ${renderTrophy3D(comp.comp.key, 320)}
-            <div class="tr-fs-plaque">
-              <span class="tr-fs-plaque-frame"></span>
-              <div class="tr-fs-plaque-comp">${_esc(comp.comp.label)}</div>
-              <div class="tr-fs-plaque-count">${comp.records.length} ${comp.records.length===1?'edición':'ediciones'}</div>
-            </div>
+            <div class="tr-fs-plaque">${_palmFsPlaqueHTML(comp, (comp.champion || [...comp.records].sort(_palmCompareChrono)[0] || null), teamById)}</div>
           </div>
           <div class="tr-fs-side" id="tr-fs-side-inner">${buildInfoPanel(comp, teamById)}</div>
         </div>
@@ -1025,14 +1032,21 @@ function openChampionFullscreen(data, teamById, sourceRect, allCompData, compIdx
       if (currentCompIdx < compArr.length - 1) { currentCompIdx++; buildDesktopShell(); }
     });
 
-    /* Campeones clicables: el clickeado se expande EN su lugar de la lista
-       y el expandido anterior se comprime en el suyo (animación CSS) */
+    /* Campeones clicables: el clickeado se expande EN su lugar de la lista,
+       el anterior se comprime, y la placa dorada actualiza sus datos */
     const side = wrap.querySelector('#tr-fs-side-inner');
     side?.addEventListener('click', (e) => {
       const row = e.target.closest('.tr-hist-row--btn');
       if (!row) return;
       e.stopPropagation();
       _palmSwapExpanded(side, row);
+      const rec = curComp().records.find(r => r.id === Number(row.dataset.recId));
+      const plq = fs.querySelector('.tr-fs-plaque');
+      if (rec && plq) {
+        plq.innerHTML = _palmFsPlaqueHTML(curComp(), rec, teamById);
+        plq.classList.remove('tr-fs-plaque--swap'); void plq.offsetWidth;
+        plq.classList.add('tr-fs-plaque--swap');
+      }
     });
   }
 
@@ -1269,19 +1283,14 @@ function initTrophyRoom(root, compData, teamById){
     frame = requestAnimationFrame(tick);
   }
 
+  /* Lista fija en vista general: el vigente queda expandido y las filas
+     no son clicables (la interacción vive en el fullscreen). */
   function renderSidePanel(idx){
     if (!sideEl) return;
     const data = compData[idx];
     if (!data) { sideEl.innerHTML = ''; return; }
     sideEl.innerHTML = buildInfoPanel(data, teamById);
   }
-
-  /* Click en una fila: se expande en su lugar; la expandida se comprime */
-  sideEl?.addEventListener('click', (e) => {
-    const row = e.target.closest('.tr-hist-row--btn');
-    if (!row) return;
-    _palmSwapExpanded(sideEl, row);
-  });
 
   /* Focos dinámicos: los 7 focos alternan entre color primario y secundario
      del equipo campeón. Fallback: color de la copa o dorado cálido. */
