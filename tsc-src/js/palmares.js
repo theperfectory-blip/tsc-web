@@ -838,10 +838,10 @@ async function renderPubPalmares(){
 }
 
 function buildCase(data, idx, teamById){
-  const { comp, records } = data;
-  // La placa de vitrina muestra copa + nº de ediciones (los datos del
-  // campeón viven en la placa dorada del fullscreen).
-  const n = (records || []).length;
+  const { comp, champion, champTeam } = data;
+  // Meta combinada: temporada + juego + año (formato "T1 · PES 4 · 2024").
+  const metaBits = champion ? [champion.season, champion.juego, champion.year].filter(Boolean) : [];
+  const metaTxt = metaBits.join(' · ');
   return `
     <div class="tr-case" data-idx="${idx}" style="--accent:${comp.color}">
       <div class="tr-case-niche">
@@ -852,7 +852,15 @@ function buildCase(data, idx, teamById){
         <div class="tr-case-base">
           <div class="tr-case-plaque">
             <span class="tr-case-comp">${_esc(comp.label)}</span>
-            ${n ? `<span class="tr-case-meta">${n} ${n===1?'edición':'ediciones'}</span>` : `<span class="tr-case-empty">Sin campeón aún</span>`}
+            ${champTeam ? `
+              <span class="tr-case-champ">
+                <span class="tr-case-champ-logo" style="background:${champTeam.color||'#333'}">
+                  ${champTeam.logo ? `<img src="${_esc(champTeam.logo)}" alt="">` : `<span>${_esc(champTeam.ini || champTeam.name.slice(0,2))}</span>`}
+                </span>
+                <span class="tr-case-champ-name">${_esc(champTeam.name)}</span>
+              </span>
+              ${metaTxt ? `<span class="tr-case-meta">${_esc(metaTxt)}</span>` : ''}
+            ` : `<span class="tr-case-empty">Sin campeón aún</span>`}
           </div>
         </div>
       </div>

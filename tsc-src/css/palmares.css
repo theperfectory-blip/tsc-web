@@ -341,20 +341,19 @@
 .tr-case-base {
   position: absolute;
   left: 4%; right: 4%; bottom: 0;
-  min-height: 86px;
+  min-height: 120px;
   background: none;
   border: none;
   display: flex; align-items: center; justify-content: center;
   padding: 8px 8px 12px;
 }
-/* Placa plateada metálica — reflejo sigue al mouse vía CSS var --plq-mx/--plq-my.
-   50% del ancho: solo muestra copa + nº de ediciones. */
+/* Placa plateada metálica — reflejo sigue al mouse vía CSS var --plq-mx/--plq-my */
 .tr-case-plaque {
   position: relative;
   text-align: center;
-  padding: 9px 10px 11px;
+  padding: 11px 12px 14px;
   border-radius: 4px;
-  width: 50%;
+  width: 100%;
   overflow: hidden;
   --plq-mx: 35%;
   --plq-my: 25%;
@@ -410,9 +409,10 @@
   text-shadow:
     0 1px 0 rgba(255,255,255,0.70),
     0 -0.5px 0 rgba(0,0,0,0.20);
-  line-height: 1.15;
-  white-space: normal;
-  word-break: break-word;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tr-case-champ {
   display: flex; align-items: center; gap: 7px;
@@ -1559,7 +1559,7 @@
     0 0 0 2.5px rgba(255,255,255,0.10),
     0 4px 14px rgba(0,0,0,0.55);
   transform: perspective(650px) rotateX(var(--plq-rx, 0deg)) rotateY(var(--plq-ry, 0deg));
-  transition: transform 180ms ease, box-shadow 180ms ease;
+  transition: transform 180ms ease, box-shadow 180ms ease, width 260ms ease, padding 260ms ease;
   will-change: transform;
 }
 /* Filete interior (mismo detalle que la placa de vitrina) */
@@ -1573,11 +1573,12 @@
   z-index: 1;
 }
 
-/* Layout: las placas necesitan más aire que las filas planas */
-.tr-fs-side .tr-history-list { gap: 9px; padding: 4px 8px 4px 2px; }
-.tr-fs-side .tr-hist-row { padding: 9px 14px; }
+/* Layout: las placas necesitan más aire que las filas planas.
+   Placas plateadas de la vitrina (full screen): 50% del ancho, centradas. */
+.tr-fs-side .tr-history-list { gap: 9px; padding: 4px 8px 4px 2px; align-items: center; }
+.tr-fs-side .tr-hist-row { padding: 9px 14px; width: 50%; }
 /* Expandida: crece en su lugar (la transición de padding anima el cambio) */
-.tr-fs-side .tr-hist-row--exp { padding: 14px 16px 16px; }
+.tr-fs-side .tr-hist-row--exp { padding: 14px 16px 16px; width: 70%; }
 .tr-fs-side .tr-hist-tags {
   color: #383c44;
   text-shadow: 0 1px 0 rgba(255,255,255,0.50);
