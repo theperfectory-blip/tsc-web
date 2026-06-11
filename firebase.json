@@ -18,7 +18,7 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css|html)",
+        "source": "**/*.@(js|css|html|json)",
         "headers": [
           { "key": "Cache-Control",            "value": "no-cache" },
           { "key": "X-Content-Type-Options",   "value": "nosniff" },
