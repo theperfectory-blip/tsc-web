@@ -1266,6 +1266,14 @@ function initTrophyRoom(root, compData, teamById){
   }
 
   function tick(){
+    // Mantener el loop vivo (barato) pero SALTAR el trabajo por frame (transforms
+    // 3D + spotlights) cuando la sala no está visible: página pública inactiva
+    // (display:none al navegar) o pestaña en background. Así el render continuo
+    // no gasta CPU ni cuelga capturas/QA; se reanuda solo al volver a Palmarés.
+    frame = requestAnimationFrame(tick);
+    const pageEl = root.closest('.page');
+    if (document.hidden || (pageEl && !pageEl.classList.contains('active'))) return;
+
     const k = dragging ? 1 : 0.18;
     const diff = target - pos;
     if (Math.abs(diff) < 0.0008 && !dragging) pos = target;
@@ -1281,7 +1289,6 @@ function initTrophyRoom(root, compData, teamById){
       if (!firstSnap) triggerCinematicSnap(currentSnap);
       firstSnap = false;
     }
-    frame = requestAnimationFrame(tick);
   }
 
   /* Lista fija en vista general: el vigente queda expandido y las filas

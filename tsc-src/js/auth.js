@@ -215,8 +215,13 @@ function renderAuthUI(){
     const avatar = photo
       ? `<img src="${_authEsc(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
       : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
+    // Botón de perfil con el diseño del rediseño (pill + avatar + chevron),
+    // pero conserva el flujo real: onclick → openProfile() (modal completo).
     area.innerHTML =
-      `<button class="auth-avatar" title="Mi perfil" aria-label="Mi perfil" onclick="openProfile()">${avatar}</button>`;
+      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" onclick="openProfile()">
+        <span class="tp-avatar" style="overflow:hidden;">${avatar}</span>
+        <svg class="tp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>`;
     if (btnAdm) btnAdm.style.display = (AUTH.role === 'admin') ? '' : 'none';
     if (btnPub) btnPub.style.display = (AUTH.role === 'admin') ? '' : 'none';
   } else {

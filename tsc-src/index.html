@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="css/calendar.css">
 <link rel="stylesheet" href="css/sorteo.css">
 <link rel="stylesheet" href="css/palmares.css">
+<link rel="stylesheet" href="css/redesign.css">
 </head>
 <body>
 
@@ -25,6 +26,19 @@
     <div class="topbar-logo">TSC</div>
     <div class="topbar-name">Teams Subs <span>Cup</span></div>
   </div>
+  <!-- Topnav pública (rediseño Slice 3) — mapeada a goPublicPage() real.
+       Gateada por STATE.mode (oculta en admin vía .is-hidden). Sorteo omitido a propósito. -->
+  <div class="topbar-nav" id="rdp-topnav">
+    <div class="tn-track" id="rdp-tn-track">
+      <button type="button" class="sec-nav-btn active" data-page="palmares"   onclick="goPublicPage('palmares')">Palmarés</button>
+      <button type="button" class="sec-nav-btn"        data-page="panel"      onclick="goPublicPage('panel')">Competiciones</button>
+      <button type="button" class="sec-nav-btn"        data-page="calendario" onclick="goPublicPage('calendario')">Calendario</button>
+      <button type="button" class="sec-nav-btn"        data-page="equipos"    onclick="goPublicPage('equipos')">Equipos</button>
+      <button type="button" class="sec-nav-btn"        data-page="sorteo"     id="rdp-nav-sorteo" onclick="goPublicPage('sorteo')" style="display:none;">Sorteo</button>
+      <button type="button" class="sec-nav-btn"        data-page="historial"  onclick="goPublicPage('historial')">Historial</button>
+      <span class="sec-nav-ind" id="rdp-nav-ind"></span>
+    </div>
+  </div>
   <div class="topbar-right">
     <select class="season-sel" id="season-sel" onchange="onSeasonChange(this.value)">
       <option value="">Temporada...</option>
@@ -35,6 +49,9 @@
     <button class="icon-btn" onclick="openSettings()" title="Configuración"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 </div>
+
+<!-- Ticker de resultados (rediseño) — oculto por defecto; visible solo en modo público -->
+<div id="ticker"><div class="ticker-track" id="ticker-track"></div></div>
 
 <!-- ============================================================
      PUBLIC SIDEBAR (reemplaza #pubnav)
@@ -346,6 +363,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
 
 <script src="js/state.js"></script>
+<script src="js/motion.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/cloudinary.js"></script>
@@ -355,6 +373,7 @@
 <script src="js/profile.js"></script>
 <script src="js/ui-utils.js"></script>
 <script src="js/nav.js"></script>
+<script src="js/redesign-shell.js"></script>
 <script src="js/color-picker.js"></script>
 <script src="js/competitions.js"></script>
 <script src="js/phases.js"></script>
@@ -373,6 +392,10 @@
 <script src="js/palmares.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/livematch.js"></script>
+
+<!-- Rediseño público (prototipo migrado) — boot gateado: no auto-ejecuta,
+     solo expone initRedesignPublic() para cuando exista el DOM de secciones -->
+<script src="js/redesign-public.js"></script>
 
 <!-- model-viewer — 3D trophy viewer (WebXR / WebGL) -->
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>

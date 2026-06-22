@@ -1,5 +1,10 @@
 {
   "devDependencies": {
-    "firebase": "^12.14.0"
+    "@gltf-transform/core": "^4.4.0",
+    "@gltf-transform/extensions": "^4.4.0",
+    "draco3dgltf": "^1.5.7",
+    "esbuild": "^0.28.1",
+    "firebase": "^12.14.0",
+    "three": "^0.147.0"
   }
 }

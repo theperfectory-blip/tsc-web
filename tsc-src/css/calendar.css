@@ -344,18 +344,20 @@
 .cal-tl-station--past   .cal-tl-label{ color:var(--txt3); }
 .cal-tl-station--active .cal-tl-label{ color:var(--txt); }
 
-/* Popup info (hover) — cristal translúcido, aparece a la DERECHA */
+/* Popup info (hover) — cristal translúcido. Abre hacia la IZQUIERDA (sobre el área
+   de días, dentro del viewport): el timeline está pegado al borde derecho, así que
+   abrir a la derecha lo sacaba de pantalla y generaba scroll horizontal. */
 .cal-tl-info{
   position:absolute;
-  left:calc(100% + 14px);top:50%;
+  right:calc(100% + 14px);top:50%;
   background:var(--nav-glass);
   backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
   border-radius:var(--r);
-  box-shadow:4px 0 28px rgba(0,0,0,0.45);
+  box-shadow:-4px 0 28px rgba(0,0,0,0.45);
   padding:10px 14px;min-width:160px;max-width:240px;
   opacity:0;pointer-events:none;
   transition:opacity .18s, transform .18s;
-  transform:translateY(-50%) translateX(-6px);
+  transform:translateY(-50%) translateX(6px);
   z-index:50;
 }
 .cal-tl-station:hover .cal-tl-info{
@@ -564,3 +566,36 @@
   .cal-lbl-date{ width:40px;font-size:11px; }
   .cal-lbl-inp{ font-size:12px; }
 }
+
+/* === INICIO: CALENDARIO PUBLIC — HERO === */
+/* Hero broadcast: foco del calendario público. En reposo apila vertical (móvil);
+   desde 700px los equipos van a los lados del marcador/cuenta atrás. */
+.cal-hero{
+  position:relative;border:1px solid var(--brd);border-radius:var(--rl);
+  background:
+    radial-gradient(ellipse 70% 90% at 50% 115%, color-mix(in srgb, var(--cc, var(--gold)) 18%, transparent), transparent 70%),
+    var(--bg-deep);
+  padding:clamp(20px,4vw,40px) clamp(16px,3vw,36px);
+  margin-bottom:24px;display:flex;flex-direction:column;gap:18px;align-items:center;
+}
+.cal-hero-eyebrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;}
+.cal-hero-lbl{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);}
+.cal-hero-comp{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+.cal-hero-face{display:flex;flex-direction:column;align-items:center;gap:18px;width:100%;}
+.cal-hero-side{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;min-width:0;}
+.cal-hero-name{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.4rem,1rem+2.4vw,2.6rem);line-height:0.95;letter-spacing:0.5px;}
+.cal-hero-side.away .cal-hero-name{color:var(--txt2);}
+.cal-hero-mid{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;min-width:clamp(120px,18vw,180px);}
+.cal-hero-count{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.4rem,1.4rem+3.2vw,3.8rem);color:var(--gold);line-height:1;letter-spacing:1px;font-variant-numeric:tabular-nums;text-shadow:0 0 30px var(--gold-glow);}
+.cal-hero-when{font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:1.5px;color:var(--txt3);text-transform:uppercase;text-align:center;}
+.cal-hero-score{display:flex;align-items:center;gap:12px;}
+.cal-hero-score .score-n{font-family:'Bebas Neue',sans-serif;font-size:clamp(2.6rem,1.4rem+3.6vw,4rem);color:var(--txt);line-height:1;}
+.cal-hero-dash{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--txt3);}
+.cal-hero--live .cal-hero-score .score-n{color:var(--red);text-shadow:0 0 26px rgba(232,64,64,0.45);}
+@media(min-width:700px){
+  .cal-hero-face{flex-direction:row;justify-content:center;gap:clamp(14px,3vw,32px);}
+  .cal-hero-side{flex-direction:row;flex:1;gap:14px;}
+  .cal-hero-side.home{justify-content:flex-end;text-align:right;}
+  .cal-hero-side.away{justify-content:flex-start;text-align:left;}
+}
+/* === FIN: CALENDARIO PUBLIC === */

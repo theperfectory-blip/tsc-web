@@ -2,20 +2,34 @@
    VARIABLES
    ============================================================ */
 :root {
+  /* ---- Ramp dorado (rediseño): brillo · base · sombra ---- */
+  --gold-hi:#E8D48B;
   --gold:#C9A84C;
+  --gold-lo:#8F7530;
   --gold-l:rgba(201,168,76,0.12);
   --gold-b:rgba(201,168,76,0.28);
+  --gold-glow:rgba(201,168,76,0.45);
+
   --blue:#3B82F6;
   --blue-l:rgba(59,130,246,0.12);
   --green:#25A864;
   --green-l:rgba(37,168,100,0.12);
+  /* ---- Ramp verde pasto (co-primario de marca, color del canal): brillo · sombra · glow ----
+     Regla: verde PLANO = dato/victoria; gradiente dorado→verde = marca en movimiento. */
+  --green-hi:#46D98A;
+  --green-lo:#177A47;
+  --green-glow:rgba(70,217,138,0.42);
   --red:#E84040;
   --red-l:rgba(232,64,64,0.12);
   --yellow:#F59E0B;
   --yellow-l:rgba(245,158,11,0.12);
+
+  /* ---- Superficies (de fondo a elevado) ---- */
   --bg:#0C0F14;
+  --bg-deep:#070A0E;          /* más profundo que el body: heroes, escenarios */
   --card:#141820;
   --card2:#1A1F2B;
+  --card3:#222838;            /* superficie elevada: hover, drawers */
   --nav:#090C10;
   --nav-glass:rgba(9,12,16,0.35);
   --brd:rgba(255,255,255,0.07);
@@ -23,16 +37,52 @@
   --txt:#F0EDE6;
   --txt2:#8B8F9A;
   --txt3:#555A66;
+
+  /* ---- Color de equipo (inyectable por tarjeta/fila) ---- */
+  --team-color:var(--gold);
+  --team-ink:#000;
+
   --r:6px;
   --rl:10px;
+  --rxl:16px;
+
+  /* ---- Escala tipográfica fluida (clamp min · pref · max) ---- */
+  --fs-display:clamp(2.6rem, 1.6rem + 4.4vw, 4.5rem);  /* títulos hero */
+  --fs-h1:clamp(1.9rem, 1.3rem + 2.6vw, 3rem);
+  --fs-h2:clamp(1.4rem, 1.1rem + 1.4vw, 2rem);
+  --fs-h3:clamp(1.15rem, 1rem + 0.7vw, 1.5rem);
+  --fs-score:clamp(2rem, 1.4rem + 2.6vw, 3.2rem);      /* marcadores */
+
+  /* ---- Curvas de easing ---- */
+  --ease-out:cubic-bezier(0.22, 1, 0.36, 1);           /* expo-out: entradas */
+  --ease-out-soft:cubic-bezier(0.33, 1, 0.68, 1);      /* cubic-out: hover */
+  --ease-in-out:cubic-bezier(0.65, 0, 0.35, 1);        /* transiciones simétricas */
+  --dur-fast:0.15s;
+  --dur-mid:0.32s;
+  --dur-slow:0.6s;
+
+  /* ---- Z-index semántico ---- */
+  --z-base:1;
+  --z-raised:10;
+  --z-sticky:100;
+  --z-sidebar:300;
+  --z-topbar:400;
+  --z-backdrop:500;
+  --z-modal:600;
+  --z-toast:700;
+  --z-tooltip:800;
+  --z-fullscreen:900;
+
   /* Bracket eliminatorio (renderBracketHTML / scaleBracket) */
   --bk-card-w:220px;
   --bk-row-h:88px;
 }
 [data-theme="light"] {
   --bg:#F4F4F0;
+  --bg-deep:#E9E8E1;
   --card:#FFFFFF;
   --card2:#F0EEE8;
+  --card3:#E6E4DC;
   --nav:#FFFFFF;
   --nav-glass:rgba(255,255,255,0.35);
   --brd:rgba(0,0,0,0.08);
@@ -40,4 +90,17 @@
   --txt:#1A1A1A;
   --txt2:#555555;
   --txt3:#999999;
+}
+
+/* ============================================================
+   ACCESIBILIDAD — respeta la preferencia de movimiento reducido.
+   Las utilidades de js/motion.js también lo consultan en JS.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:0.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:0.01ms !important;
+    scroll-behavior:auto !important;
+  }
 }

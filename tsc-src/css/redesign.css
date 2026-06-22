@@ -1,0 +1,910 @@
+/* ===== Estilos exclusivos del prototipo (mobile first) ===== */
+/* Reglas que afectan el layout GLOBAL de la app van gateadas tras body.redesign
+   (se activa solo cuando el shell público nuevo está montado), para no romper
+   el layout actual con sidebar mientras la migración está en curso. */
+body.redesign{overflow-x:hidden;}
+#proto-badge{
+  position:fixed;bottom:16px;right:16px;z-index:var(--z-toast);
+  background:var(--card2);border:1px solid var(--gold-b);color:var(--gold);
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;
+  letter-spacing:2px;text-transform:uppercase;padding:6px 12px;border-radius:999px;
+}
+/* Full-width: toda la pantalla es lienzo — sin espacio muerto lateral en desktop */
+body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px clamp(14px,2.5vw,48px) 80px;}
+
+/* Navegación de secciones DENTRO del topbar: centrada en el espacio entre la marca y
+   [Temporada]. Las 6 secciones que no caben se desvanecen en los bordes (fade, sin
+   scrollbar visible) — regla no-scroll del proyecto. */
+.topbar-nav{flex:1;min-width:0;display:flex;justify-content:center;align-self:stretch;}
+.tn-track{position:relative;display:flex;align-items:stretch;max-width:100%;height:100%;
+  overflow-x:auto;scrollbar-width:none;
+  -webkit-mask:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);
+  mask:linear-gradient(90deg,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);}
+.tn-track::-webkit-scrollbar{display:none;}
+.sec-nav-btn{position:relative;z-index:1;display:inline-flex;align-items:center;padding:0 13px;
+  background:none;border:none;cursor:pointer;white-space:nowrap;
+  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--txt3);transition:color var(--dur-fast);}
+.sec-nav-btn:hover{color:var(--txt2);}
+.sec-nav-btn.active{color:var(--gold);}
+.sec-nav-ind{position:absolute;bottom:0;left:0;width:0;height:2px;pointer-events:none;
+  background:linear-gradient(90deg,var(--gold),var(--green-hi));
+  transition:left var(--dur-mid) var(--ease-out),width var(--dur-mid) var(--ease-out);}
+/* Sidebar público retirado: el topnav es la única navegación (topbar fijo = lógica del prototipo).
+   Se oculta solo en modo admin (JS añade .is-hidden). En móvil el .tn-track scrollea horizontal. */
+.topbar-nav.is-hidden{display:none;}
+#pub-sidebar, #pub-sidebar-backdrop, #pub-menu-btn{display:none!important;}
+/* Panel público: selectores inline de competición (chips scrollables) y fase (tabs). */
+.pub-cnav{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-bottom:14px;
+  -webkit-mask:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);
+  mask:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);}
+.pub-cnav::-webkit-scrollbar{display:none;}
+.pub-cnav-item{flex:none;background:var(--card);border:1px solid var(--brd);border-radius:999px;
+  padding:7px 16px;cursor:pointer;white-space:nowrap;color:var(--txt2);
+  font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:.6px;text-transform:uppercase;
+  transition:color var(--dur-fast),border-color var(--dur-fast),background var(--dur-fast);}
+.pub-cnav-item:hover{color:var(--txt);}
+.pub-cnav-item.active{color:#fff;background:var(--accent,var(--gold));border-color:var(--accent,var(--gold));}
+.pub-pnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
+.pub-pnav-item{background:none;border:none;border-bottom:2px solid transparent;
+  padding:4px 6px 6px;cursor:pointer;color:var(--txt3);
+  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;
+  transition:color var(--dur-fast),border-color var(--dur-fast);}
+.pub-pnav-item:hover{color:var(--txt2);}
+.pub-pnav-item.active{color:var(--gold);border-bottom-color:var(--gold);}
+/* Pantalla chica: fuera [Temporada], queda solo la foto de perfil a la derecha. */
+@media(max-width:600px){ #topbar .chip-today{display:none;} }
+
+/* Ticker de resultados bajo la topbar.
+   Oculto por defecto; JS (renderPublicTicker) lo muestra solo en modo público
+   y solo si hay partidos. overflow:hidden recorta horizontalmente → no genera
+   overflow del documento. */
+#ticker{
+  position:fixed;top:48px;left:0;right:0;z-index:var(--z-sticky);
+  background:var(--bg-deep);border-bottom:1px solid var(--brd);
+  overflow:hidden;height:34px;display:none;align-items:center;
+}
+/* Clearance del ticker: usa padding-top (NO margin-top). #main transiciona
+   margin-top (transition:margin-top 0.25s) y una transición en curso queda por
+   encima de !important en la cascada -> congelaba el valor. padding-top no se
+   transiciona, aplica al instante. 20px (padding base de #main) + 22px (alto del
+   ticker que solapa) = 42px. Más específico que #main base -> sin !important.
+   No depende de body.redesign — se togglea por la clase .with-ticker. */
+#main.with-ticker{padding-top:42px;}
+.ticker-track{display:flex;gap:0;flex:none;align-items:center;}
+.ticker-item{
+  display:inline-flex;align-items:center;gap:8px;padding:0 22px;
+  font-family:'Barlow Condensed';font-size:13px;font-weight:600;
+  letter-spacing:0.5px;color:var(--txt2);white-space:nowrap;
+  border-right:1px solid var(--brd);
+}
+.ticker-item b{color:var(--txt);font-weight:700;}
+.ticker-item .tk-comp{color:var(--gold);font-size:11px;letter-spacing:1.5px;}
+
+/* Perfil en la esquina superior derecha del topbar → tarjeta del presidente */
+.topbar-right{display:flex;align-items:center;gap:10px;}
+/* «Entrar» discreto (estado deslogueado): ghost con borde dorado, sin gritar. */
+.tb-enter{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:999px;
+  background:transparent;border:1px solid var(--gold-b);color:var(--gold);cursor:pointer;
+  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;
+  transition:background var(--dur-fast),border-color var(--dur-fast),transform var(--dur-fast);}
+.tb-enter:hover{background:var(--gold-l);border-color:var(--gold);transform:translateY(-1px);}
+.tb-enter svg{width:15px;height:15px;flex:none;}
+/* Acceso Admin discreto dentro del menú de perfil (sólo rol admin en la app real). */
+.pp-admin{border:1px solid var(--gold-b)!important;color:var(--gold)!important;}
+.pp-admin svg{width:16px;height:16px;flex:none;}
+.tp-btn{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;border-radius:999px;
+  background:var(--card2);border:1px solid var(--brd2);cursor:pointer;
+  transition:border-color var(--dur-fast),transform var(--dur-fast);}
+.tp-btn:hover{border-color:var(--gold-b);transform:translateY(-1px);}
+.tp-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#8B1A1A,#1A1A1A);color:#fff;font-family:'Bebas Neue';font-size:11px;letter-spacing:0.5px;flex:none;}
+.tp-chev{width:14px;height:14px;color:var(--txt3);transition:transform var(--dur);}
+.tp-btn[aria-expanded="true"] .tp-chev{transform:rotate(180deg);}
+.profile-backdrop{position:fixed;inset:0;z-index:var(--z-modal,900);background:rgba(0,0,0,0.55);
+  opacity:0;pointer-events:none;transition:opacity var(--dur);}
+.profile-backdrop.open{opacity:1;pointer-events:auto;}
+.profile-menu{position:fixed;top:52px;right:clamp(8px,2vw,16px);z-index:calc(var(--z-modal,900) + 1);
+  width:min(400px,calc(100vw - 16px));
+  opacity:0;transform:translateY(-8px) scale(0.98);pointer-events:none;
+  transition:opacity var(--dur),transform var(--dur);}
+.profile-menu.open{opacity:1;transform:none;pointer-events:auto;}
+.profile-menu .pp-drawer{max-width:none;border:1px solid var(--brd);border-radius:var(--rl);
+  box-shadow:0 22px 54px rgba(0,0,0,0.6);max-height:calc(100dvh - 64px);
+  overflow-y:auto;scrollbar-width:none;}
+.profile-menu .pp-drawer::-webkit-scrollbar{display:none;}
+
+.proto-section{margin:64px 0 0;}
+.proto-section:first-child{margin-top:18px;}
+.proto-divider{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;}
+.proto-divider .pd-n{font-family:'Bebas Neue';font-size:15px;color:var(--gold-lo);letter-spacing:1px;}
+.proto-divider .pd-t{font-family:'Bebas Neue';font-size:var(--fs-h2);letter-spacing:0.5px;}
+.proto-divider::after{content:'';flex:1;height:1px;background:var(--brd);align-self:center;}
+
+/* ============ 01 · PALMARÉS — sala de trofeos ============ */
+.palm-stage{
+  position:relative;border-radius:var(--rl);overflow:hidden;
+  background:
+    radial-gradient(ellipse 70% 80% at 50% 115%, rgba(201,168,76,0.20), transparent 65%),
+    radial-gradient(ellipse 50% 40% at 50% -10%, rgba(201,168,76,0.06), transparent 70%),
+    #07090D;
+  border:1px solid var(--brd);
+  padding:clamp(24px,4vw,48px) clamp(16px,3vw,40px);
+}
+.palm-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:30px;}
+.palm-kicker{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:8px;}
+.palm-title{font-family:'Bebas Neue';font-size:clamp(2rem,1.2rem+3vw,3.6rem);line-height:0.95;letter-spacing:1px;margin:0 0 18px;}
+.palm-plate{position:relative;max-width:380px;margin-bottom:20px;filter:drop-shadow(0 10px 28px rgba(0,0,0,0.6));}
+.palm-plate img{width:100%;display:block;}
+.palm-plate-txt{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'Bebas Neue';color:#4a3a10;letter-spacing:2px;text-align:center;
+  text-shadow:0 1px 0 rgba(255,255,255,0.35), 0 -1px 1px rgba(0,0,0,0.25);
+}
+.palm-plate-txt b{font-size:clamp(18px,3.4vw,26px);font-weight:400;}
+.palm-plate-txt small{font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:3px;}
+.palm-hist{background:rgba(10,12,18,0.55);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;backdrop-filter:blur(4px);}
+.palm-hist-hdr{padding:10px 16px;border-bottom:1px solid var(--brd);font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
+.palm-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--brd);font-family:'Barlow Condensed';font-weight:600;font-size:15px;}
+.palm-row:last-child{border-bottom:none;}
+.palm-row .pr-ed{font-size:11px;color:var(--txt3);letter-spacing:1px;min-width:64px;}
+.palm-row .pr-crest{width:26px;height:26px;border-radius:7px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--team-color);color:#fff;font-family:'Bebas Neue';font-size:10px;}
+.palm-row.vigente{background:linear-gradient(90deg,var(--gold-l),transparent 70%);}
+.palm-row.vigente .pr-name{color:var(--gold);}
+@media(min-width:1000px){
+  .palm-grid{grid-template-columns:1.1fr 0.9fr;align-items:center;gap:48px;}
+}
+.palm-hint{display:flex;align-items:center;gap:7px;margin:0 0 16px;
+  font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.8px;}
+.palm-hint svg{width:13px;height:13px;color:var(--gold-lo);flex:none;}
+.amb-btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;cursor:pointer;
+  background:none;border:1px solid var(--brd2);color:var(--txt3);
+  font-family:'Barlow Condensed';font-weight:700;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+  transition:color var(--dur-fast),border-color var(--dur-fast);}
+.amb-btn svg{width:14px;height:14px;display:block;}
+.amb-btn:hover{color:var(--txt);}
+.amb-btn.on{border-color:var(--gold-b);color:var(--gold);}
+
+/* ---- LA SALA — umbral fullscreen: del 2D al fotorrealismo ----
+   Capas (de atrás a delante): pared (gradiente CSS) → collage de momentos →
+   sin_fondo.png (piso+podio, alfa real, re-tapa para que las fotos queden
+   detrás) → focos.png (alfa real, MISMO encuadre 1:1 que sin_fondo) → haces
+   de luz → partículas → copa 3D → placa → humo (canvas, por delante de todo).
+   sin_fondo y focos son el MISMO render 1536×1024 → se superponen 1:1 vía
+   salaLayout() (lazy-load por JS al abrir). Los haces nacen en las cabezas de
+   los focos (única fuente de luz) y son SIEMPRE aditivos (screen) con los dos
+   colores del club: así un color oscuro nunca apaga la sala. @property anima
+   color y posición (--bl-x/y, --br-x/y). */
+@property --beam-l{syntax:'<color>';inherits:true;initial-value:rgba(243,232,210,0.85);}
+@property --beam-r{syntax:'<color>';inherits:true;initial-value:rgba(243,232,210,0.85);}
+@property --beam-l-soft{syntax:'<color>';inherits:true;initial-value:rgba(243,232,210,0.22);}
+@property --beam-r-soft{syntax:'<color>';inherits:true;initial-value:rgba(243,232,210,0.22);}
+@property --bl-x{syntax:'<percentage>';inherits:true;initial-value:23%;}
+@property --bl-y{syntax:'<percentage>';inherits:true;initial-value:19%;}
+@property --br-x{syntax:'<percentage>';inherits:true;initial-value:78%;}
+@property --br-y{syntax:'<percentage>';inherits:true;initial-value:19%;}
+#sala{position:fixed;inset:0;z-index:var(--z-fullscreen);background:#030405;overflow:hidden;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.7s var(--ease-in-out),
+    --beam-l 0.9s ease, --beam-r 0.9s ease, --beam-l-soft 0.9s ease, --beam-r-soft 0.9s ease;}
+#sala.open{opacity:1;pointer-events:auto;}
+body.sala-open{overflow:hidden;}
+/* Pared del fondo = gradiente CSS puro (sin imagen): así NUNCA hay un segundo
+   podio (el podio sale solo del foreground sin_fondo) ni franja negra lateral.
+   Los dos halos superiores imitan la luz de los focos sobre la pared. */
+.sala-room{position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(58% 46% at 24% 25%, rgba(150,158,175,0.13), transparent 62%),
+    radial-gradient(58% 46% at 76% 25%, rgba(150,158,175,0.13), transparent 62%),
+    radial-gradient(135% 115% at 50% 2%, #191c22 0%, #0d0f13 46%, #050608 100%);
+  transform:scale(1.07);transition:transform 2.6s var(--ease-out);}
+#sala.open .sala-room{transform:scale(1);}
+.sala-room::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 75% at 50% 46%, transparent 55%, rgba(0,0,0,0.48) 100%);}
+/* Vignette en la zona donde flotan las fotos del collage (z2, entre fotos z1
+   y foreground z3). Oscurece las esquinas altas donde las fotos entran/salen
+   para un fundido natural con el fondo negro. */
+.sala-wall-vignette{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:
+    radial-gradient(ellipse 52% 80% at 6% 22%, rgba(3,4,7,0.84) 0%, transparent 58%),
+    radial-gradient(ellipse 52% 80% at 94% 22%, rgba(3,4,7,0.84) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(3,4,7,0.56) 0%, transparent 30%);}
+/* Piso + podio recortados con alfa real (sin_fondo.png) POR DELANTE del
+   collage: las fotos nacen en la pared del fondo y quedan detrás del piso y
+   del podio. Los focos (z2) quedan detrás del foreground (z3) → el podio
+   tapa la base de los trípodes, que es la perspectiva correcta. */
+.sala-foreground{position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:transparent no-repeat;}
+/* Degradado en los bordes laterales del piso: fundido a negro que disimula
+   los cortes del parquet y da profundidad de campo. */
+.sala-foreground::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(90deg, #000 0%, rgba(3,4,7,0.94) 8%, rgba(3,4,7,0.55) 20%, transparent 34%, transparent 66%, rgba(3,4,7,0.55) 80%, rgba(3,4,7,0.94) 92%, #000 100%),
+    linear-gradient(0deg, rgba(4,5,8,0.62) 0%, transparent 26%);}
+/* Haces de luz: CONO proyectado HACIA ADELANTE desde la lente del foco (como en
+   fondo_completo), NO un halo alrededor del aparato. `conic-gradient` = cuña
+   direccional que sale de la lente; la máscara radial la desvanece con la
+   distancia; `blur` suaviza los bordes. Izq apunta abajo-derecha (~135°), der
+   abajo-izquierda (~225°), ambos hacia el podio. */
+.sala-beam{position:absolute;inset:0;z-index:5;pointer-events:none;mix-blend-mode:screen;filter:blur(28px);}
+.sala-beam.left{
+  background:conic-gradient(from 116deg at var(--bl-x) var(--bl-y),
+    transparent 0deg, var(--beam-l) 19deg, transparent 38deg);
+  -webkit-mask:radial-gradient(64% 82% at var(--bl-x) var(--bl-y), rgba(0,0,0,1) 4%, rgba(0,0,0,.5) 40%, rgba(0,0,0,0) 76%);
+          mask:radial-gradient(64% 82% at var(--bl-x) var(--bl-y), rgba(0,0,0,1) 4%, rgba(0,0,0,.5) 40%, rgba(0,0,0,0) 76%);}
+.sala-beam.right{
+  background:conic-gradient(from 206deg at var(--br-x) var(--br-y),
+    transparent 0deg, var(--beam-r) 19deg, transparent 38deg);
+  -webkit-mask:radial-gradient(64% 82% at var(--br-x) var(--br-y), rgba(0,0,0,1) 4%, rgba(0,0,0,.5) 40%, rgba(0,0,0,0) 76%);
+          mask:radial-gradient(64% 82% at var(--br-x) var(--br-y), rgba(0,0,0,1) 4%, rgba(0,0,0,.5) 40%, rgba(0,0,0,0) 76%);}
+/* Lente encendida: núcleo brillante pequeño EXACTAMENTE en la lente (de ahí
+   arranca la luz), no un círculo que rodee el foco. */
+.sala-beam-glow{position:absolute;inset:0;z-index:6;pointer-events:none;mix-blend-mode:screen;
+  background:
+    radial-gradient(ellipse 2.6% 3.6% at var(--bl-x) var(--bl-y), var(--beam-l) 0%, transparent 70%),
+    radial-gradient(ellipse 2.6% 3.6% at var(--br-x) var(--br-y), var(--beam-r) 0%, transparent 70%);}
+/* Collage de momentos: máx 7 a la vez en la pared, derivan en sentido
+   contrario al giro de la copa y se desvanecen (motor WAAPI en JS) */
+.sala-collage{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden;}
+.sala-shot{position:absolute;width:clamp(300px,40vw,640px);aspect-ratio:16/10;border-radius:8px;opacity:0;
+  border:1px solid rgba(255,255,255,0.08);box-shadow:0 12px 30px rgba(0,0,0,0.5);
+  filter:brightness(0.92) saturate(0.92);will-change:transform,opacity;}
+.sala-shot img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit;}
+.sala-focos{position:absolute;inset:0;z-index:4;pointer-events:none;
+  background:transparent no-repeat;
+  filter:brightness(0.84) contrast(1.02) drop-shadow(0 14px 28px rgba(0,0,0,0.5));}
+/* blur() = filtro pasa-bajo: disuelve el dither/«malla» que el compositor genera
+   al apilar gradientes de alfa muy baja en blend screen, y de paso suaviza la
+   niebla. will-change evita reflows del filtro. */
+.sala-smoke-canvas{position:absolute;inset:0;z-index:9;pointer-events:none;width:100%;height:100%;mix-blend-mode:screen;opacity:0.95;filter:blur(10px);will-change:transform;}
+.sala-particles{position:absolute;inset:0;z-index:7;pointer-events:none;overflow:hidden;mix-blend-mode:screen;}
+.sala-particles i{position:absolute;left:var(--x);top:var(--y);width:var(--sz);height:var(--sz);border-radius:50%;
+  background:radial-gradient(circle, rgba(255,255,255,0.98) 0 16%, var(--spark) 42%, transparent 76%);
+  box-shadow:0 0 11px 3px var(--spark),0 0 26px 7px var(--spark-soft);
+  filter:saturate(1.45);
+  opacity:0;transform:translate3d(0,0,0) scale(.45);
+  animation:sala-spark var(--t) ease-in-out var(--d) infinite;}
+.sala-particles i:nth-child(odd){--spark:var(--spark-l);--spark-soft:var(--beam-l-soft);}
+.sala-particles i:nth-child(even){--spark:var(--spark-r);--spark-soft:var(--beam-r-soft);}
+.sala-particles i:nth-child(1){--x:18%;--y:32%;--sz:12px;--t:5.8s;--d:-1s;}
+.sala-particles i:nth-child(2){--x:29%;--y:24%;--sz:9px;--t:6.4s;--d:-5s;}
+.sala-particles i:nth-child(3){--x:43%;--y:34%;--sz:10px;--t:5.2s;--d:-2.5s;}
+.sala-particles i:nth-child(4){--x:61%;--y:27%;--sz:14px;--t:6.1s;--d:-6s;}
+.sala-particles i:nth-child(5){--x:74%;--y:37%;--sz:9px;--t:6.7s;--d:-3s;}
+.sala-particles i:nth-child(6){--x:84%;--y:50%;--sz:11px;--t:5.6s;--d:-4.5s;}
+.sala-particles i:nth-child(7){--x:23%;--y:55%;--sz:9px;--t:7s;--d:-7s;}
+.sala-particles i:nth-child(8){--x:37%;--y:63%;--sz:15px;--t:5.9s;--d:-2s;}
+.sala-particles i:nth-child(9){--x:52%;--y:57%;--sz:10px;--t:6.2s;--d:-6.5s;}
+.sala-particles i:nth-child(10){--x:68%;--y:62%;--sz:11px;--t:5.1s;--d:-1.5s;}
+.sala-particles i:nth-child(11){--x:78%;--y:70%;--sz:14px;--t:6.6s;--d:-5.5s;}
+.sala-particles i:nth-child(12){--x:12%;--y:70%;--sz:9px;--t:5.4s;--d:-3.7s;}
+.sala-particles i:nth-child(13){--x:8%;--y:42%;--sz:12px;--t:6.1s;--d:-.7s;}
+.sala-particles i:nth-child(14){--x:33%;--y:43%;--sz:13px;--t:5.5s;--d:-4.2s;}
+.sala-particles i:nth-child(15){--x:47%;--y:20%;--sz:9px;--t:6.8s;--d:-2.1s;}
+.sala-particles i:nth-child(16){--x:57%;--y:46%;--sz:13px;--t:5.7s;--d:-3.8s;}
+.sala-particles i:nth-child(17){--x:72%;--y:23%;--sz:11px;--t:6.3s;--d:-1.9s;}
+.sala-particles i:nth-child(18){--x:90%;--y:36%;--sz:10px;--t:5.3s;--d:-5.1s;}
+.sala-particles i:nth-child(19){--x:16%;--y:82%;--sz:13px;--t:6.9s;--d:-2.8s;}
+.sala-particles i:nth-child(20){--x:31%;--y:76%;--sz:9px;--t:5.8s;--d:-6.2s;}
+.sala-particles i:nth-child(21){--x:45%;--y:72%;--sz:11px;--t:6.4s;--d:-.9s;}
+.sala-particles i:nth-child(22){--x:58%;--y:81%;--sz:15px;--t:5.6s;--d:-4.9s;}
+.sala-particles i:nth-child(23){--x:70%;--y:78%;--sz:9px;--t:6.6s;--d:-3.2s;}
+.sala-particles i:nth-child(24){--x:86%;--y:84%;--sz:13px;--t:5.2s;--d:-1.4s;}
+@keyframes sala-spark{
+  0%,100%{opacity:0;transform:translate3d(0,16px,0) scale(.35);}
+  14%{opacity:1;}
+  42%{opacity:.95;transform:translate3d(14px,-20px,0) scale(1.22);}
+  68%{opacity:.55;transform:translate3d(-10px,-38px,0) scale(.78);}
+  84%{opacity:.18;}
+}
+/* Copa 3D: canvas transparente sobre el pedestal de la foto */
+.sala-cup{position:absolute;z-index:8;transform:translateX(-50%);pointer-events:none;}
+.sala-cup canvas{display:block;width:100%;height:100%;}
+.sala-plate{position:absolute;z-index:9;transform:translate(-50%,-44%);opacity:0;
+  filter:drop-shadow(0 12px 26px rgba(0,0,0,0.65));
+  transition:opacity 1s var(--ease-out) 0.4s, transform 1s var(--ease-out) 0.4s;}
+#sala.open .sala-plate{opacity:1;transform:translate(-50%,-50%);}
+.sala-plate img{width:100%;display:block;}
+.sala-plate .palm-plate-txt b{font-size:var(--plate-fs,22px);}
+.sala-plate .palm-plate-txt small{font-size:calc(var(--plate-fs,22px)*0.42);letter-spacing:2px;}
+/* Panel de campeones: seleccionado brilla con sus colores, el resto se difumina */
+.sala-panel{position:absolute;top:64px;right:14px;bottom:80px;width:min(280px,32vw);z-index:9;
+  display:flex;flex-direction:column;border-radius:var(--rl);overflow:hidden;
+  background:rgba(8,10,14,0.55);border:1px solid var(--brd);backdrop-filter:blur(8px);
+  opacity:0;transform:translateX(16px);
+  transition:opacity 0.8s var(--ease-out) 0.6s, transform 0.8s var(--ease-out) 0.6s;}
+#sala.open .sala-panel{opacity:1;transform:none;}
+.sala-panel-hdr{padding:10px 14px;border-bottom:1px solid var(--brd);flex:none;
+  font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
+.sala-panel-list{padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;}
+.s-champ{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:var(--txt);text-align:left;
+  transition:opacity 0.3s, transform 0.3s, box-shadow 0.3s, border-color 0.3s, background 0.3s;}
+.s-champ .sc-crest{width:30px;height:30px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;font-family:'Bebas Neue';font-size:11px;transition:filter 0.3s;}
+.s-champ .sc-txt{min-width:0;display:flex;flex-direction:column;gap:1px;}
+.s-champ .sc-nm{font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:0.5px;line-height:1.1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:filter 0.3s;}
+.s-champ .sc-ed{font-family:'Barlow Condensed';font-size:10px;color:var(--txt3);letter-spacing:1px;}
+.s-champ .sc-vig{margin-left:auto;flex:none;font-family:'Barlow Condensed';font-size:8px;font-weight:800;letter-spacing:1px;
+  padding:2px 6px;border-radius:4px;color:#1a1407;background:linear-gradient(135deg,var(--gold),var(--gold-hi));}
+.s-champ.is-selected{transform:scale(1.04);border-color:transparent;z-index:2;
+  background:linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04));
+  box-shadow:0 0 0 1.5px var(--c1), 0 0 22px -2px var(--c1), 0 0 38px -6px var(--c2), inset 0 0 18px -8px var(--c2);}
+.s-champ.is-dimmed{opacity:0.62;}
+.s-champ.is-dimmed .sc-nm,.s-champ.is-dimmed .sc-crest{filter:blur(2.4px);}
+.s-champ.is-dimmed:hover{opacity:0.95;}
+.s-champ.is-dimmed:hover .sc-nm,.s-champ.is-dimmed:hover .sc-crest{filter:blur(0.5px);}
+.sala-cap{position:absolute;left:50%;bottom:44px;z-index:9;text-align:center;
+  opacity:0;transform:translateX(-50%) translateY(14px);
+  transition:opacity 0.8s var(--ease-out) 0.75s, transform 0.8s var(--ease-out) 0.75s;}
+#sala.open .sala-cap{opacity:1;transform:translateX(-50%);}
+.sala-cap .sc-kick{font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:3px;color:var(--gold);text-transform:uppercase;}
+.sala-cap .sc-name{font-family:'Bebas Neue';font-size:clamp(18px,2.4vw,26px);letter-spacing:1px;color:var(--txt);margin-top:4px;
+  text-shadow:0 2px 10px rgba(0,0,0,0.8);}
+@media(max-width:899px){
+  /* la placa sobre el pedestal ya nombra al campeón: el caption inferior
+     sobra en móvil y chocaba con la placa — se oculta para ganar aire */
+  .sala-cap{display:none;}
+}
+.sala-btn{width:40px;height:40px;border-radius:50%;cursor:pointer;flex:none;
+  background:rgba(10,12,16,0.55);border:1px solid var(--brd2);color:var(--txt2);
+  display:flex;align-items:center;justify-content:center;
+  transition:color var(--dur-fast),border-color var(--dur-fast),transform var(--dur-fast);}
+.sala-btn:hover{color:var(--gold);border-color:var(--gold-b);transform:translateY(-1px);}
+.sala-btn svg{width:17px;height:17px;}
+.sala-top{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:flex-start;justify-content:space-between;padding:14px 16px;}
+/* nombre de competición + dots de campeón (estilo stories) */
+.sala-nav{display:flex;flex-direction:column;gap:7px;opacity:0;transform:translateY(-8px);
+  transition:opacity 0.7s var(--ease-out) 0.5s, transform 0.7s var(--ease-out) 0.5s;}
+#sala.open .sala-nav{opacity:1;transform:none;}
+.sala-comp{font-family:'Bebas Neue';font-size:clamp(17px,2.2vw,23px);letter-spacing:1.5px;
+  color:var(--txt);text-shadow:0 2px 12px rgba(0,0,0,0.8);}
+.sala-dots{display:flex;gap:6px;}
+.sala-dot{width:18px;height:3px;border-radius:2px;background:rgba(255,255,255,0.22);transition:background var(--dur),width var(--dur);}
+.sala-dot.on{background:var(--gold);width:26px;}
+.sala-note{position:absolute;bottom:14px;left:0;right:0;z-index:10;
+  display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;
+  font-family:'Barlow Condensed';font-size:11px;font-weight:600;letter-spacing:1.5px;
+  color:var(--txt3);text-transform:uppercase;padding:0 16px;
+  opacity:0;transition:opacity 0.8s var(--ease-out) 0.9s;}
+#sala.open .sala-note{opacity:1;}
+.sala-note .sh-g{display:inline-flex;align-items:center;gap:5px;}
+.sala-note .sh-g svg{width:14px;height:14px;color:var(--gold);}
+.sala-note .sh-esc{color:var(--txt3);opacity:0.7;}
+@media(max-width:560px){.sala-note .sh-esc{display:none;}}
+@media (prefers-reduced-motion: reduce){
+  .sala-particles i{animation:none;opacity:.18;}
+  .sala-smoke-canvas{display:none;}
+  .sala-shot{transition:none;}
+}
+/* Móvil/tablet: la sala es muy pesada (5MB de PNG + decenas de capas con
+   blur/box-shadow animadas). Aligeramos sin perder la atmósfera. */
+@media(max-width:760px){
+  .sala-smoke-canvas{display:none;}
+  .sala-particles i:nth-child(n+10){display:none;}
+  .sala-particles i{box-shadow:0 0 8px 2px var(--spark),0 0 18px 5px var(--spark-soft);}
+  .sala-shot{box-shadow:0 8px 20px rgba(0,0,0,0.5);}
+}
+
+/* ============ 02 · COMPETICIONES (navegador jerárquico) ============
+   El título son 2 carruseles en una fila: «competición — fase». Cada uno
+   muestra el activo grande y los vecinos asoman difuminados; deslizá,
+   usá las flechas del teclado o clic en un vecino para cambiar. */
+.comp-sticky{position:sticky;top:82px;z-index:30;background:var(--bg);padding:6px 0 18px;}
+.comp-title{display:flex;align-items:center;gap:10px;min-width:0;}
+.comp-title .pd-n{font-family:'Bebas Neue';font-size:15px;color:var(--gold-lo);letter-spacing:1px;flex:none;}
+.comp-title .cc-sep{font-family:'Bebas Neue';font-size:clamp(16px,4vw,30px);color:var(--txt3);flex:none;line-height:1;}
+.comp-title::after{content:'';flex:1;min-width:8px;height:1px;background:var(--brd);}
+.cc{position:relative;flex:none;}
+.cc-view{overflow:hidden;position:relative;}
+.cc-track{display:flex;align-items:center;gap:30px;width:max-content;cursor:grab;
+  will-change:transform;transition:transform .42s cubic-bezier(.22,.61,.36,1);
+  user-select:none;touch-action:pan-y;}
+.cc-track.dragging{transition:none;cursor:grabbing;}
+.cc-item{flex:none;white-space:nowrap;background:none;border:none;padding:0;cursor:pointer;
+  font-family:'Bebas Neue';font-size:clamp(16px,4vw,30px);letter-spacing:0.5px;line-height:1;
+  color:var(--txt);opacity:0.2;transform:scale(0.92);transform-origin:center;
+  transition:opacity .3s,transform .3s,color .3s;}
+.cc-item.active{opacity:1;transform:scale(1);}
+.cc-comp .cc-item.active{color:var(--cc-accent,var(--txt));}
+/* los vecinos asoman difuminados a los lados del activo */
+.cc-view::before,.cc-view::after{content:'';position:absolute;top:0;bottom:0;width:30px;z-index:2;pointer-events:none;}
+.cc-view::before{left:0;background:linear-gradient(90deg,var(--bg) 12%,transparent);}
+.cc-view::after{right:0;background:linear-gradient(270deg,var(--bg) 12%,transparent);}
+@media(max-width:560px){
+  /* en móvil el número y la línea sobran: el título «comp — fase» debe caber */
+  .comp-title .pd-n,.comp-title::after{display:none;}
+  .cc-view::before,.cc-view::after{width:20px;}
+}
+/* === INICIO: COMPETICIONES PUBLIC === */
+/* Cabecera del navegador comp/fase en el panel público real (sin el sticky del
+   prototipo: el panel multipágina no comparte el cromo scrolly). */
+.pub-comp-head{margin:2px 0 18px;}
+.pub-comp-head .comp-title{padding:4px 0;}
+.pub-fase-single{font-family:'Bebas Neue';font-size:clamp(16px,4vw,30px);letter-spacing:0.5px;line-height:1;color:var(--txt);white-space:nowrap;}
+/* === FIN: COMPETICIONES PUBLIC === */
+.comps-duo{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;}
+@media(min-width:1000px){
+  .comps-duo{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px;}
+}
+.stand-card{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
+.stand-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--brd);
+  background:linear-gradient(90deg,var(--gold-l),transparent 60%);
+}
+.stand-title{font-family:'Bebas Neue';font-size:22px;letter-spacing:1px;}
+/* Tabla estilo Google: club fijo a la izquierda, stats con scroll
+   horizontal y difuminado en los bordes que se puede seguir scrolleando */
+.stand-scrollwrap{position:relative;}
+.stand-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.stand-scroll::-webkit-scrollbar{height:0;display:none;}
+.stand-grid{min-width:496px;}
+.stand-colhead,.stand-row{
+  display:grid;grid-template-columns:164px repeat(7,minmax(42px,1fr));
+  align-items:center;
+}
+.stand-row{font-family:'Barlow Condensed';font-size:15px;font-weight:600;
+  transition:background var(--dur-fast);}
+.stand-row:hover{background:color-mix(in srgb, var(--team-color) 13%, transparent);}
+.stand-row:hover .st-pts{color:var(--gold);text-shadow:0 0 14px var(--gold-glow);}
+.stand-row:hover .st-crest{transform:scale(1.1);box-shadow:0 0 12px color-mix(in srgb,var(--team-color) 60%,transparent);}
+/* bloque fijo: posición + escudo + nombre, pegado al borde izquierdo */
+.st-fix{position:sticky;left:0;z-index:2;background:var(--card);
+  display:grid;grid-template-columns:24px 28px minmax(0,1fr);align-items:center;gap:4px;
+  padding:9px 8px 9px 14px;}
+.stand-row:hover .st-fix{background:color-mix(in srgb, var(--team-color) 13%, var(--card));}
+.stand-row.zone-up .st-fix{box-shadow:inset 3px 0 0 var(--green);}
+.stand-row.zone-down .st-fix{box-shadow:inset 3px 0 0 var(--red);}
+.st-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;}
+.zone-up .st-pos{color:var(--green);}
+.zone-down .st-pos{color:var(--red);}
+.st-crest{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  background:var(--team-color);color:#fff;font-family:'Bebas Neue';font-size:10px;
+  transition:transform var(--dur-fast) var(--ease-out-soft),box-shadow var(--dur-fast);}
+.st-name{padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;}
+.st-c{text-align:center;color:var(--txt2);font-variant-numeric:tabular-nums;}
+.st-pts{font-family:'Bebas Neue';font-size:20px;text-align:center;color:var(--txt);
+  transition:color var(--dur-fast),text-shadow var(--dur-fast);}
+.stand-colhead{font-family:'Barlow Condensed';font-size:10px;font-weight:700;letter-spacing:1px;
+  color:var(--txt3);text-transform:uppercase;border-bottom:1px solid var(--brd);}
+.stand-colhead span{text-align:center;padding:8px 0;}
+.stand-colhead .st-fix{background:var(--card);padding:8px 8px 8px 14px;
+  grid-template-columns:none;display:flex;align-items:center;}
+.stand-colhead .st-ph{color:var(--gold);}
+/* difuminado de bordes (aparece según haya más para scrollear) */
+.stand-fade{position:absolute;top:0;bottom:0;width:46px;pointer-events:none;z-index:3;
+  opacity:0;transition:opacity .22s var(--ease-out);}
+.stand-fade.r{right:0;background:linear-gradient(90deg,transparent,var(--card));}
+.stand-fade.l{left:164px;background:linear-gradient(270deg,transparent,var(--card));}
+.stand-card.more-r .stand-fade.r{opacity:1;}
+.stand-card.more-l .stand-fade.l{opacity:1;}
+.stand-legend{display:flex;gap:18px;padding:10px 18px;border-top:1px solid var(--brd);
+  font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.5px;}
+.stand-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;}
+.scores-stack{display:flex;flex-direction:column;gap:10px;}
+
+/* Playoffs — cuadro de TV (llaves a doble partido) */
+.ties-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;}
+@media(min-width:900px){.ties-grid{grid-template-columns:repeat(auto-fit,minmax(420px,1fr));}}
+.tie-card{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
+.tie-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--brd);background:var(--bg-deep);}
+.tie-hdr .th-lbl{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
+.tie-cols{display:grid;grid-template-columns:minmax(0,1fr) repeat(2,44px) 64px;padding:6px 14px 2px;
+  font-family:'Barlow Condensed';font-size:10px;letter-spacing:1px;color:var(--txt3);text-transform:uppercase;}
+.tie-cols span{text-align:center;}
+.tie-row{display:grid;grid-template-columns:minmax(0,1fr) repeat(2,44px) 64px;align-items:center;padding:9px 14px;gap:2px;}
+.tie-row + .tie-row{border-top:1px solid var(--brd);}
+.tie-team{display:flex;align-items:center;gap:10px;min-width:0;}
+.tie-crest{width:32px;height:32px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--team-color),var(--team-color-2));color:#fff;font-family:'Bebas Neue';font-size:12px;}
+.tie-name{font-family:'Bebas Neue';font-size:17px;letter-spacing:0.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tie-leg{text-align:center;font-family:'Barlow Condensed';font-size:16px;font-weight:600;color:var(--txt2);font-variant-numeric:tabular-nums;}
+.tie-agg{text-align:center;font-family:'Bebas Neue';font-size:26px;color:var(--txt);}
+.tie-row.winner{background:linear-gradient(90deg,var(--gold-l),transparent 75%);}
+.tie-row.winner .tie-agg{color:var(--gold);text-shadow:0 0 18px var(--gold-glow);}
+.tie-row.winner .tie-name::after{content:' ✓';color:var(--gold);font-size:13px;}
+.tie-row.loser{opacity:0.55;}
+.tie-pending{font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.5px;}
+
+/* ============ 04 · CALENDARIO ============ */
+.hero-match{
+  display:flex;flex-direction:column;gap:26px;align-items:center;position:relative;
+  padding:clamp(28px,5vw,52px) clamp(18px,4vw,40px);
+  background:
+    radial-gradient(ellipse 60% 90% at 50% 110%, rgba(201,168,76,0.13), transparent 70%),
+    var(--bg-deep);
+}
+.hm-top{display:flex;align-items:center;gap:10px;}
+.hm-face{display:flex;flex-direction:column;align-items:center;gap:18px;width:100%;justify-content:center;}
+.hm-side{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;width:100%;min-width:0;}
+.hm-side.home{flex-direction:column-reverse;}
+.hm-name{font-family:'Bebas Neue';font-size:1.7rem;line-height:0.95;letter-spacing:0.5px;}
+.hm-crest{width:clamp(48px,7vw,72px);height:clamp(48px,7vw,72px);border-radius:14px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--team-color),var(--team-color-2,var(--team-color)));color:var(--team-ink);
+  font-family:'Bebas Neue';font-size:clamp(15px,2vw,22px);
+  box-shadow:0 8px 30px rgba(0,0,0,0.45);}
+.hm-mid{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;min-width:clamp(110px,16vw,170px);}
+.hm-count{font-family:'Bebas Neue';font-size:clamp(1.8rem,1rem+2.8vw,3rem);color:var(--gold);line-height:1;letter-spacing:1px;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 30px var(--gold-glow);}
+.hm-when{font-family:'Barlow Condensed';font-size:13px;letter-spacing:1.5px;color:var(--txt3);text-transform:uppercase;}
+.hm-cta{display:flex;flex-direction:column;gap:10px;width:100%;}
+.hm-cta .btn{justify-content:center;}
+/* Hero colapsable: en reposo SOLO la cuenta regresiva; al pasar el cursor (o tap en
+   táctil / Enter con teclado) se despliega todo + botones. Borde dorado que se asienta
+   (mecánica de la referencia Smit-Prajapati, recoloreada a la marca). */
+.hm-collapsible{gap:0;cursor:pointer;}
+.hm-collapsible:focus-visible{outline:2px solid var(--gold-b);outline-offset:3px;}
+.hm-peek{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;position:relative;z-index:1;}
+.hm-peek-lbl{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--gold);}
+.hm-peek .hm-count{font-size:clamp(2.6rem,1.4rem+3.4vw,4rem);}
+.hm-peek-hint{font-family:'Barlow Condensed';font-size:11px;font-weight:600;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--txt3);display:inline-flex;align-items:center;gap:7px;
+  transition:opacity var(--dur-mid);}
+.hm-peek-hint svg{width:13px;height:13px;flex:none;}
+.hm-collapsible:hover .hm-peek-hint,.hm-collapsible.open .hm-peek-hint{opacity:0;}
+.hm-expand{display:flex;flex-direction:column;gap:22px;align-items:center;width:100%;position:relative;z-index:1;
+  max-height:0;opacity:0;overflow:hidden;margin-top:0;
+  transition:max-height .55s var(--ease-out),opacity .4s var(--ease-out),margin-top .55s var(--ease-out);}
+.hm-collapsible:hover .hm-expand,.hm-collapsible.open .hm-expand{max-height:560px;opacity:1;margin-top:18px;}
+.hm-border{position:absolute;inset:0;border:2px solid var(--gold);border-radius:inherit;pointer-events:none;
+  opacity:0;transform:rotate(6deg);
+  transition:inset .55s var(--ease-out),opacity .55s var(--ease-out),transform .55s var(--ease-out);}
+.hm-collapsible:hover .hm-border,.hm-collapsible.open .hm-border{inset:14px;opacity:0.5;transform:rotate(0);}
+/* Cursor de máquina de escribir mientras se «escribe» un texto del hero. */
+.hm-typing::after{content:'|';color:var(--gold);margin-left:1px;font-weight:400;
+  animation:hmCaret .7s step-end infinite;}
+@keyframes hmCaret{50%{opacity:0;}}
+@media(min-width:700px){
+  .hm-face{flex-direction:row;gap:clamp(12px,3vw,28px);}
+  .hm-side{flex-direction:row;align-items:center;gap:clamp(10px,1.6vw,16px);flex:1;text-align:left;width:auto;}
+  .hm-side.home{flex-direction:row;justify-content:flex-end;text-align:right;}
+  .hm-name{font-size:clamp(1.5rem,1rem+2.4vw,2.8rem);}
+  .hm-cta{flex-direction:row;width:auto;}
+}
+
+/* Línea de metro (cronograma) */
+.metro{position:relative;margin-top:18px;padding-left:30px;}
+.metro::before{content:'';position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:var(--brd2);}
+.metro-day{position:relative;padding-bottom:20px;}
+.metro-day:last-child{padding-bottom:0;}
+.metro-dot{
+  position:absolute;left:-27px;top:3px;width:12px;height:12px;border-radius:50%;
+  background:var(--card2);border:2px solid var(--brd2);box-sizing:border-box;
+}
+.metro-day.has .metro-dot{border-color:var(--gold-lo);background:var(--gold-lo);}
+.metro-day.today .metro-dot{
+  width:16px;height:16px;left:-29px;top:1px;
+  background:var(--gold);border-color:var(--gold);
+  box-shadow:0 0 14px var(--gold-glow);
+}
+.metro-date{font-family:'Bebas Neue';font-size:18px;letter-spacing:0.5px;display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.metro-day.today .metro-date{color:var(--gold);}
+.metro-day.empty{padding-bottom:12px;}
+.metro-day.empty .metro-date{font-size:13px;color:var(--txt3);margin-bottom:0;font-family:'Barlow Condensed';font-weight:600;letter-spacing:1px;}
+.metro-match{
+  display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:6px;
+  background:var(--card);border:1px solid var(--brd);border-radius:var(--r);
+  font-family:'Barlow Condensed';font-weight:600;font-size:14px;
+  transition:transform var(--dur-fast) var(--ease-out-soft),
+             border-color var(--dur-fast),background var(--dur-fast);
+}
+.metro-match:hover{transform:translateX(4px);border-color:var(--gold-b);background:var(--card2);}
+.metro-match .mm-time{font-family:'Bebas Neue';font-size:15px;color:var(--gold);min-width:44px;}
+.metro-match .mm-comp{font-size:10px;letter-spacing:1px;color:var(--txt3);text-transform:uppercase;margin-left:auto;white-space:nowrap;}
+.metro-match .mm-crest{width:20px;height:20px;border-radius:5px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--tc,#333);color:#fff;font-family:'Bebas Neue';font-size:8px;}
+@media(min-width:1000px){
+  /* En pantalla grande el hero se centra verticalmente respecto a la altura del cronograma. */
+  .cal-duo{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;align-items:center;}
+  .metro{margin-top:0;}
+}
+
+/* ============ 05 · EQUIPOS ============ */
+.clubs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+@media(min-width:700px){.clubs-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}}
+/* Sección 04 · Equipos: panel sólido con borde de luz giratorio (dorado+verde) al hover
+   + foco que sigue al cursor + pips que saltan. Sin glow trasero ni barra superior.
+   El lift vive en el escenario (la tarjeta sólida tapa el centro → la luz solo asoma en el borde). */
+.club-stage{
+  position:relative;border-radius:var(--rl);overflow:hidden;background:var(--card);
+  padding:2px;isolation:isolate;height:100%;
+  transition:transform var(--dur-mid) var(--ease-out-soft),box-shadow var(--dur-mid);
+}
+.club-stage::before{
+  content:'';position:absolute;z-index:0;
+  top:50%;left:50%;width:200%;aspect-ratio:1;transform:translate(-50%,-50%);
+  opacity:0;transition:opacity var(--dur-mid);
+  animation:hitoSpin 3.4s linear infinite;animation-play-state:paused;
+  background:conic-gradient(from 0deg,
+    transparent 0deg,var(--gold-hi) 16deg,var(--gold) 44deg,transparent 96deg,
+    transparent 180deg,var(--green-hi) 196deg,var(--green) 224deg,transparent 276deg,
+    transparent 360deg);
+}
+.club-stage:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,0.5);}
+.club-stage:hover::before{opacity:1;animation-play-state:running;}
+.club-card{
+  background:var(--card);border:1px solid var(--brd);border-radius:calc(var(--rl) - 2px);
+  overflow:hidden;cursor:pointer;position:relative;z-index:1;height:100%;
+}
+.club-card::before{
+  content:'';position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;
+  border-radius:inherit;transition:opacity var(--dur-mid) var(--ease-out-soft);
+  background:radial-gradient(220px circle at var(--mx,50%) var(--my,40%),
+    color-mix(in srgb,var(--team-color) 24%,transparent),transparent 60%);
+}
+.club-stage:hover .club-card::before{opacity:1;}
+.club-card .form-pip{transition:transform var(--dur-mid) var(--ease-out-soft);}
+.club-stage:hover .form-pip{transform:translateY(-3px);}
+.club-stage:hover .form-pip:nth-child(2){transition-delay:.04s;}
+.club-stage:hover .form-pip:nth-child(3){transition-delay:.08s;}
+.club-stage:hover .form-pip:nth-child(4){transition-delay:.12s;}
+.club-stage:hover .form-pip:nth-child(5){transition-delay:.16s;}
+.club-band{
+  height:46px;position:relative;
+  background:linear-gradient(135deg,var(--team-color) 0%,var(--team-color-2) 100%);
+  display:flex;align-items:center;gap:8px;padding:0 10px;
+}
+.club-band::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.08),rgba(0,0,0,0.28));pointer-events:none;}
+.club-crest{
+  width:30px;height:30px;border-radius:8px;flex:none;position:relative;z-index:1;
+  background:rgba(0,0,0,0.30);border:1px solid rgba(255,255,255,0.25);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Bebas Neue';font-size:11px;color:#fff;letter-spacing:1px;
+}
+.club-name{position:relative;z-index:1;font-family:'Bebas Neue';font-size:14px;line-height:0.95;color:#fff;
+  text-shadow:0 1px 4px rgba(0,0,0,0.5);letter-spacing:0.3px;}
+.club-body{padding:9px 10px 10px;display:flex;flex-direction:column;gap:8px;}
+.club-stats{display:flex;gap:0;}
+.club-stat{flex:1;display:flex;flex-direction:column;gap:1px;}
+.club-stat b{font-family:'Bebas Neue';font-size:16px;font-weight:400;color:var(--txt);line-height:1;}
+.club-stat b.gold{color:var(--gold);}
+.club-stat span{font-family:'Barlow Condensed';font-size:9px;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt3);}
+.club-foot{display:flex;flex-direction:column;align-items:flex-start;gap:4px;}
+.club-foot .fs-lbl{font-family:'Barlow Condensed';font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+.club-foot .form-pip{width:17px;height:17px;font-size:10px;}
+/* Equipos públicos (datos reales): logo dentro del crest + nombre de presidente en el pie */
+.club-crest img{width:100%;height:100%;object-fit:cover;border-radius:inherit;}
+.club-pres{font-family:'Barlow Condensed';font-weight:600;font-size:12px;color:var(--txt2);text-align:right;}
+@media(min-width:700px){
+  .club-band{height:64px;gap:12px;padding:0 14px;}
+  .club-crest{width:42px;height:42px;border-radius:10px;font-size:15px;}
+  .club-name{font-size:19px;letter-spacing:0.5px;}
+  .club-body{padding:12px 14px 14px;gap:10px;}
+  .club-stat b{font-size:21px;}
+  .club-stat span{font-size:11px;letter-spacing:1px;}
+  .club-foot{flex-direction:row;align-items:center;justify-content:space-between;gap:0;}
+  .club-foot .fs-lbl{font-size:11px;}
+  .club-foot .form-pip{width:22px;height:22px;font-size:11px;}
+}
+
+/* Botón "cargar más" con ícono giratorio */
+.load-more-wrap{display:flex;justify-content:center;margin-top:22px;}
+.load-more{
+  display:inline-flex;align-items:center;gap:9px;
+  padding:9px 20px;border-radius:999px;cursor:pointer;
+  background:var(--card);border:1px solid var(--gold-b);color:var(--gold);
+  font-family:'Barlow Condensed';font-weight:700;font-size:14px;
+  letter-spacing:1px;text-transform:uppercase;
+  transition:background var(--dur-fast),border-color var(--dur-fast),transform var(--dur-fast);
+}
+.load-more:hover{background:var(--gold-l);border-color:var(--gold);transform:translateY(-1px);}
+.load-more:active{transform:translateY(0) scale(0.98);}
+.load-more svg{width:16px;height:16px;transition:transform var(--dur-fast);}
+.load-more.loading{pointer-events:none;}
+.load-more.loading svg{animation:lmSpin 0.7s linear infinite;}
+@keyframes lmSpin{to{transform:rotate(360deg);}}
+
+/* ============ 06 · SORTEO ============ */
+.sorteo-stage{
+  position:relative;border-radius:var(--rl);overflow:hidden;border:1px solid var(--brd);
+  background:
+    radial-gradient(ellipse 45% 38% at 50% 92%, rgba(201,168,76,0.22), transparent 70%),
+    #07090D;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+  padding:clamp(24px,4vw,44px) clamp(16px,3vw,36px);
+}
+.sorteo-hdr{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;}
+.sorteo-title{font-family:'Bebas Neue';font-size:clamp(1.6rem,1rem+2vw,2.4rem);letter-spacing:1.5px;}
+/* tamaño original del arte (547×821); sólo se reduce si no cabe en móvil */
+.sorteo-chibi{width:547px;max-width:84vw;height:auto;filter:drop-shadow(0 16px 26px rgba(0,0,0,0.55));}
+.sorteo-counter{font-family:'Bebas Neue';font-size:30px;color:var(--gold);line-height:1;}
+.sorteo-counter small{font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:1.5px;}
+/* Equipos de la urna: ocultos en un desplegable, abren con el resumen */
+.urna-wrap{width:100%;max-width:560px;border:1px solid var(--brd);border-radius:var(--rl);
+  background:rgba(255,255,255,0.02);overflow:hidden;}
+.urna-sum{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
+  padding:12px 16px;font-family:'Barlow Condensed';font-weight:700;font-size:13px;
+  letter-spacing:1px;text-transform:uppercase;color:var(--txt2);user-select:none;}
+.urna-sum::-webkit-details-marker{display:none;}
+.urna-sum .us-chev{width:16px;height:16px;color:var(--gold);transition:transform var(--dur);flex:none;}
+.urna-wrap[open] .urna-sum .us-chev{transform:rotate(180deg);}
+.urna-sum b{color:var(--txt);}
+.urna-sum .us-sep{color:var(--txt3);font-weight:600;}
+.urna-body{padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;}
+.urna-group{display:flex;flex-direction:column;gap:7px;}
+.urna-lbl{font-family:'Barlow Condensed';font-size:10px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--txt3);}
+.urna{display:flex;flex-wrap:wrap;gap:6px;}
+.urna .uchip{
+  font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:0.5px;
+  padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--brd2);color:var(--txt);
+}
+.urna .uchip.out{opacity:0.35;text-decoration:line-through;}
+
+/* Rig 2.5D del chibi: respiración + tilt al cursor + glow de escenario */
+.chibi-rig{position:relative;perspective:700px;}
+.chibi-glow{position:absolute;left:50%;bottom:4px;width:72%;height:32%;z-index:0;
+  transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(ellipse at center, var(--gold-glow), transparent 70%);
+  filter:blur(16px);animation:chibiGlow 4.2s ease-in-out infinite;}
+.chibi-tilt{position:relative;z-index:1;will-change:transform;}
+.sorteo-chibi{display:block;animation:chibiBreath 4.2s ease-in-out infinite;}
+@keyframes chibiBreath{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+@keyframes chibiGlow{0%,100%{opacity:0.35;}50%{opacity:0.62;}}
+@media(prefers-reduced-motion:reduce){
+  .sorteo-chibi,.chibi-glow{animation:none;}
+}
+
+/* ============ 07 · HISTORIAL ============ */
+.hitos-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:18px;}
+@media(min-width:900px){.hitos-grid{grid-template-columns:repeat(4,1fr);gap:16px;}}
+/* Borde de luz giratorio (dorado + verde) en las stat cards de Partidos.
+   Mecánica del ejemplo #1: el haz (conic) vive DETRÁS de un panel sólido inset,
+   así solo asoma en el borde de 2px — nunca en el interior. Se enciende al hover. */
+.hito-stage{position:relative;border-radius:var(--rl);overflow:hidden;
+  background:var(--card);padding:2px;isolation:isolate;
+  transition:box-shadow var(--dur-mid);}
+.hito-stage::before{content:'';position:absolute;z-index:0;
+  top:50%;left:50%;width:200%;aspect-ratio:1;transform:translate(-50%,-50%);
+  opacity:0;transition:opacity var(--dur-mid);
+  animation:hitoSpin 3.4s linear infinite;animation-play-state:paused;
+  background:conic-gradient(from 0deg,
+    transparent 0deg,var(--gold-hi) 16deg,var(--gold) 44deg,transparent 96deg,
+    transparent 180deg,var(--green-hi) 196deg,var(--green) 224deg,transparent 276deg,
+    transparent 360deg);}
+.hito-stage:hover{box-shadow:0 0 24px var(--green-glow);}
+.hito-stage:hover::before{opacity:1;animation-play-state:running;}
+@keyframes hitoSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+.hito{position:relative;z-index:1;height:100%;padding:14px 16px;
+  background:var(--card);border-radius:calc(var(--rl) - 2px);}
+.hito b{display:block;font-family:'Bebas Neue';font-size:clamp(26px,4vw,38px);font-weight:400;color:var(--gold);line-height:1;}
+.hito span{font-family:'Barlow Condensed';font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);}
+.hist-duo{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;}
+@media(min-width:1000px){.hist-duo{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:20px;}}
+/* Tarjeta «mano a mano»: efecto Tiagoadag con los colores de la web. El marco es un
+   gradiente dorado→verde; el interior lo tapa y, al hover, se encoge a 0.98 dejando
+   ver el borde + un glow verde. */
+.h2h-frame{position:relative;border-radius:var(--rxl);
+  background-image:linear-gradient(163deg,var(--gold) 0%,var(--green) 100%);
+  transition:box-shadow .3s var(--ease-out-soft);}
+.h2h-frame:hover{box-shadow:0 0 30px 1px var(--green-glow);}
+.h2h-card{
+  background:var(--card);border:1px solid var(--brd);border-radius:var(--rxl);
+  padding:18px;display:flex;flex-direction:column;gap:16px;
+  background-image:radial-gradient(ellipse 60% 70% at 50% 120%, rgba(201,168,76,0.10), transparent 70%);
+  transition:transform .2s var(--ease-out-soft);}
+.h2h-frame:hover .h2h-card{transform:scale(0.98);}
+/* buscador con autocompletado: escribe dos equipos para cruzar su H2H */
+.h2h-search{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;}
+.h2h-field{position:relative;min-width:0;}
+.h2h-input{width:100%;padding:11px 12px;border-radius:10px;background:var(--bg);
+  border:1px solid var(--brd2);color:var(--txt);font-family:'Barlow Condensed';
+  font-size:15px;font-weight:600;letter-spacing:0.3px;transition:border-color var(--dur-fast);}
+.h2h-input:focus{outline:none;border-color:var(--gold-b);}
+.h2h-input::placeholder{color:var(--txt3);font-weight:500;}
+.h2h-vs-sm{font-family:'Bebas Neue';font-size:22px;color:var(--gold-lo);flex:none;}
+.h2h-ac{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:6;
+  background:var(--card);border:1px solid var(--brd2);border-radius:10px;
+  box-shadow:0 14px 30px rgba(0,0,0,0.5);display:none;max-height:220px;overflow-y:auto;}
+.h2h-ac.show{display:block;}
+.h2h-ac-item{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;
+  font-family:'Barlow Condensed';font-size:14px;font-weight:600;color:var(--txt2);
+  transition:background var(--dur-fast);}
+.h2h-ac-item:hover,.h2h-ac-item.active{background:color-mix(in srgb,var(--gold) 14%,transparent);color:var(--txt);}
+.h2h-ac-crest{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  background:var(--team-color,#444);color:#fff;font-family:'Bebas Neue';font-size:10px;flex:none;}
+.h2h-ac-item mark{background:none;color:var(--gold);}
+/* resultado del enfrentamiento (oculto hasta elegir ambos equipos) */
+.h2h-result{display:none;flex-direction:column;gap:14px;}
+.h2h-result.show{display:flex;}
+.h2h-face{display:flex;align-items:center;justify-content:center;gap:18px;width:100%;}
+.h2h-side{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;min-width:0;}
+.h2h-crest{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--team-color),var(--team-color-2));color:#fff;font-family:'Bebas Neue';font-size:16px;}
+.h2h-name{font-family:'Bebas Neue';font-size:17px;text-align:center;letter-spacing:0.5px;}
+.h2h-vs{font-family:'Bebas Neue';font-size:34px;color:var(--gold-lo);flex:none;}
+.h2h-record{font-family:'Barlow Condensed';font-size:13px;color:var(--txt2);letter-spacing:0.5px;text-align:center;}
+.h2h-record b{color:var(--txt);}
+.h2h-hint{font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.5px;text-align:center;}
+/* lista de partidos: nº de partido arriba, equipos a lo ancho completo.
+   Efectos del marcador (sección 02) PERO sin dividir las filas: mismo contenedor,
+   sin lift ni cards sueltas → solo barrido diagonal + tinte + ganador encendido al hover. */
+.histm{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
+.histm-row{padding:11px 16px;border-bottom:1px solid var(--brd);
+  position:relative;overflow:hidden;transition:background var(--dur-fast);}
+.histm-row:last-child{border-bottom:none;}
+.histm-row::after{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.08) 50%,transparent 65%);
+  transform:translateX(-120%);}
+.histm-row:hover{background:color-mix(in srgb,var(--gold) 6%,transparent);}
+.histm-row:hover::after{animation:scoreSheen .7s var(--ease-out) forwards;}
+.hr-num{font-family:'Barlow Condensed';font-size:10px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--txt3);margin-bottom:6px;}
+.hr-duel{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;
+  font-family:'Barlow Condensed';font-weight:600;font-size:15px;}
+.hr-duel .hr-team{min-width:0;text-align:right;}
+.hr-duel .hr-team.away{text-align:left;}
+.hr-duel .hr-team.win{color:var(--gold);transition:text-shadow var(--dur-mid);}
+.histm-row:hover .hr-team.win{text-shadow:0 0 16px var(--gold-glow);}
+.hr-duel .hr-score{font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;flex:none;
+  transition:text-shadow var(--dur-mid);}
+.histm-row:hover .hr-score{text-shadow:0 0 18px var(--gold-glow);}
+
+/* ============ 08 · TABLA HISTÓRICA ============ */
+.ht-card{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
+.ht-row{display:grid;grid-template-columns:30px minmax(0,1fr) 52px minmax(70px,1.1fr);align-items:center;gap:8px;
+  padding:9px 12px;border-bottom:1px solid var(--brd);
+  font-family:'Barlow Condensed';font-weight:600;font-size:15px;}
+.ht-row:last-child{border-bottom:none;}
+.ht-row.hdr{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);padding:7px 12px;background:var(--bg-deep);}
+.ht-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;}
+.ht-row:nth-child(2) .ht-pos{color:var(--gold);}
+.ht-team{display:flex;align-items:center;gap:8px;min-width:0;}
+.ht-crest{width:24px;height:24px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--tc,#333);color:#fff;font-family:'Bebas Neue';font-size:9px;}
+.ht-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ht-pts{font-family:'Bebas Neue';font-size:19px;text-align:center;}
+.ht-rend{display:flex;align-items:center;gap:8px;}
+.ht-bar{flex:1;height:6px;border-radius:3px;background:var(--brd);overflow:hidden;}
+.ht-bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-lo),var(--gold));width:0;transition:width 0.9s var(--ease-out-soft);}
+.ht-pct{font-size:12px;color:var(--txt2);min-width:42px;text-align:right;font-variant-numeric:tabular-nums;}
+.ht-pj{text-align:center;color:var(--txt2);display:none;}
+@media(min-width:700px){
+  .ht-row{grid-template-columns:34px minmax(0,1fr) 56px 56px minmax(110px,1.4fr);}
+  .ht-pj{display:block;}
+}
+
+/* === INICIO: HISTORIAL PUBLIC === */
+/* Carrusel de vistas «Partidos | Tabla histórica» del historial público. */
+.hist-pub-tabs{display:flex;gap:0;margin:4px 0 18px;border-bottom:1px solid var(--brd);}
+.hist-tab{position:relative;background:none;border:none;cursor:pointer;padding:8px 4px;margin-right:22px;
+  font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;
+  color:var(--txt3);transition:color var(--dur-fast);}
+.hist-tab:hover{color:var(--txt2);}
+.hist-tab.active{color:var(--gold);}
+.hist-tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,var(--gold),var(--green-hi));}
+.hist-pane[hidden]{display:none;}
+/* === FIN: HISTORIAL PUBLIC === */
+
+/* ============ 09 · PERFIL PRESIDENTE (drawer) ============ */
+.pp-stage{position:relative;min-height:540px;border-radius:var(--rl);overflow:hidden;border:1px solid var(--brd);
+  background:rgba(5,6,9,0.72);display:flex;justify-content:flex-end;}
+.pp-drawer{width:100%;max-width:400px;background:var(--card);border-left:1px solid var(--brd);display:flex;flex-direction:column;}
+.pp-hdr{position:relative;padding:18px 18px 16px;background:linear-gradient(135deg,var(--team-color),var(--team-color-2));}
+.pp-hdr::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.32));pointer-events:none;}
+.pp-hdr > *{position:relative;z-index:1;}
+.pp-id{display:flex;align-items:center;gap:12px;}
+.pp-crest{width:54px;height:54px;border-radius:12px;flex:none;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.3);
+  display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:17px;color:#fff;}
+.pp-club{font-family:'Bebas Neue';font-size:24px;color:#fff;line-height:0.95;text-shadow:0 1px 4px rgba(0,0,0,0.5);}
+.pp-user{font-family:'Barlow Condensed';font-size:13px;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:8px;margin-top:3px;}
+.pp-role{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.3);border-radius:999px;padding:2px 8px;color:#fff;}
+.pp-body{padding:16px 18px;display:flex;flex-direction:column;gap:16px;flex:1;}
+.pp-stats{display:flex;gap:16px;align-items:center;background:var(--bg-deep);border-radius:var(--rl);padding:14px;}
+.pp-donut{position:relative;width:84px;height:84px;flex:none;}
+.pp-donut .pd-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
+.pp-donut .pd-c b{font-family:'Bebas Neue';font-size:22px;font-weight:400;}
+.pp-donut .pd-c span{font-size:9px;color:var(--txt3);letter-spacing:1px;}
+.pp-bars{flex:1;display:flex;flex-direction:column;gap:8px;font-family:'Barlow Condensed';font-size:12px;}
+.pp-bars .pb-lbl{display:flex;justify-content:space-between;color:var(--txt3);}
+.pp-bars .pb-lbl b{color:var(--txt);}
+.pp-bars .pb-track{height:5px;border-radius:3px;background:var(--brd);overflow:hidden;}
+.pp-bars .pb-track i{display:block;height:100%;border-radius:3px;}
+.pp-line{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.pp-sec{border:1px solid var(--brd);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;
+  font-family:'Barlow Condensed';font-weight:600;font-size:14px;color:var(--txt2);cursor:pointer;}
+.pp-sec:hover{border-color:var(--brd2);color:var(--txt);}
+.pp-foot{padding:14px 18px;border-top:1px solid var(--brd);display:flex;justify-content:space-between;gap:10px;}

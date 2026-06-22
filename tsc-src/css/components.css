@@ -314,3 +314,126 @@
   width:85%;       /* actualizado por JS en cada movimiento */
   pointer-events:none;
 }
+
+/* ============================================================
+   REDISEÑO "MATCHDAY BROADCAST" — botones, chips, marcadores
+   ============================================================ */
+
+/* ---- Botones extendidos ---- */
+.btn-gold{
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold));
+  border-color:var(--gold);color:#1a1306;
+  box-shadow:0 1px 0 rgba(255,255,255,0.25) inset;
+}
+.btn-gold:hover{
+  background:linear-gradient(180deg,var(--gold-hi),var(--gold-hi));
+  box-shadow:0 4px 18px var(--gold-glow),0 1px 0 rgba(255,255,255,0.3) inset;
+  transform:translateY(-1px);
+}
+.btn-gold:active{transform:translateY(0) scale(0.98);}
+.btn-ghost{border-color:var(--gold-b);color:var(--gold);background:transparent;}
+.btn-ghost:hover{background:var(--gold-l);border-color:var(--gold);transform:translateY(-1px);}
+.btn-ghost:active{transform:translateY(0) scale(0.98);}
+.btn-quiet{border-color:transparent;background:transparent;color:var(--txt2);}
+.btn-quiet:hover{color:var(--txt);background:var(--card2);}
+.btn:focus-visible,.btn-gold:focus-visible,.btn-ghost:focus-visible{
+  outline:2px solid var(--gold);outline-offset:2px;
+}
+
+/* ---- Chips de estado broadcast ---- */
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:999px;
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;
+  letter-spacing:0.6px;text-transform:uppercase;line-height:1;
+}
+.chip-live{background:var(--red-l);color:#ff6b6b;border:1px solid rgba(232,64,64,0.4);}
+.chip-live .chip-dot{width:6px;height:6px;border-radius:50%;background:#ff5252;animation:chipPulse 1.4s var(--ease-in-out) infinite;}
+.chip-final{background:var(--card2);color:var(--txt2);border:1px solid var(--brd2);letter-spacing:1.5px;}
+.chip-vs{background:transparent;color:var(--txt3);font-family:'Bebas Neue';letter-spacing:2px;}
+.chip-today{background:var(--gold-l);color:var(--gold);border:1px solid var(--gold-b);}
+.chip-soon{background:var(--blue-l);color:#7eb0ff;border:1px solid rgba(59,130,246,0.35);}
+@keyframes chipPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(0.7);}}
+
+/* ---- Marcador broadcast (resultado tipo retransmisión) ---- */
+.score-row{
+  display:flex;align-items:stretch;background:var(--card);position:relative;
+  border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;
+  transition:border-color var(--dur-mid),transform var(--dur-mid),box-shadow var(--dur-mid);
+}
+/* S1 «barrido broadcast»: edge crece, un destello diagonal cruza una vez,
+   el número ganador se enciende en dorado. La fila en vivo respira en verde. */
+.score-row::after{
+  content:'';position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.10) 50%,transparent 65%);
+  transform:translateX(-120%);
+}
+.score-row:hover{border-color:var(--gold-b);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,0.5);}
+.score-row:hover::after{animation:scoreSheen .7s var(--ease-out) forwards;}
+@keyframes scoreSheen{to{transform:translateX(120%);}}
+.score-row:hover .score-n:not(.lose){color:var(--gold);text-shadow:0 0 20px var(--gold-glow);}
+.score-row:has(.chip-live){animation:scoreLive 1.8s ease-in-out infinite;}
+@keyframes scoreLive{0%,100%{box-shadow:0 0 0 1px transparent;}50%{box-shadow:0 0 18px var(--green-glow);}}
+.score-edge{width:6px;flex:none;background:var(--team-color);transition:width var(--dur-mid) var(--ease-out);}
+.score-row:hover .score-edge{width:10px;}
+.score-body{flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;position:relative;z-index:1;}
+.score-team{font-family:'Bebas Neue';font-size:clamp(1.1rem,0.9rem+0.8vw,1.5rem);letter-spacing:0.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.score-team.away{text-align:right;color:var(--txt2);}
+.score-nums{display:flex;align-items:center;gap:12px;flex:none;}
+.score-n{font-family:'Bebas Neue';font-size:var(--fs-score);line-height:0.9;color:var(--txt);transition:color var(--dur-mid),text-shadow var(--dur-mid);}
+.score-n.lose{color:var(--txt3);}
+
+/* ---- Escudo / iniciales con color de equipo ---- */
+.team-crest{
+  width:42px;height:42px;border-radius:9px;flex:none;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  background:var(--team-color);color:var(--team-ink);
+  font-family:'Bebas Neue';font-size:15px;letter-spacing:0.5px;
+}
+.team-crest img{width:100%;height:100%;object-fit:cover;}
+
+/* ---- Banda de color de equipo (cabecera de tarjeta) ---- */
+.team-band{
+  height:52px;background:var(--team-color);
+  display:flex;align-items:flex-end;padding:0 14px 8px;
+}
+.team-band .team-band-name{font-family:'Bebas Neue';font-size:20px;letter-spacing:0.5px;color:var(--team-ink);}
+
+/* ---- Forma reciente V/E/D ---- */
+.form-strip{display:flex;gap:4px;}
+.form-pip{
+  width:20px;height:20px;border-radius:5px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;color:#fff;
+}
+.form-pip.w{background:var(--green);}
+.form-pip.d{background:#5F5E5A;}
+.form-pip.l{background:var(--red);}
+
+/* ---- Indicador deslizante del sidebar público ---- */
+.pub-nav-indicator{
+  position:absolute;left:0;width:2px;background:var(--gold);
+  border-radius:0 2px 2px 0;pointer-events:none;
+  box-shadow:0 0 10px var(--gold-glow);
+  transition:transform var(--dur-mid) var(--ease-out),height var(--dur-mid) var(--ease-out),opacity var(--dur-fast);
+  opacity:0;
+}
+
+/* ---- Hero genérico (plantilla de cabecera de página) ---- */
+.hero{
+  position:relative;border-radius:var(--rxl);overflow:hidden;
+  background:var(--bg-deep);border:1px solid var(--brd);
+  padding:clamp(20px,4vw,40px);margin-bottom:22px;
+}
+.hero-eyebrow{
+  font-family:'Barlow Condensed';font-weight:700;font-size:13px;
+  letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;
+}
+.hero-title{
+  font-family:'Bebas Neue';font-size:var(--fs-display);line-height:0.92;
+  letter-spacing:0.5px;text-wrap:balance;
+}
+.hero-sub{font-family:'Barlow Condensed';color:var(--txt2);font-size:15px;letter-spacing:0.5px;margin-top:6px;}
+
+/* ---- Topbar condensada al hacer scroll ---- */
+#topbar.condensed{box-shadow:0 6px 24px rgba(0,0,0,0.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);background:var(--nav-glass);}

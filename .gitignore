@@ -54,3 +54,8 @@ desktop.ini
 .idea/
 *.swp
 *~
+
+# ─── Locales / no van a main (sacados del control de versión, se conservan en disco) ───
+tsc-src/prototype.html
+tsc-src/palmares 3d/
+HISTORIAL ENCUENTROS TSC FINAL.ods

@@ -20,41 +20,16 @@ function _initPubSidebarHover(sidebar){
 }
 
 function _applyPubSidebar(visible){
+  // Sidebar público retirado: la navegación vive solo en el topnav (topbar fijo, lógica del prototipo).
+  // Garantizar que no quede ningún resto visible y dejar #main a ancho completo (sin margen lateral).
   const sidebar  = document.getElementById('pub-sidebar');
   const backdrop = document.getElementById('pub-sidebar-backdrop');
   const main     = document.getElementById('main');
   const menuBtn  = document.getElementById('pub-menu-btn');
-  const toggleEl = document.getElementById('pub-sidebar-toggle');
-  if(!sidebar) return;
-
-  if(!visible){
-    sidebar.classList.remove('open','hover-expand');
-    if(backdrop) backdrop.classList.remove('open');
-    if(menuBtn)  menuBtn.style.display = 'none';
-    return;
-  }
-
-  const mobile = window.innerWidth <= 768;
-
-  if(mobile){
-    // Móvil: hamburguesa visible, sidebar solo se abre al pulsar
-    if(menuBtn) menuBtn.style.display = '';
-    sidebar.classList.remove('collapsed','hover-expand');
-    if(main){ main.style.marginLeft = ''; main.style.marginTop = '60px'; }
-    return;
-  }
-
-  // Escritorio: sidebar siempre visible, hover flyout si colapsado
-  if(menuBtn) menuBtn.style.display = 'none';
-  sidebar.classList.add('open');
-  sidebar.classList.toggle('collapsed', _pubSidebarCollapsed);
-  if(_pubSidebarCollapsed) sidebar.classList.remove('hover-expand');
-  if(toggleEl) toggleEl.innerHTML = _pubSidebarCollapsed ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>' : '«';
-  _initPubSidebarHover(sidebar);
-  if(main){
-    main.style.marginLeft = _pubSidebarCollapsed ? '44px' : '220px';
-    main.style.marginTop  = '60px';
-  }
+  if(sidebar)  sidebar.classList.remove('open','hover-expand','collapsed');
+  if(backdrop) backdrop.classList.remove('open');
+  if(menuBtn)  menuBtn.style.display = 'none';
+  if(main){ main.style.marginLeft = ''; main.style.marginTop = '60px'; }
 }
 
 function togglePubSidebar(){
@@ -114,13 +89,17 @@ function setMode(mode){
     _applyPubSidebar(false);
     const main = document.getElementById('main');
     if(main){ main.classList.add('with-sidebar'); main.style.marginLeft=''; main.style.marginTop='60px'; }
+    if(typeof hidePublicTicker==='function') hidePublicTicker();   // oculta + invalida renders pendientes (anti-race)
   } else {
     document.getElementById('main')?.classList.remove('with-sidebar');
     _applyPubSidebar(true);
+    if(typeof renderPublicTicker==='function') renderPublicTicker();   // llamada defensiva (sin dep. de orden de carga)
   }
 
   document.getElementById('btn-pub')?.classList.toggle('active',!isAdmin);
   document.getElementById('btn-adm')?.classList.toggle('active',isAdmin);
+  // Mostrar/ocultar el topnav del rediseño según el modo (oculto en admin) — defensiva
+  if(typeof syncRedesignShellMode === 'function') syncRedesignShellMode(mode);
   if(isAdmin){ goAdminPage(STATE.adminPage); }
   else { goPublicPage(STATE.publicPage); }
 }
@@ -140,6 +119,8 @@ function goPublicPage(page, navEl){
       if(t.dataset.page === page) t.classList.add('active');
     });
   }
+  // Sincronizar el topnav del rediseño (llamada defensiva — sin dep. de orden de carga)
+  if(typeof syncRedesignTopnav === 'function') syncRedesignTopnav(page);
   // Actualizar/limpiar sub-ítems del sidebar según página
   if(page !== 'panel')    renderPubSidebarComps().catch(()=>{});
   if(page !== 'historial') renderPubSidebarHistorial();
@@ -243,22 +224,19 @@ async function renderPubSorteo(){
    temporada actual (algún bombo con equipos). Llamado por renderPublicPage,
    onSeasonChange y por el propio módulo al recibir mensajes de broadcast. */
 async function refreshSorteoTabVisibility(){
-  const tab = document.getElementById('pub-nav-sorteo');
-  if(!tab) return;
+  const tabs = [document.getElementById('rdp-nav-sorteo'), document.getElementById('pub-nav-sorteo')].filter(Boolean);
   let show = false;
   try{
     if(window.SORTEO?.hasContentForSeason){
       show = await window.SORTEO.hasContentForSeason(STATE.season);
     }
   }catch(e){ show = false; }
-  tab.style.display = show ? '' : 'none';
+  tabs.forEach(t=> t.style.display = show ? '' : 'none');
   if(!show && STATE.publicPage==='sorteo'){
     STATE.publicPage = 'panel';
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.getElementById('page-panel')?.classList.add('active');
-    document.querySelectorAll('.pub-nav-item').forEach(t=>{
-      t.classList.toggle('active', t.dataset.page==='panel');
-    });
+    if(typeof syncRedesignTopnav==='function') syncRedesignTopnav('panel');
   }
 }
 
@@ -335,9 +313,6 @@ async function renderPubSidebarComps(){
   container.innerHTML = html;
 }
 
-/* Stubs temporales */
-async function renderPubPanel(){}
-async function renderPubHistory(){}
 async function renderAdmDashboard(){
   const el = document.getElementById('adm-dashboard-content');
   const [teams,comps,matches] = await Promise.all([
@@ -377,7 +352,7 @@ async function onSeasonChange(val){
   await refreshSorteoTabVisibility();
   const page = STATE.mode==='admin' ? STATE.adminPage : STATE.publicPage;
   if(STATE.mode==='admin') renderAdminPage(page);
-  else renderPublicPage(page);
+  else { renderPublicPage(page); if(typeof renderPublicTicker==='function') renderPublicTicker(); }   // refrescar ticker al cambiar temporada
 }
 
 /* ----------------------------------------------------------

@@ -471,43 +471,138 @@ async function renderPubTeams(){
   const el = document.getElementById('pub-teams-content');
   const teams = await dbGetAll('teams', t=>t.status==='ACTIVO');
 
+  // Stats reales desde el historial del main (pj/victorias/forma) + títulos desde palmarés.
+  try {
+    window._pubTeamStats  = (typeof _computeTeamStats==='function') ? await _computeTeamStats() : {};
+    window._pubTeamTitles = (typeof aggregatePalmaresByTeam==='function') ? await aggregatePalmaresByTeam() : new Map();
+  } catch(e){
+    console.warn('[Equipos] stats de historial no disponibles:', e);
+    window._pubTeamStats = {}; window._pubTeamTitles = new Map();
+  }
+
   el.innerHTML = `
   <div style="margin-bottom:12px;">
     <input type="text" id="pub-team-search" placeholder="Buscar equipo..." oninput="filterPubTeams()"
       style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;width:220px;">
   </div>
-  <div id="pub-teams-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>`;
+  <div id="pub-teams-grid" class="clubs-grid"></div>`;
 
-  renderPubTeamsGrid(teams);
+  renderPubTeamsGrid(teams, true);
 }
 
 async function filterPubTeams(){
   const search = document.getElementById('pub-team-search')?.value.toLowerCase()||'';
   let teams = await dbGetAll('teams', t=>t.status==='ACTIVO');
   if(search) teams = teams.filter(t=>t.name.toLowerCase().includes(search));
-  renderPubTeamsGrid(teams);
+  renderPubTeamsGrid(teams, false);
 }
 
-function renderPubTeamsGrid(teams){
+/* Stats reales por equipo desde el historial (estáticos + lives), mismo criterio
+   que la tabla histórica: pj/v/e/p + forma (últimos 5). Clave = id de equipo, matcheando
+   nombre actual y previousNames. Cero mock — bebe del historial del main. */
+async function _computeTeamStats(){
+  const records = await _getResolvedRecords();
+  const teams   = await dbGetAll('teams');
+  const norm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+  const byName = new Map();
+  for(const t of teams){
+    if(t.name) byName.set(norm(t.name), t.id);
+    (Array.isArray(t.previousNames)?t.previousNames:[]).forEach(p=>{ if(p) byName.set(norm(p), t.id); });
+  }
+  const classify = (typeof _classifyOutcomeFIFA==='function')
+    ? _classifyOutcomeFIFA
+    : (r=>{ const a=parseInt(r.golesA)||0, b=parseInt(r.golesB)||0; return a>b?'A':(a<b?'B':'D'); });
+  const stats = {};
+  const ensure = id => stats[id] || (stats[id] = {pj:0,v:0,e:0,p:0,recent:[]});
+  const sorted = records.slice().sort((a,b)=> (a.id||0)-(b.id||0)); // cronológico ascendente
+  for(const r of sorted){
+    const idA = byName.get(norm(r.equipoA));
+    const idB = byName.get(norm(r.equipoB));
+    if(idA==null && idB==null) continue;
+    const out = classify(r);
+    if(idA!=null){ const s=ensure(idA); s.pj++; if(out==='A'){s.v++;s.recent.push('w');} else if(out==='B'){s.p++;s.recent.push('l');} else {s.e++;s.recent.push('d');} }
+    if(idB!=null){ const s=ensure(idB); s.pj++; if(out==='B'){s.v++;s.recent.push('w');} else if(out==='A'){s.p++;s.recent.push('l');} else {s.e++;s.recent.push('d');} }
+  }
+  return stats;
+}
+
+/* Spotlight: un foco con el color del club sigue al cursor dentro de cada tarjeta.
+   Delegado en document (una sola vez) → vale para tarjetas re-renderizadas por el
+   buscador. Solo con puntero fino y si el usuario no pidió movimiento reducido. */
+let _pubTeamsSpotlightBound = false;
+function _pubBindTeamsSpotlight(){
+  if(_pubTeamsSpotlightBound) return;
+  if(typeof matchMedia==='function' && !matchMedia('(pointer:fine)').matches) return;
+  if(window.MOTION && typeof MOTION.reduced==='function' && MOTION.reduced()) return;
+  _pubTeamsSpotlightBound = true;
+  document.addEventListener('pointermove', e=>{
+    const card = e.target.closest && e.target.closest('.club-card');
+    if(!card) return;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+    card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  }, { passive:true });
+}
+
+function renderPubTeamsGrid(teams, animate){
   const el = document.getElementById('pub-teams-grid');
   if(!el) return;
   if(!teams.length){
-    el.innerHTML=`<div style="color:var(--txt3);font-size:16px;grid-column:1/-1;">Sin equipos activos.</div>`;
+    el.innerHTML=`<div style="grid-column:1/-1;color:var(--txt3);font-size:15px;padding:24px 0;text-align:center;">Sin equipos activos.</div>`;
     return;
   }
-  el.innerHTML = teams.map(t=>`
-    <div class="card" style="padding:14px;text-align:center;transition:border-color 0.15s;cursor:default;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--brd)'">
-      <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${t.color||'#333'};margin:0 auto 8px;border:2px solid var(--brd2);">
-        ${t.logo
-          ? `<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`
-          : `<span style="font-family:'Bebas Neue';font-size:13px;color:#fff;">${_esc(t.ini||'?')}</span>`
-        }
+  const _col = v => /^#[0-9A-Fa-f]{3,8}$/.test(String(v||'')) ? v : '#333';
+  const stats  = window._pubTeamStats  || {};
+  const titles = window._pubTeamTitles || new Map();
+  el.innerHTML = teams.map(t=>{
+    const c1 = _col(t.color), c2 = _col(t.color2 || t.color);
+    const crest = t.logo
+      ? `<img src="${_esc(t.logo)}" alt="" loading="lazy">`
+      : `${_esc(t.ini||'?')}`;
+    const s = stats[t.id] || {pj:0,v:0,recent:[]};
+    const winPct = s.pj>0 ? Math.round(s.v/s.pj*100) : 0;
+    const tit = (titles.get(t.id)?._total) || 0;
+    const form = (s.recent||[]).slice(-5);
+    const formHTML = form.length
+      ? form.map(f=>`<span class="form-pip ${f}">${f==='w'?'V':f==='d'?'E':'D'}</span>`).join('')
+      : `<span style="font-size:11px;color:var(--txt3);">Sin datos</span>`;
+    return `
+    <div class="club-stage">
+      <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};">
+        <div class="club-band">
+          <div class="club-crest">${crest}</div>
+          <div class="club-name">${_esc(t.name)}</div>
+        </div>
+        <div class="club-body">
+          <div class="club-stats">
+            <div class="club-stat"><b>${s.pj}</b><span>Partidos</span></div>
+            <div class="club-stat"><b>${winPct}%</b><span>Victorias</span></div>
+            <div class="club-stat"><b class="gold">${tit}</b><span>Títulos</span></div>
+          </div>
+          <div class="club-foot">
+            <span class="fs-lbl">Forma</span>
+            <div class="form-strip">${formHTML}</div>
+          </div>
+        </div>
       </div>
-      <div style="font-size:14px;font-weight:600;line-height:1.3;">${_esc(t.name)}</div>
-      ${t.pres?`<div style="font-size:12px;color:var(--txt3);margin-top:3px;">${_esc(t.pres)}</div>`:''}
-      <div style="margin-top:6px;">
-        <span style="font-family:'Bebas Neue';font-size:17px;color:var(--gold);">${t.yunacoin||0}</span>
-        <span style="font-size:11px;color:var(--txt3);"> coins</span>
-      </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  // Spotlight siempre disponible (re-render por buscador incluido).
+  _pubBindTeamsSpotlight();
+
+  // Motion solo en la carga inicial (no en cada tecla del buscador): cascada de
+  // entrada sobre la tarjeta interna + conteo de las stats. Degrada solo si MOTION
+  // no existe o el usuario pidió movimiento reducido (countUp/stagger lo respetan).
+  if(animate){
+    const cards = [...el.querySelectorAll('.club-card')];
+    if(window.MOTION && typeof MOTION.stagger==='function') MOTION.stagger(cards, { step:45 });
+    if(window.MOTION && typeof MOTION.countUp==='function'){
+      cards.forEach(card=>card.querySelectorAll('.club-stat b').forEach(b=>{
+        const raw = b.textContent, n = parseInt(raw);
+        if(isNaN(n)) return;
+        MOTION.countUp(b, n, { dur:850, suffix: raw.includes('%') ? '%' : '' });
+      }));
+    }
+  }
 }

@@ -541,6 +541,62 @@ async function renderAdmCalendarLabels(){
 /* ================================================================
    VISTA PÚBLICA — renderPubCalendar
    ================================================================ */
+
+/* Hero broadcast del calendario: si hay un partido EN VIVO ese es el foco
+   (marcador grande, pulso rojo); si no, el PRÓXIMO partido con cuenta atrás
+   viva (MOTION.countdown). El timeline + lista quedan como soporte debajo.
+   _calCountdownStop guarda el stop() del countdown anterior para limpiarlo en
+   cada re-render (anti-leak en la suscripción en vivo). */
+let _calCountdownStop = null;
+
+function _calHeroHtml(m, isLive, ctx){
+  const { teamById, phaseById, compById } = ctx;
+  const ta = teamById[m.teamA]||null, tb = teamById[m.teamB]||null;
+  const phase = phaseById[m.phaseId];
+  const comp  = phase ? compById[phase.compId] : null;
+  const taN = ta?.name || m.labelA || 'Por definir';
+  const tbN = tb?.name || m.labelB || 'Por definir';
+  const col = (comp?.color && /^#[0-9A-Fa-f]{3,8}$/.test(comp.color)) ? comp.color : 'var(--gold)';
+  const label = [comp?.name||'', phase?.name||''].filter(Boolean).join(' · ');
+  const time  = m.scheduledTime ? m.scheduledTime.substring(0,5) : null;
+  const when  = m.scheduledDate ? `${_calFormatDay(m.scheduledDate)}${time?` · ${time}`:''}` : (time||'');
+  const eyebrow = isLive
+    ? `<span class="chip chip-live"><span class="chip-dot"></span>En vivo</span>`
+    : `<span class="cal-hero-lbl">Próximo partido</span>`;
+  const mid = isLive
+    ? `<div class="cal-hero-score"><span class="score-n">${m.goalsA||0}</span><span class="cal-hero-dash">-</span><span class="score-n">${m.goalsB||0}</span></div>`
+    : `<div class="cal-hero-count" id="cal-hero-count">—</div>${when?`<div class="cal-hero-when">${_esc(when)}</div>`:''}`;
+  return `
+  <div class="cal-hero ${isLive?'cal-hero--live':'cal-hero--next'}" style="--cc:${_esc(col)};">
+    <div class="cal-hero-eyebrow">${eyebrow}${label?`<span class="cal-hero-comp">${_esc(label)}</span>`:''}</div>
+    <div class="cal-hero-face">
+      <div class="cal-hero-side home">
+        ${_calLogo(ta, 56, taN)}
+        <span class="cal-hero-name">${_esc(taN)}</span>
+      </div>
+      <div class="cal-hero-mid">${mid}</div>
+      <div class="cal-hero-side away">
+        <span class="cal-hero-name">${_esc(tbN)}</span>
+        ${_calLogo(tb, 56, tbN)}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* Arranca la cuenta atrás del hero «próximo partido». Usa MOTION.countdown si
+   está disponible; si no, degrada a hora/fecha estática (sin animación). */
+function _calInitHeroCountdown(m){
+  const cEl = document.getElementById('cal-hero-count');
+  if(!cEl) return;
+  if(!m.scheduledDate){ cEl.textContent = m.scheduledTime ? m.scheduledTime.substring(0,5) : '—'; return; }
+  const target = new Date(`${m.scheduledDate}T${(m.scheduledTime||'00:00')}:00`);
+  if(window.MOTION && typeof MOTION.countdown==='function' && !isNaN(target.getTime())){
+    _calCountdownStop = MOTION.countdown(cEl, target, { doneText:'¡En juego!' });
+  } else {
+    cEl.textContent = m.scheduledTime ? m.scheduledTime.substring(0,5) : _calFormatDay(m.scheduledDate);
+  }
+}
+
 async function renderPubCalendar(){
   const el = document.getElementById('pub-calendar-content');
   if(!el) return;
@@ -575,6 +631,14 @@ async function renderPubCalendar(){
     byDate[m.scheduledDate].push(m);
   }
 
+  /* ── Hero: partido EN VIVO (foco) o, en su defecto, el próximo ───────────── */
+  if(_calCountdownStop){ try{ _calCountdownStop(); }catch(e){} _calCountdownStop=null; }
+  const liveMatch = allMatches.find(m=>m.live && m.teamA && m.teamB);
+  const heroMatch = liveMatch || upcoming[0] || null;
+  const heroIsLive = !!liveMatch;
+  const heroCtx = { teamById, phaseById, compById };
+  const heroHtml = heroMatch ? _calHeroHtml(heroMatch, heroIsLive, heroCtx) : '';
+
   /* TODOS los días con label/tipo (incluyendo pasados — se muestran apagados) */
   const labelDatesAll = dayLabels
     .filter(l => (l.text && l.text.trim()) || l.type)
@@ -584,12 +648,16 @@ async function renderPubCalendar(){
   const allDates = [...new Set([...Object.keys(byDate), ...labelDatesAll])].sort();
 
   if(!allDates.length){
-    el.innerHTML=`
+    // Si hay un partido en vivo (sin fechas futuras programadas), el hero sigue
+    // siendo el foco; debajo, una nota de vacío más discreta.
+    const emptyCard = `
     <div class="cal-pub-empty">
       <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <div class="cal-pub-empty-title">Sin partidos programados</div>
+      <div class="cal-pub-empty-title">${heroHtml?'No hay más partidos programados':'Sin partidos programados'}</div>
       <div class="cal-pub-empty-sub">Los próximos partidos aparecerán aquí en cuanto el admin los programe</div>
     </div>`;
+    el.innerHTML = heroHtml + emptyCard;
+    if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch);
     return;
   }
 
@@ -713,11 +781,15 @@ async function renderPubCalendar(){
   }
 
   el.innerHTML=`
+    ${heroHtml}
     <div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>
     <div class="cal-pub-layout">
       ${timelineHtml()}
       <div class="cal-pub-days">${daysHtml}</div>
     </div>`;
+
+  /* Cuenta atrás del hero (solo si el foco es el «próximo partido», no en vivo) */
+  if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch);
 
   /* ── Scroll al hacer click en estación ───────────────────── */
   el.querySelectorAll('.cal-tl-station').forEach(st=>{

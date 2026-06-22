@@ -356,6 +356,47 @@ async function _getResolvedRecords(){
   }));
 }
 
+/* Hitos del historial público: 4 stat cards (partidos, goles, mayor goleada,
+   temporadas) calculadas de los records resueltos. Los números animan con
+   MOTION.countUp; «mayor goleada» es texto (marcador) → sin countUp. */
+function _pubHistoryHitos(records){
+  let goles=0, maxDiff=-1, maxLabel='—';
+  const temps = new Set();
+  for(const r of records){
+    const a=parseInt(r.golesA), b=parseInt(r.golesB);
+    if(!isNaN(a) && !isNaN(b)){
+      goles += a+b;
+      const diff=Math.abs(a-b);
+      if(diff>maxDiff){ maxDiff=diff; maxLabel = `${Math.max(a,b)}-${Math.min(a,b)}`; }
+    }
+    if(r.temporada) temps.add(String(r.temporada).trim());
+  }
+  const card=(val,label,isText)=>`
+    <div class="hito-stage">
+      <div class="hito">
+        <b ${isText?'':`data-n="${val}"`}>${isText?_esc(val):'0'}</b>
+        <span>${_esc(label)}</span>
+      </div>
+    </div>`;
+  return `<div class="hitos-grid">
+    ${card(records.length,'Partidos jugados')}
+    ${card(goles,'Goles anotados')}
+    ${card(maxLabel,'Mayor goleada',true)}
+    ${card(temps.size,'Temporadas')}
+  </div>`;
+}
+
+/* Anima los contadores de los hitos. Degrada a valor final si no hay MOTION
+   (o si el usuario pidió movimiento reducido — countUp lo respeta internamente). */
+function _pubHistoryCountUp(el){
+  const nums = el.querySelectorAll('.hito b[data-n]');
+  if(!(window.MOTION && typeof MOTION.countUp==='function')){
+    nums.forEach(b=>{ b.textContent = b.dataset.n; });
+    return;
+  }
+  nums.forEach(b=>{ const n=parseInt(b.dataset.n); if(!isNaN(n)) MOTION.countUp(b, n, { dur:1000 }); });
+}
+
 async function _renderHistoryFull(el, isAdmin){
   try {
     const all = await _getResolvedRecords();
@@ -367,18 +408,58 @@ async function _renderHistoryFull(el, isAdmin){
       return;
     }
 
-    // Usar clases en vez de IDs globales para evitar colisión entre vista admin y pública
-    // (ambas pueden coexistir en el DOM y duplican IDs).
-    el.innerHTML = `
-      ${_renderHistorySubNav('partidos', isAdmin)}
-      <div class="hist-filters-zone"></div>
-      <div class="hist-summary-zone" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
-      <div class="hist-table-zone card" style="overflow:auto;"></div>
-      <div class="hist-more-zone"></div>
-    `;
+    if(isAdmin){
+      // ADMIN: comportamiento original (filtros + tabla + export), sin tocar.
+      el.innerHTML = `
+        ${_renderHistorySubNav('partidos', isAdmin)}
+        <div class="hist-filters-zone"></div>
+        <div class="hist-summary-zone" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
+        <div class="hist-table-zone card" style="overflow:auto;"></div>
+        <div class="hist-more-zone"></div>
+      `;
+      _renderFiltersZone(el, all, isAdmin);
+      _refreshTableZone(el, all, isAdmin);
+      return;
+    }
 
-    _renderFiltersZone(el, all, isAdmin);
-    _refreshTableZone(el, all, isAdmin);
+    // PÚBLICO: hitos broadcast + carrusel «Partidos | Tabla histórica».
+    // Las zonas de filtros/tabla viven dentro del pane "partidos" → los handlers
+    // (histSetFilter/histSetSearch/histShowMore) las encuentran como descendientes.
+    el.innerHTML = `
+      ${_pubHistoryHitos(all)}
+      <div class="hist-pub-tabs">
+        <button type="button" class="hist-tab active" data-tab="partidos">Partidos</button>
+        <button type="button" class="hist-tab" data-tab="tabla">Tabla histórica</button>
+      </div>
+      <div class="hist-pane" data-pane="partidos">
+        <div class="hist-filters-zone"></div>
+        <div class="hist-summary-zone" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
+        <div class="hist-table-zone card" style="overflow:auto;"></div>
+        <div class="hist-more-zone"></div>
+      </div>
+      <div class="hist-pane" data-pane="tabla" hidden></div>
+    `;
+    _renderFiltersZone(el, all, false);
+    _refreshTableZone(el, all, false);
+    _pubHistoryCountUp(el);
+
+    // Carrusel de vistas: la tabla histórica se renderiza perezosamente al abrirla.
+    const paneP = el.querySelector('[data-pane="partidos"]');
+    const paneT = el.querySelector('[data-pane="tabla"]');
+    let tablaLoaded = false;
+    el.querySelectorAll('.hist-tab').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const tab = btn.dataset.tab;
+        el.querySelectorAll('.hist-tab').forEach(b=>b.classList.toggle('active', b===btn));
+        if(paneP) paneP.hidden = tab!=='partidos';
+        if(paneT) paneT.hidden = tab!=='tabla';
+        if(tab==='tabla' && !tablaLoaded && paneT){
+          tablaLoaded = true;
+          await _renderHistoryStandingsInto(paneT, false);
+        }
+      });
+    });
+    return;
   } catch(err){
     console.error('[Historial] Error al renderizar:', err);
     el.innerHTML = `

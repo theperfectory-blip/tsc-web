@@ -821,14 +821,15 @@ async function renderPubComps(){
   el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">
     ${active.map(c=>{
       const tipo = COMP_TYPES.find(t=>t.id===c.type)||COMP_TYPES[0];
+      const col = /^#[0-9A-Fa-f]{3,8}$/.test(String(c.color||'')) ? c.color : 'var(--gold)';
       return `
-      <div class="card" style="border-top:4px solid ${c.color||'var(--gold)'};padding:14px;">
-        <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${c.name}</div>
+      <div class="card" style="border-top:4px solid ${col};padding:14px;">
+        <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${_esc(c.name)}</div>
         <div style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--txt3);padding:2px 8px;background:var(--card2);border-radius:20px;border:1px solid var(--brd);margin-bottom:8px;">
-          ${tipo.icon} ${tipo.name}
+          ${_esc(tipo.name)}
         </div>
         <div style="font-size:13px;color:var(--txt2);">Equipos: <strong>${c.totalTeams||'—'}</strong></div>
-        ${c.desc?`<div style="font-size:13px;color:var(--txt3);margin-top:6px;line-height:1.5;">${c.desc}</div>`:''}
+        ${c.desc?`<div style="font-size:13px;color:var(--txt3);margin-top:6px;line-height:1.5;">${_esc(c.desc)}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;
