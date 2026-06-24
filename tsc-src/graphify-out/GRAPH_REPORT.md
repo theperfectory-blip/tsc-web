@@ -1,7 +1,7 @@
-# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-06-21)
+# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-06-24)
 
 ## Corpus Check
-- 40 files · ~955,294 words
+- 40 files · ~964,538 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -177,35 +177,35 @@ Nodes (2): BRACKET Phase Config Schema, BRACKET Phase Type (Elimination)
 
 ### Community 21 - "Community 21"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 22 - "Community 22"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 23 - "Community 23"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 24 - "Community 24"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 25 - "Community 25"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 26 - "Community 26"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 27 - "Community 27"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 28 - "Community 28"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 29 - "Community 29"
 Cohesion: 1.0
