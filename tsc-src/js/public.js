@@ -390,8 +390,21 @@ function _tkEsc(s){
    tocar el DOM (no muestran el ticker en admin ni pisan un render reciente). */
 let _publicTickerSeq = 0;
 
+/* Handle de la marquesina (MOTION.ticker). MOTION.ticker clona el track y deja
+   un loop de rAF; hay que detenerlo y quitar el clon antes de re-render u ocultar
+   para no acumular clones ni rAFs huérfanos. */
+let _tickerStop = null;
+function _stopTickerMarquee(){
+  if(_tickerStop){ try{ _tickerStop(); }catch(e){} _tickerStop = null; }
+  const ticker = document.getElementById('ticker');
+  if(ticker) ticker.querySelectorAll('.ticker-track[aria-hidden="true"]').forEach(n=>n.remove());
+  const track = document.getElementById('ticker-track');
+  if(track) track.style.transform = '';
+}
+
 function hidePublicTicker(){
   _publicTickerSeq++;                       // invalida cualquier render en vuelo
+  _stopTickerMarquee();
   const ticker = document.getElementById('ticker');
   const track  = document.getElementById('ticker-track');
   const main   = document.getElementById('main');
@@ -406,7 +419,7 @@ async function renderPublicTicker(){
   const track  = document.getElementById('ticker-track');
   const main   = document.getElementById('main');
   if(!ticker || !track) return;
-  const hideTicker   = ()=>{ track.innerHTML=''; ticker.style.display='none'; if(main) main.classList.remove('with-ticker'); };
+  const hideTicker   = ()=>{ _stopTickerMarquee(); track.innerHTML=''; ticker.style.display='none'; if(main) main.classList.remove('with-ticker'); };
   const stillCurrent = ()=> seq===_publicTickerSeq && typeof STATE!=='undefined' && STATE.mode==='public';
 
   // Solo en modo público (chequeo inicial síncrono)
@@ -449,7 +462,11 @@ async function renderPublicTicker(){
       + `</span>`;
   }).join('');
 
+  _stopTickerMarquee();                     // limpia marquesina previa (clon + rAF)
   ticker.style.display = 'flex';
   if(main) main.classList.add('with-ticker');
+  if(window.MOTION && typeof MOTION.ticker==='function'){
+    _tickerStop = MOTION.ticker('#ticker', { speed: 50 });   // der→izq, respeta reduced-motion
+  }
 }
 

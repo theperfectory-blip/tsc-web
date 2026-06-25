@@ -261,9 +261,9 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
          </td>`
       : `<td style="width:104px;"></td>`;
     return `<tr${isLive?' style="background:rgba(239,68,68,0.06);"':''}>
-      <td style="text-align:right;font-weight:500;padding:9px 14px;${fA}">${teamAName}</td>
+      <td style="text-align:right;font-weight:500;padding:9px 14px;${fA}">${_esc(teamAName)}</td>
       <td style="text-align:center;width:80px;padding:0 4px;">${scoreCell}</td>
-      <td style="font-weight:500;padding:9px 14px;${fB}">${teamBName}</td>
+      <td style="font-weight:500;padding:9px 14px;${fB}">${_esc(teamBName)}</td>
       ${timeCell}
       ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})">✕</button></td>`:''}
     </tr>`;

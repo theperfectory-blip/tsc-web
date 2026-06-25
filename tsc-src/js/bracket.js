@@ -771,7 +771,8 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
       +'</div>';
   }
 
-  function ini(n){ return n ? n.substring(0,3).toUpperCase() : '?'; }
+  function _bkEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function ini(n){ return n ? _bkEsc(n.substring(0,3).toUpperCase()) : '?'; }
 
   function logoCircle(id, name){
     return '<div id="'+id+'" style="width:34px;height:34px;border-radius:50%;background:var(--card2);border:2px solid var(--brd2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\';font-size:9px;font-weight:700;color:var(--txt3);">'+ini(name)+'</div>';
@@ -787,7 +788,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+bdr+bg+op+cur+'transition:background 0.1s;" '
       +(clickFn?'onclick="'+clickFn+'"':'')+'>'
       +logoCircle(logoId, name)
-      +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:15px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+txt+'</span>'
+      +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:15px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+_bkEsc(txt)+'</span>'
       +'<span style="font-family:\'Bebas Neue\';font-size:20px;min-width:22px;text-align:right;color:'+(isWin?'var(--gold)':'var(--txt3)')+';">'+score+'</span>'
       +'</div>';
   }

@@ -484,7 +484,7 @@ function profileSelectAvatar(input){
 }
 
 function _updateTopbarAvatar(url){
-  const btn = document.querySelector('.auth-avatar');
+  const btn = document.querySelector('.tp-avatar');
   if (!btn) return;
   btn.innerHTML = url
     ? `<img src="${_pfEsc(url)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
