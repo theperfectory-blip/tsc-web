@@ -11,7 +11,7 @@ No asumir que hay que implementar directamente en este chat nuevo salvo que el u
 - Repo local: `C:\Users\Administrator\Downloads\tsc.web`
 - App local: `cd tsc-src && npx serve .` y abrir `http://localhost:3000`
 - Produccion: `https://teamsubscup.web.app/`
-- Rama de trabajo: `redesign/matchday-broadcast`
+- Rama de trabajo: `redesign/migration`
 - La migracion consiste en llevar el UI del prototipo al main real, usando datos reales del main, no mocks.
 - IndexedDB/browser es la fuente de datos. No hay backend propio.
 - `main` no debe tocarse durante estos macro slices.
@@ -212,7 +212,7 @@ Este slice debe arrancar solo despues de que Macro Slice A este estable o explic
 Pegar este archivo como contexto y decir:
 
 ```md
-Actua como Codex supervisor/director del proyecto TSC Web. Estamos en `C:\Users\Administrator\Downloads\tsc.web`, rama `redesign/matchday-broadcast`. Lee primero `tsc-src/graphify-out/GRAPH_REPORT.md`, respeta AGENTS.md, y no implementes sin que yo pida ejecutar. Estamos coordinando a Claude Opus/UltraCode.
+Actua como Codex supervisor/director del proyecto TSC Web. Estamos en `C:\Users\Administrator\Downloads\tsc.web`, rama `redesign/migration`. Lee primero `tsc-src/graphify-out/GRAPH_REPORT.md`, respeta AGENTS.md, y no implementes sin que yo pida ejecutar. Estamos coordinando a Claude Opus/UltraCode.
 
 Primero revisa el estado actual del repo y confirma si Macro Slice A sigue listo para CP0. Si te paso reporte de Claude, revisalo contra este contexto y responde con instrucciones pegables para Opus. El objetivo inmediato es Macro Slice A; Macro Slice B queda como continuacion para sala fullscreen y admin media de campeones.
 ```
