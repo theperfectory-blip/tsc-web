@@ -53,8 +53,8 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 
 | Sección | Estado | Entry real | Qué falta |
 |---|---|---|---|
-| Topbar (branding/temporada/config/auth) | **[HECHO]** | `index.html:23-51`, `ui-utils.js openSettings`, `auth.js renderAuthUI` | Nada |
-| Nav de secciones (`.sec-nav-btn`+indicador) | **[HECHO]** | `redesign-shell.js syncRedesignTopnav/ShellMode`, `nav.js goPublicPage` | Nada |
+| Topbar (branding/temporada/config/auth) | **[HECHO]** | `index.html:23-51`, `ui-utils.js openSettings`, `auth.js renderAuthUI` | Deltas visuales menores: chip "Temporada N" (prototipo) vs selector dropdown (real); estado logueado con avatar |
+| Nav de secciones (`.sec-nav-btn`+indicador) | **[REVISAR]** | `redesign-shell.js syncRedesignTopnav/ShellMode`, `nav.js goPublicPage` | Funciona como **page-nav**. Si se adopta scroll continuo (Macro Slice C) → pasar a scrollspy + smooth-scroll |
 | Ticker (partidos der→izq) | **[HECHO]** (fix esta sesión) | `public.js renderPublicTicker` + `MOTION.ticker` | Nada |
 | Equipos | **[HECHO]** | `teams.js renderPubTeams/renderPubTeamsGrid` (stats reales, spotlight, MOTION) | Opcional: load-more + shuffle |
 | Sorteo | **[HECHO]** | `sorteo.js renderPubSorteo` (8 frames, readOnly, live Firestore+BroadcastChannel) | Opcional: rig 2.5D (tilt/glow) |
@@ -69,6 +69,14 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 - XSS: escape de nombres de equipo en `renderMatchesList` (`matches.js`) y `renderBracketHTML`/`teamRow`/`ini` (`bracket.js`, helper `_bkEsc`).
 - (Nota: el supuesto bug `<\span>` del reporte original **no existía**; verificado.)
 
+### Detalles finos (auditoría visual en app real logueado, 2026-06-25)
+- **Competiciones (grupos):** la tabla real trunca nombres en MAYÚSCULA ("ATL. LECHU…") vs el prototipo que los muestra completos ("Atl. Lechuguero"). Revisar ancho de columna / ellipsis.
+- **Calendario — edge case off-season:** con **0 partidos próximos** (temporada ya jugada) el real **no muestra hero** y la sección queda muy vacía (solo lista de días "Sin partidos" + timeline). El prototipo asume siempre un "próximo partido" con countdown. → al portar el hero colapsable, **definir el estado sin próximos** (qué mostrar fuera de temporada).
+- **Equipos:** real = buscador + grid completo de todos los equipos; prototipo = "cargar más" + shuffle (revelado por tandas). Decisión UX (opcional).
+- **Historial:** 4º hito real = "Temporadas" (el prototipo usa "Partido con más goles", clicable); "Mayor goleada" real es texto no clicable; real usa **tabla `.tbl` + dropdowns** de filtro y los inputs Equipo A/B para H2H, vs prototipo **lista `.histm` + rieles inline + tarjeta H2H con autocomplete**.
+- **Sorteo:** el real es **igual o más completo** que el prototipo (chibi + bombos + urna con chips + resultado con asignación a llaves). Solo el rig 2.5D (tilt/glow) es delta opcional.
+- **Palmarés:** real = "Sala de Trofeos" carrusel `tr-room`; prototipo = "Modo Vitrina" `.mv-*` + sala `#sala` con collage. Rediseño = Macro B.
+
 ---
 
 ## 5. SLICES PENDIENTES (reorganizados por realidad)
@@ -82,8 +90,16 @@ Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin 
    - **Bracket (§7.2):** crear `_pubRenderBracketBroadcast(phaseId, containerId)` en `public.js` reusando la data prep real de `bracket.js` (`buildBracketRounds/buildBracketSlots/getWinner/getClassifiedFromPhase`). Markup `gbr-*` (móvil con conectores SVG + desktop árbol con trofeo). **Portar el CSS `gbr-*` a `redesign.css` junto con el JS** — hoy no existe ahí.
    - **Playoff/single (§7.3):** `renderPlayoff()` mezcla prep + HTML y NO tiene helper de datos reutilizable. **Antes** de `_pubRenderPlayoffBroadcast(...)`, extraer/crear una preparación read-only equivalente preservando legs, penales, gol de visita, live, slot refs y labels. Markup `.tie-card`.
    - Cablear ramas `bracket`/`playoff`/`single` de `renderPubPanel`. Escapar con `_tkEsc`. Estado vacío real (sin `_injectFakeBrackets`).
-2. **Perfil — re-skin del modal a `.pp-drawer`**
-   - `profile.js` `_injectProfileModal`/`renderProfileBody`: envolver con clases `.pp-*` (header gradiente color de club, donut stats reales, secciones cuenta/club/admin, pie). **No** tocar handlers, IDs, ni lógica de auth/roles. Gate admin por `AUTH.role==='admin'`.
+2. **Perfil — el real es DISTINTO al prototipo (no solo skin; es estructura)** · comparado en vivo logueado 2026-06-25
+   Diferencias reales observadas (modal real `#profile-modal` vs drawer prototipo `.pp-drawer`):
+   - **Ubicación/forma:** real = **modal centrado** (`modal-overlay`+`.modal`, título "MI PERFIL", ×). Prototipo = **drawer anclado arriba-derecha** desplegado desde el avatar.
+   - **Header:** real = genérico (avatar + inputs Nombre/Usuario inline, email + rol como texto). Prototipo = **header con gradiente del color del club + nombre del club en grande + badge de rol**.
+   - **Organización:** real = **todo plano y expandido a la vez** (nombre, @usuario, email, cambiar contraseña/email, stats del club, nombre del club, historial). Prototipo = **secciones tipo fila/drill-in** (`.pp-sec`: "Panel de administración", "Editar nombre y escudo del club", "Mi cuenta").
+   - **Forma reciente:** real **NO la muestra** (solo donut + barras GF/GC). Prototipo **sí** (pips V/E/D).
+   - **Entrada a Admin:** real = botón "ADMIN" del topbar (fuera del perfil). Prototipo = fila "Panel de administración" **dentro** del drawer.
+   - **Stats del club:** real bajo sección "MI CLUB"; prototipo prominente bajo el header.
+   - Verificado: ambos comparten donut (Pts, G/E/P) + barras GF/GC + "Ver historial de mi club" + pie Cerrar sesión/Guardar.
+   Acción (re-skin + reestructura): llevar `_injectProfileModal`/`renderProfileBody` (`profile.js`) a la estética y estructura del `.pp-drawer` (header club-branded, secciones drill-in, forma reciente, entrada admin dentro). **No** tocar handlers, IDs (`profile-name`/`profile-username`/`profile-avatar-file`/`profile-logo-file`/`profile-team-name`/secciones pwd/email), ni lógica de auth/roles. Gate admin por `AUTH.role==='admin'`. Decidir si se mantiene modal centrado o se adopta drawer arriba-derecha (afecta layout/responsive).
 3. **Calendario — hero colapsable**
    - `_calHeroHtml` (rama no-live): peek (countdown protagonista) → expand (detalle + CTAs reales). Typewriter como helper gateado por `MOTION.reduced()`. Preservar hero EN VIVO + limpieza de countdown (`_calCountdownStop`). **No** `.metro`. CTAs a lógica real o fuera (no mock).
 4. **Historial — enriquecer público**
@@ -95,9 +111,17 @@ Sólo tras A estable o congelado. Es un rediseño grande, no un ajuste.
   - (a) *recomendado*: conservar `<model-viewer>` + Firebase GLB del main y adoptar sólo el escenario del prototipo (foto+focos+humo) alrededor.
   - (b) adoptar el motor Three.js+Draco (unpkg) del prototipo (más riesgo: CDN externa, anclaje geométrico, otra fuente de GLB).
 - Vitrina inline `.mv-*` (nav con blur, hero line-art→full con tilt, data panel) con datos reales (`PALMARES_COMPS` + records + campeón vigente). Decidir destino de `tr-room`/`initTrophyRoom` si la vista inline cambia.
-- Sala `#sala` (CSS `.sala-*` ya existe huérfano en `redesign.css`): markup + `openSala/closeSala/salaLayout`, humo, collage de campeones con datos reales (no placeholders). Audio mapeado a `sounds.js`/`playPalmDing` (no portar IIFE `AUDIO` crudo).
-- **Admin media de campeones**: subir/editar/eliminar imágenes por copa/temporada/equipo (Cloudinary existente, sin tocar configs), persistir en IndexedDB, alimentar el carrusel real.
+- Sala `#sala` (CSS `.sala-*` ya existe huérfano en `redesign.css`): markup + `openSala/closeSala/salaLayout`, humo, y el **carrusel de fotos POR DETRÁS de la copa** (el "collage" de momentos; en el prototipo `.sala-collage`/`_startCollage`/`_spawnShot` son **placeholders mock** — cartas «MOMENTO DEL CAMPEÓN · N» que derivan a distinta profundidad/velocidad/opacidad detrás de la copa; **preservar ese movimiento**, alimentándolo con fotos reales). Audio mapeado a `sounds.js`/`playPalmDing` (no portar IIFE `AUDIO` crudo).
+- **Admin de media de campeones (REQUISITO confirmado por el usuario 2026-06-25):** el carrusel de fotos detrás de la copa en la sala fullscreen debe alimentarse de fotos **subidas por admin para cada campeón**. El admin necesita poder **subir / editar / eliminar varias fotos por campeón** (clave = copa + temporada + equipo campeón). Hosting con **Cloudinary existente** (sin tocar configs), referencia (URLs) persistida en el modelo de palmarés (registro `palmares` en IndexedDB; reusar `uploadImageToCloud`/cropper como en avatares/escudos). **A decidir en el slice:** si las URLs requieren sync cross-device (Firestore) para que los espectadores vean las fotos, o si alcanza con el modelo de datos actual. Sin fotos para un campeón → la sala degrada elegante (sin collage), nunca placeholders en producción.
 - No degradar `renderTrophy3D`/GLB. Verificar desktop/mobile/fullscreen.
+
+### Macro Slice C — Scroll continuo público (FLOW) · detectado 2026-06-25 (auditoría visual)
+**Clave para el flow del proyecto (pedido explícito del usuario). No estaba en el plan.**
+Hallazgo (screenshots `prototype.html` vs `index.html`): el prototipo es **una sola página de scroll continuo** (~5590px, las 6 secciones apiladas; topnav = scrollspy + smooth-scroll a anclas). El app real es **navegación por páginas** (~1058px, una `.page` `.active` por vez, el resto `display:none`; topnav = `goPublicPage` que intercambia páginas). El scrolly **NO está implementado**.
+- **Alcance:** reestructurar la superficie pública para montar todas las secciones en un contenedor de scroll, con el topnav como scrollspy + smooth-scroll (el indicador `#rdp-nav-ind` ya existe). El **admin sigue page-based, no se toca.**
+- **Riesgos:** rendimiento (render simultáneo de todas las secciones, incl. sala 3D de Palmarés y chibi de Sorteo → exige montaje perezoso / pausa offscreen, como ya hace `initTrophyRoom`); las suscripciones en vivo hoy son por página activa → revisar; interacción con Slice A (si se pule sobre páginas y luego se apila, hay retrabajo).
+- **Secuenciación (decisión del usuario, §6):** probablemente debe ir **antes** de Slice A porque cambia cómo se montan las secciones, o coordinarse para no rehacer.
+- Reusar el comportamiento de scrollspy del prototipo **sin** resucitar `redesign-public.js` ni `body.redesign`.
 
 ### Tareas transversales (fuera de A/B)
 - **Seguridad — barrido de escaping** en renderers compartidos: ramas raw restantes de `renderMatchesList`, `renderBracketHTML`, y `renderGroupTable` (`displayName`/`displayIni`/`z.name`). Tarea dedicada con QA admin+público.
@@ -108,6 +132,7 @@ Sólo tras A estable o congelado. Es un rediseño grande, no un ajuste.
 
 ## 6. Decisiones de producto pendientes (sólo el usuario)
 
+- **Scroll continuo (FLOW, Macro Slice C) — la más importante:** ¿se reestructura el público a una sola página de scroll (como el prototipo) o se mantiene la navegación por páginas? Clave para el flow. Si va: ¿**antes** de Slice A (recomendado, evita retrabajo) o después?
 - Palmarés: motor 3D (a) vs (b); ¿reemplazar `tr-room` por `.mv-*`? ¿portar `#sala`?
 - Calendario: layout `.cal-duo` (hero+cronograma lado a lado) vs columna actual; ¿hero colapsable sí/no?
 - Historial: ¿lista `.histm` reemplaza la tabla en público? ¿tabla responsive?
