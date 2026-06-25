@@ -20,11 +20,9 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 }
 .topbar-brand{display:flex;align-items:center;gap:8px;}
 .topbar-logo{
-  width:28px;height:28px;border-radius:50%;
-  background:var(--gold);display:flex;align-items:center;justify-content:center;
-  font-family:'Bebas Neue';font-size:16px;color:#000;flex-shrink:0;
+  height:36px;width:36px;object-fit:contain;flex-shrink:0;display:block;
 }
-.topbar-name{font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;}
+.topbar-name{font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;color:#fff;}
 .topbar-name span{color:var(--gold);}
 .topbar-right{display:flex;align-items:center;gap:6px;}
 
