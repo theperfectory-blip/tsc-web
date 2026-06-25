@@ -115,11 +115,12 @@ Sólo tras A estable o congelado. Es un rediseño grande, no un ajuste.
 - Con el motor Three.js+Draco, el trofeo de la sala deja de usar `<model-viewer>`/`renderTrophy3D`; **reusar los GLB de copas existentes** con el nuevo motor. No tocar el uso de copas en admin. Verificar desktop/mobile/fullscreen.
 
 ### Macro Slice C — Scroll continuo público (FLOW) · detectado 2026-06-25 (auditoría visual)
-**Clave para el flow del proyecto. DECIDIDO 2026-06-25: SÍ → es el próximo slice (antes de Slice A).**
+**Clave para el flow del proyecto. DECIDIDO 2026-06-25: SÍ (se hace). Orden EN REVISIÓN: recomendado A→C→B. Plan pre-slice v2 → `PRE_SLICE_C.md` (P0 con enmiendas Codex).**
 Hallazgo (screenshots `prototype.html` vs `index.html`): el prototipo es **una sola página de scroll continuo** (~5590px, las 6 secciones apiladas; topnav = scrollspy + smooth-scroll a anclas). El app real es **navegación por páginas** (~1058px, una `.page` `.active` por vez, el resto `display:none`; topnav = `goPublicPage` que intercambia páginas). El scrolly **NO está implementado**.
 - **Alcance:** reestructurar la superficie pública para montar todas las secciones en un contenedor de scroll, con el topnav como scrollspy + smooth-scroll (el indicador `#rdp-nav-ind` ya existe). El **admin sigue page-based, no se toca.**
 - **Riesgos:** rendimiento (render simultáneo de todas las secciones, incl. sala 3D de Palmarés y chibi de Sorteo → exige montaje perezoso / pausa offscreen, como ya hace `initTrophyRoom`); las suscripciones en vivo hoy son por página activa → revisar; interacción con Slice A (si se pule sobre páginas y luego se apila, hay retrabajo).
-- **Secuenciación — DECIDIDO (usuario 2026-06-25):** va **antes** de Slice A (es el próximo slice). El usuario delegó el "momento adecuado" → ahora, tras branding.
+- **Secuenciación — EN REVISIÓN:** recomendado **A → C → B** (con bordes limpios A no se rehace al pasar a scroll → "C antes de A" deja de estar justificado). Pendiente confirmación del usuario.
+- **Enmiendas Codex (P0, 2026-06-25):** live rebajado a **1 sección activa** (`live.js` fuera de alcance); pausa de Palmarés vía preservar **`.page.active`** (sin tocar `palmares.js`); `onSeasonChange` re-render de **todas las montadas**; evento **`tsc:public-section-visible`**; cleanup de `redesign-public.js` dentro de C. Detalle en `PRE_SLICE_C.md`.
 - Reusar el comportamiento de scrollspy del prototipo **sin** resucitar `redesign-public.js` ni `body.redesign`.
 
 ### Branding del topbar (tarea puntual · spec del usuario 2026-06-25) — APROBADO por Codex, ejecutable independiente
@@ -140,7 +141,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 
 ## 6. Decisiones de producto pendientes (sólo el usuario)
 
-- **Scroll continuo (FLOW, Macro Slice C) — DECIDIDO: SÍ (usuario 2026-06-25).** El público pasa a una sola página de scroll (como el prototipo). Va como **Macro Slice C antes de Slice A** (evita retrabajo). El usuario delegó el timing ("cuando sea el momento adecuado") → es el **próximo slice**, tras el flujo normal pre-slice (plan → OK de Codex).
+- **Scroll continuo (FLOW, Macro Slice C) — DECIDIDO: SÍ (usuario 2026-06-25).** El público pasa a una sola página de scroll (como el prototipo). **Orden EN REVISIÓN:** recomendado **A → C → B** (el argumento "C antes de A por retrabajo" se cae con bordes limpios). Plan pre-slice v2 en `PRE_SLICE_C.md` (P0 con enmiendas Codex).
 - Palmarés — **DECIDIDO 2026-06-25:** motor 3D = **Three.js + Draco del prototipo** (b); vista inline = **Modo Vitrina `.mv-*`** (reemplaza `tr-room`); **sí** se porta la sala `#sala`.
 - **Media de campeones — DECIDIDO:** persistencia en **Firestore** (visible cross-device) + Cloudinary para hosting.
 - **Perfil UX — DECIDIDO:** **drawer arriba-derecha (desktop) + modal/drawer full-height (mobile)**.
@@ -161,7 +162,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 - **Perfil: UX DECIDIDA = drawer (desktop) / modal full-height (mobile)**.
 - **Branding del topbar: APROBADO** como tarea puntual ejecutable ya, independiente de los macro slices.
 - **Veredicto:** aprobado como **mapa maestro**; **NO aprobado para ejecutar Macro Slice A** hasta resolver el scroll continuo.
-- **Próximo paso (actualizado 2026-06-25):** 1) branding del topbar — ✅ hecho · 2) scroll continuo — ✅ DECIDIDO: SÍ · 3) **Macro Slice C (scroll) = próximo slice, antes de A** · 4) recién después, Slice A.
+- **Próximo paso (actualizado 2026-06-25):** 1) branding del topbar — ✅ hecho · 2) scroll continuo — ✅ DECIDIDO: SÍ · 3) **orden A/C en revisión** (rec A→C→B) · 4) plan pre-slice de C en `PRE_SLICE_C.md` (P0 v2 con enmiendas, esperando re-OK de Codex).
 
 **Veredicto (2026-06-24):** plan aprobado con condiciones. No queda aprobado para ejecutar "tal cual" sin aplicar las correcciones siguientes.
 
