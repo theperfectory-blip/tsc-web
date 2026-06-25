@@ -84,6 +84,7 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 ### Macro Slice A — Pulido público restante
 Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin tocar admin ni Palmarés.
 > El orden de abajo ya incorpora las condiciones obligatorias del dictamen (§7).
+> ⛔ **BLOQUEANTE (Codex 2026-06-25):** no ejecutar Slice A hasta decidir el scroll continuo. Si va scroll → **Macro Slice C primero**.
 
 0. **Pre-bloque bloqueante — aislar el mock muerto (§7.1).** Verificar que nada vivo llama `initRedesignPublic()` ni funciones de `redesign-public.js`; retirar/aislar `<script src="js/redesign-public.js">` (`index.html:398`). No es opcional ni tardío: va primero.
 1. **Competiciones — vista eliminatoria pública** (el delta más grande de A)
@@ -99,7 +100,7 @@ Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin 
    - **Entrada a Admin:** real = botón "ADMIN" del topbar (fuera del perfil). Prototipo = fila "Panel de administración" **dentro** del drawer.
    - **Stats del club:** real bajo sección "MI CLUB"; prototipo prominente bajo el header.
    - Verificado: ambos comparten donut (Pts, G/E/P) + barras GF/GC + "Ver historial de mi club" + pie Cerrar sesión/Guardar.
-   Acción (re-skin + reestructura): llevar `_injectProfileModal`/`renderProfileBody` (`profile.js`) a la estética y estructura del `.pp-drawer` (header club-branded, secciones drill-in, forma reciente, entrada admin dentro). **No** tocar handlers, IDs (`profile-name`/`profile-username`/`profile-avatar-file`/`profile-logo-file`/`profile-team-name`/secciones pwd/email), ni lógica de auth/roles. Gate admin por `AUTH.role==='admin'`. Decidir si se mantiene modal centrado o se adopta drawer arriba-derecha (afecta layout/responsive).
+   Acción (re-skin + reestructura): llevar `_injectProfileModal`/`renderProfileBody` (`profile.js`) a la estética y estructura del `.pp-drawer` (header club-branded, secciones drill-in, forma reciente, entrada admin dentro). **No** tocar handlers, IDs (`profile-name`/`profile-username`/`profile-avatar-file`/`profile-logo-file`/`profile-team-name`/secciones pwd/email), ni lógica de auth/roles. Gate admin por `AUTH.role==='admin'`. **Decisión UX requerida antes de ejecutar** (no la decide Claude). Recomendación Codex 2026-06-25: **drawer arriba-derecha en desktop, modal/drawer full-height en mobile**.
 3. **Calendario — hero colapsable**
    - `_calHeroHtml` (rama no-live): peek (countdown protagonista) → expand (detalle + CTAs reales). Typewriter como helper gateado por `MOTION.reduced()`. Preservar hero EN VIVO + limpieza de countdown (`_calCountdownStop`). **No** `.metro`. CTAs a lógica real o fuera (no mock).
 4. **Historial — enriquecer público**
@@ -112,7 +113,7 @@ Sólo tras A estable o congelado. Es un rediseño grande, no un ajuste.
   - (b) adoptar el motor Three.js+Draco (unpkg) del prototipo (más riesgo: CDN externa, anclaje geométrico, otra fuente de GLB).
 - Vitrina inline `.mv-*` (nav con blur, hero line-art→full con tilt, data panel) con datos reales (`PALMARES_COMPS` + records + campeón vigente). Decidir destino de `tr-room`/`initTrophyRoom` si la vista inline cambia.
 - Sala `#sala` (CSS `.sala-*` ya existe huérfano en `redesign.css`): markup + `openSala/closeSala/salaLayout`, humo, y el **carrusel de fotos POR DETRÁS de la copa** (el "collage" de momentos; en el prototipo `.sala-collage`/`_startCollage`/`_spawnShot` son **placeholders mock** — cartas «MOMENTO DEL CAMPEÓN · N» que derivan a distinta profundidad/velocidad/opacidad detrás de la copa; **preservar ese movimiento**, alimentándolo con fotos reales). Audio mapeado a `sounds.js`/`playPalmDing` (no portar IIFE `AUDIO` crudo).
-- **Admin de media de campeones (REQUISITO confirmado por el usuario 2026-06-25):** el carrusel de fotos detrás de la copa en la sala fullscreen debe alimentarse de fotos **subidas por admin para cada campeón**. El admin necesita poder **subir / editar / eliminar varias fotos por campeón** (clave = copa + temporada + equipo campeón). Hosting con **Cloudinary existente** (sin tocar configs), referencia (URLs) persistida en el modelo de palmarés (registro `palmares` en IndexedDB; reusar `uploadImageToCloud`/cropper como en avatares/escudos). **A decidir en el slice:** si las URLs requieren sync cross-device (Firestore) para que los espectadores vean las fotos, o si alcanza con el modelo de datos actual. Sin fotos para un campeón → la sala degrada elegante (sin collage), nunca placeholders en producción.
+- **Admin de media de campeones (REQUISITO confirmado 2026-06-25 · NO aprobado para ejecutar hasta decidir persistencia Firestore vs IndexedDB):** el carrusel de fotos detrás de la copa en la sala fullscreen debe alimentarse de fotos **subidas por admin para cada campeón**. El admin necesita poder **subir / editar / eliminar varias fotos por campeón** (clave = copa + temporada + equipo campeón). Hosting con **Cloudinary existente** (sin tocar configs), referencia (URLs) persistida en el modelo de palmarés (registro `palmares` en IndexedDB; reusar `uploadImageToCloud`/cropper como en avatares/escudos). **A decidir en el slice:** si las URLs requieren sync cross-device (Firestore) para que los espectadores vean las fotos, o si alcanza con el modelo de datos actual. Sin fotos para un campeón → la sala degrada elegante (sin collage), nunca placeholders en producción.
 - No degradar `renderTrophy3D`/GLB. Verificar desktop/mobile/fullscreen.
 
 ### Macro Slice C — Scroll continuo público (FLOW) · detectado 2026-06-25 (auditoría visual)
@@ -123,7 +124,7 @@ Hallazgo (screenshots `prototype.html` vs `index.html`): el prototipo es **una s
 - **Secuenciación (decisión del usuario, §6):** probablemente debe ir **antes** de Slice A porque cambia cómo se montan las secciones, o coordinarse para no rehacer.
 - Reusar el comportamiento de scrollspy del prototipo **sin** resucitar `redesign-public.js` ni `body.redesign`.
 
-### Branding del topbar (tarea puntual · spec del usuario 2026-06-25)
+### Branding del topbar (tarea puntual · spec del usuario 2026-06-25) — APROBADO por Codex, ejecutable independiente
 Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 - **Asset:** isotipo dorado TSC (estadio+copa+"TSC"), PNG transparente 1254×1254. Origen: `C:\Users\Administrator\.codex\generated_images\019efcea-329a-7ad1-a290-51bbc80335f9\ig_073ed2611fa8950f016a3cb52b4f9c8191b1276e5457d41e1b.png` → **copiar al proyecto** como `tsc-src/assets/logo-tsc.png`.
 - **Markup:** en el bloque `.topbar-brand` (`index.html:23-51`) reemplazar el logo actual (`.topbar-logo`, badge "TSC") por el isotipo `<img>` + el título "Teams Subs Cup" **sin subtítulo**.
@@ -143,6 +144,8 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 
 - **Scroll continuo (FLOW, Macro Slice C) — la más importante:** ¿se reestructura el público a una sola página de scroll (como el prototipo) o se mantiene la navegación por páginas? Clave para el flow. Si va: ¿**antes** de Slice A (recomendado, evita retrabajo) o después?
 - Palmarés: motor 3D (a) vs (b); ¿reemplazar `tr-room` por `.mv-*`? ¿portar `#sala`?
+- **Media de campeones (bloqueante para Macro B):** ¿fotos en Firestore (visibles cross-device) o IndexedDB (solo local)?
+- **Perfil UX:** ¿drawer arriba-derecha (desktop) + modal/drawer full-height (mobile) [rec. Codex], o se mantiene el modal centrado actual?
 - Calendario: layout `.cal-duo` (hero+cronograma lado a lado) vs columna actual; ¿hero colapsable sí/no?
 - Historial: ¿lista `.histm` reemplaza la tabla en público? ¿tabla responsive?
 - Equipos: ¿load-more además del buscador, o sólo buscador?
@@ -151,9 +154,18 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 
 ---
 
-## 7. Dictamen de supervision Codex (2026-06-24)
+## 7. Dictamen de supervision Codex (2026-06-24 · actualizado 2026-06-25)
 
-**Veredicto:** plan aprobado con condiciones. No queda aprobado para ejecutar "tal cual" sin aplicar las correcciones siguientes.
+### Actualización 2026-06-25 (tras auditoría visual) — manda sobre lo de abajo donde haya conflicto
+- **Macro Slice C (scroll continuo) sube de prioridad → DECISIÓN BLOQUEANTE.** `scroll continuo sí/no` se decide **antes** de Slice A. **Si sí → ejecutar Macro Slice C antes de A** (pulir Panel/Calendario/Historial en page-based y luego pasar a scrollspy = retrabajo).
+- **Resolución de la contradicción de orden:** "A antes de B" sigue válido, pero **C (si va) precede a A**.
+- **Palmarés — media de campeones: NO aprobado** hasta decidir persistencia **Firestore vs IndexedDB** (si solo va a IndexedDB, los espectadores no ven las fotos en otros dispositivos).
+- **Perfil: decisión UX antes de ejecutar** (no la elige Claude en implementación). Recomendación Codex: **drawer arriba-derecha en desktop, modal/drawer full-height en mobile**.
+- **Branding del topbar: APROBADO** como tarea puntual ejecutable ya, independiente de los macro slices.
+- **Veredicto:** aprobado como **mapa maestro**; **NO aprobado para ejecutar Macro Slice A** hasta resolver el scroll continuo.
+- **Próximo paso:** 1) branding del topbar · 2) decidir scroll continuo sí/no · 3) si sí, Macro Slice C antes de A · 4) recién después, Slice A.
+
+**Veredicto (2026-06-24):** plan aprobado con condiciones. No queda aprobado para ejecutar "tal cual" sin aplicar las correcciones siguientes.
 
 ### Confirmaciones
 
