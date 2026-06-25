@@ -123,6 +123,15 @@ Hallazgo (screenshots `prototype.html` vs `index.html`): el prototipo es **una s
 - **Secuenciación (decisión del usuario, §6):** probablemente debe ir **antes** de Slice A porque cambia cómo se montan las secciones, o coordinarse para no rehacer.
 - Reusar el comportamiento de scrollspy del prototipo **sin** resucitar `redesign-public.js` ni `body.redesign`.
 
+### Branding del topbar (tarea puntual · spec del usuario 2026-06-25)
+Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
+- **Asset:** isotipo dorado TSC (estadio+copa+"TSC"), PNG transparente 1254×1254. Origen: `C:\Users\Administrator\.codex\generated_images\019efcea-329a-7ad1-a290-51bbc80335f9\ig_073ed2611fa8950f016a3cb52b4f9c8191b1276e5457d41e1b.png` → **copiar al proyecto** como `tsc-src/assets/logo-tsc.png`.
+- **Markup:** en el bloque `.topbar-brand` (`index.html:23-51`) reemplazar el logo actual (`.topbar-logo`, badge "TSC") por el isotipo `<img>` + el título "Teams Subs Cup" **sin subtítulo**.
+- **Tipografía/color:** título en **Bebas Neue**; "Teams Subs" en **blanco**, "Cup" en **dorado** (`var(--gold)`). (El `.topbar-name` ya trae "Teams Subs <span>Cup</span>" → reusar/ajustar.)
+- **Layout:** mantener la **posición izquierda** actual y **respetar el alto del topbar** (escalar el isotipo a la altura disponible, no romper la barra). CSS en `layout.css` (`#topbar`/`.topbar-logo`/`.topbar-name`).
+- **No tocar:** la navegación, el selector de temporada ni el área de auth (no moverlos).
+- QA: desktop + mobile (el topbar condensado), isotipo nítido y alineado, nada desplazado.
+
 ### Tareas transversales (fuera de A/B)
 - **Seguridad — barrido de escaping** en renderers compartidos: ramas raw restantes de `renderMatchesList`, `renderBracketHTML`, y `renderGroupTable` (`displayName`/`displayIni`/`z.name`). Tarea dedicada con QA admin+público.
 - **Cleanup** → promovido a Slice A paso 0 (§7.1): retirar/aislar `<script src="js/redesign-public.js">` (`index.html:398`), código muerto (mock/`initRedesignPublic`). Ya **no** es opcional.
