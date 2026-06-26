@@ -8,7 +8,7 @@ Agregar fotos reales por campeón para alimentar el collage/carrusel de la sala 
 ## Alcance (entra)
 - Store nuevo **`palmares-media`**; subir **`DB_VER` 6 → 7**.
 - Migración **aditiva** (`onupgradeneeded` crea solo el store nuevo, sin tocar datos existentes).
-- Export/import: agregar `palmares-media` a `STORES` → `data.js` (que itera `STORES`) lo incluye **automáticamente** (verificar el `storeMap` de `importDB`).
+- Export/import: añadir `palmares-media` al array **`STORES`** en `state.js` → `data.js` itera `STORES` al exportar, por lo que el store queda incluido **automáticamente**. Verificar el `storeMap` de `importDB` en `data.js`; solo editar `data.js` si `importDB` no itera `STORES` dinámicamente (probable que no haga falta).
 - Admin de media en `page-palmares-admin` (gestor por campeón/título).
 - Público: la sala consume `palmares-media` vía el contrato de B; lazy-load; fallback limpio sin placeholders.
 

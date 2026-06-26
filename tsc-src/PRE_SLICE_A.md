@@ -11,10 +11,12 @@ Todo sobre módulos reales, sin mock, sin `initRedesignPublic`, sin tocar admin.
 
 ## Alcance (entra)
 
-### Paso 0 — Verificar cleanup de `redesign-public.js`
-`redesign-public.js` debería haber sido retirado de `index.html:398` en Slice C (paso 0 de C).
-**Verificar antes de ejecutar A** que el `<script src="js/redesign-public.js">` ya no está y que
-`initRedesignPublic` no se llama en ningún módulo vivo. Si C no lo hizo, A lo asume como primer paso.
+### Paso 0 — Gate de C: verificar cleanup de `redesign-public.js`
+El paso 0 de Slice C retira `<script src="js/redesign-public.js">` de `index.html:398` y elimina
+cualquier llamada a `initRedesignPublic` en módulos vivos.
+**A exige C terminado.** Verificar como primera acción que este paso ya está hecho.
+Si `redesign-public.js` sigue cargado o `initRedesignPublic` sigue siendo llamado →
+**BLOQUEO: devolver a C antes de avanzar en A.** A no asume el cleanup de C.
 
 ### Paso 1 — Competiciones: renderers públicos bracket + playoff
 El panel actual (`public.js:187-188`) llama directamente a los renderers compartidos:
@@ -38,17 +40,21 @@ reusando **solo la preparación de datos** de los módulos compartidos.
 - Estado vacío real: sin fase → mensaje neutro. Sin `_injectFakeBrackets`.
 - QA: verificar que `renderBracket` en admin sigue intacto (sin cambios).
 
-**1b — `_pubRenderPlayoffBroadcast(phaseId, containerId)`** (en `public.js`)
+**1b — `_pubRenderPlayoffBroadcast(phaseId, containerId)`**
 - `renderPlayoff()` (~600 líneas en `playoff.js`) mezcla data prep + HTML.
-  **Extraer/replicar** la preparación read-only equivalente: `slotRefs` → `resolveSlotRef` +
+  **Replicar** la preparación read-only equivalente: `slotRefs` → `resolveSlotRef` +
   `refLabel`, resolución de `teamA`/`teamB` desde `matchMap`, `legs`, penales,
   gol de visita, estado live, labels de clasificación.
   **No** extraer código de `playoff.js` (dejaría render compartido incompleto); replicar
-  la preparación en `public.js` usando las mismas llamadas a `dbGet`/`dbGetAll`.
+  la preparación usando las mismas llamadas a `dbGet`/`dbGetAll`.
 - Producir markup `.tie-card` del prototipo.
 - Escapar con `_tkEsc`.
 - Portar CSS `.tie-card` del prototipo a `redesign.css`.
 - Tipo `single` (1 cruce, supercopa): variante simplificada en el mismo renderer.
+- **Tamaño:** si `_pubRenderBracketBroadcast` + `_pubRenderPlayoffBroadcast` juntos
+  inflan `public.js` de forma notable, mover ambos a un **nuevo módulo `public-bracket.js`**
+  cargado en `index.html` **después** de `playoff.js` y **antes** de `public.js`. Mantiene el borde
+  limpio: `public.js` solo cableará las llamadas; los renderers viven en su módulo.
 - QA: verificar que `renderPlayoff` en admin sigue intacto.
 
 **1c — Cablear en `renderPubPanel`**
@@ -112,7 +118,9 @@ La bifurcación `_histState.mode` ya existe (`'public'` vs `'admin'`).
 - Añadir hito **"Partido con más goles"** (máximo de `goalsA+goalsB` en records).
 - Convertir **"Mayor goleada"** y **"Partido con más goles"** en `.hito-click` →
   llaman `histH2HShow` con los equipos del partido (si `_histState.mode==='public'`).
-- Hito "Temporadas" conservado como texto no clicable (es un conteo, no un partido).
+- Hito **"Temporadas"**: el prototipo lo reemplazó por "Partido con más goles".
+  **Eliminar la tarjeta "Temporadas"** del layout de hitos públicos (4 hitos → 4 hitos,
+  pero la posición de "Temporadas" pasa a "Partido con más goles"). Admin intacto.
 
 **4b — Lista `.histm` (renderer público nuevo):**
 - **No mutar** la tabla admin (`_computeHistoricalStandings` + `.tbl` + dropdowns).
@@ -153,14 +161,18 @@ La bifurcación `_histState.mode` ya existe (`'public'` vs `'admin'`).
 ## Archivos a tocar / a NO tocar
 
 **Tocar:**
-- `public.js` — `_pubRenderBracketBroadcast`, `_pubRenderPlayoffBroadcast`, cablear en `renderPubPanel`.
+- `public.js` — cablear renderers públicos en `renderPubPanel`.
+- `public-bracket.js` *(nuevo, condicional)* — `_pubRenderBracketBroadcast` + `_pubRenderPlayoffBroadcast`
+  si su tamaño justifica módulo propio. Cargado entre `playoff.js` y `public.js` en `index.html`.
+  Si el tamaño es manejable, pueden vivir directamente en `public.js`.
 - `redesign.css` — CSS de `gbr-*`, `.tie-card`, `.pp-drawer`/`.pp-sec`/`.pp-hdr`/`.pp-pip`,
   `cal-hero--expanded`, `.histm`, `.hito-click`, estado off-season.
 - `profile.js` — `renderProfileBody` (re-skin + reestructura drawer; preservar IDs/handlers).
 - `calendar.js` — `_calHeroHtml` (peek/expand), `renderPubCalendar` (fallback off-season).
 - `history.js` — `_pubHistoryHitos` (hitos ampliados), `_pubHistmList` (lista nueva),
   H2H autocomplete.
-- `index.html` — Verificar/retirar `<script src="js/redesign-public.js">` (si C no lo hizo).
+- `index.html` — `<script>` de `public-bracket.js` si aplica. **No** retirar `redesign-public.js`
+  (eso es gate de C; si sigue ahí → BLOQUEO, no tocar aquí).
 
 **NO tocar:**
 - `bracket.js`, `playoff.js` — renderers compartidos intocables (solo reusar data prep).
