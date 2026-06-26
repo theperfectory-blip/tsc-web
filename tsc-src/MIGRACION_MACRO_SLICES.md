@@ -81,7 +81,7 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 
 ## 5. SLICES PENDIENTES (reorganizados por realidad)
 
-**Orden de ejecución DECIDIDO: C → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) Pre-slices: `PRE_SLICE_C.md` (P0 aprobado) · `PRE_SLICE_B.md` · `PRE_SLICE_D.md` · (A pendiente de redactar).
+**Orden de ejecución DECIDIDO: C → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) Pre-slices: `PRE_SLICE_C.md` (P0 aprobado) · `PRE_SLICE_A.md` (redactado, pendiente revisión Codex) · `PRE_SLICE_B.md` · `PRE_SLICE_D.md`.
 
 ### Macro Slice A — Pulido público restante
 Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin tocar admin ni Palmarés.
@@ -162,7 +162,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 - **Perfil: UX DECIDIDA = drawer (desktop) / modal full-height (mobile)**.
 - **Branding del topbar: APROBADO** como tarea puntual ejecutable ya, independiente de los macro slices.
 - **Veredicto:** aprobado como **mapa maestro**; **NO aprobado para ejecutar Macro Slice A** hasta resolver el scroll continuo.
-- **Próximo paso (actualizado 2026-06-25):** branding ✅ · **orden DECIDIDO: C → A → B → D** · **próximo slice = C** (`PRE_SLICE_C.md`, P0 aprobado) → ejecutar cuando el usuario dé el OK · pre-slices B/D listos (`PRE_SLICE_B.md`/`PRE_SLICE_D.md`); A pendiente de redactar.
+- **Próximo paso (actualizado 2026-06-25):** branding ✅ · **orden DECIDIDO: C → A → B → D** · **próximo slice = C** (`PRE_SLICE_C.md`, P0 aprobado) → ejecutar cuando el usuario dé el OK · pre-slices B/D listos (`PRE_SLICE_B.md`/`PRE_SLICE_D.md`) · **`PRE_SLICE_A.md` redactado** (pendiente revisión Codex P0).
 
 **Veredicto (2026-06-24):** plan aprobado con condiciones. No queda aprobado para ejecutar "tal cual" sin aplicar las correcciones siguientes.
 
