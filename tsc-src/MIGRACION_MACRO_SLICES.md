@@ -14,7 +14,7 @@ prototype.html (referencia visual, 90%, mock)  →  main real (datos, lógica, c
 
 - El prototipo define: flow, layout, motion, estética, responsive.
 - El main define: datos, lógica, permisos, persistencia, brackets, H2H, fixtures, admin, Firebase, Cloudinary, IndexedDB.
-- **Si el diseño del prototipo choca con la lógica del main, gana la lógica** y se adapta el diseño.
+- **Regla de fidelidad (DECIDIDO 2026-06-25):** la lógica gana **solo** en datos/permisos/persistencia; en **layout/estética/motion gana el prototipo** salvo conflicto duro documentado. (Reemplaza al viejo "siempre gana la lógica", que contradecía el objetivo "TAL CUAL".) Cualquier punto donde el resultado NO sea idéntico al prototipo se declara en §4bis (Δ Fidelidad).
 - No es una app nueva: es transformar el frontend público de main usando el prototipo como referencia, sin romper lo real.
 
 ## 1. Setup de trabajo
@@ -79,14 +79,33 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 
 ---
 
+## 4bis. Δ Fidelidad declarada (dónde el resultado NO será idéntico al prototipo)
+
+Auditoría de código 2026-06-25 (4 agentes vs código real + `prototype.html`). Por la brújula nueva, donde la lógica/datos reales impiden el "tal cual" se documenta aquí:
+
+1. **Calendario — cronograma:** se conserva `cal-tl` real; **NO se porta `.metro`** del prototipo (decisión técnica del repo). El hero sí va `.hm-*` tal cual; el `.cal-duo` mezcla hero-prototipo + `cal-tl`-real.
+2. **Calendario — off-season:** el prototipo siempre asume "próximo partido"; con 0 próximos el real no tiene hero. El banner "Temporada finalizada/Próximamente" es **feature nueva** (no existe en el prototipo).
+3. **Calendario — typewriter:** el prototipo NO tiene typewriter en el hero (usa countdown). Si se añade, es **extra nuevo** gateado por reduced-motion.
+4. **Perfil:** el prototipo es un `.pp-stage` demo con filas planas+chevron (no drawer top-right real, no drill-in). La UX decidida (drawer desktop / modal full-height mobile) **va más allá del prototipo** = decisión de producto.
+5. **Perfil — forma reciente:** no hay dato "últimos 5" en `profile.js` (solo agregados); se derivará de `matches` o se omiten los pips.
+6. **Competiciones — playoff:** el `.tie-card` será **"prototipo + live/penales/gol-de-visita"** del modelo real (más rico que el `_llavesHTML` del prototipo).
+7. **Nombres largos:** datos reales en MAYÚSCULA largos (`ATL. LECHU…`) vs el mock corto del prototipo → posible truncado donde el prototipo muestra completo.
+8. **Palmarés (B→D):** la sala se verá con **collage VACÍO** (sin los mocks "MOMENTO DEL CAMPEÓN N" del prototipo) hasta que D aporte fotos reales — gap visual intermedio aceptado.
+9. **Hero/Landing global:** **NO EXISTE en el prototipo** (su 10% pendiente). No hay slice para portarlo; "frontend completo tal cual" requiere primero terminar ese 10% del prototipo (decisión pendiente §6).
+
+**Lo que SÍ queda tal cual:** scroll continuo (C, scroll de documento), carruseles de navegación (Competiciones ya migrado; Historial #2/#3 en A), vitrina/sala de Palmarés con todos sus efectos (B), bracket `.gbr-*`, lista `.histm`, H2H autocomplete, hitos del prototipo.
+
+---
+
 ## 5. SLICES PENDIENTES (reorganizados por realidad)
 
-**Orden de ejecución DECIDIDO: C → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) Pre-slices: `PRE_SLICE_C.md` · `PRE_SLICE_A.md` · `PRE_SLICE_B.md` · `PRE_SLICE_D.md` — **todos P0 aprobados por Codex (2026-06-25)**.
+**Orden de ejecución DECIDIDO: C → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) Pre-slices: `PRE_SLICE_C.md` (v4) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2) — **P0 + reescritos tras auditoría de código (2026-06-25, 4 agentes vs código real + prototipo)**. Ver §4bis (Δ Fidelidad) y §7 (auditoría).
 
-### Macro Slice A — Pulido público restante
+### Macro Slice A — Pulido público restante → detalle CORREGIDO en `PRE_SLICE_A.md` (v2)
 Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin tocar admin ni Palmarés.
-> El orden de abajo ya incorpora las condiciones obligatorias del dictamen (§7).
-> ⛔ **BLOQUEANTE (Codex 2026-06-25):** no ejecutar Slice A hasta decidir el scroll continuo. Si va scroll → **Macro Slice C primero**.
+> El orden de abajo es la versión v1; el detalle ejecutable y corregido está en `PRE_SLICE_A.md` (v2, auditoría 2026-06-25).
+> **Correcciones clave de la auditoría:** (a) casi todo el CSS del prototipo **ya existe** en `redesign.css` (`.tie-*`/`.pp-*`/`.histm`/`.hm-*`) → A es **JS+wiring**, no "portar CSS"; solo falta `.gbr-*` y `.hito-click`. (b) **`public-bracket.js` es módulo nuevo OBLIGATORIO** (bracket+playoff ≈600-800 líneas; el `gbr` móvil es un pager animado). (c) **`histH2HShow` no existe** → crearla. (d) **forma reciente del perfil** no tiene dato "últimos 5" → derivar de `matches` u omitir; clase real `.form-pip` (no `.pp-pip`). (e) Calendario: el colapsable ya existe bajo **`.hm-*`** → migrar `_calHeroHtml` a `.hm-*` (reusa CSS). (f) **Carruseles de navegación:** el de Competiciones/Fases (#1) **ya está migrado** (`public.js _pubMakeCarousel`); A suma **#2 `cc-hist`, #3 filtros inline, #4 `.cal-duo`** reutilizando `_pubMakeCarousel`. (g) **minar `redesign-public.js`** (renderers ya portados) antes de borrarlo (último paso de A).
+> ⛔ Gate: A arranca solo con **Macro Slice C** terminado (scroll continuo).
 
 0. **Pre-bloque bloqueante — aislar el mock muerto (§7.1).** Verificar que nada vivo llama `initRedesignPublic()` ni funciones de `redesign-public.js`; retirar/aislar `<script src="js/redesign-public.js">` (`index.html:398`). No es opcional ni tardío: va primero.
 1. **Competiciones — vista eliminatoria pública** (el delta más grande de A)
@@ -108,16 +127,16 @@ Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin 
 4. **Historial — enriquecer público**
    - `_pubHistoryHitos`: +"Partido con más goles", convertir goleada/más-goles en `.hito-click` → `histH2HShow`. Lista `.histm` como **renderer público nuevo** (no mutar la tabla admin) — §7.6. Tarjeta H2H con autocomplete **reutilizando `_histTeams`/`_histResolveTeam`/`_buildH2HPanel`** (cuidar foco del input, no romper filtros). Opcional: tabla histórica responsive `.ht-rend`. Bifurcar por `mode`; **conservar** `_computeHistoricalStandings` (regla finished-season/FIFA).
 
-### Macro Slice B — Palmarés Visual → detalle en `PRE_SLICE_B.md`
-Reemplazar el Palmarés público por la experiencia visual del prototipo con datos reales, **sin** backend/admin de fotos. Vitrina `.mv-*` (reemplaza `tr-room`) + sala fullscreen `#sala` (podio/luces/humo/placa/nav/trofeo) con **Three.js + Draco self-hosted** (sin CDN). Integra con C (`page-palmares` + `tsc:public-section-visible`); **expone el contrato `setSalaCollage`/`getPalmaresMedia`** (vacío, sin placeholders mock). Presupuesto de performance con **fallback mobile** (sala simplificada/poster). Desmontar `tr-room`/`initTrophyRoom`.
+### Macro Slice B — Palmarés Visual → detalle CORREGIDO en `PRE_SLICE_B.md` (v2)
+Reemplazar el Palmarés público (`tr-room`+`<model-viewer>`) por la experiencia del prototipo con datos reales, **sin** backend/admin de fotos. Vitrina `.mv-*` + sala fullscreen `#sala` con **Three.js 0.147.0 + Draco self-hosted** (build global, vendoreo trivial). **El esfuerzo real (auditoría):** portar los **4 PNG de la sala** (`sin_fondo`/`foco_izquierdo`/`foco_derecho`/`placa_dorada`) + la matemática `salaLayout` (anclaje 2.5D de la copa sobre el podio) + el sistema `Smoke` (canvas) + 24 partículas bicolor + 2 haces bicolor + viñeta + nav 4-dir + audio — NO solo vendorear libs. Integra con C (`page-palmares`+evento); **expone `setSalaCollage({recordId,items,colors})`/`getPalmaresMedia(recordId)`** (collage VACÍO sin mocks → gap visual hasta D). Fallback mobile obligatorio. Desmontar `tr-room`/`initTrophyRoom` (rAF perpetuo).
 
 ### Macro Slice D — Palmarés Media Backend → detalle en `PRE_SLICE_D.md`
-Fotos reales por campeón para el collage de la sala (ya estabilizada en B). Store nuevo **`palmares-media`** + `DB_VER` 6→7 (migración aditiva; export/import auto vía `STORES`). Modelo `ownerKey = comp|season|teamId` (canónico), máx 12 fotos/campeón (sala muestra 7, lazy), sin base64. Admin en `page-palmares-admin` reusando `uploadImageToCloud` (no tocar `cloudinary.js` ni gestión de copas). **Reglas Firestore admin-write/public-read = requisito BLOQUEANTE** (validar en consola). Consume el contrato de collage de B sin reabrir su render.
+Fotos reales por campeón para el collage de la sala (ya estabilizada en B). Store nuevo **`palmares-media`** + `DB_VER` 6→7 (migración aditiva). **Clave canónica = `recordId`** (el `id` autoincrement del registro `palmares`; `season` es opcional → la tripleta `comp|season|teamId` colisiona, queda solo como índice legible). Máx 12 fotos/campeón (sala muestra 7, lazy), sin base64. **`data.js` se DEBE editar** (export + `storeMap` son listas hardcodeadas, NO iteran `STORES` — sin esto las fotos no sobreviven backup/restore). Admin en `page-palmares-admin` reusando `uploadImageToCloud`+`openCropModal` (no tocar `cloudinary.js` ni gestión de copas). **Reglas Firestore admin-write/public-read = requisito BLOQUEANTE** (validar en consola). Consume el contrato de B `getPalmaresMedia(recordId)` sin reabrir su render.
 
 ### Macro Slice C — Scroll continuo público (FLOW) · detectado 2026-06-25 (auditoría visual)
 **Clave para el flow del proyecto. DECIDIDO 2026-06-25: SÍ (se hace). Orden DECIDIDO: C → A → B → D (C primero). Plan pre-slice → `PRE_SLICE_C.md` (P0 aprobado).**
 Hallazgo (screenshots `prototype.html` vs `index.html`): el prototipo es **una sola página de scroll continuo** (~5590px, las 6 secciones apiladas; topnav = scrollspy + smooth-scroll a anclas). El app real es **navegación por páginas** (~1058px, una `.page` `.active` por vez, el resto `display:none`; topnav = `goPublicPage` que intercambia páginas). El scrolly **NO está implementado**.
-- **Alcance:** reestructurar la superficie pública para montar todas las secciones en un contenedor de scroll, con el topnav como scrollspy + smooth-scroll (el indicador `#rdp-nav-ind` ya existe). El **admin sigue page-based, no se toca.**
+- **Alcance:** reestructurar la superficie pública para apilar todas las secciones y usar **scroll de documento** (NO un contenedor con `overflow-y`; `#main.public-scroll` es solo hook de display, para preservar `sticky top:82px`), con el topnav como scrollspy + smooth-scroll (el indicador `#rdp-nav-ind` ya existe). El **admin sigue page-based, no se toca.** Detalle en `PRE_SLICE_C.md` (v4).
 - **Riesgos:** rendimiento (render simultáneo de todas las secciones, incl. sala 3D de Palmarés y chibi de Sorteo → exige montaje perezoso / pausa offscreen, como ya hace `initTrophyRoom`); las suscripciones en vivo hoy son por página activa → revisar; interacción con Slice A (si se pule sobre páginas y luego se apila, hay retrabajo).
 - **Secuenciación — DECIDIDO:** **C → A → B → D** (C primero, define el shell). B depende de C+A estables; D depende de B con QA de performance pasada.
 - **Enmiendas Codex (P0, 2026-06-25):** live rebajado a **1 sección activa** (`live.js` fuera de alcance); pausa de Palmarés vía preservar **`.page.active`** (sin tocar `palmares.js`); `onSeasonChange` re-render de **todas las montadas**; evento **`tsc:public-section-visible`**; cleanup de `redesign-public.js` dentro de C. Detalle en `PRE_SLICE_C.md`.
@@ -134,7 +153,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 
 ### Tareas transversales (fuera de A/B)
 - **Seguridad — barrido de escaping** en renderers compartidos: ramas raw restantes de `renderMatchesList`, `renderBracketHTML`, y `renderGroupTable` (`displayName`/`displayIni`/`z.name`). Tarea dedicada con QA admin+público.
-- **Cleanup** → promovido a Slice A paso 0 (§7.1): retirar/aislar `<script src="js/redesign-public.js">` (`index.html:398`), código muerto (mock/`initRedesignPublic`). Ya **no** es opcional.
+- **Cleanup de `redesign-public.js` (repartido entre C y A):** **C** retira el `<script src="js/redesign-public.js">` (`index.html:398`) — deja de cargarse/ejecutarse — pero **conserva el archivo en disco**. **A** mina de ese archivo los renderers ya portados (histm/hitos/countdown) y **borra el archivo físicamente como último paso**. No es opcional.
 - Opcionales de UX: rig 2.5D del sorteo; load-more de equipos.
 
 ---
@@ -145,15 +164,24 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 - Palmarés — **DECIDIDO 2026-06-25:** motor 3D = **Three.js + Draco del prototipo** (b); vista inline = **Modo Vitrina `.mv-*`** (reemplaza `tr-room`); **sí** se porta la sala `#sala`.
 - **Media de campeones — DECIDIDO:** persistencia en **Firestore** (visible cross-device) + Cloudinary para hosting.
 - **Perfil UX — DECIDIDO:** **drawer arriba-derecha (desktop) + modal/drawer full-height (mobile)**.
-- Calendario: layout `.cal-duo` (hero+cronograma lado a lado) vs columna actual; ¿hero colapsable sí/no?
-- Historial: ¿lista `.histm` reemplaza la tabla en público? ¿tabla responsive?
+- Calendario: layout `.cal-duo` (hero+cronograma) — **DECIDIDO: sí, dentro de Slice A** (hero `.hm-*` + `cal-tl` real).
+- Historial: ¿lista `.histm` reemplaza la tabla en público? — **DECIDIDO: sí** (renderer público nuevo). Tabla responsive `.ht-*`: pasa de "opcional" a **incluida en A** (salvo descarte explícito).
 - Equipos: ¿load-more además del buscador, o sólo buscador?
 - Sorteo: ¿rig 2.5D?
-- Prototipo: falta su 10% (hero/landing + fondo sin decidir). ¿Se termina antes de A/B o en paralelo?
+- **Hero/Landing + fondo global — DECIDIDO 2026-06-25:** NO EXISTE en el prototipo (su 10% pendiente) → queda como tarea **posterior a C→A→B→D** (no se mete antes; primero hay que cerrarlo en `prototype.html`). "Frontend completo tal cual" requiere terminar ese 10% y luego un slice que lo porte.
 
 ---
 
 ## 7. Dictamen de supervision Codex (2026-06-24 · actualizado 2026-06-25)
+
+### Auditoría de código 2026-06-25 (4 agentes vs código real + prototipo) — manda sobre todo lo anterior
+Tras P0 de Codex, se auditaron los 4 pre-slices contra el código real y `prototype.html`. Hallazgos que obligaron a reescribir (v2/v4):
+- **C:** "contenedor de scroll" era erróneo → **scroll de documento** (`#main` sin `overflow-y`, solo hook de display); citar `layout.css:234-235`; `page-competiciones` es huérfana (fuera del apilado); 2º consumidor de `.page.active` = `phases.js:784` (admin, a salvo); reusar `syncRedesignTopnav` para el indicador; params del scrollspy del prototipo; `redesign-public.js` se retira el `<script>` pero el archivo se preserva para minarlo en A.
+- **A:** casi todo el CSS ya existe (no re-portar) → solo `.gbr-*`/`.hito-click`; `public-bracket.js` obligatorio; `histH2HShow` no existe (crear); forma reciente sin dato; `.form-pip` (no `.pp-pip`); calendario reusa `.hm-*`; carrusel #1 ya migrado, #2/#3/#4 entran en A.
+- **B:** falta portar 4 PNG de la sala + `salaLayout` + `Smoke` + partículas/haces bicolor (no solo libs); contrato lleva `recordId`+colores; collage vacío intermedio.
+- **D:** **`data.js` NO itera `STORES`** → editarlo es obligatorio (era premisa falsa); **ownerKey frágil** (`season` opcional) → clave canónica `recordId`.
+- **Tesis:** la brújula "gana la lógica" contradecía "TAL CUAL" → reconciliada (§0); se añadió §4bis (Δ Fidelidad) con lo que NO será idéntico (metro, off-season, typewriter, perfil drawer, hero/landing inexistente).
+- **Veredicto post-auditoría:** los 4 pre-slices v2/v4 quedan listos para re-revisión de Codex antes de ejecutar C. La arquitectura por capas se mantiene; los carruseles de Historial/Calendario se absorben en A (no requieren slice nuevo) porque el de Competiciones ya estaba migrado.
 
 ### Actualización 2026-06-25 (tras auditoría visual) — manda sobre lo de abajo donde haya conflicto
 - **Macro Slice C (scroll continuo) sube de prioridad → DECISIÓN BLOQUEANTE.** `scroll continuo sí/no` se decide **antes** de Slice A. **Si sí → ejecutar Macro Slice C antes de A** (pulir Panel/Calendario/Historial en page-based y luego pasar a scrollspy = retrabajo).
@@ -162,7 +190,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 - **Perfil: UX DECIDIDA = drawer (desktop) / modal full-height (mobile)**.
 - **Branding del topbar: APROBADO** como tarea puntual ejecutable ya, independiente de los macro slices.
 - **Veredicto:** aprobado como **mapa maestro**; **NO aprobado para ejecutar Macro Slice A** hasta resolver el scroll continuo.
-- **Próximo paso (actualizado 2026-06-25):** branding ✅ · **orden DECIDIDO: C → A → B → D** · **todos los pre-slices P0 aprobados** (C, A, B, D — Codex 2026-06-25) · **próximo slice = C**, ejecutar cuando el usuario dé el OK.
+- **Próximo paso (actualizado 2026-06-25):** branding ✅ · **orden DECIDIDO: C → A → B → D** · pre-slices **reescritos a v2/v4 tras auditoría de código** y corregidos por el dictamen de Codex (D=integridad referencial; A=`.ht-*` dentro; limpieza de texto viejo) · **pendientes de re-revisión final de Codex antes de ejecutar** · **próximo slice = C**, ejecutar cuando el usuario dé el OK + CP0 ≤10%.
 
 **Veredicto (2026-06-24):** plan aprobado con condiciones. No queda aprobado para ejecutar "tal cual" sin aplicar las correcciones siguientes.
 
@@ -186,7 +214,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 
 ### Decision pendiente para Macro Slice B
 
-Codex recomienda opcion (a): conservar `<model-viewer>` + GLB/Firebase del main y adoptar solo el escenario visual del prototipo alrededor. No aprobar Three.js/Draco/CDN del prototipo sin decision explicita del usuario y prueba de rendimiento.
+~~Codex recomendaba opcion (a): conservar `<model-viewer>` + GLB/Firebase y adoptar solo el escenario visual alrededor.~~ **SUPERSEDED (usuario 2026-06-25):** B va por **Three.js 0.147.0 + GLTFLoader + Draco self-hosted** (el usuario decidió contra esta rec). La auditoría confirmó que el self-host es trivial (build global) y que el anclaje geométrico (`salaLayout` sobre PNG) sería igual de delicado con model-viewer → la decisión está justificada. Requisito: fallback mobile + prueba de rendimiento. Detalle en `PRE_SLICE_B.md` (v2).
 
 ---
 
