@@ -38,14 +38,15 @@ let _pubTeamsView = { all:[], pool:[], shown:0, query:'', renderToken:0, timer:n
 - **Sin query:** vitrina aleatoria (tanda inicial ~6 + "cargar más").
 - **Con query (`#pub-team-search` no vacío):** filtrar `_pubTeamsView.all` (cache), mostrar **todos los matches** sin paginar, **ocultar** el botón. Al limpiar → re-shuffle y volver a la vitrina.
 - **Empty-state diferenciado (corrección Codex):** con query y 0 matches → **"No hay equipos que coincidan"**; sin equipos activos → "Sin equipos activos".
-- **Re-suscripción live (corrección Codex):** envolver el refresh de `equipos` para que **preserve `query` y la posición de tanda** y **cancele el `timer` pendiente + bump `renderToken`** antes de re-renderizar. Opciones: un `_refreshPubTeams()` que recarga `all` desde DB pero re-aplica `query`/`shown`, en vez de `renderPubTeams()` crudo. (Si toca el wiring de `nav.js:244`, mínimo y declarado.)
+- **Re-suscripción live (corrección Codex):** envolver el refresh de `equipos` en un `_refreshPubTeams()` que **preserva `query` y la posición de tanda** y **cancela el `timer` pendiente + bump `renderToken`** antes de reconciliar, en vez de `renderPubTeams()` crudo. (Si toca el wiring de `nav.js:244`, mínimo y declarado.)
+- **Reconciliación del pool por `team.id` (corrección Codex):** `_refreshPubTeams()` **NO re-shuffle ni reemplaza el pool**. Recarga activos desde DB y reconcilia contra `_pubTeamsView.pool` por `team.id`: **(1)** conservar los existentes en su **orden actual** (con datos actualizados), **(2)** eliminar los que dejaron de estar activos, **(3)** añadir los nuevos al final **sin duplicar**. Así las tarjetas que el usuario ya veía no se reordenan; `shown` se ajusta si se cayó alguno por debajo del límite visible.
 
 ## Fuera de alcance (NO entra)
-Stats/forma/títulos (reales, intactos) · spotlight (existe) · admin de equipos · CRUD admin · otras secciones · `.load-more` CSS (ya existe).
+Stats/forma/títulos (reales, intactos) · spotlight (existe) · admin de equipos · CRUD admin · otras secciones. **No se PORTA `.load-more`** (ya existe) — pero sí se **amplían** sus reglas (ver Archivos a tocar).
 
 ## Archivos a tocar / NO tocar
-**Tocar:** `teams.js` (`renderPubTeams`/`renderPubTeamsGrid`/`filterPubTeams` + `_pubTeamsView` + helpers de tanda + `_refreshPubTeams`), posiblemente `nav.js` (envolver el refresh live de `equipos` — mínimo). **NO portar CSS** (`.load-more` ya existe; verificar antes de añadir nada).
-**NO tocar:** `_computeTeamStats`, spotlight, stats/títulos, admin de equipos, renderers compartidos, `cloudinary.js`/`firebase-config.js`.
+**Tocar:** `teams.js` (`renderPubTeams`/`renderPubTeamsGrid`/`filterPubTeams` + `_pubTeamsView` + helpers de tanda + `_refreshPubTeams`), **`redesign.css` (corrección Codex — ENTRA solo para AMPLIAR el `.load-more` existente, no portar):** añadir `:focus-visible`, estado `[disabled]`/`[aria-busy]`, y **`@media(prefers-reduced-motion:reduce){ .load-more.loading svg{ animation:none } }`** (desactivar `lmSpin`). Posiblemente `nav.js` (envolver el refresh live de `equipos` — mínimo).
+**NO tocar:** `_computeTeamStats`, spotlight, stats/títulos, admin de equipos, renderers compartidos, las reglas base de `.load-more` (solo ampliar), `cloudinary.js`/`firebase-config.js`.
 
 ## Riesgos + mitigaciones
 | Riesgo | Mitigación |
@@ -75,6 +76,7 @@ CP0 `five_hour ≤ 10%` · freeze 65% · cierre 75%. Máx 3 subagentes solo-lect
 ## Criterios de OK de Codex (P4)
 - Estado `_pubTeamsView` con `renderToken`/`timer`; sin tandas obsoletas tras búsqueda/live.
 - `filterPubTeams` sobre cache local; live preserva query/posición.
+- **`_refreshPubTeams` reconcilia el pool por `team.id`** (conserva orden, quita inactivos, añade nuevos sin duplicar; no re-shuffle).
 - `_clubBatch` robusto a cambios de columnas; última tanda incompleta solo al agotar.
-- Botón con a11y completa + fallback reduced-motion; `.load-more` reutilizado (no duplicado).
+- Botón con a11y completa + fallback reduced-motion; **`redesign.css` solo AMPLÍA `.load-more`** (`:focus-visible`/`[disabled]`/reduced-motion), sin duplicar ni portar.
 - Empty-states diferenciados; stats/spotlight diff-cero; diff quirúrgico; `_esc` en datos externos.

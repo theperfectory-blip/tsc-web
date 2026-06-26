@@ -1,6 +1,6 @@
 # Pre-slice — Macro Slice A · Paridad pública restante
 > **v2 (2026-06-25) tras auditoría de código.** Corrige la premisa de CSS (casi todo el CSS del prototipo YA existe en `redesign.css`; solo falta `.gbr-*`), el namespace del calendario (colapsable ya existe bajo `.hm-*`), funciones inexistentes (`histH2HShow`), clases mal nombradas (`.pp-pip`→`.form-pip`), y un hueco de datos (forma reciente). Suma a su alcance #2/#3/#4 de navegación (cc-hist, filtros inline, .cal-duo) — el carrusel #1 (Competiciones/Fases) **ya está migrado** en `public.js _pubMakeCarousel`.
-> Orden maestro: **C → A → B → D**. A arranca con **C estable y en QA pasado**.
+> Orden maestro: **C → C-polish → Equipos → A → B → D**. A arranca con **C + C-polish + Equipos estables y en QA pasado** (gate ampliado tras dictamen Codex 2026-06-26: el shell pulido y la vitrina de equipos preceden a A).
 
 ## Brújula (2026-06-25)
 La lógica gana **solo** en datos/permisos/persistencia; en **layout/estética/motion gana el prototipo** salvo conflicto duro documentado. Donde A invente algo que el prototipo no muestra (off-season, drawer top-right, typewriter), se marca como **decisión de producto nueva**, no como "fidelidad".
