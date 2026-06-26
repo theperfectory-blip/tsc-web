@@ -4,6 +4,37 @@
 let _pubSidebarCollapsed = localStorage.getItem('tsc_pub_sidebar') === 'collapsed';
 let _pubHoverTimer = null;
 
+const PUBLIC_SCROLL_PAGES = ['palmares', 'panel', 'calendario', 'equipos', 'sorteo', 'historial'];
+const _publicMountedPages = new Set();
+const _publicMountPromises = new Map();
+let _publicFocusedPage = null;
+let _publicFocusToken = 0;
+
+function getPublicScrollPages(){
+  return PUBLIC_SCROLL_PAGES.slice();
+}
+
+function getMountedPublicPages(){
+  return PUBLIC_SCROLL_PAGES.filter(page => _publicMountedPages.has(page));
+}
+
+function _isPublicScrollPage(page){
+  return PUBLIC_SCROLL_PAGES.includes(page);
+}
+
+function _syncPublicNavigation(page, navEl){
+  document.querySelectorAll('.pub-nav-item').forEach(t=>t.classList.remove('active'));
+  if(navEl && navEl.classList.contains('pub-nav-item')) navEl.classList.add('active');
+  else{
+    document.querySelectorAll('.pub-nav-item').forEach(t=>{
+      if(t.dataset.page === page) t.classList.add('active');
+    });
+  }
+  if(typeof syncRedesignTopnav === 'function') syncRedesignTopnav(page);
+  if(page !== 'panel') renderPubSidebarComps().catch(()=>{});
+  if(page !== 'historial') renderPubSidebarHistorial();
+}
+
 /* Inicializa el flyout-hover del sidebar colapsado (una sola vez, solo escritorio) */
 function _initPubSidebarHover(sidebar){
   if(sidebar._hoverInit) return;
@@ -88,11 +119,19 @@ function setMode(mode){
     // Public sidebar oculto + limpiar inline margin para que .with-sidebar CSS actúe
     _applyPubSidebar(false);
     const main = document.getElementById('main');
-    if(main){ main.classList.add('with-sidebar'); main.style.marginLeft=''; main.style.marginTop='60px'; }
+    if(main){
+      main.classList.add('with-sidebar');
+      main.classList.remove('public-scroll');
+      main.style.marginLeft='';
+      main.style.marginTop='60px';
+    }
     if(typeof hidePublicTicker==='function') hidePublicTicker();   // oculta + invalida renders pendientes (anti-race)
   } else {
-    document.getElementById('main')?.classList.remove('with-sidebar');
+    const main = document.getElementById('main');
+    main?.classList.remove('with-sidebar');
+    main?.classList.add('public-scroll');
     _applyPubSidebar(true);
+    refreshSorteoTabVisibility().catch(()=>{});
     if(typeof renderPublicTicker==='function') renderPublicTicker();   // llamada defensiva (sin dep. de orden de carga)
   }
 
@@ -100,7 +139,11 @@ function setMode(mode){
   document.getElementById('btn-adm')?.classList.toggle('active',isAdmin);
   // Mostrar/ocultar el topnav del rediseño según el modo (oculto en admin) — defensiva
   if(typeof syncRedesignShellMode === 'function') syncRedesignShellMode(mode);
-  if(isAdmin){ goAdminPage(STATE.adminPage); }
+  if(isAdmin){
+    _publicFocusedPage = null;
+    _publicFocusToken++;
+    goAdminPage(STATE.adminPage);
+  }
   else { goPublicPage(STATE.publicPage); }
 }
 
@@ -108,6 +151,14 @@ function setMode(mode){
    NAVEGACIÓN PÚBLICA
    ---------------------------------------------------------- */
 function goPublicPage(page, navEl){
+  if(page === 'competiciones') page = 'panel';
+  if(STATE.mode === 'public' && _isPublicScrollPage(page)){
+    closePubSidebar();
+    if(typeof scrollToPublicSection === 'function') scrollToPublicSection(page, { navEl });
+    else focusPublicSection(page, { navEl });
+    return;
+  }
+
   STATE.publicPage = page;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
@@ -152,42 +203,108 @@ function goAdminPage(page, navEl){
    RENDER PÁGINAS (stubs — se completan en partes siguientes)
    ---------------------------------------------------------- */
 async function renderPublicPage(page){
-  if(typeof liveStop==='function') liveStop();   // cancela tiempo real de la vista anterior
-  if(typeof liveRadarStop==='function') liveRadarStop(); // detener ping de radar (lo reinicia el panel si hay en vivo)
-  await refreshSorteoTabVisibility();
-  const _sub = (key, stores, fn)=>{ if(typeof liveSubscribe==='function') liveSubscribe(key+'-'+STATE.season, stores, fn); };
   switch(page){
     case 'palmares':
       await renderPubPalmares();
       // Palmarés depende de temporadas finalizadas, fases y partidos.
-      _sub('palmares', ['seasons','phases','matches'], ()=>renderPubPalmares());
       break;
     case 'panel':
       await renderPubPanel();
       // Panel: partidos (marcadores/vivo) + fases (publicar) + equipos (nombre/logo).
-      _sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
       break;
     case 'competiciones':
       await renderPubComps();
       // Competiciones: estructura de fases, partidos, equipos y competiciones.
-      _sub('comps', ['competitions','phases','matches','teams'], ()=>renderPubComps());
       break;
     case 'equipos':
       await renderPubTeams();
-      _sub('equipos', ['teams'], ()=>renderPubTeams());
       break;
     case 'calendario':
       await renderPubCalendar();
       // Calendario: partidos (programación), fases/equipos (nombres) y
       // calDayLabels (texto del cronograma) → días con texto aparecen al instante.
-      _sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());
       break;
     case 'sorteo':        await renderPubSorteo();      break; // tiempo real propio (módulo SORTEO)
     case 'historial':
       await renderPubHistory();
-      _sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
       break;
   }
+}
+
+function _subscribeFocusedPublicSection(page){
+  if(typeof liveSubscribe !== 'function') return;
+  const sub = (key, stores, fn)=>liveSubscribe(key+'-'+STATE.season, stores, fn);
+  switch(page){
+    case 'palmares':
+      sub('palmares', ['seasons','phases','matches'], ()=>renderPubPalmares());
+      break;
+    case 'panel':
+      sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
+      break;
+    case 'equipos':
+      sub('equipos', ['teams'], ()=>renderPubTeams());
+      break;
+    case 'calendario':
+      sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());
+      break;
+    case 'historial':
+      sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
+      break;
+  }
+}
+
+async function ensurePublicSectionMounted(page, options){
+  const opts = options || {};
+  if(!_isPublicScrollPage(page)) return false;
+  if(_publicMountedPages.has(page) && !opts.force) return true;
+  if(_publicMountPromises.has(page) && !opts.force) return _publicMountPromises.get(page);
+
+  const mount = (async()=>{
+    await renderPublicPage(page);
+    _publicMountedPages.add(page);
+    document.getElementById('page-'+page)?.classList.add('is-mounted');
+    document.dispatchEvent(new CustomEvent('tsc:public-section-mounted', { detail:{ page } }));
+    if(page === 'panel' && _publicFocusedPage !== 'panel' && typeof liveRadarStop === 'function'){
+      liveRadarStop();
+    }
+    return true;
+  })().finally(()=>_publicMountPromises.delete(page));
+
+  _publicMountPromises.set(page, mount);
+  return mount;
+}
+
+async function focusPublicSection(page, options){
+  const opts = options || {};
+  if(page === 'competiciones') page = 'panel';
+  if(STATE.mode !== 'public' || !_isPublicScrollPage(page)) return false;
+  const section = document.getElementById('page-'+page);
+  if(!section || section.hidden) return false;
+
+  const changed = _publicFocusedPage !== page;
+  const token = ++_publicFocusToken;
+  STATE.publicPage = page;
+  _publicFocusedPage = page;
+  document.querySelectorAll('.page.active').forEach(p=>p.classList.remove('active'));
+  section.classList.add('active');
+  _syncPublicNavigation(page, opts.navEl);
+
+  if(changed || opts.forceLive){
+    if(typeof liveStop === 'function') liveStop();
+    if(typeof liveRadarStop === 'function') liveRadarStop();
+  }
+
+  await ensurePublicSectionMounted(page);
+  if(token !== _publicFocusToken || STATE.mode !== 'public' || _publicFocusedPage !== page) return false;
+
+  if(changed || opts.forceLive){
+    _subscribeFocusedPublicSection(page);
+    if(page === 'panel'){
+      const hasLive = !!document.querySelector('#pub-panel-content .live-dot-red');
+      if(hasLive && typeof liveRadarStart === 'function') liveRadarStart();
+    }
+  }
+  return true;
 }
 
 async function renderAdminPage(page){
@@ -225,6 +342,7 @@ async function renderPubSorteo(){
    onSeasonChange y por el propio módulo al recibir mensajes de broadcast. */
 async function refreshSorteoTabVisibility(){
   const tabs = [document.getElementById('rdp-nav-sorteo'), document.getElementById('pub-nav-sorteo')].filter(Boolean);
+  const section = document.getElementById('page-sorteo');
   let show = false;
   try{
     if(window.SORTEO?.hasContentForSeason){
@@ -232,12 +350,20 @@ async function refreshSorteoTabVisibility(){
     }
   }catch(e){ show = false; }
   tabs.forEach(t=> t.style.display = show ? '' : 'none');
+  if(section) section.hidden = !show;
+  if(typeof refreshPublicScrollSections === 'function') refreshPublicScrollSections();
   if(!show && STATE.publicPage==='sorteo'){
-    STATE.publicPage = 'panel';
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    document.getElementById('page-panel')?.classList.add('active');
-    if(typeof syncRedesignTopnav==='function') syncRedesignTopnav('panel');
+    if(STATE.mode === 'public' && document.getElementById('main')?.classList.contains('public-scroll')){
+      if(typeof scrollToPublicSection === 'function') scrollToPublicSection('panel');
+      else focusPublicSection('panel');
+    }else{
+      STATE.publicPage = 'panel';
+      document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+      document.getElementById('page-panel')?.classList.add('active');
+      if(typeof syncRedesignTopnav==='function') syncRedesignTopnav('panel');
+    }
   }
+  return show;
 }
 
 /* Renderiza sub-ítems de Historial (Partidos | Tabla histórica) */
@@ -352,8 +478,23 @@ async function onSeasonChange(val){
   await refreshSorteoTabVisibility();
   const page = STATE.mode==='admin' ? STATE.adminPage : STATE.publicPage;
   if(STATE.mode==='admin') renderAdminPage(page);
-  else { renderPublicPage(page); if(typeof renderPublicTicker==='function') renderPublicTicker(); }   // refrescar ticker al cambiar temporada
+  else {
+    if(typeof liveStop === 'function') liveStop();
+    if(typeof liveRadarStop === 'function') liveRadarStop();
+    const mounted = getMountedPublicPages();
+    for(const mountedPage of mounted){
+      const section = document.getElementById('page-'+mountedPage);
+      if(section && !section.hidden) await ensurePublicSectionMounted(mountedPage, { force:true });
+    }
+    await focusPublicSection(STATE.publicPage, { forceLive:true });
+    if(typeof renderPublicTicker==='function') renderPublicTicker();
+  }
 }
+
+window.getPublicScrollPages = getPublicScrollPages;
+window.getMountedPublicPages = getMountedPublicPages;
+window.ensurePublicSectionMounted = ensurePublicSectionMounted;
+window.focusPublicSection = focusPublicSection;
 
 /* ----------------------------------------------------------
    MODALES

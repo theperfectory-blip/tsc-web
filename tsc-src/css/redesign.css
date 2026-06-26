@@ -12,6 +12,19 @@ body.redesign{overflow-x:hidden;}
 /* Full-width: toda la pantalla es lienzo — sin espacio muerto lateral en desktop */
 body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px clamp(14px,2.5vw,48px) 80px;}
 
+/* Macro Slice C: public pages share the document scroll. This class is a
+   display gate only; #main must never become its own scroll container. */
+#main.public-scroll{overflow-x:clip;}
+#main.public-scroll > .page{display:none;}
+#main.public-scroll > .public-section{
+  display:block;
+  scroll-margin-top:82px;
+}
+#main.public-scroll > .public-section[hidden]{display:none;}
+#main.public-scroll > .public-section:not(.is-mounted){
+  min-height:calc(100vh - 82px);
+}
+
 /* Navegación de secciones DENTRO del topbar: centrada en el espacio entre la marca y
    [Temporada]. Las 6 secciones que no caben se desvanecen en los bordes (fade, sin
    scrollbar visible) — regla no-scroll del proyecto. */

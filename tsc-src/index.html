@@ -153,38 +153,38 @@
 <div id="main">
 
   <!-- PÁGINAS PÚBLICAS -->
-  <div id="page-palmares" class="page active">
+  <div id="page-palmares" class="page public-section active">
     <div id="pub-palmares-content"></div>
   </div>
 
-  <div id="page-panel" class="page">
+  <div id="page-panel" class="page public-section">
     <div class="section-lbl">Competiciones</div>
     <div id="pub-panel-content"></div>
+  </div>
+
+  <div id="page-calendario" class="page public-section">
+    <div class="section-lbl">Próximos partidos</div>
+    <div id="pub-calendar-content"></div>
+  </div>
+
+  <div id="page-equipos" class="page public-section">
+    <div class="section-lbl">Equipos</div>
+    <div id="pub-teams-content"></div>
+  </div>
+
+  <div id="page-sorteo" class="page public-section" hidden>
+    <div class="section-lbl">Sorteo en directo</div>
+    <div id="sorteo-content-pub"></div>
+  </div>
+
+  <div id="page-historial" class="page public-section">
+    <div class="section-lbl">Historial de partidos</div>
+    <div id="pub-history-content"></div>
   </div>
 
   <div id="page-competiciones" class="page">
     <div class="section-lbl">Competiciones activas</div>
     <div id="pub-comps-content"></div>
-  </div>
-
-  <div id="page-equipos" class="page">
-    <div class="section-lbl">Equipos</div>
-    <div id="pub-teams-content"></div>
-  </div>
-
-  <div id="page-historial" class="page">
-    <div class="section-lbl">Historial de partidos</div>
-    <div id="pub-history-content"></div>
-  </div>
-
-  <div id="page-calendario" class="page">
-    <div class="section-lbl">Próximos partidos</div>
-    <div id="pub-calendar-content"></div>
-  </div>
-
-  <div id="page-sorteo" class="page">
-    <div class="section-lbl">Sorteo en directo</div>
-    <div id="sorteo-content-pub"></div>
   </div>
 
   <!-- PÁGINAS ADMIN -->
@@ -392,10 +392,6 @@
 <script src="js/palmares.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/livematch.js"></script>
-
-<!-- Rediseño público (prototipo migrado) — boot gateado: no auto-ejecuta,
-     solo expone initRedesignPublic() para cuando exista el DOM de secciones -->
-<script src="js/redesign-public.js"></script>
 
 <!-- model-viewer — 3D trophy viewer (WebXR / WebGL) -->
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
