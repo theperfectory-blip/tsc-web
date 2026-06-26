@@ -56,7 +56,7 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 | Topbar (branding/temporada/config/auth) | **[HECHO]** | `index.html:23-51`, `ui-utils.js openSettings`, `auth.js renderAuthUI` | Deltas visuales menores: chip "Temporada N" (prototipo) vs selector dropdown (real); estado logueado con avatar |
 | Nav de secciones (`.sec-nav-btn`+indicador) | **[REVISAR]** | `redesign-shell.js syncRedesignTopnav/ShellMode`, `nav.js goPublicPage` | Funciona como **page-nav** → en Macro Slice C (scroll continuo, DECIDIDO SÍ) pasa a **scrollspy + smooth-scroll** |
 | Ticker (partidos der→izq) | **[HECHO]** (fix esta sesión) | `public.js renderPublicTicker` + `MOTION.ticker` | Nada |
-| Equipos | **[HECHO]** | `teams.js renderPubTeams/renderPubTeamsGrid` (stats reales, spotlight, MOTION) | Opcional: load-more + shuffle |
+| Equipos | **[PARCIAL]** | `teams.js renderPubTeams/renderPubTeamsGrid` (stats reales, spotlight, MOTION) | Vitrina aleatoria + "cargar más" → **`PRE_SLICE_EQUIPOS.md`** (DECIDIDO 2026-06-26: SÍ, ya no opcional) |
 | Sorteo | **[HECHO]** | `sorteo.js renderPubSorteo` (8 frames, readOnly, live Firestore+BroadcastChannel) | Opcional: rig 2.5D (tilt/glow) |
 | Calendario | **[PARCIAL]** | `calendar.js renderPubCalendar` (hero live, countdown, `cal-tl`, días especiales) | Hero colapsable + typewriter + CTAs reales |
 | Historial | **[PARCIAL]** | `history.js renderPubHistory` (hitos countUp, toggle, H2H, tabla histórica FIFA) | Hitos clicables (2 extra), vista lista `.histm`, tarjeta H2H con autocomplete, tabla responsive |
@@ -99,7 +99,13 @@ Auditoría de código 2026-06-25 (4 agentes vs código real + `prototype.html`).
 
 ## 5. SLICES PENDIENTES (reorganizados por realidad)
 
-**Orden de ejecución DECIDIDO: C → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) Pre-slices: `PRE_SLICE_C.md` (v4) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2) — **P0 + reescritos tras auditoría de código (2026-06-25, 4 agentes vs código real + prototipo)**. Ver §4bis (Δ Fidelidad) y §7 (auditoría).
+**Orden de ejecución VIGENTE (2026-06-26): C ✅ → C-polish → Equipos → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) **C ya ejecutado por Codex** (scroll continuo verificado). Pre-slices: `PRE_SLICE_C.md` (v4, hecho) · **`PRE_SLICE_C_POLISH.md` (v2, nuevo)** · **`PRE_SLICE_EQUIPOS.md` (v2, nuevo)** · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2) — **P0 + reescritos tras auditoría de código (2026-06-25) + dictamen Codex (2026-06-26)**. Ver §4bis (Δ Fidelidad) y §7 (auditoría).
+
+### Macro Slice C-polish — Fidelidad de shell → detalle en `PRE_SLICE_C_POLISH.md` (v2)
+Remate del scroll continuo (C) tras probarlo: (1) contenido **full-width** (`#main.public-scroll{max-width:none}`); (2) **títulos de sección** `.proto-divider` numerados/sticky en **solo 4** secciones (Palmarés/Calendario/Equipos/Sorteo) — Competiciones (02) e Historial (06) integran su número en `.comp-sticky` = **Slice A**, sin doble-sticky; (3) **topbar móvil** a fila propia (Opción A) con **chrome dinámico** (`--chrome-h` medido reemplaza todos los hardcodes de 82/48/60 + reconstrucción del focusObserver + `#topbar.public-mode`). **Modifica C** (`redesign-shell.js`) con justificación → OK de Codex aplicado. Va **antes de A** (A asume shell estable).
+
+### Macro Slice Equipos — Vitrina aleatoria + "cargar más" → detalle en `PRE_SLICE_EQUIPOS.md` (v2)
+Port del comportamiento del prototipo (6 activos aleatorios + "cargar más" por tandas de filas completas) a `teams.js`, **DECIDIDO 2026-06-26 (ya no opcional)**. Estado endurecido `_pubTeamsView` (`renderToken`/`timer` anti-tandas-obsoletas), `filterPubTeams` sobre cache local, re-suscripción live que preserva la búsqueda, a11y completa + reduced-motion. `.load-more` **ya existe** en `redesign.css:697` → reutilizar. Va **antes de A**.
 
 ### Macro Slice A — Pulido público restante → detalle CORREGIDO en `PRE_SLICE_A.md` (v2)
 Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin tocar admin ni Palmarés.
