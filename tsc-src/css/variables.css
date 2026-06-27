@@ -76,6 +76,10 @@
   /* Bracket eliminatorio (renderBracketHTML / scaleBracket) */
   --bk-card-w:220px;
   --bk-row-h:88px;
+
+  /* Chrome dinámico: topbar + ticker (medidos en JS, fallback hasta que JS arranque) */
+  --topbar-h:48px;
+  --chrome-h:82px;
 }
 [data-theme="light"] {
   --bg:#F4F4F0;

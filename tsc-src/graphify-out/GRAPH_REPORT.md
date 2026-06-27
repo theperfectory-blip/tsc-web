@@ -1,12 +1,12 @@
 # Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-06-26)
 
 ## Corpus Check
-- 40 files · ~1,005,847 words
+- 40 files · ~969,531 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 796 nodes · 2198 edges · 41 communities detected
-- Extraction: 65% EXTRACTED · 35% INFERRED · 0% AMBIGUOUS · INFERRED: 761 edges (avg confidence: 0.8)
+- 808 nodes · 2232 edges · 41 communities detected
+- Extraction: 66% EXTRACTED · 34% INFERRED · 0% AMBIGUOUS · INFERRED: 764 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -53,7 +53,7 @@
 - [[_COMMUNITY_Community 40|Community 40]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `dbGetAll()` - 106 edges
+1. `dbGetAll()` - 107 edges
 2. `dbGetAll()` - 105 edges
 3. `dbGet()` - 76 edges
 4. `dbGet()` - 76 edges
@@ -69,12 +69,12 @@
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\auth.js → js\ui-utils.js
 - `getForSeason()` --calls--> `resolveTeamData()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\db.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\standings.js
-- `goAdminPage()` --calls--> `openFasesForComp()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\nav.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\phases.js
 - `profileResendVerification()` --calls--> `showToast()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\profile.js → js\ui-utils.js
 - `openAuthModal()` --calls--> `setMode()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\auth.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\nav.js
+- `authForgotPassword()` --calls--> `showToast()`  [INFERRED]
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\auth.js → js\ui-utils.js
 
 ## Hyperedges (group relationships)
 - **All Public Pages in index.html** — index_html_pub_page_palmares, index_html_pub_page_panel, index_html_pub_page_equipos, index_html_pub_page_historial, index_html_pub_page_sorteo [EXTRACTED 1.00]
@@ -94,51 +94,51 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.05
-Nodes (143): buildBracketRounds(), buildBracketSlots(), _cleanup(), closeBracketMatchModal(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase(), getTeamLogo() (+135 more)
+Nodes (127): buildBracketRounds(), buildBracketSlots(), _cleanup(), closeBracketMatchModal(), deleteBracketMatch(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase() (+119 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.04
-Nodes (87): resize(), openColorPicker(), countdown(), countUp(), _initChrome(), _observer(), onScroll(), reduced() (+79 more)
+Nodes (85): resize(), openColorPicker(), countdown(), countUp(), _initChrome(), _observer(), onScroll(), reduced() (+77 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.08
-Nodes (62): addPalmaresRecord(), aggregatePalmaresByTeam(), buildCase(), buildInfoPanel(), closeChampionFullscreen(), closePalmaresModals(), createNewCopa(), deleteCopa() (+54 more)
+Cohesion: 0.06
+Nodes (80): getTeamLogo(), calClearSchedule(), renderAdmCalendar(), closeCoinsModal(), filterCoinsTable(), openBulkCoinsModal(), openCoinsHistory(), renderAdmCoins() (+72 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.09
-Nodes (53): hexToRgb(), lighten(), activeBombo(), addBombo(), assignBracketLink(), assignLink(), broadcast(), clearLink() (+45 more)
+Cohesion: 0.04
+Nodes (61): _authErrorMsg(), _authEsc(), authForgotPassword(), authSignOut(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit() (+53 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.08
-Nodes (51): liveRadarStart(), liveRadarStop(), liveStop(), liveSubscribe(), _subscribeAdminMatchesLive(), _applyPubSidebar(), closePubSidebar(), ensurePublicSectionMounted() (+43 more)
+Cohesion: 0.07
+Nodes (58): liveRadarStart(), liveRadarStop(), liveStop(), liveSubscribe(), _subscribeAdminMatchesLive(), _applyPubSidebar(), closePubSidebar(), ensurePublicSectionMounted() (+50 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.06
-Nodes (47): _authErrorMsg(), _authEsc(), authForgotPassword(), authSignOut(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit() (+39 more)
+Cohesion: 0.09
+Nodes (46): hexToRgb(), lighten(), renderAdmSorteo(), activeBombo(), addBombo(), broadcast(), deleteActiveBombo(), drawNext() (+38 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.07
-Nodes (24): Particle, rgbStr(), Rocket, cloudReady(), uploadImageToCloud(), saveProfile(), ensure(), closeTeamModal() (+16 more)
+Cohesion: 0.09
+Nodes (46): addPalmaresRecord(), buildCase(), buildInfoPanel(), closeChampionFullscreen(), closePalmaresModals(), createNewCopa(), deleteCopaAndRefresh(), _esc() (+38 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.11
-Nodes (40): _applyFilters(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc(), exportHistoryToExcel() (+32 more)
+Cohesion: 0.1
+Nodes (43): _applyFilters(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc(), exportHistoryToExcel() (+35 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.1
-Nodes (35): _calFormatDay(), _calHeroHtml(), _calInitHeroCountdown(), calLblNavMonth(), _calLogo(), _calOnChange(), _calSave(), _calSaveSlot() (+27 more)
-
-### Community 9 - "Community 9"
-Cohesion: 0.11
+Cohesion: 0.12
 Nodes (26): _getAudioCtx(), _soundExplosion(), _soundRocketLaunch(), _palmApplyVol(), _palmAudio(), _palmSoundOff(), playPalmDing(), playPalmZoom() (+18 more)
 
-### Community 10 - "Community 10"
+### Community 9 - "Community 9"
 Cohesion: 0.13
-Nodes (21): refBadgeHTML(), addGroupRefFromModal(), addToGroup(), closeCriteriaModal(), closeGroupAssignModal(), criteriaDisable(), criteriaDragEnd(), criteriaDrop() (+13 more)
+Nodes (22): refBadgeHTML(), addGroupRefFromModal(), addToGroup(), closeCriteriaModal(), closeGroupAssignModal(), criteriaDisable(), criteriaDragEnd(), criteriaDrop() (+14 more)
+
+### Community 10 - "Community 10"
+Cohesion: 0.18
+Nodes (11): _appendPubTeams(), _clubBatch(), _clubCols(), _esc(), filterPubTeams(), loadMorePubTeams(), _pubBindTeamsSpotlight(), _pubTeamCardHtml() (+3 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.21
-Nodes (15): deleteBracketMatch(), importDB(), deleteMatch(), deleteRonda(), loadSeasons(), deletePlayoffLeg(), closeAllModals(), confirmFinalizeSeason() (+7 more)
+Cohesion: 0.28
+Nodes (12): _calFormatDay(), _calHeroHtml(), _calInitHeroCountdown(), calLblNavMonth(), _calLogo(), _calOnChange(), _calSave(), _calSaveSlot() (+4 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.16
@@ -307,14 +307,14 @@ Nodes (1): Drumroll Sound Effect
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dbGetAll()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 8`, `Community 11`?**
-  _High betweenness centrality (0.124) - this node is a cross-community bridge._
-- **Why does `showToast()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 10`, `Community 11`?**
+- **Why does `dbGetAll()` connect `Community 2` to `Community 0`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 9`, `Community 10`, `Community 11`?**
+  _High betweenness centrality (0.126) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 9`?**
   _High betweenness centrality (0.118) - this node is a cross-community bridge._
-- **Why does `dbGetAll()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 8`, `Community 11`?**
-  _High betweenness centrality (0.101) - this node is a cross-community bridge._
-- **Are the 105 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
-  _`dbGetAll()` has 105 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `dbGetAll()` connect `Community 2` to `Community 0`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 9`, `Community 10`, `Community 11`?**
+  _High betweenness centrality (0.100) - this node is a cross-community bridge._
+- **Are the 106 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
+  _`dbGetAll()` has 106 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 102 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
   _`dbGetAll()` has 102 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 74 inferred relationships involving `dbGet()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**

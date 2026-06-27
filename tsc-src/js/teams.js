@@ -465,13 +465,148 @@ async function deleteTeam(id){
 }
 
 /* ----------------------------------------------------------
-   RENDER PÚBLICO — EQUIPOS
+   RENDER PÚBLICO — EQUIPOS · Vitrina aleatoria + "cargar más"
    ---------------------------------------------------------- */
+
+/* Estado de la vista pública — único objeto, evita tandas zombi */
+let _pubTeamsView = { all:[], pool:[], shown:0, query:'', renderToken:0, timer:null };
+
+/* Número de columnas reales de #pub-teams-grid */
+function _clubCols(){
+  const el = document.getElementById('pub-teams-grid');
+  if(!el) return 3;
+  const style = getComputedStyle(el);
+  const cols = style.gridTemplateColumns.split(' ').filter(Boolean).length;
+  return cols > 0 ? cols : 3;
+}
+
+/* Tamaño de tanda: múltiplo de columnas más cercano a 6 (filas enteras) */
+function _clubBatch(){
+  const cols  = _clubCols();
+  const ideal = Math.max(cols, Math.round(6 / cols) * cols);
+  return ideal;
+}
+
+/* Fisher-Yates */
+function _shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* Construye el HTML de una tarjeta (sin animaciones, solo markup) */
+function _pubTeamCardHtml(t){
+  const _col = v => /^#[0-9A-Fa-f]{3,8}$/.test(String(v||'')) ? v : '#333';
+  const stats  = window._pubTeamStats  || {};
+  const titles = window._pubTeamTitles || new Map();
+  const c1 = _col(t.color), c2 = _col(t.color2 || t.color);
+  const crest = t.logo
+    ? `<img src="${_esc(t.logo)}" alt="" loading="lazy">`
+    : `${_esc(t.ini||'?')}`;
+  const s = stats[t.id] || {pj:0,v:0,recent:[]};
+  const winPct = s.pj>0 ? Math.round(s.v/s.pj*100) : 0;
+  const tit = (titles.get(t.id)?._total) || 0;
+  const form = (s.recent||[]).slice(-5);
+  const formHTML = form.length
+    ? form.map(f=>`<span class="form-pip ${f}">${f==='w'?'V':f==='d'?'E':'D'}</span>`).join('')
+    : `<span style="font-size:11px;color:var(--txt3);">Sin datos</span>`;
+  return `
+    <div class="club-stage">
+      <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};">
+        <div class="club-band">
+          <div class="club-crest">${crest}</div>
+          <div class="club-name">${_esc(t.name)}</div>
+        </div>
+        <div class="club-body">
+          <div class="club-stats">
+            <div class="club-stat"><b>${s.pj}</b><span>Partidos</span></div>
+            <div class="club-stat"><b>${winPct}%</b><span>Victorias</span></div>
+            <div class="club-stat"><b class="gold">${tit}</b><span>Títulos</span></div>
+          </div>
+          <div class="club-foot">
+            <span class="fs-lbl">Forma</span>
+            <div class="form-strip">${formHTML}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* Inserta tarjetas de pool[from..from+count] con animación stagger+countUp */
+function _appendPubTeams(from, count, token){
+  const el = document.getElementById('pub-teams-grid');
+  if(!el) return;
+  if(token !== _pubTeamsView.renderToken) return; /* descarta tanda obsoleta */
+  const slice = _pubTeamsView.pool.slice(from, from + count);
+  if(!slice.length) return;
+  const frag = document.createElement('div');
+  frag.innerHTML = slice.map(_pubTeamCardHtml).join('');
+  const newCards = [];
+  while(frag.firstChild){
+    el.appendChild(frag.firstChild);
+    newCards.push(el.lastChild.querySelector('.club-card'));
+  }
+  _pubTeamsView.shown = from + slice.length;
+  /* Animación solo si no se pidió movimiento reducido */
+  const reduced = window.MOTION && typeof MOTION.reduced==='function' && MOTION.reduced();
+  if(!reduced){
+    if(window.MOTION && typeof MOTION.stagger==='function') MOTION.stagger(newCards, { step:45 });
+    if(window.MOTION && typeof MOTION.countUp==='function'){
+      newCards.forEach(card=>card && card.querySelectorAll('.club-stat b').forEach(b=>{
+        const raw = b.textContent, n = parseInt(raw);
+        if(isNaN(n)) return;
+        MOTION.countUp(b, n, { dur:850, suffix: raw.includes('%') ? '%' : '' });
+      }));
+    }
+  }
+  _updateLoadMoreBtn();
+  _pubBindTeamsSpotlight();
+}
+
+/* Actualiza visibilidad del botón "cargar más" */
+function _updateLoadMoreBtn(){
+  const wrap = document.getElementById('pub-teams-load-more');
+  if(!wrap) return;
+  const exhausted = _pubTeamsView.shown >= _pubTeamsView.pool.length;
+  wrap.style.display = (_pubTeamsView.query || exhausted) ? 'none' : 'flex';
+}
+
+/* Carga la siguiente tanda (con delay y estado loading excepto la primera) */
+function loadMorePubTeams(first){
+  const view = _pubTeamsView;
+  const token = view.renderToken;
+  const from  = view.shown;
+  const count = _clubBatch();
+  if(from >= view.pool.length) return;
+
+  const btn = document.getElementById('pub-teams-btn-more');
+
+  if(first){
+    _appendPubTeams(from, count, token);
+  } else {
+    if(btn){ btn.disabled = true; btn.setAttribute('aria-busy','true'); btn.classList.add('loading'); }
+    clearTimeout(view.timer);
+    view.timer = setTimeout(()=>{
+      if(token !== view.renderToken) return;
+      _appendPubTeams(from, count, token);
+      if(btn){ btn.disabled = false; btn.setAttribute('aria-busy','false'); btn.classList.remove('loading'); }
+    }, 500);
+  }
+}
+
 async function renderPubTeams(){
   const el = document.getElementById('pub-teams-content');
   const teams = await dbGetAll('teams', t=>t.status==='ACTIVO');
 
-  // Stats reales desde el historial del main (pj/victorias/forma) + títulos desde palmarés.
+  /* Bump token + cancelar timer pendiente */
+  clearTimeout(_pubTeamsView.timer);
+  _pubTeamsView.renderToken++;
+  const token = _pubTeamsView.renderToken;
+
+  /* Stats reales */
   try {
     window._pubTeamStats  = (typeof _computeTeamStats==='function') ? await _computeTeamStats() : {};
     window._pubTeamTitles = (typeof aggregatePalmaresByTeam==='function') ? await aggregatePalmaresByTeam() : new Map();
@@ -480,21 +615,115 @@ async function renderPubTeams(){
     window._pubTeamStats = {}; window._pubTeamTitles = new Map();
   }
 
+  if(token !== _pubTeamsView.renderToken) return; /* cancelado */
+
+  /* Rellenar cache y pool barajado */
+  _pubTeamsView.all   = teams;
+  _pubTeamsView.pool  = _shuffle(teams);
+  _pubTeamsView.shown = 0;
+  _pubTeamsView.query = '';
+
+  if(!teams.length){
+    el.innerHTML = `<p style="color:var(--txt3);font-size:15px;padding:24px 0;">Sin equipos activos.</p>`;
+    return;
+  }
+
   el.innerHTML = `
   <div style="margin-bottom:12px;">
     <input type="text" id="pub-team-search" placeholder="Buscar equipo..." oninput="filterPubTeams()"
       style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;width:220px;">
   </div>
-  <div id="pub-teams-grid" class="clubs-grid"></div>`;
+  <div id="pub-teams-grid" class="clubs-grid"></div>
+  <div id="pub-teams-load-more" class="load-more-wrap" style="display:none;">
+    <button id="pub-teams-btn-more" type="button" class="load-more"
+      aria-controls="pub-teams-grid"
+      onclick="loadMorePubTeams(false)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/>
+      </svg>
+      Cargar más equipos
+    </button>
+  </div>`;
 
-  renderPubTeamsGrid(teams, true);
+  loadMorePubTeams(true);
 }
 
-async function filterPubTeams(){
-  const search = document.getElementById('pub-team-search')?.value.toLowerCase()||'';
-  let teams = await dbGetAll('teams', t=>t.status==='ACTIVO');
-  if(search) teams = teams.filter(t=>t.name.toLowerCase().includes(search));
-  renderPubTeamsGrid(teams, false);
+function filterPubTeams(){
+  const search = (document.getElementById('pub-team-search')?.value || '').toLowerCase().trim();
+
+  clearTimeout(_pubTeamsView.timer);
+  _pubTeamsView.renderToken++;
+  _pubTeamsView.query = search;
+
+  const el = document.getElementById('pub-teams-grid');
+  if(!el) return;
+
+  if(!search){
+    /* Sin query: volver a vitrina barajada desde el principio */
+    _pubTeamsView.pool  = _shuffle(_pubTeamsView.all);
+    _pubTeamsView.shown = 0;
+    el.innerHTML = '';
+    loadMorePubTeams(true);
+    return;
+  }
+
+  /* Con query: mostrar todos los matches, ocultar botón */
+  const matches = _pubTeamsView.all.filter(t => t.name.toLowerCase().includes(search));
+  el.innerHTML = matches.length
+    ? matches.map(_pubTeamCardHtml).join('')
+    : `<div style="grid-column:1/-1;color:var(--txt3);font-size:15px;padding:24px 0;text-align:center;">No hay equipos que coincidan.</div>`;
+  _pubTeamsView.shown = matches.length;
+
+  const wrap = document.getElementById('pub-teams-load-more');
+  if(wrap) wrap.style.display = 'none';
+
+  _pubBindTeamsSpotlight();
+}
+
+/* Live refresh: reconcilia pool por team.id sin re-shuffle ni resetear shown */
+async function _refreshPubTeams(){
+  clearTimeout(_pubTeamsView.timer);
+  _pubTeamsView.renderToken++;
+  const token = _pubTeamsView.renderToken;
+
+  try {
+    window._pubTeamStats  = (typeof _computeTeamStats==='function') ? await _computeTeamStats() : {};
+    window._pubTeamTitles = (typeof aggregatePalmaresByTeam==='function') ? await aggregatePalmaresByTeam() : new Map();
+  } catch(e){ /* stats no críticas */ }
+
+  if(token !== _pubTeamsView.renderToken) return;
+
+  const fresh = await dbGetAll('teams', t=>t.status==='ACTIVO');
+  if(token !== _pubTeamsView.renderToken) return;
+
+  const freshById = new Map(fresh.map(t=>[t.id, t]));
+
+  /* Reconciliar pool: actualizar existentes, quitar inactivos, añadir nuevos al final */
+  const reconPool = _pubTeamsView.pool
+    .filter(t=>freshById.has(t.id))
+    .map(t=>freshById.get(t.id));
+  const poolIds = new Set(reconPool.map(t=>t.id));
+  fresh.forEach(t=>{ if(!poolIds.has(t.id)) reconPool.push(t); });
+
+  /* Ajustar shown si se eliminaron equipos por debajo del límite visible */
+  const newShown = Math.min(_pubTeamsView.shown, reconPool.length);
+
+  _pubTeamsView.all   = fresh;
+  _pubTeamsView.pool  = reconPool;
+  _pubTeamsView.shown = newShown;
+
+  /* Si hay búsqueda activa, re-filtrar sobre cache nuevo */
+  if(_pubTeamsView.query){
+    filterPubTeams();
+    return;
+  }
+
+  /* Sin búsqueda: re-render las tarjetas ya visibles */
+  const el = document.getElementById('pub-teams-grid');
+  if(!el) return;
+  el.innerHTML = reconPool.slice(0, newShown).map(_pubTeamCardHtml).join('');
+  _pubBindTeamsSpotlight();
+  _updateLoadMoreBtn();
 }
 
 /* Stats reales por equipo desde el historial (estáticos + lives), mismo criterio
@@ -544,65 +773,3 @@ function _pubBindTeamsSpotlight(){
   }, { passive:true });
 }
 
-function renderPubTeamsGrid(teams, animate){
-  const el = document.getElementById('pub-teams-grid');
-  if(!el) return;
-  if(!teams.length){
-    el.innerHTML=`<div style="grid-column:1/-1;color:var(--txt3);font-size:15px;padding:24px 0;text-align:center;">Sin equipos activos.</div>`;
-    return;
-  }
-  const _col = v => /^#[0-9A-Fa-f]{3,8}$/.test(String(v||'')) ? v : '#333';
-  const stats  = window._pubTeamStats  || {};
-  const titles = window._pubTeamTitles || new Map();
-  el.innerHTML = teams.map(t=>{
-    const c1 = _col(t.color), c2 = _col(t.color2 || t.color);
-    const crest = t.logo
-      ? `<img src="${_esc(t.logo)}" alt="" loading="lazy">`
-      : `${_esc(t.ini||'?')}`;
-    const s = stats[t.id] || {pj:0,v:0,recent:[]};
-    const winPct = s.pj>0 ? Math.round(s.v/s.pj*100) : 0;
-    const tit = (titles.get(t.id)?._total) || 0;
-    const form = (s.recent||[]).slice(-5);
-    const formHTML = form.length
-      ? form.map(f=>`<span class="form-pip ${f}">${f==='w'?'V':f==='d'?'E':'D'}</span>`).join('')
-      : `<span style="font-size:11px;color:var(--txt3);">Sin datos</span>`;
-    return `
-    <div class="club-stage">
-      <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};">
-        <div class="club-band">
-          <div class="club-crest">${crest}</div>
-          <div class="club-name">${_esc(t.name)}</div>
-        </div>
-        <div class="club-body">
-          <div class="club-stats">
-            <div class="club-stat"><b>${s.pj}</b><span>Partidos</span></div>
-            <div class="club-stat"><b>${winPct}%</b><span>Victorias</span></div>
-            <div class="club-stat"><b class="gold">${tit}</b><span>Títulos</span></div>
-          </div>
-          <div class="club-foot">
-            <span class="fs-lbl">Forma</span>
-            <div class="form-strip">${formHTML}</div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Spotlight siempre disponible (re-render por buscador incluido).
-  _pubBindTeamsSpotlight();
-
-  // Motion solo en la carga inicial (no en cada tecla del buscador): cascada de
-  // entrada sobre la tarjeta interna + conteo de las stats. Degrada solo si MOTION
-  // no existe o el usuario pidió movimiento reducido (countUp/stagger lo respetan).
-  if(animate){
-    const cards = [...el.querySelectorAll('.club-card')];
-    if(window.MOTION && typeof MOTION.stagger==='function') MOTION.stagger(cards, { step:45 });
-    if(window.MOTION && typeof MOTION.countUp==='function'){
-      cards.forEach(card=>card.querySelectorAll('.club-stat b').forEach(b=>{
-        const raw = b.textContent, n = parseInt(raw);
-        if(isNaN(n)) return;
-        MOTION.countUp(b, n, { dur:850, suffix: raw.includes('%') ? '%' : '' });
-      }));
-    }
-  }
-}

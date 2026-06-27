@@ -242,7 +242,7 @@ function _subscribeFocusedPublicSection(page){
       sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
       break;
     case 'equipos':
-      sub('equipos', ['teams'], ()=>renderPubTeams());
+      sub('equipos', ['teams'], ()=>_refreshPubTeams());
       break;
     case 'calendario':
       sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());

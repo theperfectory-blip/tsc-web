@@ -14,16 +14,22 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 
 /* Macro Slice C: public pages share the document scroll. This class is a
    display gate only; #main must never become its own scroll container. */
-#main.public-scroll{overflow-x:clip;}
+#main.public-scroll{
+  overflow-x:clip;
+  margin-top:var(--chrome-h) !important; /* vence marginTop='60px' inline de nav.js solo en público */
+  max-width:none;
+}
 #main.public-scroll > .page{display:none;}
 #main.public-scroll > .public-section{
   display:block;
-  scroll-margin-top:82px;
+  scroll-margin-top:var(--chrome-h);
 }
 #main.public-scroll > .public-section[hidden]{display:none;}
 #main.public-scroll > .public-section:not(.is-mounted){
-  min-height:calc(100vh - 82px);
+  min-height:calc(100vh - var(--chrome-h));
 }
+/* ticker clearance en público: --chrome-h ya incluye el alto del ticker → solo gutter base */
+#main.public-scroll.with-ticker{padding-top:20px;}
 
 /* Navegación de secciones DENTRO del topbar: centrada en el espacio entre la marca y
    [Temporada]. Las 6 secciones que no caben se desvanecen en los bordes (fade, sin
@@ -67,13 +73,19 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 .pub-pnav-item.active{color:var(--gold);border-bottom-color:var(--gold);}
 /* Pantalla chica: fuera [Temporada], queda solo la foto de perfil a la derecha. */
 @media(max-width:600px){ #topbar .chip-today{display:none;} }
+/* Móvil público: la nav de secciones ocupa una fila propia completa (Opción A, C-polish).
+   Gateado por #topbar.public-mode → admin sigue en una sola fila. */
+@media(max-width:600px){
+  #topbar.public-mode{flex-wrap:wrap;height:auto;}
+  #topbar.public-mode .topbar-nav{order:3;flex-basis:100%;height:38px;border-top:1px solid var(--brd);}
+}
 
 /* Ticker de resultados bajo la topbar.
    Oculto por defecto; JS (renderPublicTicker) lo muestra solo en modo público
    y solo si hay partidos. overflow:hidden recorta horizontalmente → no genera
    overflow del documento. */
 #ticker{
-  position:fixed;top:48px;left:0;right:0;z-index:var(--z-sticky);
+  position:fixed;top:var(--topbar-h);left:0;right:0;z-index:var(--z-sticky);
   background:var(--bg-deep);border-bottom:1px solid var(--brd);
   overflow:hidden;height:34px;display:none;align-items:center;
 }
@@ -83,7 +95,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
    transiciona, aplica al instante. 20px (padding base de #main) + 22px (alto del
    ticker que solapa) = 42px. Más específico que #main base -> sin !important.
    No depende de body.redesign — se togglea por la clase .with-ticker. */
-#main.with-ticker{padding-top:42px;}
+#main.with-ticker{padding-top:42px;} /* admin/global; en público sobreescribe .public-scroll.with-ticker */
 .ticker-track{display:flex;gap:0;flex:none;align-items:center;}
 .ticker-item{
   display:inline-flex;align-items:center;gap:8px;padding:0 22px;
@@ -129,7 +141,11 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 
 .proto-section{margin:64px 0 0;}
 .proto-section:first-child{margin-top:18px;}
-.proto-divider{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;}
+.proto-divider{
+  display:flex;align-items:baseline;gap:14px;margin-bottom:22px;
+  position:sticky;top:var(--chrome-h);z-index:30;
+  background:var(--bg);padding:6px 0 18px;
+}
 .proto-divider .pd-n{font-family:'Bebas Neue';font-size:15px;color:var(--gold-lo);letter-spacing:1px;}
 .proto-divider .pd-t{font-family:'Bebas Neue';font-size:var(--fs-h2);letter-spacing:0.5px;}
 .proto-divider::after{content:'';flex:1;height:1px;background:var(--brd);align-self:center;}
@@ -404,7 +420,7 @@ body.sala-open{overflow:hidden;}
    El título son 2 carruseles en una fila: «competición — fase». Cada uno
    muestra el activo grande y los vecinos asoman difuminados; deslizá,
    usá las flechas del teclado o clic en un vecino para cambiar. */
-.comp-sticky{position:sticky;top:82px;z-index:30;background:var(--bg);padding:6px 0 18px;}
+.comp-sticky{position:sticky;top:var(--chrome-h);z-index:30;background:var(--bg);padding:6px 0 18px;}
 .comp-title{display:flex;align-items:center;gap:10px;min-width:0;}
 .comp-title .pd-n{font-family:'Bebas Neue';font-size:15px;color:var(--gold-lo);letter-spacing:1px;flex:none;}
 .comp-title .cc-sep{font-family:'Bebas Neue';font-size:clamp(16px,4vw,30px);color:var(--txt3);flex:none;line-height:1;}
@@ -709,6 +725,11 @@ body.sala-open{overflow:hidden;}
 .load-more.loading{pointer-events:none;}
 .load-more.loading svg{animation:lmSpin 0.7s linear infinite;}
 @keyframes lmSpin{to{transform:rotate(360deg);}}
+/* A11y: foco visible + estados deshabilitado/cargando */
+.load-more:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+.load-more[disabled]{opacity:0.5;cursor:not-allowed;pointer-events:none;}
+.load-more[aria-busy="true"]{pointer-events:none;}
+@media(prefers-reduced-motion:reduce){.load-more.loading svg{animation:none;}}
 
 /* ============ 06 · SORTEO ============ */
 .sorteo-stage{

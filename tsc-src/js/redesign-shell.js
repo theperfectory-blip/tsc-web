@@ -2,13 +2,78 @@
 (function(){
   'use strict';
 
-  const CHROME_OFFSET = 82;
   const SCROLL_LOCK_MS = 700;
   let mountObserver = null;
   let visibilityObserver = null;
   let focusObserver = null;
   let scrollLockUntil = 0;
   let initialized = false;
+  let _chromeResizeObserver = null;
+
+  /* Leer --chrome-h del DOM (fallback 82 hasta que JS escriba el valor medido). */
+  function _chromeH(){
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--chrome-h').trim();
+    return parseInt(v) || 82;
+  }
+
+  /* Mide #topbar y #ticker (si visible) y escribe --topbar-h / --chrome-h en el :root. */
+  function _measureChrome(){
+    const topbar = document.getElementById('topbar');
+    if(!topbar) return;
+    const topbarH = topbar.getBoundingClientRect().height || topbar.offsetHeight || 48;
+    const ticker  = document.getElementById('ticker');
+    const tickerH = (ticker && ticker.offsetParent !== null && getComputedStyle(ticker).display !== 'none')
+      ? (ticker.getBoundingClientRect().height || ticker.offsetHeight || 0)
+      : 0;
+    const root = document.documentElement;
+    root.style.setProperty('--topbar-h', topbarH + 'px');
+    root.style.setProperty('--chrome-h', (topbarH + tickerH) + 'px');
+  }
+
+  /* Recalcula chrome y, si el focusObserver ya existe, lo reconstruye con el nuevo rootMargin. */
+  function _updateChrome(){
+    _measureChrome();
+    if(initialized && focusObserver){
+      /* focusObserver usa rootMargin inmutable → reconstruir para que tome --chrome-h nuevo. */
+      const sections = _activeSections();
+      focusObserver.disconnect();
+      focusObserver = _buildFocusObserver();
+      sections.forEach(s=>focusObserver.observe(s));
+    }
+  }
+
+  function _buildFocusObserver(){
+    const chromeH = _chromeH();
+    return new IntersectionObserver(entries=>{
+      if(!_publicScrollEnabled() || Date.now() < scrollLockUntil) return;
+      const candidates = entries
+        .filter(entry=>entry.isIntersecting && !entry.target.hidden)
+        .sort((a,b)=>{
+          const aDistance = Math.abs(a.boundingClientRect.top - chromeH);
+          const bDistance = Math.abs(b.boundingClientRect.top - chromeH);
+          return aDistance - bDistance;
+        });
+      const candidate = candidates[0];
+      if(!candidate) return;
+      const page = _sectionPage(candidate.target);
+      if(typeof window.focusPublicSection === 'function'){
+        window.focusPublicSection(page);
+      }
+    }, { root:null, rootMargin:`-${chromeH + 8}px 0px -55% 0px`, threshold:0 });
+  }
+
+  function _initChromeObserver(){
+    if(_chromeResizeObserver) return;
+    _measureChrome();
+    if(typeof ResizeObserver !== 'undefined'){
+      _chromeResizeObserver = new ResizeObserver(_updateChrome);
+      const topbar = document.getElementById('topbar');
+      const ticker  = document.getElementById('ticker');
+      if(topbar) _chromeResizeObserver.observe(topbar);
+      if(ticker)  _chromeResizeObserver.observe(ticker);
+    }
+    window.addEventListener('resize', _updateChrome, { passive:true });
+  }
 
   function _rdpReduced(){
     try{
@@ -93,22 +158,7 @@
       entries.forEach(_dispatchVisibility);
     }, { root:null, threshold:[0, 0.01, 0.25, 0.5, 0.75] });
 
-    focusObserver = new IntersectionObserver(entries=>{
-      if(!_publicScrollEnabled() || Date.now() < scrollLockUntil) return;
-      const candidates = entries
-        .filter(entry=>entry.isIntersecting && !entry.target.hidden)
-        .sort((a,b)=>{
-          const aDistance = Math.abs(a.boundingClientRect.top - CHROME_OFFSET);
-          const bDistance = Math.abs(b.boundingClientRect.top - CHROME_OFFSET);
-          return aDistance - bDistance;
-        });
-      const candidate = candidates[0];
-      if(!candidate) return;
-      const page = _sectionPage(candidate.target);
-      if(typeof window.focusPublicSection === 'function'){
-        window.focusPublicSection(page);
-      }
-    }, { root:null, rootMargin:'-90px 0px -55% 0px', threshold:0 });
+    focusObserver = _buildFocusObserver();
   }
 
   function refreshPublicScrollSections(){
@@ -169,24 +219,27 @@
       throw error;
     }
     scrollLockUntil = Date.now() + SCROLL_LOCK_MS;
-    const top = section.getBoundingClientRect().top + window.scrollY - CHROME_OFFSET;
+    const top = section.getBoundingClientRect().top + window.scrollY - _chromeH();
     window.scrollTo({ top:Math.max(0, top), behavior:_rdpReduced() ? 'auto' : 'smooth' });
     window.setTimeout(()=>{
       if(!_publicScrollEnabled() || STATE.publicPage !== page) return;
-      const settledTop = section.getBoundingClientRect().top + window.scrollY - CHROME_OFFSET;
+      const settledTop = section.getBoundingClientRect().top + window.scrollY - _chromeH();
       window.scrollTo({ top:Math.max(0, settledTop), behavior:_rdpReduced() ? 'auto' : 'smooth' });
     }, 420);
     return true;
   }
 
   function syncRedesignShellMode(mode){
-    const nav = document.getElementById('rdp-topnav');
-    if(nav) nav.classList.toggle('is-hidden', mode === 'admin');
+    const nav    = document.getElementById('rdp-topnav');
+    const topbar = document.getElementById('topbar');
+    if(nav)    nav.classList.toggle('is-hidden', mode === 'admin');
+    if(topbar) topbar.classList.toggle('public-mode', mode === 'public');
     if(mode === 'admin') destroyPublicScrollShell();
     else requestAnimationFrame(initPublicScrollShell);
   }
 
   document.addEventListener('DOMContentLoaded', function(){
+    _initChromeObserver();
     requestAnimationFrame(function(){
       syncRedesignTopnav((typeof STATE !== 'undefined' && STATE.publicPage) || 'palmares');
       initPublicScrollShell();
