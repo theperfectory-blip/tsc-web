@@ -545,10 +545,12 @@ function _appendPubTeams(from, count, token){
   const frag = document.createElement('div');
   frag.innerHTML = slice.map(_pubTeamCardHtml).join('');
   const newCards = [];
-  while(frag.firstChild){
-    el.appendChild(frag.firstChild);
-    newCards.push(el.lastChild.querySelector('.club-card'));
-  }
+  /* Iterar sobre elements (no text nodes) para que querySelector no falle */
+  Array.from(frag.children).forEach(child => {
+    el.appendChild(child);
+    const card = el.lastElementChild.querySelector('.club-card');
+    if(card) newCards.push(card);
+  });
   _pubTeamsView.shown = from + slice.length;
   /* Animación solo si no se pidió movimiento reducido */
   const reduced = window.MOTION && typeof MOTION.reduced==='function' && MOTION.reduced();
@@ -629,10 +631,6 @@ async function renderPubTeams(){
   }
 
   el.innerHTML = `
-  <div style="margin-bottom:12px;">
-    <input type="text" id="pub-team-search" placeholder="Buscar equipo..." oninput="filterPubTeams()"
-      style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;width:220px;">
-  </div>
   <div id="pub-teams-grid" class="clubs-grid"></div>
   <div id="pub-teams-load-more" class="load-more-wrap" style="display:none;">
     <button id="pub-teams-btn-more" type="button" class="load-more"

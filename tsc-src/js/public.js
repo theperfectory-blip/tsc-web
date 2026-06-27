@@ -107,8 +107,9 @@ async function renderPubPanel(){
     ? `<span class="cc-sep">—</span><div class="cc cc-fase" id="pub-cc-fase"><div class="cc-view"><div class="cc-track"></div></div></div>`
     : (phases.length===1 ? `<span class="cc-sep">—</span><span class="pub-fase-single">${esc(selPhase?.name||'')}</span>` : '');
   const compHead = `
-    <div class="pub-comp-head">
+    <div class="comp-sticky">
       <div class="comp-title">
+        <span class="pd-n">02</span>
         <div class="cc cc-comp" id="pub-cc-comp"><div class="cc-view"><div class="cc-track"></div></div></div>
         ${faseHead}
       </div>

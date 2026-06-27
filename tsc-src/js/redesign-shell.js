@@ -22,7 +22,8 @@
     if(!topbar) return;
     const topbarH = topbar.getBoundingClientRect().height || topbar.offsetHeight || 48;
     const ticker  = document.getElementById('ticker');
-    const tickerH = (ticker && ticker.offsetParent !== null && getComputedStyle(ticker).display !== 'none')
+    /* ticker es position:fixed → offsetParent siempre null; usar display computed en su lugar */
+    const tickerH = (ticker && getComputedStyle(ticker).display !== 'none')
       ? (ticker.getBoundingClientRect().height || ticker.offsetHeight || 0)
       : 0;
     const root = document.documentElement;
