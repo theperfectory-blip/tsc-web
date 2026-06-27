@@ -1,7 +1,7 @@
 # Pre-slice — C-polish · Fidelidad de shell (full-width + títulos de sección + topbar móvil)
 > **v3 (2026-06-26) tras 2º dictamen de Codex.** Corrige el **admin diff-cero**: el chrome dinámico NO toca el `margin-top:60px` global (`layout.css`/`nav.js` quedan **intactos**); se aplica **solo** gateado por `#main.public-scroll` (con `!important` que vence el inline de nav.js) y la 2ª fila móvil vive en `redesign.css` gateada por `#topbar.public-mode`. Así **C-polish no toca `layout.css` ni `nav.js`**.
 > v2 ya había corregido: divider genérico solo en 4 secciones (sin doble-sticky); inventario completo de hardcodes; `.proto-divider`/`.load-more` reutilizados.
-> Orden maestro: **C → C-polish → Equipos → A → B → D.** C-polish va tras C (mismo shell) y antes de A (A construye los encabezados especiales de Competiciones/Historial).
+> Orden maestro: **C → C-polish → Equipos → A → B → D.** C-polish va tras C (mismo shell) y antes de A. **⚠️ ACTUALIZACIÓN 2026-06-27:** los encabezados especiales de **Competiciones (02) e Historial (06)** fueron adelantados durante C-polish/Equipos por pedido explícito del usuario — ver nota en `PRE_SLICE_A.md`. Slice A los completa (06 pasa de `proto-divider` estático a `.comp-sticky` + `cc-hist`), no los crea desde cero.
 
 ## Brújula (2026-06-25)
 La lógica gana **solo** en datos/permisos/persistencia; en **layout/estética/motion gana el prototipo** salvo conflicto duro documentado. Los 3 ítems son estética/estructura de shell → fidelidad alta exigida.

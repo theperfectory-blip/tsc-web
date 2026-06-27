@@ -469,7 +469,7 @@ async function deleteTeam(id){
    ---------------------------------------------------------- */
 
 /* Estado de la vista pública — único objeto, evita tandas zombi */
-let _pubTeamsView = { all:[], pool:[], shown:0, query:'', renderToken:0, timer:null };
+let _pubTeamsView = { all:[], pool:[], shown:0, renderToken:0, timer:null };
 
 /* Número de columnas reales de #pub-teams-grid */
 function _clubCols(){
@@ -480,11 +480,12 @@ function _clubCols(){
   return cols > 0 ? cols : 3;
 }
 
-/* Tamaño de tanda: múltiplo de columnas más cercano a 6 (filas enteras) */
+/* Tamaño de tanda: completa la fila actual (si el resize cambió columnas) + filas enteras */
 function _clubBatch(){
-  const cols  = _clubCols();
-  const ideal = Math.max(cols, Math.round(6 / cols) * cols);
-  return ideal;
+  const cols = _clubCols();
+  const base = Math.max(cols, Math.round(6 / cols) * cols);
+  const rem  = _pubTeamsView.shown % cols;
+  return rem ? (cols - rem) + base : base;
 }
 
 /* Fisher-Yates */
@@ -573,7 +574,7 @@ function _updateLoadMoreBtn(){
   const wrap = document.getElementById('pub-teams-load-more');
   if(!wrap) return;
   const exhausted = _pubTeamsView.shown >= _pubTeamsView.pool.length;
-  wrap.style.display = (_pubTeamsView.query || exhausted) ? 'none' : 'flex';
+  wrap.style.display = exhausted ? 'none' : 'flex';
 }
 
 /* Carga la siguiente tanda (con delay y estado loading excepto la primera) */
@@ -623,7 +624,6 @@ async function renderPubTeams(){
   _pubTeamsView.all   = teams;
   _pubTeamsView.pool  = _shuffle(teams);
   _pubTeamsView.shown = 0;
-  _pubTeamsView.query = '';
 
   if(!teams.length){
     el.innerHTML = `<p style="color:var(--txt3);font-size:15px;padding:24px 0;">Sin equipos activos.</p>`;
@@ -646,41 +646,14 @@ async function renderPubTeams(){
   loadMorePubTeams(true);
 }
 
-function filterPubTeams(){
-  const search = (document.getElementById('pub-team-search')?.value || '').toLowerCase().trim();
-
-  clearTimeout(_pubTeamsView.timer);
-  _pubTeamsView.renderToken++;
-  _pubTeamsView.query = search;
-
-  const el = document.getElementById('pub-teams-grid');
-  if(!el) return;
-
-  if(!search){
-    /* Sin query: volver a vitrina barajada desde el principio */
-    _pubTeamsView.pool  = _shuffle(_pubTeamsView.all);
-    _pubTeamsView.shown = 0;
-    el.innerHTML = '';
-    loadMorePubTeams(true);
-    return;
-  }
-
-  /* Con query: mostrar todos los matches, ocultar botón */
-  const matches = _pubTeamsView.all.filter(t => t.name.toLowerCase().includes(search));
-  el.innerHTML = matches.length
-    ? matches.map(_pubTeamCardHtml).join('')
-    : `<div style="grid-column:1/-1;color:var(--txt3);font-size:15px;padding:24px 0;text-align:center;">No hay equipos que coincidan.</div>`;
-  _pubTeamsView.shown = matches.length;
-
-  const wrap = document.getElementById('pub-teams-load-more');
-  if(wrap) wrap.style.display = 'none';
-
-  _pubBindTeamsSpotlight();
-}
-
 /* Live refresh: reconcilia pool por team.id sin re-shuffle ni resetear shown */
 async function _refreshPubTeams(){
   clearTimeout(_pubTeamsView.timer);
+  /* Restaurar botón si un timer de loading estaba corriendo cuando llegó el live */
+  const _lmBtn = document.getElementById('pub-teams-btn-more');
+  if(_lmBtn && _lmBtn.getAttribute('aria-busy') === 'true'){
+    _lmBtn.disabled = false; _lmBtn.setAttribute('aria-busy','false'); _lmBtn.classList.remove('loading');
+  }
   _pubTeamsView.renderToken++;
   const token = _pubTeamsView.renderToken;
 
@@ -710,13 +683,7 @@ async function _refreshPubTeams(){
   _pubTeamsView.pool  = reconPool;
   _pubTeamsView.shown = newShown;
 
-  /* Si hay búsqueda activa, re-filtrar sobre cache nuevo */
-  if(_pubTeamsView.query){
-    filterPubTeams();
-    return;
-  }
-
-  /* Sin búsqueda: re-render las tarjetas ya visibles */
+  /* Re-render las tarjetas ya visibles */
   const el = document.getElementById('pub-teams-grid');
   if(!el) return;
   el.innerHTML = reconPool.slice(0, newShown).map(_pubTeamCardHtml).join('');

@@ -74,7 +74,11 @@ async function renderPubPanel(){
   const active = comps.filter(c=>isActiveStatus(c.status));
 
   if(!active.length){
-    el.innerHTML=`<div style="color:var(--txt3);font-size:16px;padding:20px 0;">No hay competiciones activas en T${esc(STATE.season)}.</div>`;
+    el.innerHTML = `
+      <div class="comp-sticky">
+        <div class="comp-title"><span class="pd-n">02</span><span class="pub-fase-single">Competiciones</span></div>
+      </div>
+      <div style="color:var(--txt3);font-size:16px;padding:20px 0;">No hay competiciones activas en T${esc(STATE.season)}.</div>`;
     return;
   }
   // Si no hay comp seleccionada, tomar la primera

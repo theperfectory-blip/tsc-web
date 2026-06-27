@@ -1,12 +1,13 @@
 # Pre-slice — Equipos · Vitrina aleatoria + "cargar más"
-> **v2 (2026-06-26) tras dictamen de Codex.** Endurece estado y responsive: `.load-more` **ya existe** ([redesign.css:697](css/redesign.css:697)) → reutilizar; estado propio `_pubTeamsView` con `renderToken` que invalida el `setTimeout` obsoleto; `filterPubTeams` filtra **cache local** (no IndexedDB por tecla); la **re-suscripción live** ([nav.js:244](js/nav.js:244)) debe preservar la búsqueda y cancelar cargas pendientes; `_clubBatch` considera tarjetas ya visibles al cambiar columnas; a11y completa en el botón; empty-state de búsqueda diferenciado.
+> **v3 (2026-06-27) cierre aprobado por usuario.** Sin buscador (32 equipos, decisión de producto: eliminar `filterPubTeams` y campo `query`). `_clubBatch` ahora completa la fila actual tras resize antes de añadir filas base. `_refreshPubTeams` restaura el botón de loading si un live llega durante el timer de 500ms. Encabezados especiales de Competiciones (02) e Historial (06) ya construidos en C-polish (adelantados por pedido explícito); Slice A no los toca.
+> **v2 (2026-06-26) tras dictamen de Codex.** Endurece estado y responsive: `.load-more` **ya existe** ([redesign.css:697](css/redesign.css:697)) → reutilizar; estado propio `_pubTeamsView` con `renderToken` que invalida el `setTimeout` obsoleto; ~~`filterPubTeams` filtra **cache local** (no IndexedDB por tecla)~~ → **eliminado** (sin buscador); la **re-suscripción live** ([nav.js:244](js/nav.js:244)) preserva posición de tanda y cancela cargas pendientes; `_clubBatch` considera tarjetas ya visibles al cambiar columnas; a11y completa en el botón.
 > **Decisión del usuario 2026-06-26: SÍ** (deja de ser "opcional" del macro §4/§6). Orden maestro: **C → C-polish → Equipos → A → B → D** (Equipos antes de A).
 
 ## Brújula (2026-06-25)
 La lógica gana solo en datos/permisos/persistencia; en layout/estética/motion gana el prototipo. UX/estética de Equipos → fidelidad alta.
 
 ## Objetivo
-Sustituir el grid "todos los equipos de una vez" por la **vitrina del prototipo**: al cargar, **6 activos aleatorios** (ajustados a filas completas) + botón **"Cargar más equipos"** con ícono giratorio que revela tandas. Conservar buscador y stats reales.
+Sustituir el grid "todos los equipos de una vez" por la **vitrina del prototipo**: al cargar, **6 activos aleatorios** (ajustados a filas completas) + botón **"Cargar más equipos"** con ícono giratorio que revela tandas. **Sin buscador** (decisión 2026-06-27: 32 equipos, buscador innecesario). Stats reales intactos.
 
 ## Estado real verificado
 - `renderPubTeams()` ([teams.js:470](js/teams.js:470)) monta buscador `#pub-team-search` + grid `#pub-teams-grid.clubs-grid`, luego `renderPubTeamsGrid(teams,true)`.
@@ -19,14 +20,14 @@ Sustituir el grid "todos los equipos de una vez" por la **vitrina del prototipo*
 ## Prototipo (referencia) — [prototype.html:1581-1680](prototype.html:1581)
 `_clubCols()` (columnas reales de la grid) · `_clubBatch()` (múltiplo de columnas ≈6 → filas enteras) · `_shuffle()` (Fisher-Yates) · `_appendClubs()` (insert + `MOTION.stagger` + `MOTION.countUp` solo en las nuevas) · `loadMoreClubs(first)` (`first` sin delay; resto `loading` 500ms; oculta botón al agotar).
 
-## Estado endurecido (corrección Codex) — `_pubTeamsView`
-Introducir un único objeto de estado de la vista pública:
+## Estado endurecido — `_pubTeamsView` ✅ IMPLEMENTADO
 ```js
-let _pubTeamsView = { all:[], pool:[], shown:0, query:'', renderToken:0, timer:null };
+let _pubTeamsView = { all:[], pool:[], shown:0, renderToken:0, timer:null };
 ```
-- **`all`** = cache local de equipos activos (se llena una vez en `renderPubTeams`); **`filterPubTeams` filtra `all`, NO `dbGetAll`** por tecla.
-- **`renderToken`** se incrementa en cada (re)render/filtro/live-refresh; el callback del `setTimeout(500)` **comprueba su token** antes de insertar → descarta tandas obsoletas tras búsqueda o refresh en vivo.
-- **`timer`** se **cancela** (`clearTimeout`) en cada nueva acción (búsqueda, live, re-render) → sin tandas zombi.
+- **`all`** = cache local de equipos activos (se llena una vez en `renderPubTeams`).
+- **`renderToken`** se incrementa en cada (re)render/live-refresh; el callback del `setTimeout(500)` **comprueba su token** antes de insertar → descarta tandas obsoletas.
+- **`timer`** se **cancela** (`clearTimeout`) en cada nueva acción (live, re-render) → sin tandas zombi.
+- Campo `query` **eliminado** (sin buscador).
 
 ## Alcance (entra)
 - **Helpers de tanda** (`_clubCols`/`_clubBatch`/`_shuffle`/append) adaptados a IDs reales (`#pub-teams-grid`).
@@ -34,15 +35,14 @@ let _pubTeamsView = { all:[], pool:[], shown:0, query:'', renderToken:0, timer:n
 - **Botón "Cargar más equipos"** (`.load-more-wrap`+`.load-more` existentes) con SVG **Lucide** stroke/currentColor y **a11y completa (corrección Codex):** `type="button"`, `disabled` mientras carga, `aria-busy`, `aria-controls="pub-teams-grid"`, `:focus-visible`, y **fallback `prefers-reduced-motion`** (sin spin/stagger; insertar sin animación).
 - **Reusar** `MOTION.stagger`/`MOTION.countUp` (gateados por reduced-motion) y el **spotlight existente** (ya delegado → vale para tarjetas nuevas).
 
-## Buscador + live (dos modos, corrección Codex)
-- **Sin query:** vitrina aleatoria (tanda inicial ~6 + "cargar más").
-- **Con query (`#pub-team-search` no vacío):** filtrar `_pubTeamsView.all` (cache), mostrar **todos los matches** sin paginar, **ocultar** el botón. Al limpiar → re-shuffle y volver a la vitrina.
-- **Empty-state diferenciado (corrección Codex):** con query y 0 matches → **"No hay equipos que coincidan"**; sin equipos activos → "Sin equipos activos".
-- **Re-suscripción live (corrección Codex):** envolver el refresh de `equipos` en un `_refreshPubTeams()` que **preserva `query` y la posición de tanda** y **cancela el `timer` pendiente + bump `renderToken`** antes de reconciliar, en vez de `renderPubTeams()` crudo. (Si toca el wiring de `nav.js:244`, mínimo y declarado.)
-- **Reconciliación del pool por `team.id` (corrección Codex):** `_refreshPubTeams()` **NO re-shuffle ni reemplaza el pool**. Recarga activos desde DB y reconcilia contra `_pubTeamsView.pool` por `team.id`: **(1)** conservar los existentes en su **orden actual** (con datos actualizados), **(2)** eliminar los que dejaron de estar activos, **(3)** añadir los nuevos al final **sin duplicar**. Así las tarjetas que el usuario ya veía no se reordenan; `shown` se ajusta si se cayó alguno por debajo del límite visible.
+## Live refresh ✅ IMPLEMENTADO
+- **Un solo modo:** vitrina aleatoria (tanda inicial ~6 + "cargar más"). Sin buscador.
+- **`_refreshPubTeams()`** preserva posición de tanda, cancela timer pendiente, **restaura el botón si estaba en estado loading** (hardening de carrera: si live llega durante los 500ms, el timer se mata y el botón vuelve a habilitado antes de bumpar el token), luego reconcilia el pool.
+- **Reconciliación del pool por `team.id`:** conserva orden, quita inactivos, añade nuevos al final sin duplicar. `shown` se ajusta si se eliminaron equipos.
+- **Empty-state:** sin equipos activos → "Sin equipos activos".
 
 ## Fuera de alcance (NO entra)
-Stats/forma/títulos (reales, intactos) · spotlight (existe) · admin de equipos · CRUD admin · otras secciones. **No se PORTA `.load-more`** (ya existe) — pero sí se **amplían** sus reglas (ver Archivos a tocar).
+Stats/forma/títulos (reales, intactos) · spotlight (existe) · admin de equipos · CRUD admin · buscador · otras secciones. **No se PORTA `.load-more`** (ya existe) — pero sí se **amplían** sus reglas (ver Archivos a tocar).
 
 ## Archivos a tocar / NO tocar
 **Tocar:** `teams.js` (`renderPubTeams`/`renderPubTeamsGrid`/`filterPubTeams` + `_pubTeamsView` + helpers de tanda + `_refreshPubTeams`), **`redesign.css` (corrección Codex — ENTRA solo para AMPLIAR el `.load-more` existente, no portar):** añadir `:focus-visible`, estado `[disabled]`/`[aria-busy]`, y **`@media(prefers-reduced-motion:reduce){ .load-more.loading svg{ animation:none } }`** (desactivar `lmSpin`). Posiblemente `nav.js` (envolver el refresh live de `equipos` — mínimo).

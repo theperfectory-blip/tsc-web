@@ -111,11 +111,11 @@ Auditoría de código 2026-06-25 (4 agentes vs código real + `prototype.html`).
 > 6. **Equipos (load-more/shuffle):** ~~"opcional / pendiente"~~ → **DECIDIDO 2026-06-26: SÍ** (`PRE_SLICE_EQUIPOS.md`).
 > 7. Pre-slices vigentes: `PRE_SLICE_C_POLISH.md` (v3) · `PRE_SLICE_EQUIPOS.md` (v2) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2).
 
-### Macro Slice C-polish — Fidelidad de shell → detalle en `PRE_SLICE_C_POLISH.md` (v3)
-Remate del scroll continuo (C) tras probarlo: (1) contenido **full-width** (`#main.public-scroll{max-width:none}`); (2) **títulos de sección** `.proto-divider` numerados/sticky en **solo 4** secciones (Palmarés/Calendario/Equipos/Sorteo) — Competiciones (02) e Historial (06) integran su número en `.comp-sticky` = **Slice A**, sin doble-sticky; (3) **topbar móvil** a fila propia (Opción A) con **chrome dinámico** (`--chrome-h` medido reemplaza todos los hardcodes de 82/48/60 + reconstrucción del focusObserver + `#topbar.public-mode`). **Modifica C** (`redesign-shell.js`) con justificación → OK de Codex aplicado. Va **antes de A** (A asume shell estable).
+### Macro Slice C-polish — Fidelidad de shell → detalle en `PRE_SLICE_C_POLISH.md` (v3) ✅ HECHO (2026-06-27)
+Remate del scroll continuo (C) tras probarlo: (1) contenido **full-width** (`#main.public-scroll{max-width:none}`); (2) **títulos de sección** `.proto-divider` numerados/sticky en **solo 4** secciones (Palmarés/Calendario/Equipos/Sorteo); (3) **topbar móvil** a fila propia (Opción A) con **chrome dinámico** (`--chrome-h` medido). **⚠️ Por pedido explícito:** los encabezados de **Competiciones (02)** e **Historial (06)** fueron adelantados en este slice (no en A): 02 usa `.comp-sticky` con `cc-comp`/`cc-fase` en `renderPubPanel`; 06 usa `.proto-divider` estático (Slice A lo upgradea a `.comp-sticky` + `cc-hist`).
 
-### Macro Slice Equipos — Vitrina aleatoria + "cargar más" → detalle en `PRE_SLICE_EQUIPOS.md` (v2)
-Port del comportamiento del prototipo (6 activos aleatorios + "cargar más" por tandas de filas completas) a `teams.js`, **DECIDIDO 2026-06-26 (ya no opcional)**. Estado endurecido `_pubTeamsView` (`renderToken`/`timer` anti-tandas-obsoletas), `filterPubTeams` sobre cache local, re-suscripción live que preserva la búsqueda, a11y completa + reduced-motion. `.load-more` **ya existe** en `redesign.css:697` → reutilizar. Va **antes de A**.
+### Macro Slice Equipos — Vitrina aleatoria + "cargar más" → detalle en `PRE_SLICE_EQUIPOS.md` (v3) ✅ HECHO (2026-06-27)
+Port del comportamiento del prototipo (6 activos aleatorios + "cargar más" por tandas de filas completas) a `teams.js`. **Sin buscador** (decisión 2026-06-27: 32 equipos). Estado endurecido `_pubTeamsView` (`renderToken`/`timer` anti-tandas-obsoletas), `_clubBatch` completa la fila actual tras resize, `_refreshPubTeams` restaura botón si live llega durante timer, a11y completa + reduced-motion. `.load-more` **ya existe** en `redesign.css:697` → reutilizado.
 
 ### Macro Slice A — Pulido público restante → detalle CORREGIDO en `PRE_SLICE_A.md` (v2)
 Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin tocar admin ni Palmarés.
