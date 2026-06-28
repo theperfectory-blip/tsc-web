@@ -72,7 +72,7 @@ Leyenda: **[HECHO]** migrado y funcional · **[PARCIAL]** base migrada, falta pu
 ### Detalles finos (auditoría visual en app real logueado, 2026-06-25)
 - **Competiciones (grupos):** la tabla real trunca nombres en MAYÚSCULA ("ATL. LECHU…") vs el prototipo que los muestra completos ("Atl. Lechuguero"). Revisar ancho de columna / ellipsis.
 - **Calendario — edge case off-season:** con **0 partidos próximos** (temporada ya jugada) el real **no muestra hero** y la sección queda muy vacía (solo lista de días "Sin partidos" + timeline). El prototipo asume siempre un "próximo partido" con countdown. → al portar el hero colapsable, **definir el estado sin próximos** (qué mostrar fuera de temporada).
-- **Equipos:** real = buscador + grid completo de todos los equipos; prototipo = "cargar más" + shuffle (revelado por tandas). Decisión UX (opcional).
+- **Equipos:** ✅ RESUELTO — vitrina shuffle + "cargar más" por tandas (sin buscador). Ver `PRE_SLICE_EQUIPOS.md` (v3).
 - **Historial:** 4º hito real = "Temporadas" (el prototipo usa "Partido con más goles", clicable); "Mayor goleada" real es texto no clicable; real usa **tabla `.tbl` + dropdowns** de filtro y los inputs Equipo A/B para H2H, vs prototipo **lista `.histm` + rieles inline + tarjeta H2H con autocomplete**.
 - **Sorteo:** el real es **igual o más completo** que el prototipo (chibi + bombos + urna con chips + resultado con asignación a llaves). Solo el rig 2.5D (tilt/glow) es delta opcional.
 - **Palmarés:** real = "Sala de Trofeos" carrusel `tr-room`; prototipo = "Modo Vitrina" `.mv-*` + sala `#sala` con collage. Rediseño = Macro B.
@@ -99,17 +99,18 @@ Auditoría de código 2026-06-25 (4 agentes vs código real + `prototype.html`).
 
 ## 5. SLICES PENDIENTES (reorganizados por realidad)
 
-**Orden de ejecución VIGENTE (2026-06-26): C ✅ → C-polish → Equipos → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) **C ya ejecutado por Codex** (scroll continuo verificado). Pre-slices: `PRE_SLICE_C.md` (v4, hecho) · **`PRE_SLICE_C_POLISH.md` (v2, nuevo)** · **`PRE_SLICE_EQUIPOS.md` (v2, nuevo)** · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2) — **P0 + reescritos tras auditoría de código (2026-06-25) + dictamen Codex (2026-06-26)**. Ver §4bis (Δ Fidelidad) y §7 (auditoría).
+**Orden de ejecución VIGENTE (2026-06-27): C ✅ → C-polish ✅ → Equipos ✅ → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) **C, C-polish y Equipos ejecutados y en `redesign/migration`. Próximo slice = A.** Pre-slices: `PRE_SLICE_C.md` (v4, hecho) · `PRE_SLICE_C_POLISH.md` (v4, hecho) · `PRE_SLICE_EQUIPOS.md` (v3, hecho) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2). Ver §4bis (Δ Fidelidad) y §7 (auditoría).
 
-> ### ⚠️ SUPERSEDED (2026-06-26) — lee esto antes que el cuerpo histórico de abajo
+> ### ⚠️ SUPERSEDED (actualizado 2026-06-27) — lee esto antes que el cuerpo histórico de abajo
 > El cuerpo de §5/§6/§7 conserva texto fechado anterior. Donde contradiga, **mandan estas correcciones vigentes**:
-> 1. **Orden:** ~~`C → A → B → D`~~ → **`C ✅ → C-polish → Equipos → A → B → D`**.
-> 2. **C:** ~~"no está implementado" / "próximo slice = C"~~ → **C ya ejecutado por Codex** (scroll continuo verificado). **Próximo slice = C-polish.**
-> 3. **Gate de A:** ~~"A solo depende de C"~~ → **A depende de C + C-polish + Equipos** (en QA).
-> 4. **Bracket público:** ~~"renderer en `public.js`"~~ → **módulo nuevo `public-bracket.js`** (ver `PRE_SLICE_A.md` v2).
-> 5. **Tabla histórica `.ht-*`:** ~~"opcional"~~ → **incluida en A** (Codex 2026-06-25).
-> 6. **Equipos (load-more/shuffle):** ~~"opcional / pendiente"~~ → **DECIDIDO 2026-06-26: SÍ** (`PRE_SLICE_EQUIPOS.md`).
-> 7. Pre-slices vigentes: `PRE_SLICE_C_POLISH.md` (v3) · `PRE_SLICE_EQUIPOS.md` (v2) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2).
+> 1. **Orden:** ~~`C → A → B → D`~~ → **`C ✅ → C-polish ✅ → Equipos ✅ → A → B → D`**.
+> 2. **Estado:** C, C-polish y Equipos **hechos y verificados**. **Próximo slice = A.**
+> 3. **Gate de A:** cumplido — A arranca con C + C-polish + Equipos estables y en QA.
+> 4. **Bracket público:** **módulo nuevo `public-bracket.js`** (ver `PRE_SLICE_A.md` v2), no en `public.js`.
+> 5. **Tabla histórica `.ht-*`:** **incluida en A** (Codex 2026-06-25), no opcional.
+> 6. **Equipos:** **sin buscador** (decisión 2026-06-27: 32 equipos); vitrina shuffle + "cargar más" implementada.
+> 7. **Encabezados 02/06:** adelantados en C-polish. **02** (Competiciones) FINAL en `renderPubPanel`. **06** (Historial) es placeholder `.proto-divider` → **A lo reemplaza** por `.comp-sticky` + `cc-hist` (no añade un segundo título).
+> 8. Pre-slices vigentes: `PRE_SLICE_C_POLISH.md` (v4) · `PRE_SLICE_EQUIPOS.md` (v3) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2).
 
 ### Macro Slice C-polish — Fidelidad de shell → detalle en `PRE_SLICE_C_POLISH.md` (v3) ✅ HECHO (2026-06-27)
 Remate del scroll continuo (C) tras probarlo: (1) contenido **full-width** (`#main.public-scroll{max-width:none}`); (2) **títulos de sección** `.proto-divider` numerados/sticky en **solo 4** secciones (Palmarés/Calendario/Equipos/Sorteo); (3) **topbar móvil** a fila propia (Opción A) con **chrome dinámico** (`--chrome-h` medido). **⚠️ Por pedido explícito:** los encabezados de **Competiciones (02)** e **Historial (06)** fueron adelantados en este slice (no en A): 02 usa `.comp-sticky` con `cc-comp`/`cc-fase` en `renderPubPanel`; 06 usa `.proto-divider` estático (Slice A lo upgradea a `.comp-sticky` + `cc-hist`).
@@ -170,7 +171,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 ### Tareas transversales (fuera de A/B)
 - **Seguridad — barrido de escaping** en renderers compartidos: ramas raw restantes de `renderMatchesList`, `renderBracketHTML`, y `renderGroupTable` (`displayName`/`displayIni`/`z.name`). Tarea dedicada con QA admin+público.
 - **Cleanup de `redesign-public.js` (repartido entre C y A):** **C** retira el `<script src="js/redesign-public.js">` (`index.html:398`) — deja de cargarse/ejecutarse — pero **conserva el archivo en disco**. **A** mina de ese archivo los renderers ya portados (histm/hitos/countdown) y **borra el archivo físicamente como último paso**. No es opcional.
-- Opcionales de UX: rig 2.5D del sorteo; load-more de equipos.
+- Opcionales de UX: rig 2.5D del sorteo. *(Load-more de equipos → ✅ implementado, ya no opcional.)*
 
 ---
 
@@ -182,7 +183,7 @@ Cambiar el logo del topbar por el isotipo nuevo, sin mover nada más.
 - **Perfil UX — DECIDIDO:** **drawer arriba-derecha (desktop) + modal/drawer full-height (mobile)**.
 - Calendario: layout `.cal-duo` (hero+cronograma) — **DECIDIDO: sí, dentro de Slice A** (hero `.hm-*` + `cal-tl` real).
 - Historial: ¿lista `.histm` reemplaza la tabla en público? — **DECIDIDO: sí** (renderer público nuevo). Tabla responsive `.ht-*`: pasa de "opcional" a **incluida en A** (salvo descarte explícito).
-- Equipos: ¿load-more además del buscador, o sólo buscador?
+- Equipos: ✅ RESUELTO 2026-06-27 — **sólo load-more + shuffle, sin buscador** (32 equipos).
 - Sorteo: ¿rig 2.5D?
 - **Hero/Landing + fondo global — DECIDIDO 2026-06-25:** NO EXISTE en el prototipo (su 10% pendiente) → queda como tarea **posterior a C→A→B→D** (no se mete antes; primero hay que cerrarlo en `prototype.html`). "Frontend completo tal cual" requiere terminar ese 10% y luego un slice que lo porte.
 
@@ -206,7 +207,7 @@ Tras P0 de Codex, se auditaron los 4 pre-slices contra el código real y `protot
 - **Perfil: UX DECIDIDA = drawer (desktop) / modal full-height (mobile)**.
 - **Branding del topbar: APROBADO** como tarea puntual ejecutable ya, independiente de los macro slices.
 - **Veredicto:** aprobado como **mapa maestro**; **NO aprobado para ejecutar Macro Slice A** hasta resolver el scroll continuo.
-- **Próximo paso (actualizado 2026-06-26):** branding ✅ · **C ✅ ejecutado (scroll continuo verificado)** · **orden vigente: C → C-polish → Equipos → A → B → D** · C-polish (v3) y Equipos (v2) reescritos tras 2º dictamen Codex (admin diff-cero; `redesign.css` en Equipos; reconciliación por `id`) · **próximo slice = C-polish**, ejecutar cuando el usuario dé el OK + CP0 ≤10%.
+- **Próximo paso (actualizado 2026-06-27):** branding ✅ · **C ✅ · C-polish ✅ · Equipos ✅** (todos en `redesign/migration`) · **orden vigente: C → C-polish → Equipos → A → B → D** · encabezados 02/06 adelantados en C-polish (02 final; 06 placeholder que A reemplaza) · **próximo slice = A**, ejecutar cuando el usuario dé el OK + CP0 ≤10%.
 
 **Veredicto (2026-06-24):** plan aprobado con condiciones. No queda aprobado para ejecutar "tal cual" sin aplicar las correcciones siguientes.
 

@@ -721,8 +721,8 @@ async function _computeTeamStats(){
 }
 
 /* Spotlight: un foco con el color del club sigue al cursor dentro de cada tarjeta.
-   Delegado en document (una sola vez) → vale para tarjetas re-renderizadas por el
-   buscador. Solo con puntero fino y si el usuario no pidió movimiento reducido. */
+   Delegado en document (una sola vez) → vale para tarjetas añadidas por tandas o
+   re-renderizadas en el live. Solo con puntero fino y si el usuario no pidió movimiento reducido. */
 let _pubTeamsSpotlightBound = false;
 function _pubBindTeamsSpotlight(){
   if(_pubTeamsSpotlightBound) return;

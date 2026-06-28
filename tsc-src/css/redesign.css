@@ -713,6 +713,7 @@ body.sala-open{overflow:hidden;}
 .load-more-wrap{display:flex;justify-content:center;margin-top:22px;}
 .load-more{
   display:inline-flex;align-items:center;gap:9px;
+  min-height:44px;
   padding:9px 20px;border-radius:999px;cursor:pointer;
   background:var(--card);border:1px solid var(--gold-b);color:var(--gold);
   font-family:'Barlow Condensed';font-weight:700;font-size:14px;

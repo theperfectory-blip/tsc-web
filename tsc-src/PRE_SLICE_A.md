@@ -86,7 +86,10 @@ Verificar que C retiró `<script src="js/redesign-public.js">` (index.html:398) 
 **4c — H2H autocomplete:** dropdown de sugerencias sobre `_histTeams` (let local, poblado en history.js:346). Reusar `_histResolveTeam` (31) y `_buildH2HPanel` (1092). Detallar manejo de **foco/selección/blur**. No romper filtros admin ni `_histState.qA/qB`.
 
 **4d — Carruseles del Historial (#2 + #3):** **reutilizar `_pubMakeCarousel`** (ya existe en public.js, genérico `cc,items,activeIdx,onChange`):
-- **#2 `cc-hist`:** toggle "Partidos ⇄ Tabla histórica".
+- **#2 `cc-hist` (el encabezado 06):** **REEMPLAZAR el placeholder de shell.** Hoy `page-historial` tiene un `.proto-divider` con `pd-n "06" Historial` que C-polish dejó **solo como placeholder**. A debe **reemplazarlo** (no añadir un segundo título) por `.comp-sticky` con un carrusel `cc-hist` que reutilice **exactamente el comportamiento horizontal de la sección 02** (drag/swipe/click, vecinos difuminados, recenter). Opciones del carrusel:
+  - **Historial** → hitos + H2H + partidos (`.histm`).
+  - **Tabla histórica** → renderer `.ht-*` responsive (4e).
+  El carrusel **controla las dos vistas públicas reales**; no conservar controles duplicados ni la navegación/toggle actual en paralelo. Patrón espejo de `renderPubPanel` (02): el header `.comp-sticky` se inyecta desde `renderPubHistory`, retirando el `.proto-divider` estático de `index.html`.
 - **#3 filtros en cascada inline** (`cc-games`/`cc-seasons` dentro del hito Partidos) que recalculan hitos/lista/H2H. (Hoy el real usa dropdowns → se reemplazan por carruseles, decisión visual=prototipo.)
 
 **4e — Tabla histórica responsive `.ht-*` (CONFIRMADA dentro de A — Codex 2026-06-25):** 6 layouts responsivos (`_htLayout`) + toggle expand. **Entra en A** (ya no es opcional). Renderer público nuevo; conservar `_computeHistoricalStandings` (regla finished-season/FIFA) intacto.

@@ -1,7 +1,8 @@
-# Pre-slice — C-polish · Fidelidad de shell (full-width + títulos de sección + topbar móvil)
+# Pre-slice — C-polish · Fidelidad de shell (full-width + títulos de sección + topbar móvil) — ✅ COMPLETADO (2026-06-27)
+> **v4 (2026-06-27) cierre aprobado por usuario.** Slice cerrado y en `redesign/migration`. **Próximo slice = A.** Además del alcance original, por pedido explícito se adelantó el encabezado de **Competiciones (02)** e **Historial (06)** (ver "Encabezados 02/06" abajo).
 > **v3 (2026-06-26) tras 2º dictamen de Codex.** Corrige el **admin diff-cero**: el chrome dinámico NO toca el `margin-top:60px` global (`layout.css`/`nav.js` quedan **intactos**); se aplica **solo** gateado por `#main.public-scroll` (con `!important` que vence el inline de nav.js) y la 2ª fila móvil vive en `redesign.css` gateada por `#topbar.public-mode`. Así **C-polish no toca `layout.css` ni `nav.js`**.
 > v2 ya había corregido: divider genérico solo en 4 secciones (sin doble-sticky); inventario completo de hardcodes; `.proto-divider`/`.load-more` reutilizados.
-> Orden maestro: **C → C-polish → Equipos → A → B → D.** C-polish va tras C (mismo shell) y antes de A. **⚠️ ACTUALIZACIÓN 2026-06-27:** los encabezados especiales de **Competiciones (02) e Historial (06)** fueron adelantados durante C-polish/Equipos por pedido explícito del usuario — ver nota en `PRE_SLICE_A.md`. Slice A los completa (06 pasa de `proto-divider` estático a `.comp-sticky` + `cc-hist`), no los crea desde cero.
+> Orden maestro: **C → C-polish → Equipos → A → B → D.**
 
 ## Brújula (2026-06-25)
 La lógica gana **solo** en datos/permisos/persistencia; en **layout/estética/motion gana el prototipo** salvo conflicto duro documentado. Los 3 ítems son estética/estructura de shell → fidelidad alta exigida.
@@ -31,13 +32,17 @@ Cerrar la fidelidad estructural del scroll continuo público: (1) **full-width**
 
 **`.proto-divider` YA existe** en `redesign.css:132-135` (versión **no-sticky**) → **reutilizar y solo añadirle el sticky** (`position:sticky; top:var(--chrome-h)`).
 
-**Acción C-polish (solo las 4 de divider genérico):**
-- Añadir a `.proto-divider` (redesign.css) `position:sticky; top:var(--chrome-h); z-index:30; background:var(--bg); padding:6px 0 18px;`.
-- Reemplazar el `.section-lbl` de **Palmarés / Calendario / Equipos / Sorteo** por `.proto-divider` con número + nombre **EXACTO del botón**: `01 Palmarés` · `03 Calendario` · `04 Equipos` · `05 Sorteo`. Añadir a `page-palmares` (hoy no tiene).
-- **NO tocar** `page-panel` (Competiciones) ni `page-historial`: su `.section-lbl` actual se conserva hasta que **Slice A** construya el `.comp-sticky > .comp-title` con `pd-n` 02/06 (A ya crea esos carruseles cc-comp/cc-fase/cc-hist). **C-polish no crea esos dos encabezados** → **sin doble-sticky**.
+**Acción C-polish (4 dividers genéricos):**
+- Añadido a `.proto-divider` (redesign.css) `position:sticky; top:var(--chrome-h); z-index:30; background:var(--bg); padding:6px 0 18px;`.
+- Reemplazado el `.section-lbl` de **Palmarés / Calendario / Equipos / Sorteo** por `.proto-divider` con número + nombre **EXACTO del botón**: `01 Palmarés` · `03 Calendario` · `04 Equipos` · `05 Sorteo`. Añadido a `page-palmares`.
 - **NO tocar** `.section-lbl` de las páginas **admin**.
 
-**Numeración:** fija 01/03/04/05 aquí (02/06 los pone A). Sorteo arranca `hidden` ([index.html:175](index.html:175)) → su "05" no se ve si está oculto; **no renumerar** dinámicamente.
+**Numeración:** fija 01/03/04/05 (Sorteo arranca `hidden` → su "05" no se ve si está oculto; **no renumerar** dinámicamente).
+
+### Encabezados 02/06 — adelantados por pedido explícito (2026-06-27)
+Fuera del alcance v3 (que los dejaba para A), el usuario pidió construirlos ya:
+- **Competiciones (02) — ✅ HECHO Y FINAL.** `renderPubPanel` ([public.js](js/public.js)) emite `.comp-sticky > .comp-title` con `<span class="pd-n">02</span>` + carruseles `cc-comp`/`cc-fase` (ya migrados). `page-panel` ya no tiene `section-lbl`. El empty/off-season también renderiza el header. **A NO lo toca.**
+- **Historial (06) — placeholder de shell, A lo reemplaza.** `page-historial` tiene un `.proto-divider` con `pd-n "06" Historial` **solo como placeholder**. **Slice A debe REEMPLAZARLO** (no añadir un segundo título) por `.comp-sticky` con un carrusel **`cc-hist`** que reutilice el comportamiento horizontal exacto de la sección 02. Opciones del carrusel: **Historial** ↔ **Tabla histórica**. Sin controles duplicados ni navegación actual paralela. Ver `PRE_SLICE_A.md` Paso 4d.
 
 ---
 
@@ -85,7 +90,7 @@ En admin (sin `.public-scroll`) `#main` conserva `margin-top:60px` y el cap 1400
 ---
 
 ## Fuera de alcance (NO entra)
-- Encabezados especiales de **Competiciones (02)** e **Historial (06)** → **Slice A**.
+- Encabezado **02 (Competiciones)** se construyó aquí (adelanto); **06 (Historial)** quedó como placeholder `.proto-divider` → **Slice A lo reemplaza** por `.comp-sticky` + `cc-hist`.
 - Contenido/internals de cualquier sección (`renderPub*`).
 - **`layout.css` y `nav.js`** (clearance global del admin) — **intactos**.
 - Admin (page-based; `.section-lbl` admin intacto; cap 1400; una sola fila).
@@ -94,14 +99,14 @@ En admin (sin `.public-scroll`) `#main` conserva `margin-top:60px` y el cap 1400
 
 ## Archivos a tocar / NO tocar
 **Tocar (todos públicos):** `redesign.css` (`#main.public-scroll{margin-top:var(--chrome-h)!important;max-width:none}` + `.with-ticker` público + `.proto-divider` sticky + `82`/`48`→vars + `@media` 2 filas gateado por `#topbar.public-mode`), `variables.css` (`--chrome-h`/`--topbar-h` con fallback), `redesign-shell.js` (medición + ResizeObserver + reconstrucción focusObserver + offset medido + `public-mode`), `index.html` (`.section-lbl`→`.proto-divider` en Palmarés/Calendario/Equipos/Sorteo + divider en Palmarés).
-**NO tocar:** **`layout.css`** (margin-top global), **`nav.js`** (marginTop inline), lógica del observer/focus (salvo offset/rootMargin), `page-panel`/`page-historial` (encabezado = A), `live.js`, `palmares.js`, renderers, `.section-lbl` admin, `#main.with-sidebar`, `cloudinary.js`/`firebase-config.js`.
+**NO tocar:** **`layout.css`** (margin-top global), **`nav.js`** (marginTop inline), lógica del observer/focus (salvo offset/rootMargin), `live.js`, `palmares.js`, renderers, `.section-lbl` admin, `#main.with-sidebar`, `cloudinary.js`/`firebase-config.js`. *(Nota: `page-panel`/`page-historial` sí se tocaron en el adelanto de encabezados 02/06 — ver sección "Encabezados 02/06".)*
 
 ## Riesgos + mitigaciones
 | Riesgo | Mitigación |
 |---|---|
 | Tocar el clearance global rompe admin | **No se toca:** clearance público solo por `#main.public-scroll` con `!important`; admin conserva `60px` |
 | Inline `marginTop='60px'` de nav.js pisa el chrome dinámico | El gate público usa `!important` (mayor que inline) → gana en público; admin lo conserva |
-| Doble-sticky en Competiciones/Historial | C-polish no les pone divider; encabezado (con número) = A |
+| Doble-sticky en Competiciones/Historial | 02 usa solo `.comp-sticky`; 06 usa solo el placeholder `.proto-divider` (A lo reemplaza, no añade un segundo título) |
 | Hardcode olvidado → sticky/clearance roto | Tabla-inventario; `--chrome-h`/`--topbar-h` con fallback; QA scroll con y sin ticker |
 | rootMargin inmutable no se actualiza en móvil | Reconstruir focusObserver vía `refreshPublicScrollSections` al cambiar `--chrome-h` |
 | 2ª fila aparece en admin | Gate `#topbar.public-mode` desde `syncRedesignShellMode` |
@@ -115,14 +120,14 @@ CP0 `five_hour ≤ 10%` · freeze 65% · cierre 75%. Máx 3 subagentes solo-lect
 
 ## QA esperada
 - Público full-width (gutter conservado); **admin: `margin-top:60px` + cap 1400 + sidebar + una sola fila — diff-cero verificado**.
-- 4 secciones (Palmarés/Calendario/Equipos/Sorteo) con divider numerado sticky = nombre del botón; Competiciones/Historial **sin tocar**.
+- 4 secciones (Palmarés/Calendario/Equipos/Sorteo) con divider numerado sticky = nombre del botón; **02 Competiciones** con `.comp-sticky` propio; **06 Historial** con placeholder `.proto-divider` (A lo reemplaza).
 - **Móvil:** nav en **fila propia full-width** (solo público); admin en una fila.
 - Scroll/scrollspy/smooth-scroll correctos desktop **y** móvil; offset/clearance correctos **con y sin ticker**; focusObserver reconstruido al cambiar breakpoint.
 - `node --check` (redesign-shell.js) · consola limpia · admin→público ok · sin emojis · SVG Lucide.
 
 ## Criterios de OK de Codex (P4)
 - **`layout.css` y `nav.js` diff-cero**; clearance público solo por `#main.public-scroll` (con `!important`); admin `margin-top:60px` intacto.
-- Divider sticky en **solo 4** secciones; Competiciones/Historial intactas (encabezado = A); **sin doble-sticky**.
+- Divider sticky en 4 secciones; **02** con `.comp-sticky` (adelantado); **06** con placeholder `.proto-divider` (A lo reemplaza); **sin doble-sticky**.
 - `.proto-divider`/`.load-more` **reutilizados**.
 - Hardcodes públicos → `var(--chrome-h)`/`var(--topbar-h)` con fallback; offset medido; focusObserver reconstruido; bug del ticker corregido.
 - 2ª fila móvil en `redesign.css` gateada por `#topbar.public-mode` (admin una fila).
