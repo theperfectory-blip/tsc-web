@@ -316,7 +316,43 @@ async function renderPubHistory(){
   if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('partidos');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
+  _injectHistHeader(0);
   await _renderHistoryFull(el, false);
+}
+
+/* ----------------------------------------------------------
+   CARRUSEL CC-HIST (cabecera sticky de la sección 06)
+   ---------------------------------------------------------- */
+let _pubHistCarousel = null;
+let _pubHistCarouselResizeBound = false;
+function _pubBindHistCarouselResize(){
+  if(_pubHistCarouselResizeBound) return;
+  _pubHistCarouselResizeBound = true;
+  window.addEventListener('resize', ()=>{ _pubHistCarousel?.recenter?.(); });
+}
+function _injectHistHeader(activeIdx){
+  const page = document.getElementById('page-historial');
+  if(!page) return;
+  let sticky = page.querySelector('.comp-sticky.hist-header');
+  if(!sticky){
+    sticky = document.createElement('div');
+    sticky.className = 'comp-sticky hist-header';
+    sticky.innerHTML = '<div class="comp-title"><span class="pd-n">06</span>'
+      +'<div class="cc cc-hist" id="pub-cc-hist"><div class="cc-view"><div class="cc-track"></div></div></div>'
+      +'</div>';
+    const content = document.getElementById('pub-history-content');
+    if(content) page.insertBefore(sticky, content);
+    else page.prepend(sticky);
+  }
+  const cc = document.getElementById('pub-cc-hist');
+  if(cc && typeof _pubMakeCarousel==='function'){
+    _pubHistCarousel = _pubMakeCarousel(cc, ['Historial','Tabla histórica'], activeIdx, i=>{
+      if(i===0) renderPubHistory();
+      else renderPubHistoryStandings();
+    });
+    _pubBindHistCarouselResize();
+    requestAnimationFrame(()=>{ _pubHistCarousel?.recenter?.(); });
+  }
 }
 
 /* Devuelve la unión: estáticos (JSON) + lives (IDB), todos resueltos.
@@ -360,16 +396,24 @@ async function _getResolvedRecords(){
    temporadas) calculadas de los records resueltos. Los números animan con
    MOTION.countUp; «mayor goleada» es texto (marcador) → sin countUp. */
 function _pubHistoryHitos(records){
-  let goles=0, maxDiff=-1, maxLabel='—';
-  const temps = new Set();
+  let goles=0, maxDiff=-1, maxLabel='—', maxGoals=-1, maxGoalsLabel='—';
+  let maxBlowoutCtx='', maxGoalsCtx='';
   for(const r of records){
     const a=parseInt(r.golesA), b=parseInt(r.golesB);
     if(!isNaN(a) && !isNaN(b)){
       goles += a+b;
-      const diff=Math.abs(a-b);
-      if(diff>maxDiff){ maxDiff=diff; maxLabel = `${Math.max(a,b)}-${Math.min(a,b)}`; }
+      const diff=Math.abs(a-b), total=a+b;
+      if(diff>maxDiff){
+        maxDiff=diff;
+        maxLabel=`${Math.max(a,b)}-${Math.min(a,b)}`;
+        maxBlowoutCtx=_esc(r.temporada||'');
+      }
+      if(total>maxGoals){
+        maxGoals=total;
+        maxGoalsLabel=`${a}-${b}`;
+        maxGoalsCtx=_esc(r.temporada||'');
+      }
     }
-    if(r.temporada) temps.add(String(r.temporada).trim());
   }
   const card=(val,label,isText)=>`
     <div class="hito-stage">
@@ -378,11 +422,19 @@ function _pubHistoryHitos(records){
         <span>${_esc(label)}</span>
       </div>
     </div>`;
+  const cardClick=(val,label,id,ctx)=>`
+    <div class="hito-stage">
+      <button type="button" class="hito hito-click" id="${id}">
+        <b>${_esc(val)}</b>
+        <span>${_esc(label)}</span>
+        ${ctx?`<small class="hito-scope">${ctx}</small>`:''}
+      </button>
+    </div>`;
   return `<div class="hitos-grid">
     ${card(records.length,'Partidos jugados')}
     ${card(goles,'Goles anotados')}
-    ${card(maxLabel,'Mayor goleada',true)}
-    ${card(temps.size,'Temporadas')}
+    ${cardClick(maxLabel,'Mayor goleada','hito-blowout',maxBlowoutCtx)}
+    ${cardClick(maxGoalsLabel,'Partido con más goles','hito-mostgoals',maxGoalsCtx)}
   </div>`;
 }
 
@@ -422,43 +474,19 @@ async function _renderHistoryFull(el, isAdmin){
       return;
     }
 
-    // PÚBLICO: hitos broadcast + carrusel «Partidos | Tabla histórica».
-    // Las zonas de filtros/tabla viven dentro del pane "partidos" → los handlers
-    // (histSetFilter/histSetSearch/histShowMore) las encuentran como descendientes.
+    // PÚBLICO: hitos + filtros + tabla de partidos.
+    // Navegación «Historial | Tabla histórica» controlada por el carrusel cc-hist
+    // (inyectado por _injectHistHeader en renderPubHistory / renderPubHistoryStandings).
     el.innerHTML = `
       ${_pubHistoryHitos(all)}
-      <div class="hist-pub-tabs">
-        <button type="button" class="hist-tab active" data-tab="partidos">Partidos</button>
-        <button type="button" class="hist-tab" data-tab="tabla">Tabla histórica</button>
-      </div>
-      <div class="hist-pane" data-pane="partidos">
-        <div class="hist-filters-zone"></div>
-        <div class="hist-summary-zone" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
-        <div class="hist-table-zone card" style="overflow:auto;"></div>
-        <div class="hist-more-zone"></div>
-      </div>
-      <div class="hist-pane" data-pane="tabla" hidden></div>
+      <div class="hist-filters-zone"></div>
+      <div class="hist-summary-zone" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
+      <div class="hist-table-zone card" style="overflow:auto;"></div>
+      <div class="hist-more-zone"></div>
     `;
     _renderFiltersZone(el, all, false);
     _refreshTableZone(el, all, false);
     _pubHistoryCountUp(el);
-
-    // Carrusel de vistas: la tabla histórica se renderiza perezosamente al abrirla.
-    const paneP = el.querySelector('[data-pane="partidos"]');
-    const paneT = el.querySelector('[data-pane="tabla"]');
-    let tablaLoaded = false;
-    el.querySelectorAll('.hist-tab').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        const tab = btn.dataset.tab;
-        el.querySelectorAll('.hist-tab').forEach(b=>b.classList.toggle('active', b===btn));
-        if(paneP) paneP.hidden = tab!=='partidos';
-        if(paneT) paneT.hidden = tab!=='tabla';
-        if(tab==='tabla' && !tablaLoaded && paneT){
-          tablaLoaded = true;
-          await _renderHistoryStandingsInto(paneT, false);
-        }
-      });
-    });
     return;
   } catch(err){
     console.error('[Historial] Error al renderizar:', err);
@@ -950,7 +978,69 @@ async function renderPubHistoryStandings(){
   if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('tabla');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
-  await _renderHistoryStandingsInto(el, false);
+  _injectHistHeader(1);
+  await _pubRenderHistoryStandings(el);
+}
+
+/* Renderer público de la tabla histórica con markup .ht-* (sin controles admin). */
+async function _pubRenderHistoryStandings(el){
+  try {
+    const data = await _computeHistoricalStandings();
+    if(!data.standings.length){
+      el.innerHTML = '<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">No hay datos suficientes para la tabla histórica.</div>';
+      return;
+    }
+    const rows = data.standings.map((s,i)=>{
+      const rendPct = (s.rendimiento*100).toFixed(1);
+      const logoHTML = s.logo
+        ? `<img src="${_esc(s.logo)}" style="width:100%;height:100%;object-fit:cover;" alt="${_esc(s.name||'')}">`
+        : _esc((s.ini||(s.name||'?').substring(0,3)).toUpperCase());
+      return `<div class="ht-row">
+        <span class="ht-pos">${i+1}</span>
+        <div class="ht-team">
+          <span class="ht-crest" style="background:${_esc(s.color||'#333')};">${logoHTML}</span>
+          <span class="ht-name">${_esc(s.name||'?')}</span>
+        </div>
+        <span class="ht-pj">${s.pj}</span>
+        <span class="ht-pts">${s.pts}</span>
+        <div class="ht-rend">
+          <div class="ht-bar"><i data-w="${rendPct}" style="width:0%;"></i></div>
+          <span class="ht-pct">${rendPct}%</span>
+        </div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div class="ht-card">
+      <div class="ht-row hdr">
+        <span class="ht-pos">#</span>
+        <div class="ht-team">Equipo</div>
+        <span class="ht-pj">PJ</span>
+        <span class="ht-pts">Pts</span>
+        <div class="ht-rend">Rendimiento</div>
+      </div>
+      ${rows}
+    </div>`;
+    const card = el.querySelector('.ht-card');
+    if(card && 'IntersectionObserver' in window){
+      new IntersectionObserver((ents, obs)=>{
+        ents.forEach(e=>{
+          if(!e.isIntersecting) return;
+          card.querySelectorAll('.ht-bar i').forEach(bar=>{ bar.style.width = (bar.dataset.w||0)+'%'; });
+          obs.unobserve(e.target);
+        });
+      },{threshold:0.1}).observe(card);
+    }
+  } catch(err){
+    console.error('[Tabla histórica pública]', err);
+    el.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;"><strong>Error al calcular tabla histórica:</strong><br><code style="font-size:11px;">${(err.message||err).toString().replace(/</g,'&lt;')}</code></div>`;
+  }
+}
+
+/* Activa el panel H2H público dado los iniciales/nombre de dos equipos. */
+function histH2HShow(qA, qB){
+  _histState.qA = String(qA||'');
+  _histState.qB = String(qB||'');
+  _histState.page = 1;
+  renderPubHistory();
 }
 
 async function _renderHistoryStandingsInto(el, isAdmin){

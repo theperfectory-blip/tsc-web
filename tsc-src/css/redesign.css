@@ -807,6 +807,12 @@ body.sala-open{overflow:hidden;}
   background:var(--card);border-radius:calc(var(--rl) - 2px);}
 .hito b{display:block;font-family:'Bebas Neue';font-size:clamp(26px,4vw,38px);font-weight:400;color:var(--gold);line-height:1;}
 .hito span{font-family:'Barlow Condensed';font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);}
+.hito-click{cursor:pointer;appearance:none;border:none;width:100%;text-align:left;
+  font-family:inherit;transition:background var(--dur-fast,0.15s);}
+.hito-click:hover{background:color-mix(in srgb,var(--gold) 8%,var(--card));}
+.hito-click:active{background:color-mix(in srgb,var(--gold) 14%,var(--card));}
+.hito-scope{display:block;font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--txt3);margin-top:4px;font-family:'Barlow Condensed',sans-serif;}
 .hist-duo{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;}
 @media(min-width:1000px){.hist-duo{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:20px;}}
 /* Tarjeta «mano a mano»: efecto Tiagoadag con los colores de la web. El marco es un

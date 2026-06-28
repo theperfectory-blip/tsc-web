@@ -189,12 +189,12 @@ async function renderPubPanel(){
         // Composición broadcast: por grupo, tabla .stand-card + marcadores .scores-stack.
         await _pubRenderGroupsBroadcast(selPhase.id, phaseContentId);
       }
-    else if(selPhase.type==='bracket') await renderBracket(selPhase.id, phaseContentId, false);
-    else if(selPhase.type==='playoff') await renderPlayoff(selPhase.id, phaseContentId, false);
+    else if(selPhase.type==='bracket') await _pubRenderBracketBroadcast(selPhase.id, phaseContentId);
+    else if(selPhase.type==='playoff') await _pubRenderPlayoffBroadcast(selPhase.id, phaseContentId);
     else if(selPhase.type==='single'){
       const teams = selPhase.config?.teams||2;
-      if(teams===4) await renderBracket(selPhase.id, phaseContentId, false);
-      else await renderPlayoff(selPhase.id, phaseContentId, false);
+      if(teams===4) await _pubRenderBracketBroadcast(selPhase.id, phaseContentId);
+      else await _pubRenderPlayoffBroadcast(selPhase.id, phaseContentId);
     }
     else {
       const ct = document.getElementById(phaseContentId);
