@@ -556,28 +556,41 @@ function _calHeroHtml(m, isLive, ctx){
   const comp  = phase ? compById[phase.compId] : null;
   const taN = ta?.name || m.labelA || 'Por definir';
   const tbN = tb?.name || m.labelB || 'Por definir';
-  const col = (comp?.color && /^#[0-9A-Fa-f]{3,8}$/.test(comp.color)) ? comp.color : 'var(--gold)';
   const label = [comp?.name||'', phase?.name||''].filter(Boolean).join(' · ');
   const time  = m.scheduledTime ? m.scheduledTime.substring(0,5) : null;
   const when  = m.scheduledDate ? `${_calFormatDay(m.scheduledDate)}${time?` · ${time}`:''}` : (time||'');
-  const eyebrow = isLive
+  const eyebrowChip = isLive
     ? `<span class="chip chip-live"><span class="chip-dot"></span>En vivo</span>`
-    : `<span class="cal-hero-lbl">Próximo partido</span>`;
-  const mid = isLive
-    ? `<div class="cal-hero-score"><span class="score-n">${m.goalsA||0}</span><span class="cal-hero-dash">-</span><span class="score-n">${m.goalsB||0}</span></div>`
-    : `<div class="cal-hero-count" id="cal-hero-count">—</div>${when?`<div class="cal-hero-when">${_esc(when)}</div>`:''}`;
+    : (label ? `<span class="chip">${_esc(label)}</span>` : '');
   return `
-  <div class="cal-hero ${isLive?'cal-hero--live':'cal-hero--next'}" style="--cc:${_esc(col)};">
-    <div class="cal-hero-eyebrow">${eyebrow}${label?`<span class="cal-hero-comp">${_esc(label)}</span>`:''}</div>
-    <div class="cal-hero-face">
-      <div class="cal-hero-side home">
-        ${_calLogo(ta, 56, taN)}
-        <span class="cal-hero-name">${_esc(taN)}</span>
-      </div>
-      <div class="cal-hero-mid">${mid}</div>
-      <div class="cal-hero-side away">
-        <span class="cal-hero-name">${_esc(tbN)}</span>
-        ${_calLogo(tb, 56, tbN)}
+  <div class="hm-collapsible" tabindex="0" role="button" aria-expanded="false">
+    <div class="hm-border"></div>
+    <div class="hm-peek">
+      <span class="hm-peek-lbl">${isLive ? 'En vivo' : 'Próximo partido'}</span>
+      ${isLive
+        ? `<div class="hm-count" style="color:var(--live);">${m.goalsA??0} — ${m.goalsB??0}</div>`
+        : `<div class="hm-count" id="hm-countdown">—</div>`}
+      <span class="hm-peek-hint">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        Ver enfrentamiento
+      </span>
+    </div>
+    <div class="hm-expand">
+      <div class="hm-top">${eyebrowChip}</div>
+      <div class="hm-face">
+        <div class="hm-side home">
+          ${_calLogo(ta, 64, taN)}
+          <span class="hm-name">${_esc(taN)}</span>
+        </div>
+        <div class="hm-mid">
+          ${isLive
+            ? `<div class="hm-count" style="font-size:3rem;color:var(--live);">${m.goalsA??0}—${m.goalsB??0}</div>`
+            : when ? `<div class="hm-when">${_esc(when)}</div>` : ''}
+        </div>
+        <div class="hm-side away">
+          <span class="hm-name">${_esc(tbN)}</span>
+          ${_calLogo(tb, 64, tbN)}
+        </div>
       </div>
     </div>
   </div>`;
@@ -586,7 +599,7 @@ function _calHeroHtml(m, isLive, ctx){
 /* Arranca la cuenta atrás del hero «próximo partido». Usa MOTION.countdown si
    está disponible; si no, degrada a hora/fecha estática (sin animación). */
 function _calInitHeroCountdown(m){
-  const cEl = document.getElementById('cal-hero-count');
+  const cEl = document.getElementById('hm-countdown');
   if(!cEl) return;
   if(!m.scheduledDate){ cEl.textContent = m.scheduledTime ? m.scheduledTime.substring(0,5) : '—'; return; }
   const target = new Date(`${m.scheduledDate}T${(m.scheduledTime||'00:00')}:00`);
@@ -648,16 +661,35 @@ async function renderPubCalendar(){
   const allDates = [...new Set([...Object.keys(byDate), ...labelDatesAll])].sort();
 
   if(!allDates.length){
-    // Si hay un partido en vivo (sin fechas futuras programadas), el hero sigue
-    // siendo el foco; debajo, una nota de vacío más discreta.
-    const emptyCard = `
-    <div class="cal-pub-empty">
-      <svg viewBox="0 0 24 24" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <div class="cal-pub-empty-title">${heroHtml?'No hay más partidos programados':'Sin partidos programados'}</div>
-      <div class="cal-pub-empty-sub">Los próximos partidos aparecerán aquí en cuanto el admin los programe</div>
-    </div>`;
-    el.innerHTML = heroHtml + emptyCard;
-    if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch);
+    if(!heroMatch){
+      el.innerHTML = `
+      <div class="hm-collapsible" tabindex="0" role="button" aria-expanded="false">
+        <div class="hm-border"></div>
+        <div class="hm-peek">
+          <span class="hm-peek-lbl">Copa Suscriptores</span>
+          <div class="hm-count" style="font-size:1.4rem;letter-spacing:-1px;">Sin partidos</div>
+          <span class="hm-peek-hint">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            Ver detalles
+          </span>
+        </div>
+        <div class="hm-expand">
+          <div class="hm-top"><span class="chip">Próximamente</span></div>
+          <p style="color:var(--txt3);font-size:14px;text-align:center;margin:16px 0 0;">Estamos preparando la próxima temporada. ¡Sigue a Luis en directo para no perderte nada!</p>
+        </div>
+      </div>`;
+    } else {
+      el.innerHTML = `${heroHtml}
+      <div class="cal-pub-empty">
+        <div class="cal-pub-empty-title">No hay más partidos programados</div>
+        <div class="cal-pub-empty-sub">Los próximos partidos aparecerán aquí en cuanto el admin los programe</div>
+      </div>`;
+      if(!heroIsLive) _calInitHeroCountdown(heroMatch);
+    }
+    el.querySelector('.hm-collapsible')?.addEventListener('click', function(){
+      this.classList.toggle('open');
+      this.setAttribute('aria-expanded', String(this.classList.contains('open')));
+    });
     return;
   }
 
@@ -781,12 +813,18 @@ async function renderPubCalendar(){
   }
 
   el.innerHTML=`
-    ${heroHtml}
-    <div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>
-    <div class="cal-pub-layout">
+    <div class="cal-duo">
+      ${heroHtml}
       ${timelineHtml()}
-      <div class="cal-pub-days">${daysHtml}</div>
-    </div>`;
+    </div>
+    <div class="cal-pub-summary">${total} partido${total!==1?'s':''} próximo${total!==1?'s':''}</div>
+    <div class="cal-pub-days">${daysHtml}</div>`;
+
+  /* Toggle colapsable del hero */
+  el.querySelector('.hm-collapsible')?.addEventListener('click', function(){
+    this.classList.toggle('open');
+    this.setAttribute('aria-expanded', String(this.classList.contains('open')));
+  });
 
   /* Cuenta atrás del hero (solo si el foco es el «próximo partido», no en vivo) */
   if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch);

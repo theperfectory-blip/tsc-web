@@ -48,8 +48,7 @@ async function renderProfileBody(){
   const body = document.getElementById('profile-body');
   if (!body) return;
 
-  const team  = AUTH.teamId != null ? await dbGet('teams', AUTH.teamId).catch(()=>null) : null;
-  const stats = team ? await _loadTeamStats(AUTH.teamId, team) : null;
+  const team   = AUTH.teamId != null ? await dbGet('teams', AUTH.teamId).catch(()=>null) : null;
   const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
   window._profileTeam = team;
 
@@ -57,140 +56,147 @@ async function renderProfileBody(){
   const email    = AUTH.user.email;
   const username = AUTH.profile?.username || '';
   const verified = AUTH.user.emailVerified;
-  const roleLbl  = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
+  const roleLbl  = AUTH.role==='admin' ? 'Admin' : (AUTH.role==='president' ? 'Presidente' : 'Usuario');
 
   const avatarSrc = _profileAvatarData !== undefined ? _profileAvatarData : (AUTH.profile?.photoURL || null);
-  const avatarInner = avatarSrc
-    ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;">`
-    : `<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:block;color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
+  const currentLogo = _profileLogoData !== undefined ? _profileLogoData : team?.logo;
 
-  const verBadge = verified
-    ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
-    : `<span style="color:#FFC107;font-size:11px;font-weight:600;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> sin verificar</span>
-       <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`;
+  const tc  = (team?.color  && /^#[0-9A-Fa-f]{3,8}$/.test(team.color))  ? team.color  : '#1a1a2e';
+  const tc2 = (team?.color2 && /^#[0-9A-Fa-f]{3,8}$/.test(team.color2)) ? team.color2 : tc;
 
-  const editBadge = `
-    <span style="position:absolute;bottom:3px;right:3px;background:var(--gold);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.5);pointer-events:none;">
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-    </span>`;
+  // Forma reciente: últimos 5 resultados del club (desde matches de la temporada)
+  let recentForm = [];
+  if(team){
+    try {
+      const done = (await getForSeason('matches'))
+        .filter(m=>(m.teamA===team.id||m.teamB===team.id) && m.goalsA!=null && m.goalsB!=null)
+        .sort((a,b)=>{
+          const ka=(a.scheduledDate||'')+String(a.id||0).padStart(9,'0');
+          const kb=(b.scheduledDate||'')+String(b.id||0).padStart(9,'0');
+          return ka<kb?-1:ka>kb?1:0;
+        });
+      recentForm = done.slice(-5).map(m=>{
+        const isA=m.teamA===team.id, gf=isA?m.goalsA:m.goalsB, ga=isA?m.goalsB:m.goalsA;
+        return gf>ga?'w':gf<ga?'l':'d';
+      });
+    } catch(e){ recentForm=[]; }
+  }
 
-  let html = `
-    <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
-      <label for="profile-avatar-file" style="position:relative;width:72px;height:72px;flex:none;cursor:pointer;" title="Cambiar foto de perfil">
-        <div id="profile-avatar-preview" style="width:72px;height:72px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
-          ${avatarInner}
+  const stats = team ? await _loadTeamStats(AUTH.teamId, team).catch(()=>null) : null;
+
+  // ── Crest para el header ─────────────────────────────────────
+  const crestContent = currentLogo
+    ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
+    : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${_pfEsc((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
+
+  // ── Header con gradiente del club ────────────────────────────
+  const hdrHtml = `<div class="pp-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};margin:-16px -16px 16px;">
+    <div class="pp-id">
+      ${team ? `
+        <label for="profile-logo-file" style="${locked?'':'cursor:pointer;'}" title="${locked?'Bloqueado':'Cambiar escudo'}">
+          <div class="pp-crest" id="profile-logo-preview" style="background:${_pfEsc(tc)};">${crestContent}</div>
+        </label>
+        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
+      ` : `
+        <label for="profile-avatar-file" style="cursor:pointer;" title="Cambiar foto de perfil">
+          <div class="pp-crest" id="profile-avatar-preview" style="border-radius:50%;background:rgba(255,255,255,0.15);">
+            ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">` : `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
+          </div>
+        </label>
+        <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
+      `}
+      <div>
+        <div class="pp-club">${_pfEsc(team?.name || name)}</div>
+        <div class="pp-user">
+          ${_pfEsc(username ? '@'+username : email.split('@')[0])}
+          <span class="pp-role">${_pfEsc(roleLbl)}</span>
         </div>
-        ${editBadge}
+      </div>
+    </div>
+    ${recentForm.length ? `<div class="form-strip" style="margin-top:12px;">${recentForm.map(r=>`<span class="form-pip ${r}"></span>`).join('')}</div>` : ''}
+  </div>`;
+
+  // ── Cuerpo ───────────────────────────────────────────────────
+  let bd = '';
+
+  if(stats && stats.P > 0) bd += _statsHTML(stats);
+
+  // Foto de perfil personal (cuando el crest del equipo está en el header)
+  if(team){
+    bd += `<div style="display:flex;align-items:center;gap:10px;">
+      <label for="profile-avatar-file" style="position:relative;flex:none;cursor:pointer;" title="Cambiar foto de perfil">
+        <div id="profile-avatar-preview" style="width:44px;height:44px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
+          ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`}
+        </div>
+        <span style="position:absolute;bottom:1px;right:1px;background:var(--gold);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;pointer-events:none;"><svg viewBox="0 0 24 24" width="8" height="8" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span>
       </label>
       <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
-    </div>
+      <span style="font-size:12px;color:var(--txt3);">Foto de perfil personal</span>
+    </div>`;
+  }
 
-    <div class="form-group">
-      <label>Nombre para mostrar</label>
-      <input type="text" id="profile-name" value="${_pfEsc(name)}">
-    </div>
-    <div class="form-group">
-      <label>Nombre de usuario</label>
-      <div style="position:relative;">
-        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:14px;pointer-events:none;">@</span>
-        <input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario"
-          style="padding-left:26px;"
-          oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+  bd += `<div class="form-group" style="margin:0;"><label>Nombre para mostrar</label><input type="text" id="profile-name" value="${_pfEsc(name)}"></div>
+    <div class="form-group" style="margin:0;"><label>Nombre de usuario</label>
+      <div style="position:relative;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:14px;pointer-events:none;">@</span>
+        <input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario" style="padding-left:26px;" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
       </div>
     </div>
+    <div style="font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      ${_pfEsc(email)} ${verified
+        ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
+        : `<span style="color:#FFC107;font-size:11px;font-weight:600;">sin verificar</span> <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`}
+    </div>`;
 
-    <div style="font-size:12px;color:var(--txt3);margin:-4px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      ${_pfEsc(email)} ${verBadge} · <b>${roleLbl}</b>
+  if(team){
+    if(locked) bd += `<div style="background:rgba(255,193,7,0.12);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> El administrador bloqueó la edición de nombre y escudo.</div>`;
+    bd += `<div class="form-group" style="margin:0;"><label>Nombre del club</label><input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
+      <button class="btn btn-sm" style="align-self:flex-start;" onclick="profileViewMyMatches()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg> Ver historial de mi club</button>`;
+  } else {
+    if(AUTH.role==='president') bd += `<div style="font-size:13px;color:var(--txt3);padding:4px 0;">Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.</div>`;
+    bd += `<input type="hidden" id="profile-team-name" value="">`;
+  }
+
+  bd += `<div style="display:flex;flex-direction:column;gap:6px;">
+    <div class="pp-sec" onclick="profileTogglePasswordChange()">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Cambiar contraseña</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
-      <button class="btn btn-sm" onclick="profileTogglePasswordChange()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Cambiar contraseña</button>
-      <button class="btn btn-sm" onclick="profileToggleEmailChange()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Cambiar email</button>
-    </div>
-
-    <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">Contraseña actual</label>
-        <input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password">
-      </div>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">Nueva contraseña (mín. 6 caracteres)</label>
-        <input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password">
-      </div>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label style="font-size:12px;">Confirmar nueva contraseña</label>
-        <input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password">
-      </div>
+    <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Contraseña actual</label><input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nueva contraseña (mín. 6 caracteres)</label><input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label style="font-size:12px;">Confirmar nueva contraseña</label><input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password"></div>
       <div style="display:flex;justify-content:flex-end;gap:8px;">
         <button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button>
         <button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button>
       </div>
     </div>
-
-    <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">Nuevo email</label>
-        <input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label style="font-size:12px;">Contraseña actual (para confirmar)</label>
-        <input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password">
-      </div>
+    <div class="pp-sec" onclick="profileToggleEmailChange()">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Cambiar email</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+    <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nuevo email</label><input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label style="font-size:12px;">Contraseña actual (para confirmar)</label><input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password"></div>
       <div style="display:flex;justify-content:flex-end;gap:8px;">
         <button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button>
         <button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button>
       </div>
     </div>
-  `;
+  </div>`;
 
-  // ── Sección Club ──────────────────────────────────────────────
-  if (team){
-    const currentLogo = _profileLogoData !== undefined ? _profileLogoData : team.logo;
-    const logoInner = currentLogo
-      ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;">`
-      : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3))}</span>`;
-
-    html += `
-      <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
-      <div class="section-lbl" style="margin-bottom:10px;">Mi club</div>
-      ${locked ? `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> El administrador bloqueó la edición de nombre y escudo.</div>` : ''}
-    `;
-
-    if (stats) html += _statsHTML(stats);
-
-    html += `
-      <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px;">
-        <label for="profile-logo-file" style="position:relative;width:64px;height:64px;flex:none;${locked?'':'cursor:pointer;'}" title="${locked?'':'Cambiar escudo'}">
-          <div id="profile-logo-preview" style="width:64px;height:64px;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${_pfEsc(team.color||'#333')};">
-            ${logoInner}
-          </div>
-          ${!locked ? `<span style="position:absolute;bottom:3px;right:3px;background:var(--gold);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.5);pointer-events:none;">
-            <svg viewBox="0 0 24 24" width="11" height="11" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-          </span>` : ''}
-        </label>
-        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
-        <div class="form-group" style="flex:1;margin:0;">
-          <label>Nombre del club</label>
-          <input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}>
-        </div>
-      </div>
-      <button class="btn btn-sm" onclick="profileViewMyMatches()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg> Ver el historial de mi club</button>
-    `;
-  } else if (AUTH.role === 'president'){
-    html += `
-      <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
-      <div style="font-size:13px;color:var(--txt3);padding:6px 0;">
-        Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.
-      </div>`;
+  if(AUTH.role==='admin'){
+    bd += `<div class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');" tabindex="0">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Panel Admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`;
   }
 
-  html += `
-    <div class="modal-footer" style="margin-top:18px;padding:0;border:none;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+  body.innerHTML = `${hdrHtml}
+    <div class="pp-body" style="padding:0;gap:14px;">${bd}</div>
+    <div class="pp-foot" style="margin:14px -16px -16px;">
       <button class="btn btn-danger btn-sm" onclick="closeModal('profile-modal');authSignOut();">Cerrar sesión</button>
       <button class="btn btn-primary" onclick="saveProfile()">Guardar cambios</button>
     </div>`;
-
-  body.innerHTML = html;
 }
 
 /* ── Estadísticas del club ──────────────────────────────────── */

@@ -28,7 +28,8 @@ C retira el `<script>` de `redesign-public.js` pero **deja el archivo en disco**
 Los encabezados `.comp-sticky > .comp-title` con `pd-n` de **Competiciones (02)** e **Historial (06)** fueron construidos durante C-polish/Equipos por pedido explícito del usuario:
 - **02:** `renderPubPanel` en `public.js` ya emite `.comp-sticky > .comp-title > pd-n "02"` + carruseles (ya migrado). El `index.html` no tiene `section-lbl` para `page-panel`.
 - **06:** `index.html` ya tiene `.proto-divider` con `pd-n "06" Historial`. Slice A lo REEMPLAZARÁ con `.comp-sticky` + `cc-hist` (Paso 4d), retirando el `proto-divider` estático.
-**A NO debe crear ni duplicar estos encabezados — ya existen.**
+**A NO modifica ni duplica el encabezado 02.**
+**Para 06, A elimina el `.proto-divider` placeholder y crea en su lugar un único `.comp-sticky` con `cc-hist`, reutilizando exactamente el scroll horizontal de la sección 02: `Historial ↔ Tabla histórica`.**
 
 ## Alcance (entra)
 
