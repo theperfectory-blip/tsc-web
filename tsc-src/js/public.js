@@ -126,43 +126,12 @@ async function renderPubPanel(){
       </div>`
     : '';
 
-  // Bloque EN VIVO destacado (arriba del panel) — partidos en juego de la temporada.
-  // Solo aparece cuando hay al menos un partido en vivo; si no, no se muestra nada.
-  let liveBlock = '';
-  const liveMatches = await dbGetAll('matches', m=>m.live && (m.season===STATE.season||!m.season));
-  if(liveMatches.length){
-    const lvTeams = await dbGetAll('teams');
-    const lvById = {}; lvTeams.forEach(t=>lvById[t.id]=t);
-    const lvPhases = await dbGetAll('phases'); const phaseById={}; lvPhases.forEach(p=>phaseById[p.id]=p);
-    const lvComps  = await dbGetAll('competitions'); const compById={}; lvComps.forEach(c=>compById[c.id]=c);
-    const fmtT = iso => iso ? new Date(iso).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'}) : '';
-    const logoOf = (tid)=> (typeof teamLogoHtml==='function') ? teamLogoHtml(lvById[tid]?.name||('#'+tid), lvById[tid], 30) : '';
-    liveBlock = `<div class="live-border" style="margin-bottom:22px;border:2px solid var(--red);border-radius:var(--r);overflow:hidden;background:rgba(239,68,68,0.05);">
-      ${liveMatches.map((m,idx)=>{
-        const a=esc(lvById[m.teamA]?.name||('#'+m.teamA)), b=esc(lvById[m.teamB]?.name||('#'+m.teamB));
-        const ph=phaseById[m.phaseId]; const comp=ph?compById[ph.compId]:null;
-        const compName=esc(comp?.name||'');
-        return `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(239,68,68,0.13);font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--red);${idx>0?'border-top:1px solid rgba(239,68,68,0.25);':''}">
-          <span class="live-dot live-dot-red"></span>En vivo${compName?` · <span style="color:var(--gold);">${compName}</span>`:''}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:14px 16px;">
-          <div style="display:flex;align-items:center;justify-content:flex-end;gap:9px;font-weight:700;font-size:16px;">${a}${logoOf(m.teamA)}</div>
-          <div style="text-align:center;min-width:90px;">
-            <div style="font-family:'Bebas Neue';font-size:34px;letter-spacing:2px;color:var(--red);line-height:1;">${m.goalsA||0}-${m.goalsB||0}</div>
-            ${m.liveStartAt?`<div style="font-size:10px;color:var(--txt3);margin-top:3px;">desde ${fmtT(m.liveStartAt)}</div>`:''}
-          </div>
-          <div style="display:flex;align-items:center;justify-content:flex-start;gap:9px;font-weight:700;font-size:16px;">${logoOf(m.teamB)}${b}</div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  }
-  // Ping de radar mientras haya partido en vivo a la vista (respeta on/off de sonido)
-  if(typeof liveRadarStart==='function'){ liveMatches.length ? liveRadarStart() : liveRadarStop(); }
+  // El estado EN VIVO vive SOLO en el Calendario (hero broadcast). La sección 02 es
+  // de consulta: muestra el calendario completo, pero conserva cada cruce como VS
+  // mientras está pendiente/en vivo y publica el marcador solo al finalizar.
 
   el.innerHTML = `
     ${compHead}
-    ${liveBlock}
     ${noPhasesMsg}
     <div id="${phaseContentId}"></div>`;
 
@@ -211,6 +180,82 @@ async function renderPubPanel(){
         </div>`;
     }
   }
+}
+
+/* ── Paginador de partidos por FECHA/jornada (sección 02) ─────────────────────
+   «Fecha» = la jornada que crea el admin (campo m.ronda), NO la fecha de
+   calendario. Cada grupo muestra TODOS los partidos creados, agrupados por ronda,
+   etiquetados «Fecha N» (con su fecha programada como subtítulo) y paginados con
+   flechas < >. Los goles solo se publican cuando el partido deja de estar en vivo.
+   Todas las fechas se renderizan como
+   «páginas» ocultas; las flechas alternan cuál se ve (sin re-render del panel).
+   El índice activo por grupo se persiste en _pubScoreDateIdx para sobrevivir a
+   los re-render en vivo (liveSubscribe). */
+let _pubScoreDateIdx = {};
+const _PUB_CHEVRON_L = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+const _PUB_CHEVRON_R = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+
+/* groupKey identifica el grupo (`${phaseId}-${gi}`); rondaMeta/gi resuelven la
+   fecha programada de cada jornada (phase.rondaMeta[`${gi}_${ronda}_date`]). */
+function _pubScoresPagerHtml(groupKey, matches, scoreRow, rondaMeta, gi){
+  if(!matches.length){
+    return '<div class="scores-empty">No hay partidos creados todavía.</div>';
+  }
+  // Agrupar por jornada (m.ronda). Los sin ronda caen en un bucket «∅» al final.
+  const byRonda = new Map();
+  matches.forEach(m=>{ const k = m.ronda!=null ? m.ronda : '∅'; if(!byRonda.has(k)) byRonda.set(k,[]); byRonda.get(k).push(m); });
+  const keys = [...byRonda.keys()].sort((a,b)=> a==='∅'?1 : b==='∅'?-1 : a-b);
+  // Dentro de cada jornada: orden por id (orden en que el admin cargó los partidos).
+  byRonda.forEach(arr=>arr.sort((x,y)=>(x.id||0)-(y.id||0)));
+  // Índice activo: el guardado (clamp) o, por defecto, la última jornada (como en admin).
+  let idx = _pubScoreDateIdx[groupKey];
+  if(idx==null) idx = keys.length-1;
+  idx = Math.max(0, Math.min(keys.length-1, idx));
+  _pubScoreDateIdx[groupKey] = idx;
+
+  const fechaLbl = k => k==='∅' ? 'Sin jornada' : `Fecha ${k}`;
+  const fechaSub = k => {
+    if(k==='∅') return '';
+    const jugadas = (byRonda.get(k)||[])
+      .filter(m=>m.goalsA!=null && m.goalsB!=null && !m.live)
+      .map(m=>(m.playedAt||m.date||'').substring(0,10))
+      .filter(Boolean);
+    const dd = rondaMeta ? (rondaMeta[`${gi}_${k}_date`]||null) : null;
+    return (typeof formatJornadaDateRange==='function') ? (formatJornadaDateRange(jugadas, dd)||'') : '';
+  };
+  const pages = keys.map((k,i)=>
+    `<div class="scores-date-page" data-label="${_tkEsc(fechaLbl(k))}" data-sub="${_tkEsc(fechaSub(k))}"${i===idx?'':' hidden'}>${byRonda.get(k).map(scoreRow).join('')}</div>`
+  ).join('');
+  // La barra se muestra SIEMPRE (aunque haya una sola jornada) para que la «Fecha N»
+  // sea visible; las flechas se deshabilitan en los extremos.
+  const lblHtml = k => `<b>${_tkEsc(fechaLbl(k))}</b>${fechaSub(k)?`<small>${_tkEsc(fechaSub(k))}</small>`:''}`;
+  const bar = `<div class="scores-datebar" data-key="${_tkEsc(groupKey)}" data-idx="${idx}">
+      <button type="button" class="scores-arrow" aria-label="Fecha anterior" onclick="pubScoreDateNav(this,-1)"${idx<=0?' disabled':''}>${_PUB_CHEVRON_L}</button>
+      <span class="scores-datelbl">${lblHtml(keys[idx])}</span>
+      <button type="button" class="scores-arrow" aria-label="Fecha siguiente" onclick="pubScoreDateNav(this,1)"${idx>=keys.length-1?' disabled':''}>${_PUB_CHEVRON_R}</button>
+    </div>`;
+  return `<div class="scores-pager">${bar}<div class="scores-pages">${pages}</div></div>`;
+}
+
+/* Navega entre jornadas del paginador (onclick inline). Alterna la página visible
+   y persiste el índice por grupo. dir = -1 (anterior) | +1 (siguiente). */
+function pubScoreDateNav(btn, dir){
+  const pager = btn.closest('.scores-pager'); if(!pager) return;
+  const bar = pager.querySelector('.scores-datebar'); if(!bar) return;
+  const pages = [...pager.querySelectorAll('.scores-date-page')];
+  const n = pages.length; if(!n) return;
+  let idx = Math.max(0, Math.min(n-1, (parseInt(bar.dataset.idx)||0) + dir));
+  bar.dataset.idx = String(idx);
+  pages.forEach((p,i)=>{ p.hidden = i!==idx; });
+  const lbl = pager.querySelector('.scores-datelbl');
+  if(lbl){
+    const sub = pages[idx].dataset.sub || '';
+    lbl.innerHTML = `<b>${_tkEsc(pages[idx].dataset.label||'')}</b>${sub?`<small>${_tkEsc(sub)}</small>`:''}`;
+  }
+  const arrows = bar.querySelectorAll('.scores-arrow');
+  if(arrows[0]) arrows[0].disabled = idx<=0;
+  if(arrows[1]) arrows[1].disabled = idx>=n-1;
+  if(bar.dataset.key) _pubScoreDateIdx[bar.dataset.key] = idx;
 }
 
 /* Render BROADCAST de una fase de grupos (vista pública). Por cada grupo emite
@@ -283,29 +328,28 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       </div>`;
     }));
 
-    // Marcadores del grupo: EN VIVO primero, luego finalizados.
-    const played = groupMatches.filter(m=>m.goalsA!=null && m.goalsB!=null);
-    const scoreList = [...played.filter(m=>m.live), ...played.filter(m=>!m.live)];
+    // Calendario completo del grupo. Pendientes y en vivo permanecen como VS; la
+    // suscripción en tiempo real publica el marcador solo cuando live pasa a false.
     const scoreRow = m => {
       const ta=teamById[m.teamA], tb=teamById[m.teamB];
       const an=m.goalsA||0, bn=m.goalsB||0;
+      const isFinal=m.goalsA!=null && m.goalsB!=null && !m.live;
+      const center = isFinal
+        ? `<span class="score-n ${an<bn?'lose':''}">${an}</span>
+            <span class="chip chip-final">Final</span>
+            <span class="score-n ${bn<an?'lose':''}">${bn}</span>`
+        : '<span class="chip chip-vs">VS</span>';
       return `<div class="score-row" style="--team-color:${colorOf(ta?.color)};">
         <div class="score-edge"></div>
         <div class="score-body">
           <span class="score-team">${_tkEsc(ta?.name||('#'+m.teamA))}</span>
-          <div class="score-nums">
-            <span class="score-n ${an<bn?'lose':''}">${an}</span>
-            ${m.live?'<span class="chip chip-live"><span class="chip-dot"></span>En vivo</span>':'<span class="chip chip-final">Final</span>'}
-            <span class="score-n ${bn<an?'lose':''}">${bn}</span>
-          </div>
+          <div class="score-nums">${center}</div>
           <span class="score-team away">${_tkEsc(tb?.name||('#'+m.teamB))}</span>
         </div>
         <div class="score-edge" style="--team-color:${colorOf(tb?.color)};"></div>
       </div>`;
     };
-    const scoresHtml = scoreList.length
-      ? scoreList.map(scoreRow).join('')
-      : '<div style="color:var(--txt3);font-size:13px;padding:16px;text-align:center;border:1px dashed var(--brd);border-radius:var(--r);">Sin partidos jugados todavía.</div>';
+    const scoresHtml = _pubScoresPagerHtml(`${phaseId}-${gi}`, groupMatches, scoreRow, phase.rondaMeta||{}, gi);
     const legend = zones.map(z=>`<span><i style="background:${colorOf(z.color)};"></i>${_tkEsc(z.name||'')}</span>`).join('');
 
     html += `
@@ -364,9 +408,11 @@ async function pubShowMatchesGroup(phaseId, groupIdx, btnEl){
   }
 }
 
-async function pubSelectComp(compId){
+async function pubSelectComp(compId, phaseId){
   window._pubState.compId = compId;
-  window._pubState.phaseId = null;
+  // phaseId opcional: el CTA del calendario fija la fase del partido; el carrusel de
+  // competiciones la omite → null → renderPubPanel toma la primera fase.
+  window._pubState.phaseId = phaseId != null ? phaseId : null;
   window._pubState.groupIdx = 0;   // nueva competición → arrancar en el primer grupo
   await renderPubPanel();
 }
@@ -474,4 +520,3 @@ async function renderPublicTicker(){
     _tickerStop = MOTION.ticker('#ticker', { speed: 50 });   // der→izq, respeta reduced-motion
   }
 }
-

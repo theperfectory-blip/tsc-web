@@ -264,9 +264,6 @@ async function ensurePublicSectionMounted(page, options){
     _publicMountedPages.add(page);
     document.getElementById('page-'+page)?.classList.add('is-mounted');
     document.dispatchEvent(new CustomEvent('tsc:public-section-mounted', { detail:{ page } }));
-    if(page === 'panel' && _publicFocusedPage !== 'panel' && typeof liveRadarStop === 'function'){
-      liveRadarStop();
-    }
     return true;
   })().finally(()=>_publicMountPromises.delete(page));
 
@@ -299,9 +296,10 @@ async function focusPublicSection(page, options){
 
   if(changed || opts.forceLive){
     _subscribeFocusedPublicSection(page);
-    if(page === 'panel'){
-      const hasLive = !!document.querySelector('#pub-panel-content .live-dot-red');
-      if(hasLive && typeof liveRadarStart === 'function') liveRadarStart();
+    // El radar en vivo vive SOLO en el Calendario (junto al hero del partido).
+    // Al enfocar la sección con un partido en vivo ya montado, arranca (con fade-in).
+    if(page === 'calendario' && window._calHeroLive && typeof liveRadarStart === 'function'){
+      liveRadarStart();
     }
   }
   return true;

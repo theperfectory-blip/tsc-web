@@ -145,26 +145,79 @@
     crash(tHold, 0.95, 1.3);
   }
 
-  /* ---------------- Ping de radar / sonar (partido en vivo) ----------------
-     Tono descendente con cola larga + un eco tenue → sensación de "sonar". */
-  function radarPing(vol = 1) {
-    const c = getCtx(); if (!c) return;
+  /* ---------------- Radar / sonar (partido EN VIVO en el Calendario) ----------
+     Los pings se enrutan por un BUS persistente con dos tratamientos:
+       • Lejano (sin el cursor sobre el hero): lowpass cerrado + más eco + bajo.
+       • Cercano (hover sobre el hero): lowpass abierto + menos eco + más alto.
+     El bus también hace fade-in al entrar a la sección y fade-out al salir.
+
+       ping → radarLP(lowpass) → radarBus(fade) → master
+                              ↘ radarDelay(eco con realimentación) → radarWet ↗ */
+  let radarLP=null, radarBus=null, radarDelay=null, radarFb=null, radarWet=null, radarOn=false;
+  function buildRadarBus(){
+    const c = getCtx(); if(!c || radarLP) return;
+    radarBus   = c.createGain();        radarBus.gain.value = 0;            // silencio → fade-in
+    radarLP    = c.createBiquadFilter(); radarLP.type='lowpass'; radarLP.frequency.value = 480; radarLP.Q.value = 0.7;
+    radarDelay = c.createDelay(1.0);    radarDelay.delayTime.value = 0.26;
+    radarFb    = c.createGain();        radarFb.gain.value = 0.45;          // realimentación < 1 → cola que decae
+    radarWet   = c.createGain();        radarWet.gain.value = 0.5;          // cantidad de eco (estado lejano)
+    radarLP.connect(radarBus);                                             // dry
+    radarLP.connect(radarDelay);                                           // wet
+    radarDelay.connect(radarFb); radarFb.connect(radarDelay);              // eco realimentado
+    radarDelay.connect(radarWet); radarWet.connect(radarBus);
+    radarBus.connect(masterGain);
+  }
+  function radarPingBus(vol = 1){
+    const c = getCtx(); if(!c) return;
+    buildRadarBus();
     const t = c.currentTime + 0.01;
-    function blip(at, gain, f0, f1) {
+    function blip(at, gain, f0, f1){
       const o = c.createOscillator();
       const g = c.createGain();
-      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600;
       o.type = 'sine';
       o.frequency.setValueAtTime(f0, at);
       o.frequency.exponentialRampToValueAtTime(f1, at + 0.14);
       g.gain.setValueAtTime(0.0001, at);
       g.gain.exponentialRampToValueAtTime(gain * vol, at + 0.012);
       g.gain.exponentialRampToValueAtTime(0.0001, at + 0.85);
-      o.connect(lp).connect(g).connect(masterGain);
+      o.connect(g).connect(radarLP);   // entra al bus (LP + eco + fade)
       o.start(at); o.stop(at + 0.95);
     }
-    blip(t, 0.42, 760, 560);            // ping principal
-    blip(t + 0.16, 0.12, 720, 540);     // eco tenue
+    blip(t, 0.42, 760, 560);
+    blip(t + 0.16, 0.12, 720, 540);
+  }
+  function radarBusStart(){
+    const c = getCtx(); if(!c) return;
+    buildRadarBus();
+    radarOn = true;
+    const t = c.currentTime;
+    radarBus.gain.cancelScheduledValues(t);
+    radarBus.gain.setValueAtTime(radarBus.gain.value, t);
+    radarBus.gain.linearRampToValueAtTime(1.0, t + 0.9);    // fade-in al entrar a la sección
+  }
+  function radarBusStop(){
+    radarOn = false;
+    if(!radarBus) return;
+    const c = getCtx(); if(!c) return;
+    const t = c.currentTime;
+    radarBus.gain.cancelScheduledValues(t);
+    radarBus.gain.setValueAtTime(radarBus.gain.value, t);
+    radarBus.gain.linearRampToValueAtTime(0.0, t + 0.7);    // fade-out al salir
+  }
+  function radarBusProximity(near){
+    if(!radarLP) return;
+    const c = getCtx(); if(!c) return;
+    const t = c.currentTime, R = 0.35;
+    const ramp = (param, v)=>{ param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); param.linearRampToValueAtTime(v, t + R); };
+    if(near){                       // limpio + alto + poco eco
+      ramp(radarLP.frequency, 6000);
+      ramp(radarWet.gain, 0.12);
+      if(radarOn) ramp(radarBus.gain, 1.25);
+    } else {                        // lejano + bajo + más eco
+      ramp(radarLP.frequency, 480);
+      ramp(radarWet.gain, 0.5);
+      if(radarOn) ramp(radarBus.gain, 1.0);
+    }
   }
 
   /* Persistencia del estado de sonido (on/off + volumen) */
@@ -188,7 +241,10 @@
     playDrumRoll(ms) { if (!this.enabled) return { stop(){} }; return playDrumRoll(ms); },
     playTada()       { if (!this.enabled) return; playTada(); },
     playSnare()      { if (!this.enabled) return; const c = getCtx(); if (c) snareHit(c.currentTime + 0.01, 1); },
-    radarPing()      { if (!this.enabled) return; radarPing(1); },
-    setEnabled(b)    { this.enabled = !!b; try{ localStorage.setItem('tsc_sound_on', b ? '1':'0'); }catch(e){} }
+    radarPing()      { if (!this.enabled) return; radarPingBus(1); },
+    radarStart()     { if (!this.enabled) return; radarBusStart(); },
+    radarStop()      { radarBusStop(); },                          // siempre hace fade-out (aunque esté silenciado)
+    radarProximity(near){ radarBusProximity(!!near); },
+    setEnabled(b)    { this.enabled = !!b; if(!b) radarBusStop(); try{ localStorage.setItem('tsc_sound_on', b ? '1':'0'); }catch(e){} }
   };
 })();

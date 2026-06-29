@@ -9,6 +9,7 @@ let _profileAvatarTouched = false;
 let _profileLogoData;
 let _profileLogoFile;
 let _profileLogoTouched = false;
+let _profileReturnFocus = null;   // elemento al que devolver el foco al cerrar el drawer
 
 function _pfEsc(v){
   return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -16,18 +17,85 @@ function _pfEsc(v){
 
 function _injectProfileModal(){
   if (document.getElementById('profile-modal')) return;
+  // Drawer anclado arriba-derecha (desktop) · full-height (móvil), no un modal centrado.
   const div = document.createElement('div');
-  div.className = 'modal-overlay';
+  div.className = 'profile-backdrop';
   div.id = 'profile-modal';
+  div.setAttribute('role','dialog');
+  div.setAttribute('aria-modal','true');
+  div.setAttribute('aria-label','Mi perfil');
   div.innerHTML = `
-    <div class="modal" style="max-width:460px;">
-      <div class="modal-hdr">
-        <div class="modal-title">Mi perfil</div>
-        <button class="modal-close" onclick="closeModal('profile-modal')">×</button>
+    <div class="profile-menu">
+      <div class="pp-drawer" id="profile-drawer" tabindex="-1">
+        <button type="button" class="pp-close" aria-label="Cerrar perfil" onclick="closeModal('profile-modal')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div id="profile-body"></div>
       </div>
-      <div class="modal-body" id="profile-body"></div>
     </div>`;
   document.body.appendChild(div);
+  // Click en el backdrop (fuera del panel) cierra el drawer.
+  div.addEventListener('mousedown', e=>{ if(e.target===div) closeModal('profile-modal'); });
+  // Gestión de foco: el drawer cierra por varias vías (botón, backdrop, Escape
+  // global). Observamos la clase .open para correr setup/teardown sin importar
+  // cómo se cerró: foco al panel al abrir, atrapado mientras abierto, devuelto al
+  // disparador al cerrar.
+  let _wasOpen = false;
+  new MutationObserver(()=>{
+    const open = div.classList.contains('open');
+    if(open && !_wasOpen){
+      _wasOpen = true;
+      document.addEventListener('keydown', _profileTrapKeydown, true);
+      _onProfileOpen();
+    } else if(!open && _wasOpen){
+      _wasOpen = false;
+      document.removeEventListener('keydown', _profileTrapKeydown, true);
+      _onProfileClose();
+    }
+  }).observe(div, { attributes:true, attributeFilter:['class'] });
+}
+
+/* Elementos enfocables visibles dentro del drawer (orden DOM). */
+function _profileFocusables(drawer){
+  if(!drawer) return [];
+  return [...drawer.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+    .filter(el => el.offsetWidth>0 || el.offsetHeight>0 || el===document.activeElement);
+}
+
+/* Al abrir: recuerda el disparador, marca el botón como expandido y mueve el foco
+   al panel (primer enfocable, o el panel mismo como respaldo). */
+function _onProfileOpen(){
+  const drawer = document.getElementById('profile-drawer');
+  const btn = document.getElementById('profile-btn');
+  _profileReturnFocus = btn || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  if(btn) btn.setAttribute('aria-expanded','true');
+  if(!drawer) return;
+  const f = _profileFocusables(drawer);
+  (f[0] || drawer).focus({ preventScroll:true });
+}
+
+/* Al cerrar: desmarca el botón y devuelve el foco al disparador. */
+function _onProfileClose(){
+  const btn = document.getElementById('profile-btn');
+  if(btn) btn.setAttribute('aria-expanded','false');
+  const ret = _profileReturnFocus;
+  _profileReturnFocus = null;
+  if(ret && document.contains(ret)){ try{ ret.focus({ preventScroll:true }); }catch(e){} }
+}
+
+/* Atrapa el Tab dentro del drawer mientras está abierto (ciclo first↔last). */
+function _profileTrapKeydown(e){
+  if(e.key!=='Tab') return;
+  const drawer = document.getElementById('profile-drawer');
+  if(!drawer) return;
+  const f = _profileFocusables(drawer);
+  if(!f.length){ e.preventDefault(); drawer.focus({ preventScroll:true }); return; }
+  const first = f[0], last = f[f.length-1], active = document.activeElement;
+  if(e.shiftKey){
+    if(active===first || !drawer.contains(active)){ e.preventDefault(); last.focus(); }
+  } else {
+    if(active===last || !drawer.contains(active)){ e.preventDefault(); first.focus(); }
+  }
 }
 
 async function openProfile(){
@@ -90,7 +158,8 @@ async function renderProfileBody(){
     : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${_pfEsc((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
 
   // ── Header con gradiente del club ────────────────────────────
-  const hdrHtml = `<div class="pp-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};margin:-16px -16px 16px;">
+  const _pipLetter = { w:'V', d:'E', l:'D' };
+  const hdrHtml = `<div class="pp-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
     <div class="pp-id">
       ${team ? `
         <label for="profile-logo-file" style="${locked?'':'cursor:pointer;'}" title="${locked?'Bloqueado':'Cambiar escudo'}">
@@ -113,7 +182,7 @@ async function renderProfileBody(){
         </div>
       </div>
     </div>
-    ${recentForm.length ? `<div class="form-strip" style="margin-top:12px;">${recentForm.map(r=>`<span class="form-pip ${r}"></span>`).join('')}</div>` : ''}
+    ${recentForm.length ? `<div class="form-strip" style="margin-top:12px;" title="Forma reciente (últimos ${recentForm.length})" aria-label="Forma reciente">${recentForm.map(r=>`<span class="form-pip ${r}" title="${r==='w'?'Victoria':r==='d'?'Empate':'Derrota'}">${_pipLetter[r]||''}</span>`).join('')}</div>` : ''}
   </div>`;
 
   // ── Cuerpo ───────────────────────────────────────────────────
@@ -126,9 +195,9 @@ async function renderProfileBody(){
     bd += `<div style="display:flex;align-items:center;gap:10px;">
       <label for="profile-avatar-file" style="position:relative;flex:none;cursor:pointer;" title="Cambiar foto de perfil">
         <div id="profile-avatar-preview" style="width:44px;height:44px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
-          ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`}
+          ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--txt3);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
         </div>
-        <span style="position:absolute;bottom:1px;right:1px;background:var(--gold);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;pointer-events:none;"><svg viewBox="0 0 24 24" width="8" height="8" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></span>
+        <span style="position:absolute;bottom:1px;right:1px;background:var(--gold);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;pointer-events:none;"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></span>
       </label>
       <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
       <span style="font-size:12px;color:var(--txt3);">Foto de perfil personal</span>
@@ -143,7 +212,7 @@ async function renderProfileBody(){
     </div>
     <div style="font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       ${_pfEsc(email)} ${verified
-        ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
+        ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>verificado</span>`
         : `<span style="color:#FFC107;font-size:11px;font-weight:600;">sin verificar</span> <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`}
     </div>`;
 
@@ -157,10 +226,10 @@ async function renderProfileBody(){
   }
 
   bd += `<div style="display:flex;flex-direction:column;gap:6px;">
-    <div class="pp-sec" onclick="profileTogglePasswordChange()">
+    <button type="button" class="pp-sec" onclick="profileTogglePasswordChange()">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Cambiar contraseña</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>
+    </button>
     <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;">
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Contraseña actual</label><input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password"></div>
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nueva contraseña (mín. 6 caracteres)</label><input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password"></div>
@@ -170,10 +239,10 @@ async function renderProfileBody(){
         <button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button>
       </div>
     </div>
-    <div class="pp-sec" onclick="profileToggleEmailChange()">
+    <button type="button" class="pp-sec" onclick="profileToggleEmailChange()">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Cambiar email</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>
+    </button>
     <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;">
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nuevo email</label><input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off"></div>
       <div class="form-group" style="margin-bottom:10px;"><label style="font-size:12px;">Contraseña actual (para confirmar)</label><input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password"></div>
@@ -185,15 +254,15 @@ async function renderProfileBody(){
   </div>`;
 
   if(AUTH.role==='admin'){
-    bd += `<div class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');" tabindex="0">
+    bd += `<button type="button" class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Panel Admin</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </div>`;
+    </button>`;
   }
 
   body.innerHTML = `${hdrHtml}
-    <div class="pp-body" style="padding:0;gap:14px;">${bd}</div>
-    <div class="pp-foot" style="margin:14px -16px -16px;">
+    <div class="pp-body">${bd}</div>
+    <div class="pp-foot">
       <button class="btn btn-danger btn-sm" onclick="closeModal('profile-modal');authSignOut();">Cerrar sesión</button>
       <button class="btn btn-primary" onclick="saveProfile()">Guardar cambios</button>
     </div>`;
@@ -311,9 +380,9 @@ function _injectCropModal(){
         </div>
         <div style="font-size:11px;color:var(--txt3);">Arrastra · Rueda o desliza para zoom</div>
         <div style="display:flex;align-items:center;gap:8px;width:100%;">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2.5"/></svg>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2.5"/></svg>
           <input type="range" id="crop-zoom-sl" min="0" max="100" value="0" style="flex:1;accent-color:var(--gold);" oninput="cropZoomSlider(this.value)">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2.5"/><line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="8" x2="11" y2="14" stroke="currentColor" stroke-width="2"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="round" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2.5"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2"/><line x1="11" y1="8" x2="11" y2="14" stroke-width="2"/></svg>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
@@ -494,7 +563,7 @@ function _updateTopbarAvatar(url){
   if (!btn) return;
   btn.innerHTML = url
     ? `<img src="${_pfEsc(url)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
-    : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
+    : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 }
 
 /* ── Selección de escudo del club ───────────────────────────── */

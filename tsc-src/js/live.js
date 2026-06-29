@@ -56,16 +56,25 @@ function liveAvailable(){
   return typeof USE_FIRESTORE !== 'undefined' && USE_FIRESTORE;
 }
 
-/* ---- Ping de "radar/sonar" mientras hay un partido EN VIVO en el panel.
-   Suena cada 1.4s (al ritmo del punto rojo). Respeta el on/off de sonido. ---- */
+/* ---- Radar/sonar mientras hay un partido EN VIVO en el Calendario.
+   Suena cada 1.4s (al ritmo del punto rojo). El bus de SFX aplica fade-in al
+   arrancar, fade-out al parar y el tratamiento lejano↔cercano según el hover
+   del hero (liveRadarProximity). Respeta el on/off de sonido. ---- */
 let _radarTimer = null;
 function liveRadarStart(){
   if (_radarTimer) return;                 // ya activo
   if (typeof window.SFX === 'undefined') return;
+  if (window.SFX.enabled === false) return;
+  if (typeof window.SFX.radarStart === 'function') window.SFX.radarStart();   // fade-in del bus
   const tick = ()=>{ if (window.SFX && window.SFX.enabled !== false) window.SFX.radarPing(); };
   tick();                                   // primer ping inmediato
   _radarTimer = setInterval(tick, 1400);    // mismo período que livePulseRed
 }
 function liveRadarStop(){
   if (_radarTimer){ clearInterval(_radarTimer); _radarTimer = null; }
+  if (window.SFX && typeof window.SFX.radarStop === 'function') window.SFX.radarStop();   // fade-out del bus
+}
+/* Acerca (limpio+alto) o aleja (lejano+eco) el radar según el hover del hero. */
+function liveRadarProximity(near){
+  if (window.SFX && typeof window.SFX.radarProximity === 'function') window.SFX.radarProximity(!!near);
 }

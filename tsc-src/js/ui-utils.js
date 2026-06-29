@@ -3,7 +3,7 @@ function closeModal(id){ document.getElementById(id)?.classList.remove('open'); 
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
-    document.querySelectorAll('.modal-overlay.open,.confirm-overlay.open')
+    document.querySelectorAll('.modal-overlay.open,.confirm-overlay.open,.profile-backdrop.open')
       .forEach(m=>m.classList.remove('open'));
   }
 });
@@ -89,7 +89,25 @@ function openSettings(){
 
 /* Control de sonido GLOBAL (afecta SFX y el palmarés, que lee SFX). */
 function setSoundOn(b){
-  if (window.SFX){ window.SFX.unlock(); window.SFX.setEnabled(!!b); if (b) window.SFX.radarPing(); }
+  const enabled = !!b;
+  if(!enabled && typeof liveRadarStop==='function') liveRadarStop();
+  if(!window.SFX) return;
+  window.SFX.unlock();
+  window.SFX.setEnabled(enabled);
+  if(!enabled) return;
+
+  const resumeLiveRadar = typeof STATE!=='undefined'
+    && STATE.mode==='public'
+    && STATE.publicPage==='calendario'
+    && !!window._calHeroLive
+    && typeof liveRadarStart==='function';
+  if(resumeLiveRadar){
+    // Reinicio limpio: elimina cualquier timer previo silenciado antes de recrearlo.
+    if(typeof liveRadarStop==='function') liveRadarStop();
+    liveRadarStart();
+  } else {
+    window.SFX.radarPing();
+  }
 }
 function setSoundVol(v){
   const vol = Math.max(0, Math.min(1, (parseFloat(v) || 0) / 100));
