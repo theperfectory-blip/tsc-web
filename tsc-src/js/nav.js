@@ -96,6 +96,15 @@ function closePubSidebar(){
 }
 
 /* ----------------------------------------------------------
+   LOGO/NOMBRE DEL TOPBAR → volver a inicio (Palmarés público)
+   ---------------------------------------------------------- */
+function goHome(){
+  STATE.publicPage = 'palmares';
+  if(STATE.mode !== 'public') setMode('public');
+  else goPublicPage('palmares');
+}
+
+/* ----------------------------------------------------------
    MODO: PÚBLICO / ADMIN
    ---------------------------------------------------------- */
 function setMode(mode){
