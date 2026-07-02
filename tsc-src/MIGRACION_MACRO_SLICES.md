@@ -97,20 +97,20 @@ Auditoría de código 2026-06-25 (4 agentes vs código real + `prototype.html`).
 
 ---
 
-## 5. SLICES PENDIENTES (reorganizados por realidad)
+## 5. SLICES DE MIGRACIÓN (estado vigente)
 
-**Orden de ejecución VIGENTE (2026-06-27): C ✅ → C-polish ✅ → Equipos ✅ → A → B → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) **C, C-polish y Equipos ejecutados y en `redesign/migration`. Próximo slice = A.** Pre-slices: `PRE_SLICE_C.md` (v4, hecho) · `PRE_SLICE_C_POLISH.md` (v4, hecho) · `PRE_SLICE_EQUIPOS.md` (v3, hecho) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2). Ver §4bis (Δ Fidelidad) y §7 (auditoría).
+**Orden de ejecución VIGENTE (2026-07-02): C ✅ → C-polish ✅ → Equipos ✅ → A ✅ → B ✅ → D.** (Las secciones de abajo están etiquetadas por nombre, no por orden.) **A y B están cerrados en `df28209`; próximo slice = D.** Documentos cerrados: `docs/migration/SLICE_A.md` · `docs/migration/SLICE_B.md`. Plan pendiente: `PRE_SLICE_D.md` (v2). Ver §4bis (Δ Fidelidad) y §7 (auditoría).
 
 > ### ⚠️ SUPERSEDED (actualizado 2026-06-27) — lee esto antes que el cuerpo histórico de abajo
 > El cuerpo de §5/§6/§7 conserva texto fechado anterior. Donde contradiga, **mandan estas correcciones vigentes**:
-> 1. **Orden:** ~~`C → A → B → D`~~ → **`C ✅ → C-polish ✅ → Equipos ✅ → A → B → D`**.
-> 2. **Estado:** C, C-polish y Equipos **hechos y verificados**. **Próximo slice = A.**
-> 3. **Gate de A:** cumplido — A arranca con C + C-polish + Equipos estables y en QA.
-> 4. **Bracket público:** **módulo nuevo `public-bracket.js`** (ver `PRE_SLICE_A.md` v2), no en `public.js`.
+> 1. **Orden:** ~~`C → A → B → D`~~ → **`C ✅ → C-polish ✅ → Equipos ✅ → A ✅ → B ✅ → D`**.
+> 2. **Estado:** C, C-polish, Equipos, A y B **hechos y verificados**. **Próximo slice = D.**
+> 3. **Gate de A:** cumplido; A y su hardening final están cerrados.
+> 4. **Bracket público:** implementado en `public-bracket.js` (ver `docs/migration/SLICE_A.md`).
 > 5. **Tabla histórica `.ht-*`:** **incluida en A** (Codex 2026-06-25), no opcional.
 > 6. **Equipos:** **sin buscador** (decisión 2026-06-27: 32 equipos); vitrina shuffle + "cargar más" implementada.
 > 7. **Encabezados 02/06:** adelantados en C-polish. **02** (Competiciones) FINAL en `renderPubPanel`. **06** (Historial) es placeholder `.proto-divider` → **A lo reemplaza** por `.comp-sticky` + `cc-hist` (no añade un segundo título).
-> 8. Pre-slices vigentes: `PRE_SLICE_C_POLISH.md` (v4) · `PRE_SLICE_EQUIPOS.md` (v3) · `PRE_SLICE_A.md` (v2) · `PRE_SLICE_B.md` (v2) · `PRE_SLICE_D.md` (v2).
+> 8. Archivo de slices cerrados: `docs/migration/SLICE_A.md` · `docs/migration/SLICE_B.md`. Slice pendiente: `PRE_SLICE_D.md` (v2).
 
 ### Macro Slice C-polish — Fidelidad de shell → detalle en `PRE_SLICE_C_POLISH.md` (v3) ✅ HECHO (2026-06-27)
 Remate del scroll continuo (C) tras probarlo: (1) contenido **full-width** (`#main.public-scroll{max-width:none}`); (2) **títulos de sección** `.proto-divider` numerados/sticky en **solo 4** secciones (Palmarés/Calendario/Equipos/Sorteo); (3) **topbar móvil** a fila propia (Opción A) con **chrome dinámico** (`--chrome-h` medido). **⚠️ Por pedido explícito:** los encabezados de **Competiciones (02)** e **Historial (06)** fueron adelantados en este slice (no en A): 02 usa `.comp-sticky` con `cc-comp`/`cc-fase` en `renderPubPanel`; 06 usa `.proto-divider` estático (Slice A lo upgradea a `.comp-sticky` + `cc-hist`).
@@ -118,15 +118,15 @@ Remate del scroll continuo (C) tras probarlo: (1) contenido **full-width** (`#ma
 ### Macro Slice Equipos — Vitrina aleatoria + "cargar más" → detalle en `PRE_SLICE_EQUIPOS.md` (v3) ✅ HECHO (2026-06-27)
 Port del comportamiento del prototipo (6 activos aleatorios + "cargar más" por tandas de filas completas) a `teams.js`. **Sin buscador** (decisión 2026-06-27: 32 equipos). Estado endurecido `_pubTeamsView` (`renderToken`/`timer` anti-tandas-obsoletas), `_clubBatch` completa la fila actual tras resize, `_refreshPubTeams` restaura botón si live llega durante timer, a11y completa + reduced-motion. `.load-more` **ya existe** en `redesign.css:697` → reutilizado.
 
-### Macro Slice A — Pulido público restante → detalle CORREGIDO en `PRE_SLICE_A.md` (v2)
+### Macro Slice A — Pulido público restante → `docs/migration/SLICE_A.md` ✅ HECHO (2026-07-02)
 Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin tocar admin ni Palmarés.
-> El orden de abajo es la versión v1; el detalle ejecutable y corregido está en `PRE_SLICE_A.md` (v2, auditoría 2026-06-25).
+> El orden de abajo es la versión v1; el registro ejecutable y corregido está archivado en `docs/migration/SLICE_A.md`.
 > **Correcciones clave de la auditoría:** (a) casi todo el CSS del prototipo **ya existe** en `redesign.css` (`.tie-*`/`.pp-*`/`.histm`/`.hm-*`) → A es **JS+wiring**, no "portar CSS"; solo falta `.gbr-*` y `.hito-click`. (b) **`public-bracket.js` es módulo nuevo OBLIGATORIO** (bracket+playoff ≈600-800 líneas; el `gbr` móvil es un pager animado). (c) **`histH2HShow` no existe** → crearla. (d) **forma reciente del perfil** no tiene dato "últimos 5" → derivar de `matches` u omitir; clase real `.form-pip` (no `.pp-pip`). (e) Calendario: el colapsable ya existe bajo **`.hm-*`** → migrar `_calHeroHtml` a `.hm-*` (reusa CSS). (f) **Carruseles de navegación:** el de Competiciones/Fases (#1) **ya está migrado** (`public.js _pubMakeCarousel`); A suma **#2 `cc-hist`, #3 filtros inline, #4 `.cal-duo`** reutilizando `_pubMakeCarousel`. (g) **minar `redesign-public.js`** (renderers ya portados) antes de borrarlo (último paso de A).
 > ⛔ Gate: A arranca solo con **C + C-polish + Equipos** terminados y en QA (scroll continuo + shell pulido + vitrina de equipos).
 
 0. **Pre-bloque bloqueante — aislar el mock muerto (§7.1).** Verificar que nada vivo llama `initRedesignPublic()` ni funciones de `redesign-public.js`; retirar/aislar `<script src="js/redesign-public.js">` (`index.html:398`). No es opcional ni tardío: va primero.
 1. **Competiciones — vista eliminatoria pública** (el delta más grande de A)
-   - **Bracket (§7.2):** crear `_pubRenderBracketBroadcast(phaseId, containerId)` en **`public-bracket.js`** (módulo nuevo OBLIGATORIO, NO `public.js` — ver `PRE_SLICE_A.md` v2) reusando la data prep real de `bracket.js` (`buildBracketRounds/buildBracketSlots/getWinner/getClassifiedFromPhase`). Markup `gbr-*` (móvil con conectores SVG + desktop árbol con trofeo). **Portar el CSS `gbr-*` a `redesign.css` junto con el JS** — hoy no existe ahí.
+   - **Bracket (§7.2):** crear `_pubRenderBracketBroadcast(phaseId, containerId)` en **`public-bracket.js`** (módulo nuevo OBLIGATORIO, NO `public.js` — ver `docs/migration/SLICE_A.md`) reusando la data prep real de `bracket.js` (`buildBracketRounds/buildBracketSlots/getWinner/getClassifiedFromPhase`). Markup `gbr-*` (móvil con conectores SVG + desktop árbol con trofeo). **Portar el CSS `gbr-*` a `redesign.css` junto con el JS** — hoy no existe ahí.
    - **Playoff/single (§7.3):** `renderPlayoff()` mezcla prep + HTML y NO tiene helper de datos reutilizable. **Antes** de `_pubRenderPlayoffBroadcast(...)`, extraer/crear una preparación read-only equivalente preservando legs, penales, gol de visita, live, slot refs y labels. Markup `.tie-card`.
    - Cablear ramas `bracket`/`playoff`/`single` de `renderPubPanel`. Escapar con `_tkEsc`. Estado vacío real (sin `_injectFakeBrackets`).
 2. **Perfil — el real es DISTINTO al prototipo (no solo skin; es estructura)** · comparado en vivo logueado 2026-06-25
@@ -144,7 +144,7 @@ Objetivo: cerrar el delta de las secciones [PARCIAL] sobre módulos reales, sin 
 4. **Historial — enriquecer público**
    - `_pubHistoryHitos`: +"Partido con más goles", convertir goleada/más-goles en `.hito-click` → `histH2HShow`. Lista `.histm` como **renderer público nuevo** (no mutar la tabla admin) — §7.6. Tarjeta H2H con autocomplete **reutilizando `_histTeams`/`_histResolveTeam`/`_buildH2HPanel`** (cuidar foco del input, no romper filtros). Opcional: tabla histórica responsive `.ht-rend`. Bifurcar por `mode`; **conservar** `_computeHistoricalStandings` (regla finished-season/FIFA).
 
-### Macro Slice B — Palmarés Visual → detalle CORREGIDO en `PRE_SLICE_B.md` (v2)
+### Macro Slice B — Palmarés Visual → `docs/migration/SLICE_B.md` ✅ HECHO (2026-07-02)
 Reemplazar el Palmarés público (`tr-room`+`<model-viewer>`) por la experiencia del prototipo con datos reales, **sin** backend/admin de fotos. Vitrina `.mv-*` + sala fullscreen `#sala` con **Three.js 0.147.0 + Draco self-hosted** (build global, vendoreo trivial). **El esfuerzo real (auditoría):** portar los **4 PNG de la sala** (`sin_fondo`/`foco_izquierdo`/`foco_derecho`/`placa_dorada`) + la matemática `salaLayout` (anclaje 2.5D de la copa sobre el podio) + el sistema `Smoke` (canvas) + 24 partículas bicolor + 2 haces bicolor + viñeta + nav 4-dir + audio — NO solo vendorear libs. Integra con C (`page-palmares`+evento); **expone `setSalaCollage({recordId,items,colors})`/`getPalmaresMedia(recordId)`** (collage VACÍO sin mocks → gap visual hasta D). Fallback mobile obligatorio. Desmontar `tr-room`/`initTrophyRoom` (rAF perpetuo).
 
 ### Macro Slice D — Palmarés Media Backend → detalle en `PRE_SLICE_D.md`
@@ -231,7 +231,7 @@ Tras P0 de Codex, se auditaron los 4 pre-slices contra el código real y `protot
 
 ### Decision pendiente para Macro Slice B
 
-~~Codex recomendaba opcion (a): conservar `<model-viewer>` + GLB/Firebase y adoptar solo el escenario visual alrededor.~~ **SUPERSEDED (usuario 2026-06-25):** B va por **Three.js 0.147.0 + GLTFLoader + Draco self-hosted** (el usuario decidió contra esta rec). La auditoría confirmó que el self-host es trivial (build global) y que el anclaje geométrico (`salaLayout` sobre PNG) sería igual de delicado con model-viewer → la decisión está justificada. Requisito: fallback mobile + prueba de rendimiento. Detalle en `PRE_SLICE_B.md` (v2).
+~~Codex recomendaba opcion (a): conservar `<model-viewer>` + GLB/Firebase y adoptar solo el escenario visual alrededor.~~ **SUPERSEDED (usuario 2026-06-25):** B va por **Three.js 0.147.0 + GLTFLoader + Draco self-hosted** (el usuario decidió contra esta rec). La auditoría confirmó que el self-host es trivial (build global) y que el anclaje geométrico (`salaLayout` sobre PNG) sería igual de delicado con model-viewer → la decisión está justificada. Requisito: fallback mobile + prueba de rendimiento. Registro en `docs/migration/SLICE_B.md`.
 
 ---
 

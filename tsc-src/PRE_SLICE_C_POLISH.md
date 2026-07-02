@@ -42,7 +42,7 @@ Cerrar la fidelidad estructural del scroll continuo público: (1) **full-width**
 ### Encabezados 02/06 — adelantados por pedido explícito (2026-06-27)
 Fuera del alcance v3 (que los dejaba para A), el usuario pidió construirlos ya:
 - **Competiciones (02) — ✅ HECHO Y FINAL.** `renderPubPanel` ([public.js](js/public.js)) emite `.comp-sticky > .comp-title` con `<span class="pd-n">02</span>` + carruseles `cc-comp`/`cc-fase` (ya migrados). `page-panel` ya no tiene `section-lbl`. El empty/off-season también renderiza el header. **A NO lo toca.**
-- **Historial (06) — placeholder de shell, A lo reemplaza.** `page-historial` tiene un `.proto-divider` con `pd-n "06" Historial` **solo como placeholder**. **Slice A debe REEMPLAZARLO** (no añadir un segundo título) por `.comp-sticky` con un carrusel **`cc-hist`** que reutilice el comportamiento horizontal exacto de la sección 02. Opciones del carrusel: **Historial** ↔ **Tabla histórica**. Sin controles duplicados ni navegación actual paralela. Ver `PRE_SLICE_A.md` Paso 4d.
+- **Historial (06) — placeholder de shell, reemplazado por A.** El alcance y la decisión implementada están archivados en `docs/migration/SLICE_A.md`, Paso 4d.
 
 ---
 

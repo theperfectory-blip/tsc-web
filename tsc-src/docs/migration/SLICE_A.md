@@ -1,4 +1,8 @@
-# Pre-slice — Macro Slice A · Paridad pública restante
+# Macro Slice A · Paridad pública restante
+> **Estado: COMPLETADO · 2026-07-02.** Implementación, hardening y QA cerrados en `redesign/migration`.
+> **Commit de cierre:** `df28209` (`Cierra Slice A y Palmarés`).
+> Documento conservado como registro de alcance, decisiones técnicas y criterios de aceptación.
+
 > **v2 (2026-06-25) tras auditoría de código.** Corrige la premisa de CSS (casi todo el CSS del prototipo YA existe en `redesign.css`; solo falta `.gbr-*`), el namespace del calendario (colapsable ya existe bajo `.hm-*`), funciones inexistentes (`histH2HShow`), clases mal nombradas (`.pp-pip`→`.form-pip`), y un hueco de datos (forma reciente). Suma a su alcance #2/#3/#4 de navegación (cc-hist, filtros inline, .cal-duo) — el carrusel #1 (Competiciones/Fases) **ya está migrado** en `public.js _pubMakeCarousel`.
 > Orden maestro: **C → C-polish → Equipos → A → B → D**. A arranca con **C + C-polish + Equipos estables y en QA pasado** (gate ampliado tras dictamen Codex 2026-06-26: el shell pulido y la vitrina de equipos preceden a A).
 

@@ -1,4 +1,8 @@
-# Pre-slice — Macro Slice B · Palmarés Visual
+# Macro Slice B · Palmarés Visual
+> **Estado: COMPLETADO · 2026-07-02.** Implementación, hardening y QA cerrados en `redesign/migration`.
+> **Commit de cierre:** `df28209` (`Cierra Slice A y Palmarés`).
+> Documento conservado como registro de alcance, decisiones técnicas y criterios de aceptación.
+
 > **v4 (2026-06-30) tras corrección de fidelidad.** La implementación pública usa la vitrina `.mv-*` y la sala `#sala` del prototipo con datos reales. Three.js/Draco cargan perezosamente desde `assets/vendor/three/`; `model-viewer` y `tr-room` fueron retirados; la sala conserva lifecycle `start/stop/dispose`, token anti-race, fullscreen accesible, 24 partículas y fallback SVG sin WebGL ni `Smoke` en mobile.
 > Orden maestro: **C → A → B → D**. B arranca con C y A estables.
 
