@@ -136,3 +136,12 @@ CP0 `five_hour ≤ 10%` · freeze 65% · cierre 75%. Máx 3 subagentes solo-lect
 - [ ] `_tkEsc` en todo `innerHTML` externo. Sin emojis. SVG Lucide.
 - [ ] `firebase-config.js`/`cloudinary.js` NO en staging. Sin credenciales. Sin `TODO: fix security`.
 - [ ] `node --check` ok. Consola limpia. Admin→público ok. Responsive desktop+mobile. `graphify update .`.
+
+## Hardening final — 2026-07-01
+
+- Perfil conserva el drawer accesible, trap/retorno de foco, disclosures sincronizados y scroll interno implementados en el cierre de A.
+- Calendario conserva el `button.hm-toggle` semántico; el typewriter solo modifica labels de texto y ahora cada rerender desmonta su `IntersectionObserver`, intervalos y countdown anterior.
+- Historial cancela el `requestAnimationFrame` previo por contador y desconecta el observer de tabla antes de crear otro. El H2H vuelve al estado neutral en cuanto un input deja de resolver a un equipo exacto.
+- El helper de posición pública conserva el `getBoundingClientRect().top` del ancla y compensa la diferencia con `scrollBy`; el foco de sección ocurre antes de restaurar la posición visual.
+- QA público ejecutado en 1440×900 y 390×844: calendario móvil sin overflow global, CTA con SVG intactos, autocomplete H2H por teclado y alternancia rápida Historial/Tabla sin render viejo.
+- La sesión de QA no estaba autenticada; el drawer de perfil y la navegación administrativa requieren una pasada manual autenticada antes de considerar cubierto ese tramo.

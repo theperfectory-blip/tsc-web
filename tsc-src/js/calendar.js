@@ -553,6 +553,7 @@ async function renderAdmCalendarLabels(){
    _calCountdownStop guarda el stop() del countdown anterior para limpiarlo en
    cada re-render (anti-leak en la suscripción en vivo). */
 let _calCountdownStop = null;
+let _calHeroCleanup = null;
 
 /* Contexto del hero (para los CTA reales sin escapar nombres en onclick) */
 let _calHeroCtx = null;
@@ -589,18 +590,18 @@ function _calHeroHtml(m, isLive, ctx){
     : _calCtaBtn('btn-ghost hm-cta-cal', 'Calendario completo', '');
 
   return `
-  <div class="hero hero-match hm-collapsible" style="margin-bottom:0;" tabindex="0" role="button" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${_esc(taN)} contra ${_esc(tbN)}">
+  <div class="hero hero-match hm-collapsible" style="margin-bottom:0;">
     <div class="hm-border"></div>
-    <div class="hm-peek">
+    <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${_esc(taN)} contra ${_esc(tbN)}">
       <span class="hm-peek-lbl">${isLive ? 'En vivo' : 'Próximo partido'}</span>
       ${isLive
-        ? `<div class="hm-count" style="color:var(--red);">${m.goalsA??0} — ${m.goalsB??0}</div>`
-        : `<div class="hm-count" id="hm-countdown">—</div>`}
+        ? `<span class="hm-count" style="color:var(--red);">${m.goalsA??0} — ${m.goalsB??0}</span>`
+        : `<span class="hm-count" id="hm-countdown">—</span>`}
       <span class="hm-peek-hint">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         Ver enfrentamiento
       </span>
-    </div>
+    </button>
     <div class="hm-expand">
       <div class="hm-top">${eyebrowChip}</div>
       <div class="hm-face">
@@ -627,16 +628,16 @@ function _calHeroHtml(m, isLive, ctx){
 function _calOffseasonHero(){
   _calHeroCtx = null;
   return `
-  <div class="hm-collapsible" tabindex="0" role="button" aria-expanded="false" aria-label="Temporada sin partidos programados">
+  <div class="hm-collapsible">
     <div class="hm-border"></div>
-    <div class="hm-peek">
+    <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="Temporada sin partidos programados">
       <span class="hm-peek-lbl">Copa Suscriptores</span>
-      <div class="hm-count" style="font-size:clamp(1.8rem,1rem+2.4vw,2.8rem);">Sin partidos</div>
+      <span class="hm-count" style="font-size:clamp(1.8rem,1rem+2.4vw,2.8rem);">Sin partidos</span>
       <span class="hm-peek-hint">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         Ver detalles
       </span>
-    </div>
+    </button>
     <div class="hm-expand">
       <div class="hm-top"><span class="chip"><span class="hm-chip-label">Próximamente</span></span></div>
       <p style="color:var(--txt3);font-size:14px;text-align:center;max-width:420px;margin:4px auto 0;line-height:1.5;">La temporada no tiene partidos programados ahora mismo. En cuanto el administrador publique el calendario, el próximo partido aparecerá aquí con su cuenta atrás.</p>
@@ -647,8 +648,15 @@ function _calOffseasonHero(){
 
 /* Cablea el toggle (click + teclado), CTAs y máquina de escribir del hero. */
 function _calWireHero(scope){
+  _calHeroCleanup?.();
+  _calHeroCleanup = null;
   const hero = scope.querySelector('.hm-collapsible');
-  if(!hero) return;
+  const toggleBtn = hero?.querySelector('.hm-toggle');
+  if(!hero || !toggleBtn) return;
+  const controller = new AbortController();
+  const listen = { signal:controller.signal };
+  const intervals = new Set();
+  let observer = null;
 
   /* ── Máquina de escribir (portada del prototipo) ─────────────────────── */
   const _reduced = ()=> window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -678,10 +686,11 @@ function _calWireHero(scope){
     el.style.opacity='1'; el.classList.add('hm-typing');
     const full=el.dataset.full; let i=0;
     const id=setInterval(()=>{
-      if(token!==_run){ clearInterval(id); return resolve(); }
+      if(token!==_run){ clearInterval(id); intervals.delete(id); return resolve(); }
       el.textContent=full.slice(0,++i);
-      if(i>=full.length){ clearInterval(id); el.classList.remove('hm-typing'); resolve(); }
+      if(i>=full.length){ clearInterval(id); intervals.delete(id); el.classList.remove('hm-typing'); resolve(); }
     }, speed);
+    intervals.add(id);
   });
 
   async function typeIn(){
@@ -699,51 +708,57 @@ function _calWireHero(scope){
   const lbl=hero.querySelector('.hm-peek-lbl');
   if(lbl){
     if(!_reduced()) _clear(lbl);
-    new IntersectionObserver((ents,obs)=>{
-      ents.forEach(e=>{ if(e.isIntersecting){ _reduced()?_fill(lbl):(_reserve(lbl),_type(lbl,32,_run)); obs.unobserve(e.target); }});
-    },{threshold:0.4}).observe(hero);
+    if('IntersectionObserver' in window){
+      observer = new IntersectionObserver((ents,obs)=>{
+        ents.forEach(e=>{ if(e.isIntersecting){ _reduced()?_fill(lbl):(_reserve(lbl),_type(lbl,32,_run)); obs.unobserve(e.target); }});
+      },{threshold:0.4});
+      observer.observe(hero);
+    } else {
+      _fill(lbl);
+    }
   }
   if(!_reduced()) seqEls().forEach(_clear);
 
   /* ── Toggle + typewriter ──────────────────────────────────────────────── */
   const toggle = ()=>{
     const open=hero.classList.toggle('open');
-    hero.setAttribute('aria-expanded', String(open));
+    toggleBtn.setAttribute('aria-expanded', String(open));
     open ? typeIn() : resetSeq();
   };
-  /* En táctil: click abre/cierra. En desktop: hover CSS + typewriter. */
-  hero.addEventListener('click', (e)=>{
-    if(e.target.closest('.hm-cta')) return;
-    if(matchMedia('(hover:none)').matches) toggle();
-  });
-  hero.addEventListener('keydown', (e)=>{
-    if(e.target.closest('.hm-cta')) return;
-    if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){ e.preventDefault(); toggle(); }
-  });
-  hero.addEventListener('mouseenter', typeIn);
-  hero.addEventListener('mouseleave', resetSeq);
-  hero.addEventListener('focusin',  typeIn);
-  hero.addEventListener('focusout', e=>{ if(!hero.contains(e.relatedTarget)) resetSeq(); });
+  toggleBtn.addEventListener('click', toggle, listen);
+  hero.addEventListener('mouseenter', typeIn, listen);
+  hero.addEventListener('mouseleave', resetSeq, listen);
+  hero.addEventListener('focusin',  typeIn, listen);
+  hero.addEventListener('focusout', e=>{ if(!hero.contains(e.relatedTarget)) resetSeq(); }, listen);
 
   /* ── CTAs ─────────────────────────────────────────────────────────────── */
   const h2h = scope.querySelector('.hm-cta-h2h');
-  if(h2h) h2h.addEventListener('click', (e)=>{ e.stopPropagation(); _calHeroGoH2H(); });
+  if(h2h) h2h.addEventListener('click', (e)=>{ e.stopPropagation(); _calHeroGoH2H(); }, listen);
   const comp = scope.querySelector('.hm-cta-comp');
-  if(comp) comp.addEventListener('click', (e)=>{ e.stopPropagation(); _calHeroGoComp(); });
+  if(comp) comp.addEventListener('click', (e)=>{ e.stopPropagation(); _calHeroGoComp(); }, listen);
   const cal = scope.querySelector('.hm-cta-cal');
   if(cal) cal.addEventListener('click', (e)=>{ e.stopPropagation();
-    scope.querySelector('.metro')?.scrollIntoView({behavior:'smooth', block:'start'}); });
+    scope.querySelector('.metro')?.scrollIntoView({behavior:'smooth', block:'start'}); }, listen);
 
   /* ── Proximidad del radar en vivo ─────────────────────────────────────────
      Si el hero está en vivo, el cursor sobre la tarjeta acerca el sonido (limpio
      y más alto); al salir vuelve a lejano+eco. Por defecto: lejano. */
   if(hero.querySelector('.chip-live') && typeof liveRadarProximity === 'function'){
     liveRadarProximity(false);
-    hero.addEventListener('mouseenter', ()=>liveRadarProximity(true));
-    hero.addEventListener('mouseleave', ()=>liveRadarProximity(false));
-    hero.addEventListener('focusin',  ()=>liveRadarProximity(true));
-    hero.addEventListener('focusout', e=>{ if(!hero.contains(e.relatedTarget)) liveRadarProximity(false); });
+    hero.addEventListener('mouseenter', ()=>liveRadarProximity(true), listen);
+    hero.addEventListener('mouseleave', ()=>liveRadarProximity(false), listen);
+    hero.addEventListener('focusin',  ()=>liveRadarProximity(true), listen);
+    hero.addEventListener('focusout', e=>{ if(!hero.contains(e.relatedTarget)) liveRadarProximity(false); }, listen);
   }
+  _calHeroCleanup = ()=>{
+    _run++;
+    observer?.disconnect();
+    intervals.forEach(clearInterval);
+    intervals.clear();
+    controller.abort();
+    if(typeof liveRadarProximity==='function') liveRadarProximity(false);
+    _calHeroCleanup = null;
+  };
 }
 
 /* CTA: ver enfrentamientos (H2H) en el Historial entre los dos equipos del hero. */
@@ -788,6 +803,9 @@ function _calInitHeroCountdown(m){
 async function renderPubCalendar(){
   const el = document.getElementById('pub-calendar-content');
   if(!el) return;
+  _calHeroCleanup?.();
+  _calHeroCleanup = null;
+  if(_calCountdownStop){ try{ _calCountdownStop(); }catch(e){} _calCountdownStop=null; }
   el.innerHTML = '<div class="cal-loading">Cargando...</div>';
 
   const [allMatches, teams, allPhases, comps, dayLabels] = await Promise.all([
@@ -900,12 +918,18 @@ async function renderPubCalendar(){
       : mLeg===2 ? '<span class="mm-leg mm-leg--vuelta">VTA</span>' : '';
     return `<div class="metro-match">
       ${lead}
+      <span class="mm-fixture">
+        <span class="mm-side mm-side-a">
+          <span class="mm-crest" style="--tc:${_esc(colA)};">${_esc(iniA)}</span>
+          <span class="mm-name">${_esc(mmTaN)}</span>
+        </span>
+        <span class="mm-sep">–</span>
+        <span class="mm-side mm-side-b">
+          <span class="mm-name">${_esc(mmTbN)}</span>
+          <span class="mm-crest" style="--tc:${_esc(colB)};">${_esc(iniB)}</span>
+        </span>
+      </span>
       ${legBadge}
-      <span class="mm-crest" style="--tc:${_esc(colA)};">${_esc(iniA)}</span>
-      <span class="mm-name">${_esc(mmTaN)}</span>
-      <span class="mm-sep">–</span>
-      <span class="mm-name">${_esc(mmTbN)}</span>
-      <span class="mm-crest" style="--tc:${_esc(colB)};">${_esc(iniB)}</span>
       ${label?`<span class="mm-comp">${_esc(label)}</span>`:''}
     </div>`;
   };

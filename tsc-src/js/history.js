@@ -318,12 +318,13 @@ async function renderAdmHistory(){
 }
 
 async function renderPubHistory(){
+  const renderToken = ++_pubHistRenderToken;
   _histState.mode = 'public';
   if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('partidos');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
   _injectHistHeader(0);
-  await _renderHistoryFull(el, false);
+  await _renderHistoryFull(el, false, renderToken);
 }
 
 /* ----------------------------------------------------------
@@ -331,10 +332,20 @@ async function renderPubHistory(){
    ---------------------------------------------------------- */
 let _pubHistCarousel = null;
 let _pubHistCarouselResizeBound = false;
+let _pubHistRenderToken = 0;
 function _pubBindHistCarouselResize(){
   if(_pubHistCarouselResizeBound) return;
   _pubHistCarouselResizeBound = true;
   window.addEventListener('resize', ()=>{ _pubHistCarousel?.recenter?.(); });
+}
+async function _pubSwitchHistoryView(idx){
+  const anchor = typeof _pubCaptureVisualAnchor==='function'
+    ? _pubCaptureVisualAnchor(document.getElementById('page-historial'))
+    : null;
+  if(idx===0) await renderPubHistory();
+  else await renderPubHistoryStandings();
+  if(typeof _pubRestoreVisualAnchor==='function') await _pubRestoreVisualAnchor(anchor, 'historial');
+  else if(typeof focusPublicSection==='function') await focusPublicSection('historial');
 }
 function _injectHistHeader(activeIdx){
   const page = document.getElementById('page-historial');
@@ -352,9 +363,9 @@ function _injectHistHeader(activeIdx){
   }
   const cc = document.getElementById('pub-cc-hist');
   if(cc && typeof _pubMakeCarousel==='function'){
-    _pubHistCarousel = _pubMakeCarousel(cc, ['Historial','Tabla histórica'], activeIdx, i=>{
-      if(i===0) renderPubHistory();
-      else renderPubHistoryStandings();
+    cc.setAttribute('aria-label', 'Vista del historial');
+    _pubHistCarousel = _pubMakeCarousel(cc, ['Partidos','Tabla histórica'], activeIdx, i=>{
+      _pubSwitchHistoryView(i).catch(err=>console.error('[Historial] Error cambiando vista:', err));
     });
     _pubBindHistCarouselResize();
     requestAnimationFrame(()=>{ _pubHistCarousel?.recenter?.(); });
@@ -498,8 +509,12 @@ function _pubHistoryHitos(records){
 /* Anima un número entero hacia su valor objetivo.
    Degrada al valor final (sin animación) si no hay rAF o si el usuario pidió
    movimiento reducido (prefers-reduced-motion). */
+const _pubHCountRaf = new WeakMap();
 function _pubHCount(el, to){
   if(!el) return;
+  const previous = _pubHCountRaf.get(el);
+  if(previous) cancelAnimationFrame(previous);
+  _pubHCountRaf.delete(el);
   const from = parseInt(String(el.textContent).replace(/\D/g,''))||0;
   const _reduced = window.MOTION?.reduced?.() ?? matchMedia('(prefers-reduced-motion:reduce)').matches;
   if(from===to || _reduced || !(window.requestAnimationFrame)){ el.textContent=String(to); return; }
@@ -507,7 +522,8 @@ function _pubHCount(el, to){
   (function step(ts){
     const p = Math.min(1,(ts-t0)/dur), e = p<.5?2*p*p:-1+(4-2*p)*p;
     el.textContent = String(Math.round(from+(to-from)*e));
-    if(p<1) requestAnimationFrame(step);
+    if(p<1) _pubHCountRaf.set(el, requestAnimationFrame(step));
+    else _pubHCountRaf.delete(el);
   })(t0);
 }
 
@@ -713,9 +729,10 @@ function _pubInitMatchesView(el, all){
   if(resetBtn) resetBtn.addEventListener('click', _pubResetHistFilters);
 }
 
-async function _renderHistoryFull(el, isAdmin){
+async function _renderHistoryFull(el, isAdmin, renderToken=null){
   try {
     const all = await _getResolvedRecords();
+    if(!isAdmin && renderToken!==_pubHistRenderToken) return;
 
     if(!all.length){
       el.innerHTML = `<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">
@@ -775,11 +792,11 @@ async function _renderHistoryFull(el, isAdmin){
     return;
   } catch(err){
     console.error('[Historial] Error al renderizar:', err);
+    if(!isAdmin && renderToken!==_pubHistRenderToken) return;
     el.innerHTML = `
       <div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;">
-        <strong>Error al cargar el historial:</strong><br>
-        <code style="font-size:11px;color:var(--txt2);">${(err.message||err).toString().replace(/</g,'&lt;')}</code><br>
-        <span style="font-size:12px;color:var(--txt3);">Abre la consola (F12) para más detalles. Suele resolverse con un hard reload (Ctrl+Shift+R).</span>
+        <strong>No pudimos cargar el historial.</strong><br>
+        <span style="font-size:12px;color:var(--txt3);">Intenta nuevamente en unos segundos.</span>
       </div>`;
   }
 }
@@ -1259,6 +1276,7 @@ async function renderAdmHistoryStandings(){
 }
 
 async function renderPubHistoryStandings(){
+  const renderToken = ++_pubHistRenderToken;
   _histStdState.mode = 'public';
   // La tabla histórica pública hereda el filtro juego/temporada del carrusel.
   _histStdState.fJuego = _pubH.game;
@@ -1267,7 +1285,7 @@ async function renderPubHistoryStandings(){
   const el = document.getElementById('pub-history-content');
   if(!el) return;
   _injectHistHeader(1);
-  await _pubRenderHistoryStandings(el);
+  await _pubRenderHistoryStandings(el, renderToken);
 }
 
 /* ── Tabla histórica pública: 6 layouts responsive (_htLayout) + expansión ── */
@@ -1338,6 +1356,7 @@ function _renderHtTable(el){
 }
 
 let _htBound = false;
+let _htObserver = null;
 function _bindHtTable(el){
   const card = el.querySelector('.ht-card');
   if(!card) return;
@@ -1357,20 +1376,24 @@ function _bindHtTable(el){
     });
   }
   // Anima barras al entrar en viewport
+  _htObserver?.disconnect();
+  _htObserver = null;
   if('IntersectionObserver' in window){
-    new IntersectionObserver((ents,obs)=>{
+    _htObserver = new IntersectionObserver((ents,obs)=>{
       ents.forEach(e=>{ if(!e.isIntersecting) return;
         card.querySelectorAll('.ht-bar i').forEach(bar=>{ bar.style.width=(bar.dataset.w||0)+'%'; });
         obs.unobserve(e.target);
       });
-    },{threshold:0.1}).observe(card);
+    },{threshold:0.1});
+    _htObserver.observe(card);
   }
 }
 
 /* Renderer público de la tabla histórica con markup .ht-* responsive (sin controles admin). */
-async function _pubRenderHistoryStandings(el){
+async function _pubRenderHistoryStandings(el, renderToken){
   try {
     const data = await _computeHistoricalStandings();
+    if(renderToken!==_pubHistRenderToken) return;
     if(!data.standings.length){
       el.innerHTML = '<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">No hay datos suficientes para la tabla histórica.</div>';
       return;
@@ -1387,7 +1410,8 @@ async function _pubRenderHistoryStandings(el){
     _bindHtTable(el);
   } catch(err){
     console.error('[Tabla histórica pública]', err);
-    el.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;"><strong>Error al calcular tabla histórica:</strong><br><code style="font-size:11px;">${(err.message||err).toString().replace(/</g,'&lt;')}</code></div>`;
+    if(renderToken!==_pubHistRenderToken) return;
+    el.innerHTML = '<div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;"><strong>No pudimos calcular la tabla histórica.</strong><br><span style="font-size:12px;color:var(--txt3);">Intenta nuevamente en unos segundos.</span></div>';
   }
 }
 

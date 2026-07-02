@@ -522,7 +522,7 @@ async function _pubRenderPlayoffBroadcast(phaseId, containerId){
       ${championTeam ? `<div class="gbr-champ"><div class="gbr-champ-lbl">Campeón</div><div class="gbr-champ-name" style="font-size:36px;">${_pbEsc(championTeam.name||'')}</div></div>` : ''}
     </div>`;
   } else {
-    el.innerHTML = `<div class="ties-grid">${cards.join('')}</div>`;
+    el.innerHTML = `<div class="ties-grid${cards.length===4?' ties-grid--four':''}">${cards.join('')}</div>`;
   }
 
   // Fuegos del campeón (una vez por fase, si visible)

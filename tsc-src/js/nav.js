@@ -236,7 +236,7 @@ function _subscribeFocusedPublicSection(page){
   const sub = (key, stores, fn)=>liveSubscribe(key+'-'+STATE.season, stores, fn);
   switch(page){
     case 'palmares':
-      sub('palmares', ['seasons','phases','matches'], ()=>renderPubPalmares());
+      sub('palmares', ['palmares','palmares-comps','settings','teams'], ()=>renderPubPalmares());
       break;
     case 'panel':
       sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());

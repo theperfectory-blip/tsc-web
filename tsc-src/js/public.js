@@ -17,9 +17,12 @@ function _pubBindCarouselResize(){
    `activeIdx` posiciona el item activo SIN disparar onChange (evita loop de
    re-render). Solo la interacción del usuario (drag/clic) llama onChange(idx). */
 function _pubMakeCarousel(cc, items, activeIdx, onChange){
+  cc._pubCarousel?.dispose?.();
   const view = cc.querySelector('.cc-view');
   const track = cc.querySelector('.cc-track');
   if(!view || !track) return null;
+  const controller = new AbortController();
+  const listen = { signal:controller.signal };
   let idx = Math.max(0, activeIdx||0);
   const curTx = ()=> new DOMMatrixReadOnly(getComputedStyle(track).transform).m41;
   function center(animate){
@@ -29,11 +32,19 @@ function _pubMakeCarousel(cc, items, activeIdx, onChange){
     view.style.width = (it.offsetWidth + PEEK*2) + 'px';
     const tx = view.clientWidth/2 - (it.offsetLeft + it.offsetWidth/2);
     track.style.transform = `translateX(${tx}px)`;
-    [...track.children].forEach((c,i)=>c.classList.toggle('active', i===idx));
+    [...track.children].forEach((c,i)=>{
+      const active = i===idx;
+      c.classList.toggle('active', active);
+      c.setAttribute('aria-pressed', String(active));
+      if(active) c.setAttribute('aria-current', 'true');
+      else c.removeAttribute('aria-current');
+    });
     if(!animate){ void track.offsetWidth; track.style.transition = ''; }
   }
   // Pinta los items y centra el activo (sin animar, sin onChange).
-  track.innerHTML = items.map((t,i)=>`<button type="button" class="cc-item" data-i="${i}">${_tkEsc(t)}</button>`).join('');
+  track.setAttribute('role', 'group');
+  track.setAttribute('aria-label', cc.getAttribute('aria-label') || 'Selector');
+  track.innerHTML = items.map((t,i)=>`<button type="button" class="cc-item" data-i="${i}" aria-pressed="${i===idx?'true':'false'}">${_tkEsc(t)}</button>`).join('');
   if(idx >= track.children.length) idx = 0;
   center(false);
   function set(i, fromUser){
@@ -44,8 +55,8 @@ function _pubMakeCarousel(cc, items, activeIdx, onChange){
   }
   // drag / swipe con snap al vecino más cercano
   let down=false, x0=0, tx0=0, moved=false;
-  track.addEventListener('pointerdown', e=>{ down=true; x0=e.clientX; tx0=curTx(); moved=false; track.classList.add('dragging'); track.setPointerCapture?.(e.pointerId); });
-  track.addEventListener('pointermove', e=>{ if(!down) return; const dx=e.clientX-x0; if(Math.abs(dx)>4) moved=true; track.style.transform=`translateX(${tx0+dx}px)`; });
+  track.addEventListener('pointerdown', e=>{ down=true; x0=e.clientX; tx0=curTx(); moved=false; track.classList.add('dragging'); track.setPointerCapture?.(e.pointerId); }, listen);
+  track.addEventListener('pointermove', e=>{ if(!down) return; const dx=e.clientX-x0; if(Math.abs(dx)>4) moved=true; track.style.transform=`translateX(${tx0+dx}px)`; }, listen);
   function release(){
     if(!down) return; down=false; track.classList.remove('dragging');
     const point = view.clientWidth/2 - curTx();
@@ -53,16 +64,55 @@ function _pubMakeCarousel(cc, items, activeIdx, onChange){
     [...track.children].forEach((c,i)=>{ const m=c.offsetLeft+c.offsetWidth/2; const d=Math.abs(m-point); if(d<bd){bd=d;best=i;} });
     set(best, true);
   }
-  track.addEventListener('pointerup', release);
-  track.addEventListener('pointercancel', release);
-  track.addEventListener('click', e=>{ const it=e.target.closest('.cc-item'); if(it && !moved) set(+it.dataset.i, true); });
-  return { recenter: ()=>center(false), get idx(){ return idx; } };
+  track.addEventListener('pointerup', release, listen);
+  track.addEventListener('pointercancel', release, listen);
+  track.addEventListener('click', e=>{ const it=e.target.closest('.cc-item'); if(it && !moved) set(+it.dataset.i, true); }, listen);
+  track.addEventListener('keydown', e=>{
+    let next = null;
+    if(e.key==='ArrowLeft') next = idx-1;
+    else if(e.key==='ArrowRight') next = idx+1;
+    else if(e.key==='Home') next = 0;
+    else if(e.key==='End') next = track.children.length-1;
+    if(next==null) return;
+    e.preventDefault();
+    set(next, true);
+    track.children[idx]?.focus();
+  }, listen);
+  const api = {
+    recenter: ()=>center(false),
+    dispose: ()=>{
+      controller.abort();
+      track.classList.remove('dragging');
+      if(cc._pubCarousel===api) delete cc._pubCarousel;
+    },
+    get idx(){ return idx; }
+  };
+  cc._pubCarousel = api;
+  return api;
+}
+
+function _pubCaptureVisualAnchor(el){
+  return el ? { el, top:el.getBoundingClientRect().top } : null;
+}
+
+async function _pubRestoreVisualAnchor(anchor, page){
+  if(typeof focusPublicSection==='function') await focusPublicSection(page);
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await new Promise(resolve=>setTimeout(resolve, 50));
+  if(anchor?.el?.isConnected){
+    const delta = anchor.el.getBoundingClientRect().top - anchor.top;
+    if(Math.abs(delta)>0.5) window.scrollBy({ top:delta, left:0, behavior:'auto' });
+  }
 }
 
 async function renderPubPanel(){
   // Escape local (function-scoped): public.js no define _esc global a propósito.
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const el = document.getElementById('pub-panel-content');
+  _pubCompCarousel?.dispose?.();
+  _pubFaseCarousel?.dispose?.();
+  _pubCompCarousel = null;
+  _pubFaseCarousel = null;
   const comps = await getForSeason('competitions');
 
   // filtro tolerante — acepta 'active', mayúsculas, espacios, y comps sin status
@@ -137,7 +187,6 @@ async function renderPubPanel(){
 
   // Instanciar carruseles comp/fase ya con el DOM montado. Se posicionan en el activo
   // sin disparar onChange; solo el drag/clic del usuario navega (pubSelectComp/Phase).
-  _pubCompCarousel = null; _pubFaseCarousel = null;
   const _compCC = document.getElementById('pub-cc-comp');
   if(_compCC){
     _pubCompCarousel = _pubMakeCarousel(_compCC, active.map(c=>c.name), active.findIndex(c=>c.id===selComp.id), i=>pubSelectComp(active[i].id));
@@ -174,9 +223,8 @@ async function renderPubPanel(){
       const ct = document.getElementById(phaseContentId);
       if(ct) ct.innerHTML = `
         <div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;">
-          <strong>Error renderizando "${esc(selPhase.name)}":</strong><br>
-          <code style="font-size:11px;color:var(--txt2);">${esc((err.message||err).toString())}</code><br>
-          <span style="font-size:12px;color:var(--txt3);">Abre la consola (F12) para ver el detalle. Probablemente la fase tiene datos corruptos o le faltan grupos.</span>
+          <strong>No pudimos mostrar "${esc(selPhase.name)}".</strong><br>
+          <span style="font-size:12px;color:var(--txt3);">Intenta nuevamente en unos segundos.</span>
         </div>`;
     }
   }
@@ -404,23 +452,27 @@ async function pubShowMatchesGroup(phaseId, groupIdx, btnEl){
   } catch(err) {
     console.error(`[Panel público] Error renderMatchesList phase=${phaseId} group=${groupIdx}:`, err);
     const c = document.getElementById(`pub-matches-list-${phaseId}`);
-    if(c) c.innerHTML = `<div style="color:var(--red);font-size:12px;padding:10px;">Error al cargar partidos: ${(err.message||err).toString().replace(/</g,'&lt;')}</div>`;
+    if(c) c.innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">No pudimos cargar los partidos. Intenta nuevamente.</div>';
   }
 }
 
 async function pubSelectComp(compId, phaseId){
+  const anchor = _pubCaptureVisualAnchor(document.getElementById('pub-panel-content'));
   window._pubState.compId = compId;
   // phaseId opcional: el CTA del calendario fija la fase del partido; el carrusel de
   // competiciones la omite → null → renderPubPanel toma la primera fase.
   window._pubState.phaseId = phaseId != null ? phaseId : null;
   window._pubState.groupIdx = 0;   // nueva competición → arrancar en el primer grupo
   await renderPubPanel();
+  await _pubRestoreVisualAnchor(anchor, 'panel');
 }
 
 async function pubSelectPhase(phaseId){
+  const anchor = _pubCaptureVisualAnchor(document.getElementById('pub-panel-content'));
   window._pubState.phaseId = phaseId;
   window._pubState.groupIdx = 0;   // nueva fase → arrancar en el primer grupo
   await renderPubPanel();
+  await _pubRestoreVisualAnchor(anchor, 'panel');
 }
 
 /* renderPubHistory: ahora vive en js/history.js (historial dinámico de partidos) */

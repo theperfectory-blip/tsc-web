@@ -1,5 +1,5 @@
 # Pre-slice — Macro Slice B · Palmarés Visual
-> **v2 (2026-06-25) tras auditoría de código.** Corrige el alcance: el esfuerzo real NO es vendorear Three.js (build global 0.147.0, trivial), sino **portar los 4 PNG de la sala + la matemática `salaLayout` + el sistema `Smoke` + partículas/haces bicolor**. Enumera los efectos como ítems de fidelidad (no "etc."), corrige el contrato para D (lleva campeón+colores, identifica por `recordId`), y declara la regresión visual intermedia (collage vacío) hasta que D aterrice.
+> **v4 (2026-06-30) tras corrección de fidelidad.** La implementación pública usa la vitrina `.mv-*` y la sala `#sala` del prototipo con datos reales. Three.js/Draco cargan perezosamente desde `assets/vendor/three/`; `model-viewer` y `tr-room` fueron retirados; la sala conserva lifecycle `start/stop/dispose`, token anti-race, fullscreen accesible, 24 partículas y fallback SVG sin WebGL ni `Smoke` en mobile.
 > Orden maestro: **C → A → B → D**. B arranca con C y A estables.
 
 ## Brújula (2026-06-25)
@@ -9,13 +9,13 @@ La lógica gana solo en datos/permisos/persistencia; en **layout/estética/motio
 Reemplazar el Palmarés público actual (`tr-room` + `<model-viewer>`) por la experiencia visual del prototipo (vitrina `.mv-*` + sala fullscreen `#sala`), con datos reales, **sin** crear admin ni persistencia de fotos (eso es D).
 
 ## Estado real verificado
-- Render actual: `tr-room` (palmares.js:811), `initTrophyRoom` (1194), `renderTrophy3D` (441) con **`<model-viewer>`** + GLB desde **Firebase Storage** (`_TROPHY_STORAGE_BASE`, 416; tag 450-464); móvil/sin-GLB cae a SVG (445-447). El `tr-room` corre un **rAF perpetuo** (1273) cancelado por MutationObserver al salir del DOM (1485-1496).
-- Prototipo: **Three.js 0.147.0 build global** (no ESM/importmap) vía unpkg (prototype.html:3858-3860) + GLTFLoader + DRACOLoader + decoder Draco (3875). La sala corre `renderer.setAnimationLoop` (3981) + canvas de humo (4082) + timers de collage (3684).
+- Render actual: vitrina `.mv-*` fiel al prototipo y sala fullscreen `#sala`. No quedan consumidores de `<model-viewer>`, `tr-room` ni una segunda implementación pública. Los GLB siguen viniendo de Firebase Storage y caen a SVG ante fallo de carga.
+- Prototipo: **Three.js 0.147.0 build global** (no ESM/importmap) vía unpkg (prototype.html:3858-3860) + GLTFLoader + DRACOLoader + decoder Draco (3875). La implementación real de B conserva esa base, pero la carga será **lazy y self-hosted**. La sala corre `renderer.setAnimationLoop` (3981) + canvas de humo (4082) + timers de collage (3684).
 
 ## Alcance (entra)
 - Reemplazar la vista inline `tr-room` por la **vitrina `.mv-*`** del prototipo (datos reales).
 - Sala fullscreen **`#sala`** completa (ver "Capas de la sala").
-- **Three.js + Draco self-hosted** (sin CDN). **Self-host = trivial:** copiar `three.min.js` + `GLTFLoader.js` + `DRACOLoader.js` + carpeta `draco/` (decoder wasm/js) a `assets/vendor/`. Build legacy global, sin build step.
+- **Three.js + Draco self-hosted** (sin CDN) y **carga perezosa**. Copiar `three.min.js` + `GLTFLoader.js` + `DRACOLoader.js` + carpeta `draco/` (decoder wasm/js) a `assets/vendor/`. Build legacy global, sin build step, sin scripts globales al arranque.
 - Reusar los **GLB de copas existentes** (Firebase Storage); no tocar admin de copas.
 - Desmontar `tr-room`/`initTrophyRoom` (evitar rAF duplicado) — **necesario** (hay rAF perpetuo en 1273).
 - `prefers-reduced-motion` en humo/luces/partículas/cards (el prototipo: `.sala-particles{animation:none}`, `.sala-smoke-canvas{display:none}`, prototype.html:356-357).
@@ -37,11 +37,12 @@ La sala del prototipo (prototype.html:1379-1417, CSS 103-367) tiene, por z:
 13. **Audio:** `AUDIO.enterSala()` al abrir + botón mute (el real ya tiene `playPalmZoom`/`playPalmDing`, palmares.js:664/687).
 
 ## Assets a portar (FALTABA en v1 — crítico) · RUTAS FINALES FIJADAS
-PNG de la sala → **`tsc-src/assets/sala/`**:
-- `tsc-src/assets/sala/sin_fondo.png` (piso+podio, alfa real). **Ya existe `tsc-src/assets/tsc_sin_fondo.png` sin commitear** → mover/renombrar a esta ruta final y commitear.
-- `tsc-src/assets/sala/foco_izquierdo.png`
-- `tsc-src/assets/sala/foco_derecho.png`
-- `tsc-src/assets/sala/placa_dorada.png`
+PNG de la sala → **`tsc-src/assets/`** (canónicos, sin duplicar):
+- `tsc-src/assets/sin_fondo.png` = piso+podio real
+- `tsc-src/assets/foco_izquierdo.png`
+- `tsc-src/assets/foco_derecho.png`
+- `tsc-src/assets/placa_dorada.png`
+- `tsc-src/assets/tsc_sin_fondo.png` = logo del topbar, no foreground de sala
 
 Libs self-hosted → **`tsc-src/assets/vendor/three/`**: `three.min.js` (0.147.0), `GLTFLoader.js`, `DRACOLoader.js`, y `tsc-src/assets/vendor/three/draco/` (decoder wasm/js). Setear el `DRACOLoader.setDecoderPath('assets/vendor/three/draco/')`.
 
@@ -53,10 +54,11 @@ Más la **matemática `salaLayout`/`SALA_IMG`** (prototype.html:3761-3789): proy
 ## Contrato con Slice C (consume)
 - Renderiza dentro de **`page-palmares`** (estable).
 - La vitrina inline pausa con **`tsc:public-section-visible`** de C.
-- La sala fullscreen es overlay → se pausa/desmonta **al cerrar** (independiente del scroll). `closeSala` debe parar **`CUP.stop()` + `_stopSalaSmoke()` + `_stopCollage()`** (prototype.html:4105-4114).
+- La sala fullscreen es overlay accesible (`role="dialog"`, `aria-modal`, foco inicial, trap de foco, Escape y devolución al disparador).
+- Lifecycle obligatorio: `start/stop/dispose` para copa/canvas/audio/listeners. `closeSala` debe parar **`CUP.stop()` + `_stopSalaSmoke()` + `_stopCollage()`** y evitar contexts/canvas duplicados.
 
 ## Contrato que EXPONE para Slice D (CORREGIDO)
-- Provider interno **`setSalaCollage({ recordId, items, colors })`** / **`getPalmaresMedia(recordId)`**.
+- Provider interno **`setSalaCollage({ recordId, items, colors })`** / **`getPalmaresMedia(recordId)`**, que devuelve `{ items, colors }`.
   - **Identifica por `recordId`** (el `id` del registro `palmares`), NO por la tripleta `comp|season|teamId` (`season` es opcional → frágil; ver D).
   - **Lleva también los colores del club** (`c1`/`c2`): el collage **recolorea cada shot por club** (`g.addColorStop(1, lightenForLight(c.c1))`, prototype.html:3692) → el contrato no es "array plano".
 - En B el collage se renderiza **vacío** (ambiente/luces/humo) si no hay items. **Sin placeholders mock** ("MOMENTO DEL CAMPEÓN N").
@@ -69,34 +71,50 @@ El prototipo muestra hoy **mock canvas** ("MOMENTO DEL CAMPEON · N", prototype.
 Backend/persistencia/admin de fotos (D) · Cloudinary/Firestore media/`palmares-media` · admin de copas · internals de otras secciones/admin/`live.js`.
 
 ## Archivos a tocar / NO tocar
-**Tocar:** `palmares.js` (vitrina `.mv-*` + sala `#sala` + `salaLayout`/`Smoke`/partículas/haces + desmontar `tr-room`), `palmares.css`/`redesign.css` (`.mv-*`, `.sala-*`), `index.html` (`<script>` de libs self-hosted + estructura `page-palmares`), **`assets/vendor/three/`** (Three.js 0.147.0 + GLTFLoader + DRACOLoader + `draco/`), **`assets/sala/`** (4 PNG: `sin_fondo`/`foco_izquierdo`/`foco_derecho`/`placa_dorada`).
+**Tocar:** `palmares.js` (vitrina `.mv-*` + sala `#sala` + `salaLayout`/`Smoke`/partículas/haces + desmontar `tr-room`), `palmares.css` (**`.mv-*` nuevo**), `redesign.css` (**reusar `.sala-*` existente, no portarlo de nuevo**), `index.html` (logo conservado + retiro de consumidores CDN), **`assets/vendor/three/`** (Three.js 0.147.0 + GLTFLoader + DRACOLoader + `draco/`).
 **NO tocar:** `cloudinary.js`, `firebase-config.js`, admin de copas, `live.js`, otras secciones, renderers compartidos.
 
 ## Presupuesto de performance (riesgo principal)
 - **Desktop:** interacción fluida sin jank en fullscreen (prototipo capa pixelRatio a 2, 3916).
-- **Mobile:** B **aumenta** el coste vs el actual (model-viewer ya cae a SVG en móvil) → **fallback OBLIGATORIO** a sala simplificada / poster estático con placa real.
+- **Mobile:** `<=760px` o `pointer:coarse` → **fallback OBLIGATORIO** a SVG, sin WebGL ni `Smoke`.
 - QA mide: apertura/cierre, navegación 4-dir, recarga GLB al cambiar comp, pausa offscreen, rAF/CPU, teardown completo (`CUP.stop`/`_stopSalaSmoke`/`_stopCollage`).
 
 ## Riesgos + mitigaciones
 - Anclaje geométrico (copa sobre PNG) → portar los 4 PNG + `salaLayout` exacto; verificar contra GLB reales (la copa "flota" si falla).
 - `Smoke` complejo → portarlo completo (no simplificar a blur) o aplicar reduced-motion.
-- rAF múltiples (tr-room 1273 + setAnimationLoop 3981 + smoke 4082 + collage 3684) → desmontar `tr-room` + teardown en `closeSala`.
+- rAF múltiples (tr-room 1273 + setAnimationLoop 3981 + smoke 4082 + collage 3684) → desmontar `tr-room` + lifecycle `start/stop/dispose`.
+- Carga GLB asíncrona vieja mostrando la copa equivocada → proteger con token anti-race por request.
 - Mobile → fallback definido.
 - Libs sin build → vendoreo + paths del decoder Draco correctos.
 
 ## Pasos de ejecución
-CP0 (≤10%) → vendorear Three.js+Draco (`assets/vendor/`) → portar 4 PNG (`assets/`) → vitrina `.mv-*` con datos reales (reemplaza `tr-room`) → sala `#sala` (capas 1-13: collage vacío, viñeta, foreground PNG+`salaLayout`, haces bicolor, `Smoke`, focos PNG, 24 partículas, copa Three.js, placa PNG, nav 4-dir, audio) → desmontar `tr-room`/`initTrophyRoom` → integrar con C (`page-palmares`+evento) → exponer contrato `setSalaCollage({recordId,items,colors})`/`getPalmaresMedia(recordId)` (vacío) → fallback mobile → QA performance + teardown.
+CP0 (≤10%) → corregir logo roto en `index.html` → vendorear Three.js+Draco (`assets/vendor/`) → vitrina `.mv-*` con datos reales (reemplaza `tr-room`) → sala `#sala` (capas 1-13: collage vacío, viñeta, foreground PNG+`salaLayout`, haces bicolor, `Smoke`, focos PNG, **24 partículas**, copa Three.js, placa PNG, nav 4-dir, audio) → desmontar `tr-room`/`initTrophyRoom` → integrar con C (`page-palmares`+evento) → exponer contrato `setSalaCollage({recordId,items,colors})`/`getPalmaresMedia(recordId)` (vacío) → fallback mobile SVG → QA performance + teardown.
 
 ## Gates de uso
 CP0 `five_hour ≤ 10%` · freeze 65% · cierre 75%. Máx 3 subagentes solo-lectura · 1 escritor.
 
 ## Criterios de aceptación
-- [ ] Palmarés carga primero y **no cuelga** browser/capturador.
-- [ ] Vitrina `.mv-*` con **datos reales** reemplaza `tr-room`.
-- [ ] Sala fullscreen abre/cierra **limpio** desktop/mobile, con **todas las capas** (foreground PNG, haces bicolor, `Smoke`, 24 partículas, focos PNG, placa PNG, nav 4-dir, audio).
-- [ ] Three.js/Draco **self-hosted** (sin CDN). 4 PNG portados.
-- [ ] `salaLayout` ancla la copa sobre el podio sin flotar.
-- [ ] **Collage VACÍO sin mocks** (gap intermedio aceptado hasta D).
-- [ ] Contrato para D expuesto: `setSalaCollage({recordId,items,colors})`/`getPalmaresMedia(recordId)`.
-- [ ] Teardown: `CUP.stop`+`_stopSalaSmoke`+`_stopCollage` al cerrar; sin rAF huérfano (`tr-room` desmontado).
-- [ ] Sin errores de consola · `node --check` · reduced-motion + pausa offscreen.
+- [x] Palmarés carga primero y **no cuelga** browser/capturador.
+- [x] Vitrina `.mv-*` con **datos reales** reemplaza `tr-room`.
+- [x] Sala fullscreen abre/cierra **limpio** desktop/mobile, con **todas las capas** (foreground PNG, haces bicolor, `Smoke`, 24 partículas, focos PNG, placa PNG, nav 4-dir, audio).
+- [x] Three.js/Draco **self-hosted** (sin CDN). 4 PNG canónicos reutilizados.
+- [x] Three.js/Draco **self-hosted y lazy** (sin CDN ni carga global inicial).
+- [x] `salaLayout` ancla la copa sobre el podio.
+- [x] **Collage VACÍO sin mocks** cuando no hay medios.
+- [x] Contrato para D expuesto: `setSalaCollage({recordId,items,colors})`/`getPalmaresMedia(recordId)`.
+- [x] Teardown: copa + `Smoke` + collage + listeners al cerrar; sin rAF huérfano (`tr-room` desmontado).
+- [x] Token anti-race en GLB.
+- [x] Fullscreen accesible.
+- [ ] Sin errores propios de consola y `node --check`; reduced-motion y pausa offscreen tienen ramas explícitas, pero reduced-motion requiere validación dinámica en un navegador/OS configurado para reducir movimiento.
+
+## Cierre de fidelidad y medios — 2026-07-01
+
+- `.mv-stage` ocupa toda la cuadrícula y el cálculo 2.5D usa su rectángulo completo; al salir se neutraliza y reduced-motion no registra seguimiento.
+- La placa muestra `CAMPEÓN ·` seguido únicamente por temporada, juego y año existentes. La administración marca temporada/juego faltantes.
+- Cada título expone `Editar | Imágenes (N) | Quitar`. La galería persiste como `record.gallery[{url,alt}]`, conserva campos desconocidos, limita a siete HTTPS y no guarda `File` ni base64.
+- El administrador admite subida múltiple con `uploadImageToCloud`, estados por archivo, retry, orden drag/botones, alt, quitar URL y bloqueo durante guardado/subidas.
+- `getPalmaresMedia(recordId)` prioriza override runtime válido, luego `record.gallery`, y finalmente vacío; collage y animaciones se desmontan antes de cambiar registro y al cerrar.
+- El tema local se crea de forma lazy tras interacción, comparte el AudioContext existente, cruza ambiente/sala, respeta sonido/volumen global y pausa al salir sin duplicar source/nodos.
+- Mobile `<=760px` o `pointer:coarse` usa SVG sin WebGL ni Smoke. Los doce campeones conservan navegación con scroll interno, controles reservados, labels útiles y targets 44×44.
+- QA visual comparativo `/` vs `/prototype`: 1440×900, 768×900 y 390×844. Cinco copas remotas cargaron en fullscreen; diez ciclos dejaron un único canvas Smoke estructural y cero canvas WebGL/slots al cerrar.
+- No había sesión admin ni registros persistidos con 1/3/7 imágenes durante QA; esos escenarios y reload de galería quedan como verificación manual pendiente con datos reales.

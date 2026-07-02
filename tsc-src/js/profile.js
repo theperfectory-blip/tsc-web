@@ -182,7 +182,6 @@ async function renderProfileBody(){
         </div>
       </div>
     </div>
-    ${recentForm.length ? `<div class="form-strip" style="margin-top:12px;" title="Forma reciente (últimos ${recentForm.length})" aria-label="Forma reciente">${recentForm.map(r=>`<span class="form-pip ${r}" title="${r==='w'?'Victoria':r==='d'?'Empate':'Derrota'}">${_pipLetter[r]||''}</span>`).join('')}</div>` : ''}
   </div>`;
 
   // ── Cuerpo ───────────────────────────────────────────────────
@@ -190,75 +189,82 @@ async function renderProfileBody(){
 
   if(stats && stats.P > 0) bd += _statsHTML(stats);
 
-  // Foto de perfil personal (cuando el crest del equipo está en el header)
-  if(team){
-    bd += `<div style="display:flex;align-items:center;gap:10px;">
-      <label for="profile-avatar-file" style="position:relative;flex:none;cursor:pointer;" title="Cambiar foto de perfil">
-        <div id="profile-avatar-preview" style="width:44px;height:44px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
-          ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="color:var(--txt3);"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
-        </div>
-        <span style="position:absolute;bottom:1px;right:1px;background:var(--gold);border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;pointer-events:none;"><svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></span>
-      </label>
-      <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
-      <span style="font-size:12px;color:var(--txt3);">Foto de perfil personal</span>
+  if(recentForm.length){
+    bd += `<div class="pp-line">
+      <span class="pp-line-label">Forma reciente</span>
+      <div class="form-strip" title="Forma reciente (últimos ${recentForm.length})" aria-label="Forma reciente">${recentForm.map(r=>`<span class="form-pip ${r}" title="${r==='w'?'Victoria':r==='d'?'Empate':'Derrota'}">${_pipLetter[r]||''}</span>`).join('')}</div>
     </div>`;
   }
 
-  bd += `<div class="form-group" style="margin:0;"><label>Nombre para mostrar</label><input type="text" id="profile-name" value="${_pfEsc(name)}"></div>
-    <div class="form-group" style="margin:0;"><label>Nombre de usuario</label>
-      <div style="position:relative;"><span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:14px;pointer-events:none;">@</span>
-        <input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario" style="padding-left:26px;" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
-      </div>
-    </div>
-    <div style="font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      ${_pfEsc(email)} ${verified
-        ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>verificado</span>`
-        : `<span style="color:#FFC107;font-size:11px;font-weight:600;">sin verificar</span> <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`}
-    </div>`;
-
   if(team){
-    if(locked) bd += `<div style="background:rgba(255,193,7,0.12);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> El administrador bloqueó la edición de nombre y escudo.</div>`;
-    bd += `<div class="form-group" style="margin:0;"><label>Nombre del club</label><input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
-      <button class="btn btn-sm" style="align-self:flex-start;" onclick="profileViewMyMatches()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg> Ver historial de mi club</button>`;
-  } else {
-    if(AUTH.role==='president') bd += `<div style="font-size:13px;color:var(--txt3);padding:4px 0;">Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.</div>`;
-    bd += `<input type="hidden" id="profile-team-name" value="">`;
+    bd += `<button type="button" class="pp-sec" onclick="profileViewMyMatches()">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver el historial de mi club</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>`;
   }
-
-  bd += `<div style="display:flex;flex-direction:column;gap:6px;">
-    <button type="button" class="pp-sec" onclick="profileTogglePasswordChange()">
-      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Cambiar contraseña</span>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
-    <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;">
-      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Contraseña actual</label><input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password"></div>
-      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nueva contraseña (mín. 6 caracteres)</label><input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password"></div>
-      <div class="form-group" style="margin-bottom:10px;"><label style="font-size:12px;">Confirmar nueva contraseña</label><input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password"></div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
-        <button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button>
-        <button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button>
-      </div>
-    </div>
-    <button type="button" class="pp-sec" onclick="profileToggleEmailChange()">
-      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Cambiar email</span>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
-    <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;">
-      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nuevo email</label><input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off"></div>
-      <div class="form-group" style="margin-bottom:10px;"><label style="font-size:12px;">Contraseña actual (para confirmar)</label><input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password"></div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
-        <button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button>
-        <button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button>
-      </div>
-    </div>
-  </div>`;
 
   if(AUTH.role==='admin'){
     bd += `<button type="button" class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Panel Admin</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>`;
+      </button>`;
   }
+
+  if(team){
+    bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-club-section" onclick="profileToggleDisclosure('profile-club-section',this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>Club</span>
+      <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div id="profile-club-section" class="pp-disclosure" hidden>
+      ${locked ? `<div class="pp-lock"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>El administrador bloqueó la edición del club.</span></div>` : ''}
+      <div class="form-group" style="margin:0;"><label for="profile-team-name">Nombre del club</label><input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
+    </div>`;
+  } else {
+    if(AUTH.role==='president') bd += '<div class="pp-empty">Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.</div>';
+    bd += '<input type="hidden" id="profile-team-name" value="">';
+  }
+
+  bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-account-section" onclick="profileToggleDisclosure('profile-account-section',this)">
+    <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Mi cuenta</span>
+    <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+  <div id="profile-account-section" class="pp-disclosure" hidden>
+    ${team ? `<div class="pp-avatar-row">
+      <label for="profile-avatar-file" class="pp-avatar-edit" title="Cambiar foto de perfil">
+        <span id="profile-avatar-preview">${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}</span>
+        <svg class="pp-avatar-pencil" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+      </label>
+      <input type="file" id="profile-avatar-file" accept="image/*" hidden onchange="profileSelectAvatar(this)">
+      <span>Foto de perfil personal</span>
+    </div>` : ''}
+    <div class="form-group" style="margin:0;"><label for="profile-name">Nombre para mostrar</label><input type="text" id="profile-name" value="${_pfEsc(name)}"></div>
+    <div class="form-group" style="margin:0;"><label for="profile-username">Nombre de usuario</label>
+      <div class="pp-at-input"><span aria-hidden="true">@</span><input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"></div>
+    </div>
+    <div class="pp-email-status">${_pfEsc(email)} ${verified
+      ? `<span class="pp-verified"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>verificado</span>`
+      : `<span class="pp-unverified">sin verificar</span><button class="btn btn-xs" onclick="profileResendVerification()">Verificar</button>`}
+    </div>
+    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-password-change-section" onclick="profileTogglePasswordChange(this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Cambiar contraseña</span>
+      <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div id="profile-password-change-section" class="pp-disclosure pp-disclosure-nested" hidden>
+      <div class="form-group"><label for="profile-curr-pass-pw">Contraseña actual</label><input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="form-group"><label for="profile-new-pw">Nueva contraseña (mín. 6 caracteres)</label><input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="form-group"><label for="profile-new-pw2">Confirmar nueva contraseña</label><input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="pp-actions"><button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button><button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button></div>
+    </div>
+    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-email-change-section" onclick="profileToggleEmailChange(this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>Cambiar email</span>
+      <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div id="profile-email-change-section" class="pp-disclosure pp-disclosure-nested" hidden>
+      <div class="form-group"><label for="profile-new-email">Nuevo email</label><input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off"></div>
+      <div class="form-group"><label for="profile-curr-pass-email">Contraseña actual (para confirmar)</label><input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="pp-actions"><button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button><button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button></div>
+    </div>
+  </div>`;
 
   body.innerHTML = `${hdrHtml}
     <div class="pp-body">${bd}</div>
@@ -590,11 +596,22 @@ async function profileResendVerification(){
   } catch(e){ showToast('Error: '+(e.code||e.message),'error'); }
 }
 
-function profileToggleEmailChange(){
+function profileToggleDisclosure(sectionId, button){
+  const sec = document.getElementById(sectionId);
+  if(!sec) return;
+  const trigger = button || document.querySelector(`[aria-controls="${sectionId}"]`);
+  const open = sec.hidden;
+  sec.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
+}
+
+function profileToggleEmailChange(button){
   const sec = document.getElementById('profile-email-change-section');
   if (!sec) return;
-  const open = sec.style.display === 'none' || !sec.style.display;
-  sec.style.display = open ? '' : 'none';
+  const trigger = button || document.querySelector('[aria-controls="profile-email-change-section"]');
+  const open = sec.hidden;
+  sec.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
   if (open) document.getElementById('profile-new-email')?.focus();
   else {
     const a = document.getElementById('profile-new-email');
@@ -627,11 +644,13 @@ async function profileChangeEmail(){
 
 /* ── Cambio de contraseña con re-autenticación ──────────────── */
 
-function profileTogglePasswordChange(){
+function profileTogglePasswordChange(button){
   const sec = document.getElementById('profile-password-change-section');
   if (!sec) return;
-  const open = sec.style.display === 'none' || !sec.style.display;
-  sec.style.display = open ? '' : 'none';
+  const trigger = button || document.querySelector('[aria-controls="profile-password-change-section"]');
+  const open = sec.hidden;
+  sec.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
   if (open) document.getElementById('profile-curr-pass-pw')?.focus();
   else ['profile-curr-pass-pw','profile-new-pw','profile-new-pw2']
          .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
