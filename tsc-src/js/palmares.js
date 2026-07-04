@@ -1283,14 +1283,14 @@ const _PALM_GALLERY = {
   session: 0
 };
 
-function _palmGallerySafeItems(value){
+function _palmGallerySafeItems(value, max = _PALM_GALLERY_MAX){
   return (Array.isArray(value) ? value : [])
     .map(item => ({
       url: String(item?.url || '').trim(),
       alt: String(item?.alt || '').trim().slice(0, 240)
     }))
     .filter(item => /^https:\/\//i.test(item.url))
-    .slice(0, _PALM_COLLAGE_MAX);
+    .slice(0, max);
 }
 
 function _palmGalleryStatusLabel(status){
@@ -1337,20 +1337,20 @@ function _palmGalleryHTML(){
       <span class="palm-upload-name">${_esc(upload.name)}</span>
       <span class="palm-upload-status">${_esc(_palmGalleryStatusLabel(upload.status))}${upload.error?`: ${_esc(upload.error)}`:''}</span>
       ${upload.status==='error' && upload.file
-        ? `<button type="button" class="btn btn-xs" onclick="palmGalleryRetry('${_escAttr(upload.id)}')" ${busy||count>=_PALM_COLLAGE_MAX?'disabled':''}>Reintentar</button>`
+        ? `<button type="button" class="btn btn-xs" onclick="palmGalleryRetry('${_escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
         : ''}
     </div>`).join('');
   return `
     <div class="palm-gallery-toolbar">
       <div>
-        <strong>${count} de ${_PALM_COLLAGE_MAX} imágenes</strong>
-        <span>El orden define el carrusel fullscreen.</span>
+        <strong>${count} de ${_PALM_GALLERY_MAX} imágenes</strong>
+        <span>El orden define la secuencia; la sala muestra hasta ${_PALM_COLLAGE_MAX} a la vez.</span>
       </div>
-      <label class="btn btn-sm${count>=_PALM_COLLAGE_MAX||state.saving?' is-disabled':''}" for="palm-gallery-files">
+      <label class="btn btn-sm${count>=_PALM_GALLERY_MAX||state.saving?' is-disabled':''}" for="palm-gallery-files">
         Subir imágenes
       </label>
       <input id="palm-gallery-files" type="file" accept="image/*" multiple hidden
-        onchange="palmGalleryChoose(this.files);this.value=''" ${count>=_PALM_COLLAGE_MAX||state.saving?'disabled':''}>
+        onchange="palmGalleryChoose(this.files);this.value=''" ${count>=_PALM_GALLERY_MAX||state.saving?'disabled':''}>
     </div>
     <div class="palm-gallery-list">${itemRows}</div>
     ${uploadRows ? `<div class="palm-upload-list" aria-live="polite">${uploadRows}</div>` : ''}
@@ -1446,7 +1446,7 @@ async function _palmGalleryUpload(upload, session){
     const url = await uploadImageToCloud(upload.file);
     if(session !== _PALM_GALLERY.session) return;
     if(!/^https:\/\//i.test(String(url||''))) throw new Error('La subida no devolvió una URL segura');
-    if(_PALM_GALLERY.items.length >= _PALM_COLLAGE_MAX) throw new Error('Se alcanzó el máximo de siete imágenes');
+    if(_PALM_GALLERY.items.length >= _PALM_GALLERY_MAX) throw new Error('Se alcanzó el máximo de doce imágenes');
     _PALM_GALLERY.items.push({ url:String(url), alt:'' });
     upload.status = 'completed';
     upload.file = null;
@@ -1469,7 +1469,7 @@ function palmGalleryChoose(fileList){
   if(!files.length) return;
   const session = _PALM_GALLERY.session;
   const queued = [];
-  let available = Math.max(0, _PALM_COLLAGE_MAX - _PALM_GALLERY.items.length - _PALM_GALLERY.activeUploads);
+  let available = Math.max(0, _PALM_GALLERY_MAX - _PALM_GALLERY.items.length - _PALM_GALLERY.activeUploads);
   files.forEach(file => {
     const upload = {
       id:`upl-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
@@ -1483,7 +1483,7 @@ function palmGalleryChoose(fileList){
       upload.error = 'El archivo no es una imagen';
     } else if(available <= 0){
       upload.status = 'error';
-      upload.error = 'Máximo de siete imágenes';
+      upload.error = 'Máximo de doce imágenes';
     } else {
       available--;
     }
@@ -1495,7 +1495,7 @@ function palmGalleryChoose(fileList){
 }
 
 function palmGalleryRetry(uploadId){
-  if(_PALM_GALLERY.saving || _PALM_GALLERY.activeUploads || _PALM_GALLERY.items.length >= _PALM_COLLAGE_MAX) return;
+  if(_PALM_GALLERY.saving || _PALM_GALLERY.activeUploads || _PALM_GALLERY.items.length >= _PALM_GALLERY_MAX) return;
   const upload = _PALM_GALLERY.uploads.find(item => item.id === uploadId);
   if(upload?.file) _palmGalleryUpload(upload, _PALM_GALLERY.session);
 }
@@ -1844,7 +1844,8 @@ const _PALM_COLLAGE_SLOTS = [
   { x: 6,  y: 26, r: 4,  dx: -66, dy: -10, spin: 4,  dur: 8700,  peak: .70 },
   { x: 36, y: 22, r: -5, dx: -40, dy: 8,   spin: -6, dur: 9700,  peak: .70 }
 ];
-const _PALM_COLLAGE_MAX = 7;
+const _PALM_GALLERY_MAX = 12;  // máximo persistido en record.gallery (admin)
+const _PALM_COLLAGE_MAX = 7;   // máximo simultáneo en pantalla (rotación pública en la sala)
 
 function _palmIsHex(v){
   return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
@@ -1918,7 +1919,7 @@ function getPalmaresMedia(recordId){
     ? override.items.map(item => ({
         url:typeof item === 'string' ? item : String(item?.url || item?.src || ''),
         alt:typeof item === 'object' ? String(item?.alt || '') : ''
-      })).filter(item => /^https:\/\//i.test(item.url)).slice(0, _PALM_COLLAGE_MAX)
+      })).filter(item => /^https:\/\//i.test(item.url)).slice(0, _PALM_GALLERY_MAX)
     : [];
   const persistedItems = _palmGallerySafeItems(record?.gallery);
   return {

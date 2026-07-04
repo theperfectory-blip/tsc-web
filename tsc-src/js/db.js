@@ -48,6 +48,20 @@ function _fsNextId(store){
   });
 }
 
+/* Mantiene el contador Firestore por encima de IDs restaurados explícitamente.
+   IndexedDB ajusta su key generator automáticamente al hacer put(id). */
+function dbEnsureCounterAtLeast(store, value){
+  if (!_isFS()) return Promise.resolve();
+  const target = Number(value);
+  if (!Number.isSafeInteger(target) || target < 1) return Promise.resolve();
+  const ref = db.collection('_counters').doc(store);
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const current = (snap.exists ? Number(snap.data().value) : 0) || 0;
+    if (current < target) tx.set(ref, { value: target }, { merge: true });
+  });
+}
+
 function dbGetAll(store, filter){
   if (_isFS()) {
     return db.collection(store).get().then(snap=>{
@@ -129,10 +143,22 @@ function dbDelete(store, id){
    función para cancelar la suscripción (unsubscribe). */
 function dbSubscribe(store, filter, cb){
   if (_isFS()) {
+    // Dedupe por snapshot: si el canal "Listen" está bloqueado/inestable (p.ej.
+    // un bloqueador de contenido devolviendo net::ERR_BLOCKED_BY_CLIENT), el SDK
+    // reintenta la conexión en segundo plano y cada reintento puede entregar un
+    // snapshot desde caché AUNQUE los datos no cambiaron — sin este chequeo, cada
+    // reintento dispara un re-render completo (reinicia animaciones de conteo,
+    // remonta el chibi del Sorteo) sin que el usuario haya hecho nada ni haya un
+    // cambio real. Comparar el JSON contra el snapshot anterior evita eso: solo
+    // se llama a `cb` cuando el contenido realmente difiere.
+    let prevJSON = null;
     return db.collection(store).onSnapshot(
       snap => {
         let result = snap.docs.map(d=>d.data());
         if(filter) result = result.filter(filter);
+        const json = JSON.stringify(result);
+        if(json === prevJSON) return;
+        prevJSON = json;
         cb(result);
       },
       err => console.warn('[db] onSnapshot '+store+':', err.code||err.message)

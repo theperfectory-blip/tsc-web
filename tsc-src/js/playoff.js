@@ -663,9 +663,17 @@ async function clearPlayoffAssign(phaseId, matchIdx){
   const refs=(phase?.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
   await dbPut('phases',{...phase,playoffSlots:slots,slotRefs:refs});
 
-  // Borrar partidos de la llave para evitar que reaparezcan desde matchMap.
+  // Borrar partidos de la llave (+ su historial) para evitar que reaparezcan
+  // desde matchMap o queden huérfanos en el historial (mismo patrón que
+  // deletePlayoffLeg).
   const matches=await dbGetAll('matches',m=>m.phaseId===phaseId && m.matchIdx===matchIdx);
-  for(const m of matches){ await dbDelete('matches', m.id); }
+  for(const m of matches){ await removeHistoryByMatchRef(m.id); await dbDelete('matches', m.id); }
+
+  // Consistencia bidireccional: si el Sorteo había vinculado alguno de los
+  // dos lados de este cruce, invalidar ese link (ambos lados, side=null).
+  if(typeof window.SORTEO?.invalidatePlayoffLink === 'function'){
+    await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, null);
+  }
 
   showToast('Cruce limpiado');
   closePlayoffAssignModal();
@@ -689,19 +697,30 @@ async function savePlayoffAssign(phaseId, matchIdx){
   const phase=await dbGet('phases',phaseId);
   const slots=phase?.playoffSlots||Array(phase?.config?.matchups||3).fill(null).map(()=>({teamA:null,teamB:null}));
   const prev = slots[matchIdx]||{};
-  const changed = prev.teamA!==ta || prev.teamB!==tb;
+  const changedA = prev.teamA!==ta;
+  const changedB = prev.teamB!==tb;
+  const changed = changedA || changedB;
   slots[matchIdx]={teamA:ta,teamB:tb};
 
   // Si se asigna manualmente, esta llave deja de depender de refs dinámicas.
   const refs=(phase?.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
 
-  // Si cambian equipos, limpiar resultados previos de la llave para evitar mezcla de series.
+  // Si cambian equipos, limpiar resultados previos (+ historial) de la llave
+  // para evitar mezcla de series (mismo patrón que deletePlayoffLeg).
   if(changed){
     const oldMatches=await dbGetAll('matches',m=>m.phaseId===phaseId && m.matchIdx===matchIdx);
-    for(const m of oldMatches){ await dbDelete('matches', m.id); }
+    for(const m of oldMatches){ await removeHistoryByMatchRef(m.id); await dbDelete('matches', m.id); }
   }
 
   await dbPut('phases',{...phase,playoffSlots:slots,slotRefs:refs});
+
+  // Consistencia bidireccional: invalidar solo el/los lado(s) que efectivamente
+  // cambiaron, si el Sorteo los había vinculado (deja intacto el lado sin tocar).
+  if(typeof window.SORTEO?.invalidatePlayoffLink === 'function'){
+    if(changedA) await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, 'A');
+    if(changedB) await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, 'B');
+  }
+
   showToast('Equipos asignados');
   closePlayoffAssignModal();
   const cid=document.querySelector('[id^="playoff-container-"]')?.id;

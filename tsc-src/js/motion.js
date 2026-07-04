@@ -61,10 +61,16 @@
     });
   }
 
-  /* ---- reveal: prepara un elemento y lo revela al entrar ---- */
+  /* ---- reveal: prepara un elemento y lo revela al entrar ----
+     Idempotente: un nodo ya vinculado (`data-reveal-bound`) o ya revelado
+     (`data-revealed`) no se vuelve a preparar con opacity:0 — evita que un
+     re-bind accidental (p.ej. un helper de montaje llamado dos veces sobre
+     el mismo root) esconda contenido que el usuario ya está viendo. */
   function reveal(target, opts = {}) {
     const el = typeof target === 'string' ? document.querySelector(target) : target;
     if (!el) return;
+    if (el.dataset.revealBound || el.dataset.revealed) return;
+    el.dataset.revealBound = '1';
     if (reduced()) { _settle(el); return; }
     const dist = opts.dist || '18px';
     el.dataset.revealDist = dist;
@@ -83,6 +89,35 @@
     els.forEach((el, i) => {
       reveal(el, { dist: opts.dist, delay: Math.min(i, max) * step });
     });
+  }
+
+  /* ---- revealWithin: vincula SOLO los nodos [data-reveal] nuevos/no
+     registrados dentro de una raíz recién montada. Pensado para llamarse
+     una vez después del montaje inicial de una sección dinámica (no en
+     cada actualización en vivo) — `reveal()` ya es idempotente, así que
+     llamarla de más sobre nodos ya vinculados es inofensivo, pero el
+     llamador debe evitarlo igual para no re-flashear contenido en vivo. ---- */
+  function revealWithin(root, sel = '[data-reveal]') {
+    const scope = typeof root === 'string' ? document.querySelector(root) : root;
+    if (!scope) return;
+    const els = [...scope.querySelectorAll(sel)].filter(el => !el.dataset.revealBound && !el.dataset.revealed);
+    els.forEach(el => reveal(el));
+  }
+
+  /* ---- settleWithin: para un refresco (NO el montaje inicial) que reconstruye
+     nodos [data-reveal] desde cero (p.ej. el hero del Calendario o el bloque
+     de hitos/H2H del Historial en cada re-render). tsc:public-section-mounted
+     solo se dispara UNA vez, así que estos nodos nuevos nunca pasan por
+     revealWithin — sin marcarlos, quedan sin `revealBound`/`revealed` (aunque
+     visibles por CSS por defecto, no hay garantía explícita). settleWithin los
+     deja YA en su estado final, sin animar ni observar: la entrada fade+rise
+     es solo para la primera vez que el contenido aparece en el viewport, nunca
+     para un refresco de contenido que el usuario ya está viendo. */
+  function settleWithin(root, sel = '[data-reveal]') {
+    const scope = typeof root === 'string' ? document.querySelector(root) : root;
+    if (!scope) return;
+    const els = [...scope.querySelectorAll(sel)].filter(el => !el.dataset.revealBound && !el.dataset.revealed);
+    els.forEach(el => { el.dataset.revealBound = '1'; _settle(el); });
   }
 
   /* ---- stagger: cascada inmediata sobre nodos YA visibles ---- */
@@ -247,5 +282,28 @@
     _initChrome();
   }
 
-  window.MOTION = { reduced, reveal, revealAll, stagger, countUp, countdown, ticker, onScroll };
+  /* ---- Paridad con /prototype: fade+rise por sección pública ----
+     nav.js dispara 'tsc:public-section-mounted' UNA sola vez, justo después
+     del montaje inicial de cada sección (no en cada refresh en vivo — ver
+     ensurePublicSectionMounted). Acá se cablea qué revela cada una; el
+     mismo patrón que el prototipo (`querySelectorAll('[data-reveal]')` +
+     `revealAll('.metro-day', {step:70, dist:'10px'})`), pero por sección y
+     re-invocable de forma segura (reveal/revealWithin son idempotentes). */
+  function _bindPageReveals(page) {
+    const root = document.getElementById('page-' + page);
+    if (!root) return;
+    switch (page) {
+      case 'calendario':
+        revealWithin(root);
+        revealAll(root.querySelectorAll('.metro-day'), { step: 70, dist: '10px' });
+        break;
+      case 'sorteo':
+      case 'historial':
+        revealWithin(root);
+        break;
+    }
+  }
+  document.addEventListener('tsc:public-section-mounted', (e) => _bindPageReveals(e.detail?.page));
+
+  window.MOTION = { reduced, reveal, revealAll, revealWithin, settleWithin, stagger, countUp, countdown, ticker, onScroll };
 })();

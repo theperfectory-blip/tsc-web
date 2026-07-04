@@ -45,22 +45,31 @@
 
   function _buildFocusObserver(){
     const chromeH = _chromeH();
-    return new IntersectionObserver(entries=>{
+    const topBound = chromeH + 8;
+    /* IntersectionObserver solo entrega en `entries` los targets cuyo estado
+       de intersección CAMBIÓ en este callback — no todas las secciones
+       actualmente visibles. Si una sección (p.ej. Sorteo) ya estaba
+       intersectando y sigue intersectando sin cruzar el threshold de nuevo,
+       puede no aparecer en ningún lote posterior y nunca ser candidata: el
+       foco salta de una sección a otra saltándose las de en medio. Por eso
+       `entries` se usa solo como señal de "algo cambió, hay que reevaluar" —
+       el candidato se recalcula SIEMPRE con los rects en vivo de todas las
+       secciones activas (mismo criterio de intersección que el rootMargin de
+       abajo, pero medido en el momento, no el que trae el entry viejo). */
+    return new IntersectionObserver(()=>{
       if(!_publicScrollEnabled() || Date.now() < scrollLockUntil) return;
-      const candidates = entries
-        .filter(entry=>entry.isIntersecting && !entry.target.hidden)
-        .sort((a,b)=>{
-          const aDistance = Math.abs(a.boundingClientRect.top - chromeH);
-          const bDistance = Math.abs(b.boundingClientRect.top - chromeH);
-          return aDistance - bDistance;
-        });
+      const bottomBound = window.innerHeight * 0.45;
+      const candidates = _activeSections()
+        .map(section=>({ section, rect:section.getBoundingClientRect() }))
+        .filter(({rect})=> rect.bottom > topBound && rect.top < bottomBound)
+        .sort((a,b)=> Math.abs(a.rect.top - chromeH) - Math.abs(b.rect.top - chromeH));
       const candidate = candidates[0];
       if(!candidate) return;
-      const page = _sectionPage(candidate.target);
+      const page = _sectionPage(candidate.section);
       if(typeof window.focusPublicSection === 'function'){
         window.focusPublicSection(page);
       }
-    }, { root:null, rootMargin:`-${chromeH + 8}px 0px -55% 0px`, threshold:0 });
+    }, { root:null, rootMargin:`-${topBound}px 0px -55% 0px`, threshold:0 });
   }
 
   function _initChromeObserver(){

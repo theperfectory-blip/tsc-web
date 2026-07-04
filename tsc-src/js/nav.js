@@ -240,24 +240,82 @@ async function renderPublicPage(page){
   }
 }
 
-function _subscribeFocusedPublicSection(page){
+/* `forceRefresh`: true cuando la sección YA estaba montada antes de este
+   foco (un remount real ya se pintó fresco vía ensurePublicSectionMounted;
+   acá NO). `liveSubscribe` ignora a propósito el primer snapshot de cada
+   store nueva (evita doble-render del mount inicial) — pero si la sección
+   ya estaba montada, ese primer snapshot ignorado puede dejar datos viejos
+   en pantalla hasta que ocurra otro cambio ajeno. Por eso, en ese caso,
+   forzamos UN render inmediato con la función real de la página ANTES de
+   (re)suscribir — sin crear otra suscripción, sigue siendo una sola. */
+/* Páginas con un refresh forzado en curso (evita solapar dos renders de la
+   MISMA sección si dos focos casi simultáneos la reenfocan). */
+const _pubForceRefreshing = new Set();
+
+/* Contenedor-ancla por página: el commit de un refresco (nav.js forzándolo al
+   reenfocar, o un cambio en vivo mientras la sección ya está enfocada) puede
+   cambiar la altura real del contenido (dato nuevo, más/menos filas). Sección
+   02/03/06 ya arman su propio render de forma atómica (sin vaciar mientras
+   esperan), pero el alto FINAL puede diferir del anterior — sin compensar,
+   ese cambio de altura desplaza el scroll mientras el usuario puede estar
+   scrolleando activamente. Solo estas tres páginas lo necesitan; 01/04/05 no
+   se tocan (no mostraron el problema medido por Codex). */
+const _PUB_SECTION_ANCHOR_ID = { panel:'pub-panel-content', calendario:'pub-calendar-content', historial:'page-historial' };
+
+/* Envuelve `fn` para capturar la posición visual del ancla ANTES de llamarla y
+   restaurarla DESPUÉS — usando _pubRestoreScrollAnchor (sin focusPublicSection)
+   para no crear un ciclo de foco/render: este wrapper se invoca DESDE un
+   refresco que el propio foco/suscripción en vivo ya disparó. */
+function _pubWrapWithScrollAnchor(page, fn){
+  const anchorId = _PUB_SECTION_ANCHOR_ID[page];
+  if(!anchorId) return fn;
+  return async ()=>{
+    const anchorEl = document.getElementById(anchorId);
+    const anchor = (anchorEl && typeof _pubCaptureVisualAnchor==='function') ? _pubCaptureVisualAnchor(anchorEl) : null;
+    const scrollYAtCapture = window.scrollY;
+    await fn();
+    if(!anchor || typeof _pubRestoreScrollAnchor!=='function') return;
+    if(typeof _rafOrTimeout==='function') await _rafOrTimeout();
+    else await new Promise(resolve=>{
+      let done=false; const finish=()=>{ if(!done){ done=true; resolve(); } };
+      requestAnimationFrame(finish); setTimeout(finish, 400);
+    });
+    // Si scrollY se movió durante el render (el usuario siguió scrolleando de
+    // forma activa mientras tanto, algo frecuente con foco disparado por
+    // scroll-spy), NO corregir: restaurar acá pelearía contra el gesto en
+    // curso y saltaría scrollY en contra de su dirección — exactamente lo que
+    // está prohibido. Solo se corrige si el usuario está quieto (scrollY
+    // idéntico a como estaba al capturar el ancla).
+    if(Math.abs(window.scrollY - scrollYAtCapture) > 0.5) return;
+    _pubRestoreScrollAnchor(anchor);
+  };
+}
+
+async function _subscribeFocusedPublicSection(page, forceRefresh){
   if(typeof liveSubscribe !== 'function') return;
-  const sub = (key, stores, fn)=>liveSubscribe(key+'-'+STATE.season, stores, fn);
+  const sub = async (key, stores, fn)=>{
+    const wrapped = _pubWrapWithScrollAnchor(page, fn);
+    if(forceRefresh && !_pubForceRefreshing.has(page)){
+      _pubForceRefreshing.add(page);
+      try { await wrapped(); } finally { _pubForceRefreshing.delete(page); }
+    }
+    liveSubscribe(key+'-'+STATE.season, stores, wrapped);
+  };
   switch(page){
     case 'palmares':
-      sub('palmares', ['palmares','palmares-comps','settings','teams'], ()=>renderPubPalmares());
+      await sub('palmares', ['palmares','palmares-comps','settings','teams'], ()=>renderPubPalmares());
       break;
     case 'panel':
-      sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
+      await sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
       break;
     case 'equipos':
-      sub('equipos', ['teams'], ()=>_refreshPubTeams());
+      await sub('equipos', ['teams'], ()=>_refreshPubTeams());
       break;
     case 'calendario':
-      sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());
+      await sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());
       break;
     case 'historial':
-      sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
+      await sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
       break;
   }
 }
@@ -280,9 +338,31 @@ async function ensurePublicSectionMounted(page, options){
   return mount;
 }
 
-async function focusPublicSection(page, options){
-  const opts = options || {};
+/* Serialización de focos: el token (_publicFocusToken) detecta obsolescencia
+   solo DESPUÉS de cada await, pero un render pesado ya en curso (p.ej.
+   renderPubPanel esperando Firestore) no se puede cancelar a mitad de
+   camino. Con scroll rápido, varias llamadas a focusPublicSection podían
+   arrancar en paralelo, apilando renders completos de secciones que el
+   usuario ya superó — y esa acumulación es la que dejaba el foco trabado.
+   Acá se colapsa a la ÚLTIMA página pedida: si llegan varias mientras una
+   corre, solo se procesa la más reciente cuando le toca el turno (las
+   intermedias se saltan enteras, sin gastar un render). */
+let _focusQueue = Promise.resolve();
+let _focusLatestRequested = null;
+
+function focusPublicSection(page, options){
   if(page === 'competiciones') page = 'panel';
+  _focusLatestRequested = page;
+  const myTurn = _focusQueue.then(() => {
+    if(_focusLatestRequested !== page) return false; // superada por una solicitud más nueva
+    return _focusPublicSectionInner(page, options);
+  });
+  _focusQueue = myTurn.catch(() => {});
+  return myTurn;
+}
+
+async function _focusPublicSectionInner(page, options){
+  const opts = options || {};
   if(STATE.mode !== 'public' || !_isPublicScrollPage(page)) return false;
   const section = document.getElementById('page-'+page);
   if(!section || section.hidden) return false;
@@ -300,11 +380,19 @@ async function focusPublicSection(page, options){
     if(typeof liveRadarStop === 'function') liveRadarStop();
   }
 
+  const wasAlreadyMounted = _publicMountedPages.has(page);
   await ensurePublicSectionMounted(page);
   if(token !== _publicFocusToken || STATE.mode !== 'public' || _publicFocusedPage !== page) return false;
 
   if(changed || opts.forceLive){
-    _subscribeFocusedPublicSection(page);
+    // Ya NO es fire-and-forget: si esto refresca una sección ya montada, el
+    // render real (renderPubPanel, etc.) debe terminar antes de considerar el
+    // foco resuelto — de lo contrario el observer de scroll puede disparar
+    // sobre un documento a mitad de colapsar/reconstruirse. Tras el await,
+    // se vuelve a validar que este foco sigue vigente antes de instalar la
+    // única suscripción live (sin crear una segunda).
+    await _subscribeFocusedPublicSection(page, wasAlreadyMounted);
+    if(token !== _publicFocusToken || STATE.mode !== 'public' || _publicFocusedPage !== page) return false;
     // El radar en vivo vive SOLO en el Calendario (junto al hero del partido).
     // Al enfocar la sección con un partido en vivo ya montado, arranca (con fade-in).
     if(page === 'calendario' && window._calHeroLive && typeof liveRadarStart === 'function'){

@@ -99,16 +99,58 @@ async function _pubRestoreVisualAnchor(anchor, page){
   if(typeof focusPublicSection==='function') await focusPublicSection(page);
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   await new Promise(resolve=>setTimeout(resolve, 50));
-  if(anchor?.el?.isConnected){
-    const delta = anchor.el.getBoundingClientRect().top - anchor.top;
-    if(Math.abs(delta)>0.5) window.scrollBy({ top:delta, left:0, behavior:'auto' });
-  }
+  _pubRestoreScrollAnchor(anchor);
+}
+
+/* Igual que _pubRestoreVisualAnchor pero SIN pasar por focusPublicSection: la usa
+   nav.js dentro de un refresco que YA fue disparado por el propio foco/suscripción
+   en vivo, donde volver a invocar focusPublicSection generaría un ciclo de
+   foco/render redundante (o recursión). Solo corrige la posición visual del
+   ancla, sea cual sea la causa real del cambio de altura. */
+function _pubRestoreScrollAnchor(anchor){
+  if(!anchor?.el?.isConnected) return;
+  const delta = anchor.el.getBoundingClientRect().top - anchor.top;
+  if(Math.abs(delta)>0.5) window.scrollBy({ top:delta, left:0, behavior:'auto' });
 }
 
 async function renderPubPanel(){
   // Escape local (function-scoped): public.js no define _esc global a propósito.
   const esc = v => String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const el = document.getElementById('pub-panel-content');
+  // Estabiliza la altura ANTES de tocar el DOM (red de seguridad adicional al
+  // staging atómico de abajo: cubre el intervalo entre el commit final y el
+  // rAF de asentado, por si una fuente/imagen tardía cambia la altura real).
+  const _prevPanelHeight = el.offsetHeight;
+  if (_prevPanelHeight > 0) el.style.minHeight = _prevPanelHeight + 'px';
+  el.setAttribute('aria-busy', 'true');
+
+  // Actualización atómica: si YA hay contenido visible (no es el primer montaje),
+  // todo el nuevo contenido (encabezado + carruseles + el renderer de fase que
+  // corresponda) se arma en un staging invisible superpuesto EXACTAMENTE sobre
+  // el mismo cuadro (position:absolute; inset:0 dentro de `el`, que pasa a
+  // relative). Al estar solo `visibility:hidden` (no display:none ni fuera de
+  // pantalla), su getBoundingClientRect() coincide con la posición real en
+  // viewport — así los chequeos de "¿está visible?" del bracket/playoff (fuegos
+  // del campeón) siguen viendo coordenadas reales aunque el contenido todavía
+  // no se haya mostrado. El contenido anterior permanece intacto y visible
+  // hasta el commit final (_pubCommitStage), que reemplaza todo de una sola vez
+  // y nunca deja un contenedor de fase vacío en pantalla durante los awaits. En
+  // el primer montaje (sin contenido previo) no hay nada que preservar: se
+  // monta directo sobre `el` (ahí sí se permite el hueco vacío momentáneo).
+  const hasPrevContent = el.childElementCount > 0;
+  let stagingWrap = null;
+  let stage = el;
+  if (hasPrevContent) {
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    stagingWrap = document.createElement('div');
+    stagingWrap.style.cssText = 'position:absolute;inset:0;visibility:hidden;pointer-events:none;';
+    el.appendChild(stagingWrap);
+    stage = stagingWrap;
+  }
+  const idSuffix = stagingWrap ? '__staging' : '';
+  let stageReady = false;
+
+  try {
   _pubCompCarousel?.dispose?.();
   _pubFaseCarousel?.dispose?.();
   _pubCompCarousel = null;
@@ -124,11 +166,12 @@ async function renderPubPanel(){
   const active = comps.filter(c=>isActiveStatus(c.status));
 
   if(!active.length){
-    el.innerHTML = `
+    stage.innerHTML = `
       <div class="comp-sticky">
         <div class="comp-title"><span class="pd-n">02</span><span class="pub-fase-single">Competiciones</span></div>
       </div>
       <div style="color:var(--txt3);font-size:16px;padding:20px 0;">No hay competiciones activas en T${esc(STATE.season)}.</div>`;
+    stageReady = true;
     return;
   }
   // Si no hay comp seleccionada, tomar la primera
@@ -151,20 +194,22 @@ async function renderPubPanel(){
   }
   const selPhase = phases.find(p=>p.id===window._pubState.phaseId);
 
-  const phaseContentId = `pub-phase-content-${selComp.id}-${selPhase?.id}`;
+  const phaseContentId = `pub-phase-content-${selComp.id}-${selPhase?.id}${idSuffix}`;
+  const compCCId = `pub-cc-comp${idSuffix}`;
+  const faseCCId = `pub-cc-fase${idSuffix}`;
 
   // Navegador broadcast «competición ─ fase»: dos carruseles que se instancian tras
   // montar el DOM (ver más abajo). En reposo muestran el activo grande; los vecinos
   // asoman difuminados. Con 1 fase se muestra su nombre fijo; con 0, solo la comp.
   const _accentOf = c => /^#[0-9A-Fa-f]{3,8}$/.test(String(c.color||'')) ? c.color : 'var(--gold)';
   const faseHead = phases.length>1
-    ? `<span class="cc-sep">—</span><div class="cc cc-fase" id="pub-cc-fase"><div class="cc-view"><div class="cc-track"></div></div></div>`
+    ? `<span class="cc-sep">—</span><div class="cc cc-fase" id="${faseCCId}"><div class="cc-view"><div class="cc-track"></div></div></div>`
     : (phases.length===1 ? `<span class="cc-sep">—</span><span class="pub-fase-single">${esc(selPhase?.name||'')}</span>` : '');
   const compHead = `
     <div class="comp-sticky">
       <div class="comp-title">
         <span class="pd-n">02</span>
-        <div class="cc cc-comp" id="pub-cc-comp"><div class="cc-view"><div class="cc-track"></div></div></div>
+        <div class="cc cc-comp" id="${compCCId}"><div class="cc-view"><div class="cc-track"></div></div></div>
         ${faseHead}
       </div>
     </div>`;
@@ -180,24 +225,26 @@ async function renderPubPanel(){
   // de consulta: muestra el calendario completo, pero conserva cada cruce como VS
   // mientras está pendiente/en vivo y publica el marcador solo al finalizar.
 
-  el.innerHTML = `
+  stage.innerHTML = `
     ${compHead}
     ${noPhasesMsg}
     <div id="${phaseContentId}"></div>`;
+  stageReady = true;
 
   // Instanciar carruseles comp/fase ya con el DOM montado. Se posicionan en el activo
   // sin disparar onChange; solo el drag/clic del usuario navega (pubSelectComp/Phase).
-  const _compCC = document.getElementById('pub-cc-comp');
+  const _compCC = document.getElementById(compCCId);
   if(_compCC){
     _pubCompCarousel = _pubMakeCarousel(_compCC, active.map(c=>c.name), active.findIndex(c=>c.id===selComp.id), i=>pubSelectComp(active[i].id));
     _compCC.style.setProperty('--cc-accent', _accentOf(selComp));
   }
-  const _faseCC = document.getElementById('pub-cc-fase');
+  const _faseCC = document.getElementById(faseCCId);
   if(_faseCC){
     _pubFaseCarousel = _pubMakeCarousel(_faseCC, phases.map(p=>p.name), phases.findIndex(p=>p.id===selPhase?.id), i=>pubSelectPhase(phases[i].id));
   }
   _pubBindCarouselResize();
-  // Reasentar tras el layout/fuentes (Bebas Neue cambia anchos → recentrar).
+  // Reasentar tras el layout/fuentes (Bebas Neue cambia anchos → recentrar). Las
+  // medidas son válidas incluso en staging: visibility:hidden se sigue layoutando.
   requestAnimationFrame(()=>{ _pubCompCarousel?.recenter(); _pubFaseCarousel?.recenter(); });
 
   // Blindar render para que un error en una fase no deje en blanco el panel.
@@ -228,6 +275,48 @@ async function renderPubPanel(){
         </div>`;
     }
   }
+  } finally {
+    // Commit atómico: si se armó en staging, reemplaza TODO el contenido de una
+    // sola vez (nunca queda un frame con `el` vacío ni con ambas copias a la
+    // vez). Si el fetch falló ANTES de terminar de armar el staging (stageReady
+    // sigue false), se descarta el staging sin tocar el contenido real — un
+    // error de red nunca debe vaciar lo que ya se veía.
+    if (stagingWrap) {
+      if (stageReady) _pubCommitStage(el, stagingWrap);
+      else stagingWrap.remove();
+    }
+    // Soltar la altura solo después de que el renderer específico terminó Y el
+    // layout se asentó (una fuente/imagen tardía todavía podría cambiar la
+    // altura real un frame más tarde). Timeout de respaldo: si la pestaña está
+    // en background/sin foco, rAF puede no dispararse nunca — sin la red de
+    // seguridad, esto colgaría el montaje de la sección para siempre.
+    await _rafOrTimeout();
+    el.style.minHeight = '';
+    el.removeAttribute('aria-busy');
+  }
+}
+
+/* Reemplaza el contenido de `el` por el de `stagingWrap` en un solo paso
+   síncrono (JS de una sola hebra: el navegador no puede pintar un frame
+   intermedio con `el` vacío) y normaliza los ids temporales `__staging` a su
+   forma real, para que el próximo render pueda volver a usarlos sin choque. */
+function _pubCommitStage(el, stagingWrap){
+  const frag = document.createDocumentFragment();
+  while (stagingWrap.firstChild) frag.appendChild(stagingWrap.firstChild);
+  el.innerHTML = '';
+  el.appendChild(frag);
+  el.querySelectorAll('[id$="__staging"]').forEach(node=>{ node.id = node.id.slice(0, -'__staging'.length); });
+}
+
+/* rAF con red de seguridad: resuelve con el primer frame real, o a los
+   `ms` si el navegador nunca lo entrega (pestaña sin foco/backgrounded). */
+function _rafOrTimeout(ms = 400){
+  return new Promise(resolve=>{
+    let done = false;
+    const finish = () => { if(!done){ done = true; resolve(); } };
+    requestAnimationFrame(finish);
+    setTimeout(finish, ms);
+  });
 }
 
 /* ── Paginador de partidos por FECHA/jornada (sección 02) ─────────────────────

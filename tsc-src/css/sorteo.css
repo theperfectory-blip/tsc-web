@@ -488,16 +488,6 @@
   letter-spacing: 1px; color: var(--text-mute);
 }
 
-/* ===== Modo público (readOnly): solo se ve la animación y el estado.
-   Oculta toda interacción de edición y los botones de acción del admin. ===== */
-.sorteo-readonly .stage-actions,
-.sorteo-readonly .bombos-actions,
-.sorteo-readonly #btn-edit-teams,
-.sorteo-readonly .side-foot {
-  display: none !important;
-}
-/* En modo público los tabs siguen siendo clickeables: el público puede
-   "espiar" otros bombos sin afectar al admin. */
 
 /* ===== Vincular (link picker) ===== */
 .drawn-link {
@@ -623,45 +613,35 @@
   text-transform:uppercase; letter-spacing:.5px;
 }
 
-/* ===== Mirror de fases vinculadas (debajo del sorteo) ===== */
-.sorteo-mirror { margin-top: 22px; }
-.sorteo-mirror:empty { display: none; }
-.mirror-hdr {
-  font: 700 12px/1 'Barlow Condensed', sans-serif;
-  letter-spacing: 1.2px; text-transform: uppercase;
-  color: var(--txt2, #ccc);
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--brd, #333);
+/* ===== Sorteo público (readOnly): escenario ancho fiel a /prototype.
+   El layout/colores base (.sorteo-stage, .sorteo-hdr, .sorteo-counter,
+   .urna-wrap/.urna-sum/.urna-body, .chibi-rig/.chibi-glow/.chibi-tilt,
+   .urna/.uchip/.uchip.out) ya están en redesign.css — acá solo lo que
+   falta: tamaño del chibi animado (los frames reales, no la imagen
+   estática del prototipo), el contenedor, y el chip de 2 líneas de
+   "Ya sorteados" (nombre + destino "COMP · FASE" o "Destino pendiente";
+   el slot exacto vive en la sección 02, no acá). ===== */
+.sorteo-pub { display: flex; flex-direction: column; gap: 18px; }
+.chibi-anchor.sorteo-pub-chibi {
+  width: 547px; max-width: 84vw; aspect-ratio: 547 / 821; height: auto;
 }
-.mirror-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 14px;
+/* Bombos dentro del panel expandible: mismos .bombo-tab de siempre. */
+.sorteo-pub .bombos-bar { margin-bottom: 10px; }
+.uchip-2l {
+  display: flex; flex-direction: column; gap: 2px;
+  border-radius: 8px; padding: 6px 10px; text-align: left;
 }
-.mirror-card {
-  background: var(--card, #111);
-  border: 1px solid var(--brd, #333);
-  border-radius: 6px;
-  overflow: hidden;
+.uchip-2l b { font-weight: 600; color: var(--txt); }
+/* Legible en mobile (min 11px) y con contraste equivalente a --txt2 en vez
+   de --txt3+opacidad baja (esa combinación era casi ilegible). */
+.uchip-2l small { font-size: 11px; line-height: 1.3; color: var(--txt2); font-weight: 500; letter-spacing: .2px; }
+/* La pill "ya sorteada" NO hereda opacity:0.35 de ".urna .uchip.out"
+   (redesign.css) — solo se atenúa y tacha el NOMBRE; "Competición · Fase"
+   sigue legible. Selector ".urna .uchip.uchip-2l.out" (4 clases) para ganarle
+   en especificidad a ".urna .uchip.out" (3 clases) sin depender del orden
+   de carga entre sorteo.css/redesign.css. */
+.urna .uchip.uchip-2l.out { opacity: 1; text-decoration: none; }
+.uchip-2l.out b { color: var(--txt3); text-decoration: line-through; }
+@media (prefers-reduced-motion: reduce) {
+  .sorteo-pub .reveal-card.in { animation-duration: 160ms; }
 }
-.mirror-card-hdr {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 12px;
-  background: var(--card2, #1a1a1a);
-  border-bottom: 1px solid var(--brd, #333);
-  font: 600 13px/1 'Barlow Condensed', sans-serif;
-}
-.mirror-comp  { color: var(--txt, #fff); }
-.mirror-phase { color: var(--txt2, #ccc); }
-.mirror-sep   { color: var(--txt3, #888); }
-.mirror-type {
-  margin-left: auto;
-  font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .5px;
-  padding: 2px 7px;
-  border-radius: 3px;
-}
-.mirror-type.groups  { background: rgba(59,130,246,0.18); color: #3B82F6; border: 1px solid rgba(59,130,246,0.4); }
-.mirror-type.bracket { background: rgba(139,92,246,0.18); color: #8B5CF6; border: 1px solid rgba(139,92,246,0.4); }
-.mirror-card-body { padding: 10px 12px; }

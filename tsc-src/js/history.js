@@ -323,8 +323,16 @@ async function renderPubHistory(){
   if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('partidos');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
+  // Antes del primer montaje real, #page-historial todavía no tiene
+  // `is-mounted` (ensurePublicSectionMounted la agrega recién DESPUÉS de que
+  // esta función termine) — así se distingue el primer render (deja que
+  // tsc:public-section-mounted → revealWithin haga la entrada fade+rise) de
+  // un refresco posterior (foco repetido o dato en vivo), que recrea
+  // .hito-stage/.h2h-frame/#pub-histm desde cero y NUNCA debe re-animarlos.
+  const isRefresh = document.getElementById('page-historial')?.classList.contains('is-mounted');
   _injectHistHeader(0);
   await _renderHistoryFull(el, false, renderToken);
+  if(isRefresh && window.MOTION?.settleWithin) MOTION.settleWithin(el);
 }
 
 /* ----------------------------------------------------------
@@ -333,6 +341,9 @@ async function renderPubHistory(){
 let _pubHistCarousel = null;
 let _pubHistCarouselResizeBound = false;
 let _pubHistRenderToken = 0;
+/* Firma de los datos del último render público — permite que un refresco
+   pasivo (reenfoque/live) con datos idénticos no toque el DOM. */
+let _pubHistLastSig = null;
 function _pubBindHistCarouselResize(){
   if(_pubHistCarouselResizeBound) return;
   _pubHistCarouselResizeBound = true;
@@ -527,6 +538,46 @@ function _pubHCount(el, to){
   })(t0);
 }
 
+/* Conteo one-shot disparado por viewport. La sección Historial se MONTA ~600px
+   antes de ser visible (montaje lazy del shell), así que animar en el montaje
+   gastaría la animación fuera de pantalla — el usuario nunca la vería. En su
+   lugar, el contador queda en 0 y anima 0→N recién cuando entra al viewport,
+   una sola vez. Un cambio de filtro (nodo ya marcado `data-counted`) anima de
+   inmediato porque la sección ya está visible y el usuario acaba de interactuar.
+   Mismo rootMargin/threshold que el reveal de motion.js para que conteo y
+   fade+rise entren juntos. */
+let _pubHCountObserver = null;
+function _pubHCountObs(){
+  if(_pubHCountObserver) return _pubHCountObserver;
+  if(!('IntersectionObserver' in window)) return null;
+  _pubHCountObserver = new IntersectionObserver((entries, obs)=>{
+    for(const e of entries){
+      if(!e.isIntersecting) continue;
+      obs.unobserve(e.target);
+      e.target.dataset.counted = '1';
+      _pubHCount(e.target, parseInt(e.target.dataset.n)||0);
+    }
+  }, { rootMargin:'0px 0px -8% 0px', threshold:0.08 });
+  return _pubHCountObserver;
+}
+
+/* Programa el conteo de un contador de hito:
+   - reduced-motion: valor final directo, sin animar ni observar.
+   - ya contado (revelado antes) o ya visible: anima de inmediato.
+   - primera vez y fuera de pantalla: queda en 0 y anima al entrar al viewport. */
+function _pubScheduleCount(el, to){
+  if(!el) return;
+  el.dataset.n = String(to);
+  const _reduced = window.MOTION?.reduced?.() ?? matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(_reduced){ el.textContent = String(to); el.dataset.counted = '1'; return; }
+  const obs = _pubHCountObs();
+  const r = el.getBoundingClientRect();
+  const visible = r.top < window.innerHeight && r.bottom > 0;
+  if(el.dataset.counted || !obs || visible){ el.dataset.counted = '1'; _pubHCount(el, to); return; }
+  el.textContent = '0';
+  obs.observe(el);
+}
+
 /* Recalcula hitos (cuenta, goles, mayor goleada, más goles) y los cablea al H2H */
 function _pubUpdateHitos(records){
   const valid = records.filter(_pubHValid);
@@ -540,8 +591,8 @@ function _pubUpdateHitos(records){
   _pubH.blowout = blowout; _pubH.mostGoals = mostGoals;
 
   const totalB = document.querySelector('#hito-total b'), goalsB = document.querySelector('#hito-goals b');
-  if(totalB){ totalB.dataset.n=String(valid.length); _pubHCount(totalB, valid.length); }
-  if(goalsB){ goalsB.dataset.n=String(goles); _pubHCount(goalsB, goles); }
+  if(totalB) _pubScheduleCount(totalB, valid.length);
+  if(goalsB) _pubScheduleCount(goalsB, goles);
   const goalsScope = document.getElementById('hito-goals-scope');
   if(goalsScope) goalsScope.textContent = `${valid.length?(goles/valid.length).toFixed(2):'0.00'} goles por partido`;
 
@@ -733,6 +784,22 @@ async function _renderHistoryFull(el, isAdmin, renderToken=null){
   try {
     const all = await _getResolvedRecords();
     if(!isAdmin && renderToken!==_pubHistRenderToken) return;
+
+    // Dirty-check (solo público): el reenfoque de la sección fuerza un render
+    // completo (nav.js) para no mostrar datos stale — pero si los datos NO
+    // cambiaron desde el último render y la vista Partidos ya está montada,
+    // reconstruir el DOM es destructivo gratis: reinicia el conteo animado de
+    // los hitos (arrancan en <b>0</b> y cuentan de nuevo), borra los inputs
+    // H2H del usuario y puede mover el scroll por el reemplazo del contenido
+    // bajo el viewport. Los datos SÍ se leen frescos en cada pasada (arriba):
+    // un cambio ocurrido fuera de foco cambia la firma y renderiza al volver.
+    // Si la vista actual no es Partidos (p.ej. Tabla histórica, o un cambio
+    // de vista explícito del usuario), no hay #pub-histm y se renderiza igual.
+    if(!isAdmin){
+      const sig = all.length + '|' + JSON.stringify(all);
+      if(sig === _pubHistLastSig && el.querySelector('#pub-histm')) return;
+      _pubHistLastSig = sig;
+    }
 
     if(!all.length){
       el.innerHTML = `<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">

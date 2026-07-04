@@ -590,7 +590,7 @@ function _calHeroHtml(m, isLive, ctx){
     : _calCtaBtn('btn-ghost hm-cta-cal', 'Calendario completo', '');
 
   return `
-  <div class="hero hero-match hm-collapsible" style="margin-bottom:0;">
+  <div class="hero hero-match hm-collapsible" style="margin-bottom:0;" data-reveal>
     <div class="hm-border"></div>
     <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${_esc(taN)} contra ${_esc(tbN)}">
       <span class="hm-peek-lbl">${isLive ? 'En vivo' : 'Próximo partido'}</span>
@@ -628,7 +628,7 @@ function _calHeroHtml(m, isLive, ctx){
 function _calOffseasonHero(){
   _calHeroCtx = null;
   return `
-  <div class="hm-collapsible">
+  <div class="hm-collapsible" data-reveal>
     <div class="hm-border"></div>
     <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="Temporada sin partidos programados">
       <span class="hm-peek-lbl">Copa Suscriptores</span>
@@ -787,9 +787,14 @@ async function _calHeroGoComp(){
 }
 
 /* Arranca la cuenta atrás del hero «próximo partido». Usa MOTION.countdown si
-   está disponible; si no, degrada a hora/fecha estática (sin animación). */
-function _calInitHeroCountdown(m){
-  const cEl = document.getElementById('hm-countdown');
+   está disponible; si no, degrada a hora/fecha estática (sin animación).
+   `scope` acota la búsqueda al hero recién armado (staging o `el` directo):
+   con el staging atómico puede haber momentáneamente DOS #hm-countdown en el
+   documento (el viejo, todavía visible, y el nuevo, aún oculto) — un
+   document.getElementById global tomaría el primero en el árbol (el viejo) y
+   le engancharía el countdown que en realidad es para el nuevo. */
+function _calInitHeroCountdown(m, scope){
+  const cEl = (scope || document).querySelector('#hm-countdown');
   if(!cEl) return;
   if(!m.scheduledDate){ cEl.textContent = m.scheduledTime ? m.scheduledTime.substring(0,5) : '—'; return; }
   const target = new Date(`${m.scheduledDate}T${(m.scheduledTime||'00:00')}:00`);
@@ -803,10 +808,35 @@ function _calInitHeroCountdown(m){
 async function renderPubCalendar(){
   const el = document.getElementById('pub-calendar-content');
   if(!el) return;
-  _calHeroCleanup?.();
-  _calHeroCleanup = null;
-  if(_calCountdownStop){ try{ _calCountdownStop(); }catch(e){} _calCountdownStop=null; }
-  el.innerHTML = '<div class="cal-loading">Cargando...</div>';
+  // Mismo fix que renderPubPanel: estabilizar altura ANTES de tocar el DOM —
+  // red de seguridad adicional al staging atómico de abajo (cubre el intervalo
+  // entre el commit final y el rAF de asentado).
+  const _prevCalHeight = el.offsetHeight;
+  if(_prevCalHeight > 0) el.style.minHeight = _prevCalHeight + 'px';
+  el.setAttribute('aria-busy', 'true');
+
+  // Actualización atómica (igual que renderPubPanel): con contenido previo, todo
+  // se arma en un staging invisible superpuesto EXACTAMENTE sobre el mismo
+  // cuadro (position:absolute; inset:0; visibility:hidden — nunca display:none
+  // ni fuera de pantalla, para que las mediciones de layout sigan siendo
+  // reales) y se commitea de una sola vez al final. El hero anterior (con su
+  // countdown y sus listeners) permanece intacto y respondiendo hasta ese
+  // commit — NO se lo desconecta antes de tener el reemplazo listo. En el
+  // primer montaje (sin contenido previo) se permite el placeholder "Cargando".
+  const hasPrevContent = el.childElementCount > 0;
+  let stagingWrap = null;
+  let stage = el;
+  if (hasPrevContent) {
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    stagingWrap = document.createElement('div');
+    stagingWrap.style.cssText = 'position:absolute;inset:0;visibility:hidden;pointer-events:none;';
+    el.appendChild(stagingWrap);
+    stage = stagingWrap;
+  }
+  let stageReady = false;
+
+  try {
+  if(!hasPrevContent) stage.innerHTML = '<div class="cal-loading">Cargando...</div>';
 
   const [allMatches, teams, allPhases, comps, dayLabels] = await Promise.all([
     getForSeason('matches'),
@@ -874,15 +904,16 @@ async function renderPubCalendar(){
   const visibleDates = (mostRecentPast ? [mostRecentPast] : []).concat(futureDates);
 
   if(!visibleDates.length){
-    el.innerHTML = heroMatch
+    stage.innerHTML = heroMatch
       ? `${heroHtml}
         <div class="cal-pub-empty">
           <div class="cal-pub-empty-title">No hay más partidos programados</div>
           <div class="cal-pub-empty-sub">Los próximos partidos aparecerán aquí en cuanto el admin los programe</div>
         </div>`
       : heroHtml;
-    _calWireHero(el);
-    if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch);
+    stageReady = true;
+    _calWireHero(stage);
+    if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch, stage);
     return;
   }
 
@@ -968,7 +999,7 @@ async function renderPubCalendar(){
        </button>`
     : '';
 
-  el.innerHTML=`
+  stage.innerHTML=`
     <div class="cal-duo">
       ${heroHtml}
       <div class="metro" aria-label="Cronograma de la temporada">
@@ -978,13 +1009,14 @@ async function renderPubCalendar(){
         </div>
       </div>
     </div>`;
+  stageReady = true;
 
   /* Toggle colapsable del hero (click + teclado) + CTAs reales */
-  _calWireHero(el);
+  _calWireHero(stage);
 
   /* «Cargar más»: añade las siguientes 10 filas in situ (scroll interno). */
   const _pending = [...pendingDates];
-  const metroEl  = el.querySelector('.metro-track');
+  const metroEl  = stage.querySelector('.metro-track');
   const _wireMore = () => {
     const btn = metroEl?.querySelector('.metro-more');
     if(!btn) return;
@@ -1009,5 +1041,55 @@ async function renderPubCalendar(){
   _wireMore();
 
   /* Cuenta atrás del hero (solo si el foco es el «próximo partido», no en vivo) */
-  if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch);
+  if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch, stage);
+  } finally {
+    // Commit atómico: si se armó en staging, reemplaza TODO de una sola vez —
+    // recién ahí se desconectan los listeners/countdown/observers del hero
+    // ANTERIOR (vía _calWireHero, que limpia lo previo antes de cablear lo
+    // nuevo), nunca antes de tener el reemplazo listo. Si el fetch falló antes
+    // de terminar de armar el staging (stageReady sigue false), se descarta el
+    // staging sin tocar el contenido real — el hero anterior sigue intacto y
+    // respondiendo.
+    if (stagingWrap) {
+      if (stageReady) {
+        _calCommitStage(el, stagingWrap);
+        // tsc:public-section-mounted (revealWithin) ya cableó el hero del PRIMER
+        // montaje; este commit es un refresco que recreó el hero desde cero — sin
+        // asentarlo explícitamente, el nodo nuevo queda sin `revealBound`/`revealed`.
+        // NUNCA debe repetir la animación de entrada (el usuario ya está viendo
+        // esta sección), solo quedar directamente en su estado final.
+        if (window.MOTION?.settleWithin) MOTION.settleWithin(el);
+      } else {
+        stagingWrap.remove();
+      }
+    }
+    // Timeout de respaldo: en una pestaña sin foco/backgrounded rAF puede no
+    // dispararse nunca — sin esto, el montaje de la sección se cuelga para siempre.
+    await _calRafOrTimeout();
+    el.style.minHeight = '';
+    el.removeAttribute('aria-busy');
+  }
+}
+
+/* Reemplaza el contenido de `el` por el de `stagingWrap` en un solo paso
+   síncrono (ver _pubCommitStage en public.js: mismo patrón, copia local para
+   no acoplar calendar.js a public.js). No hay ids `__staging` que normalizar
+   acá: el hero no usa ids fijos que colisionen (solo #hm-countdown, ya resuelto
+   vía scope en _calInitHeroCountdown). */
+function _calCommitStage(el, stagingWrap){
+  const frag = document.createDocumentFragment();
+  while (stagingWrap.firstChild) frag.appendChild(stagingWrap.firstChild);
+  el.innerHTML = '';
+  el.appendChild(frag);
+}
+
+/* rAF con red de seguridad: resuelve con el primer frame real, o a los `ms`
+   si el navegador nunca lo entrega (pestaña sin foco/backgrounded). */
+function _calRafOrTimeout(ms = 400){
+  return new Promise(resolve=>{
+    let done = false;
+    const finish = () => { if(!done){ done = true; resolve(); } };
+    requestAnimationFrame(finish);
+    setTimeout(finish, ms);
+  });
 }

@@ -1,3 +1,9 @@
+function _dataEsc(value){
+  return String(value??'').replace(/[&<>"']/g,char=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[char]);
+}
+
 async function renderAdmData(){
   const el=document.getElementById('adm-data-content');
   const currentSeason = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
@@ -9,7 +15,7 @@ async function renderAdmData(){
       <p style="font-size:14px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">Backup completo de toda la base de datos en JSON.</p>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button class="btn btn-primary" onclick="exportFullDB()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar todo</button>
-        <button class="btn" onclick="exportSeason()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Solo ${seasonName}</button>
+        <button class="btn" onclick="exportSeason()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Solo ${_dataEsc(seasonName)}</button>
       </div>
     </div>
     <div class="card" style="padding:18px;">
@@ -33,9 +39,9 @@ async function renderAdmData(){
 async function renderDBInfo(){
   const el=document.getElementById('db-info');
   if(!el) return;
-  const [teams,comps,phases,matches,coins,seasons,matchHistory]=await Promise.all([dbGetAll('teams'),dbGetAll('competitions'),dbGetAll('phases'),dbGetAll('matches'),dbGetAll('coins'),dbGetAll('seasons'),dbGetAll('matchHistory')]);
+  const [teams,comps,phases,matches,coins,seasons,matchHistory,palmares]=await Promise.all([dbGetAll('teams'),dbGetAll('competitions'),dbGetAll('phases'),dbGetAll('matches'),dbGetAll('coins'),dbGetAll('seasons'),dbGetAll('matchHistory'),dbGetAll('palmares')]);
   el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">
-    ${[['Temporadas',seasons.length],['Equipos',teams.length],['Competiciones',comps.length],['Fases',phases.length],['Partidos',matches.length],['Transacciones',coins.length],['Historial',matchHistory.length]].map(([l,v])=>`
+    ${[['Temporadas',seasons.length],['Equipos',teams.length],['Competiciones',comps.length],['Fases',phases.length],['Partidos',matches.length],['Transacciones',coins.length],['Historial',matchHistory.length],['Palmarés',palmares.length]].map(([l,v])=>`
     <div style="text-align:center;padding:10px;background:var(--card2);border-radius:var(--r);">
       <div style="font-family:'Bebas Neue';font-size:29px;color:var(--gold);">${v}</div>
       <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:0.5px;">${l}</div>
@@ -44,9 +50,21 @@ async function renderDBInfo(){
 }
 
 async function exportFullDB(){
-  const [teams,comps,phases,matches,coins,seasons,matchHistory]=await Promise.all([dbGetAll('teams'),dbGetAll('competitions'),dbGetAll('phases'),dbGetAll('matches'),dbGetAll('coins'),dbGetAll('seasons'),dbGetAll('matchHistory')]);
-  downloadJSON({version:'TSC_v4',exportedAt:new Date().toISOString(),teams,competitions:comps,phases,matches,coins,seasons,matchHistory},`TSC_backup_${new Date().toISOString().split('T')[0]}.json`);
-  showToast('Backup exportado');
+  try{
+    const entries=await Promise.all(STORES.map(async store=>[store,await dbGetAll(store)]));
+    const stores=Object.fromEntries(entries);
+    downloadJSON({
+      version:'TSC_v5',
+      schemaVersion:1,
+      exportedAt:new Date().toISOString(),
+      manifest:{stores:STORES.slice()},
+      stores
+    },`TSC_backup_${new Date().toISOString().split('T')[0]}.json`);
+    showToast('Backup completo exportado');
+  }catch(err){
+    console.error('[Datos] Error exportando backup:',err);
+    showToast('No se pudo exportar el backup','error');
+  }
 }
 
 async function exportSeason(){
@@ -65,31 +83,101 @@ function downloadJSON(data,filename){
   URL.revokeObjectURL(url);
 }
 
+function _dataBackupStores(data){
+  if(!data || typeof data!=='object' || Array.isArray(data)) throw new Error('Formato de backup inválido');
+  const source=data.stores && typeof data.stores==='object' && !Array.isArray(data.stores)
+    ? data.stores
+    : data;
+  const result={};
+  STORES.forEach(store=>{
+    if(source[store]===undefined) return;
+    if(!Array.isArray(source[store])) throw new Error(`Colección inválida: ${store}`);
+    result[store]=source[store];
+  });
+  if(!Object.keys(result).length) throw new Error('El backup no contiene colecciones reconocidas');
+  return result;
+}
+
+function _dataValidateRecord(store,item,index){
+  if(!item || typeof item!=='object' || Array.isArray(item)) throw new Error(`Registro inválido en ${store} #${index+1}`);
+  const record={...item};
+  const id=record.id;
+  if(typeof id!=='number' || !Number.isSafeInteger(id) || id<1) throw new Error(`ID inválido en ${store} #${index+1}`);
+  return record;
+}
+
+/* Validación pura (sin tocar la DB) de una store completa del backup.
+   Se usa para prevalidar TODO antes de borrar o escribir nada (ver _dataValidateBackup). */
+function _dataValidateStoreItems(store,items){
+  const seen=new Set();
+  const validated=[];
+  for(let index=0;index<items.length;index++){
+    const record=_dataValidateRecord(store,items[index],index);
+    if(seen.has(record.id)) throw new Error(`ID duplicado en ${store}: ${record.id}`);
+    seen.add(record.id);
+    validated.push(record);
+  }
+  return validated;
+}
+
+/* Prevalida TODAS las stores del backup antes de cualquier mutación.
+   Garantía: un backup estructuralmente inválido (JSON corrupto, colección con forma
+   inválida, registro sin id numérico válido, ID duplicado) no produce ninguna escritura
+   ni borrado. NO es una transacción atómica: un fallo de red/cuota/permisos DURANTE las
+   escrituras (después de pasar esta validación) todavía puede dejar una restauración parcial. */
+function _dataValidateBackup(backupStores){
+  const validated={};
+  for(const store of Object.keys(backupStores)){
+    validated[store]=_dataValidateStoreItems(store,backupStores[store]);
+  }
+  return validated;
+}
+
+async function _dataImportStore(store,items){
+  let maxId=0;
+  for(const record of items){
+    maxId=Math.max(maxId,record.id);
+    await dbPut(store,record);
+  }
+  if(maxId && typeof dbEnsureCounterAtLeast==='function') await dbEnsureCounterAtLeast(store,maxId);
+}
+
 async function importDB(mode){
   const file=document.getElementById('import-file')?.files[0];
   if(!file){showToast('Selecciona un archivo JSON','error');return;}
-  const msg=mode==='overwrite'?'Esto BORRARÁ todos los datos actuales.':'Se fusionarán con los datos actuales.';
+  let validatedStores;
+  try{
+    const data=JSON.parse(await file.text());
+    const backupStores=_dataBackupStores(data);
+    validatedStores=_dataValidateBackup(backupStores); // valida TODO antes de mostrar el confirm o tocar la DB
+  }catch(err){
+    console.error('[Datos] Error leyendo backup:',err);
+    showToast('No se pudo leer el backup: '+err.message,'error');
+    return;
+  }
+  const storeNames=Object.keys(validatedStores).join(', ');
+  const msg=mode==='overwrite'
+    ?`Esto BORRARÁ los datos actuales de: ${storeNames}. Las demás colecciones no incluidas en este backup no se tocan.`
+    :`Se fusionarán con los datos actuales de: ${storeNames}. Los registros del backup con el mismo ID que uno existente lo REEMPLAZARÁN (no se duplican ni se saltan).`;
   showConfirm(mode==='overwrite'?'¿Sobrescribir datos?':'¿Fusionar datos?',msg,async()=>{
     try{
-      const data=JSON.parse(await file.text());
       if(mode==='overwrite'){
-        for(const store of STORES){const all=await dbGetAll(store);for(const item of all)await dbDelete(store,item.id);}
-      }
-      const storeMap={teams:'teams',competitions:'competitions',phases:'phases',matches:'matches',coins:'coins',seasons:'seasons',matchHistory:'matchHistory'};
-      for(const [key,store] of Object.entries(storeMap)){
-        for(const item of (data[key]||[])){
-          if(store==='matchHistory' && item.id!=null){
-            await dbAdd(store, item); // preservar IDs históricos
-          } else {
-            const {id,...rest}=item;
-            await dbAdd(store,rest);
-          }
+        for(const store of Object.keys(validatedStores)){
+          const all=await dbGetAll(store);
+          for(const item of all) await dbDelete(store,item.id);
         }
+      }
+      for(const store of STORES){
+        if(!validatedStores[store]) continue;
+        await _dataImportStore(store,validatedStores[store]);
       }
       await loadSeasons();
       showToast('Datos importados correctamente');
       renderAdmData();
-    }catch(err){showToast('Error: '+err.message,'error');}
+    }catch(err){
+      console.error('[Datos] Error importando backup:',err);
+      showToast('No se pudo importar el backup','error');
+    }
   });
 }
 
