@@ -1,6 +1,8 @@
-# Pre-slice — Macro Slice D · Backup/Restauración + Sorteo público en tiempo real (v3.4c — CERRADO)
+# Pre-slice — Macro Slice D · Backup/Restauración + Sorteo público en tiempo real (v3.4d — CERRADO SIN PENDIENTES)
 
-> **v3.4c (2026-07-03) — cierre final.** Codex aprobó funcionalmente el último punto pendiente (scroll-spy saltándose la sección 05 al cruzar Equipos↔Historial) tras verificación en navegador real. Ver sección 9 para causa raíz, cambio de código, secuencias verificadas y QA. **Único punto que sigue fuera del alcance de este slice: validación manual de las reglas Firestore de `palmares` en la consola** — no verificable por código, requiere acceso humano.
+> **v3.4d (2026-07-04) — cierre absoluto.** Se validó manualmente en la consola de Firebase el único punto que quedaba fuera de alcance: las reglas Firestore de `palmares`. Ver sección 10 para el detalle (reglas desplegadas vs. locales, 3 simulaciones en la Zona de pruebas). Slice D queda cerrado sin ningún punto pendiente.
+
+> **v3.4c (2026-07-03) — cierre funcional.** Codex aprobó funcionalmente el último punto de código pendiente (scroll-spy saltándose la sección 05 al cruzar Equipos↔Historial) tras verificación en navegador real. Ver sección 9 para causa raíz, cambio de código, secuencias verificadas y QA.
 
 > **v3.4 (2026-07-03) — segunda ronda de corrección de scroll: el fix de v3.3 estabilizaba la altura pero NO el contenido visible.** Codex midió directamente (con la sección ya montada) que `#pub-panel-content` pasaba de 3976 a 76 caracteres al reenfocar — el `min-height` de v3.3 conservaba el espacio, pero el `innerHTML` real seguía reemplazándose por encabezado + contenedor de fase vacío durante los `await`. Codex también midió en Historial un retroceso real de scrollY de 81px (3600→3519) al terminar `renderPubHistory()` durante un scroll activo. Fix de esta ronda:
 > - **Sección 02 y 03 (`renderPubPanel`/`renderPubCalendar`) pasan de "altura estable" a "actualización atómica real":** el contenido nuevo se arma completo (encabezado + carruseles + el renderer de fase/hero que corresponda) en un staging invisible superpuesto exactamente sobre el mismo cuadro (`position:absolute;inset:0;visibility:hidden` — nunca `display:none` ni fuera de pantalla, para que las mediciones de layout y los chequeos de visibilidad de los fuegos del campeón sigan siendo reales) y se reemplaza todo de una sola vez, de forma síncrona, al terminar. El contenido anterior nunca se toca ni se vacía mientras se espera — solo en el primer montaje (sin contenido previo) se permite el hueco vacío momentáneo.
@@ -228,6 +230,20 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 
 **Archivo tocado en esta sub-iteración:** `redesign-shell.js` (único cambio: `_buildFocusObserver`). `history.js` fue tocado en la sub-iteración anterior (v3.4b) para el conteo animado, no en esta.
 
+## 10 — Validación manual de reglas Firestore de `palmares` (cierre definitivo, v3.4d)
+
+**Alcance:** único punto que seguía fuera del alcance del implementador (secciones 4, 8 tabla de riesgos y "Gates de ejecución"). Verificado directamente en la consola de Firebase (`console.firebase.google.com/project/tsc-web-yuna/firestore/databases/-default-/security/rules`) con la sesión real del usuario vía navegador conectado (MCP), no simulado ni asumido por lectura de código.
+
+**Verificado:**
+- **Reglas desplegadas == `firebase/firestore.rules` local:** el texto completo mostrado en la pestaña "Reglas" de la consola (versión activa, marcada con estrella, `jun 10, 2026 · 11:00 a.m.`) es idéntico carácter a carácter al archivo local, incluyendo la línea `match /palmares/{id} { allow read: if true; allow write: if isAdmin(); }` — no hay drift entre lo desplegado y lo versionado en git.
+- **Simulación 1 (Zona de pruebas de reglas, tipo `get`, ruta `palmares/1`, sin autenticar):** resultado `success: Se autorizó la operación de lectura simulada` — confirma lectura pública real, no solo el texto de la regla.
+- **Simulación 2 (tipo `update`, misma ruta, sin autenticar):** resultado `warning: Se rechazó la operación de escritura simulada` — confirma que un cliente anónimo no puede escribir en `palmares`.
+- **Simulación 3 (tipo `update`, misma ruta, autenticado con un UID de Firebase inexistente en `users/{uid}`):** también rechazada — la traza detallada muestra que `meExists()` se evalúa (a diferencia de la simulación 2, donde ni se llega a evaluar por `signedIn()` ya false) y da `false` al no existir el documento de perfil, por lo que `isAdmin()` es `false` y la escritura se deniega. Confirma que estar autenticado sin un perfil admin en `users/{uid}` sigue sin ser suficiente para escribir.
+- **Simulación 4 — caso positivo (tipo `update`, misma ruta, autenticado con el UID real de un usuario con `role: "admin"` en `users/{uid}`, obtenido de la propia colección `users` en la consola):** resultado `success: Se autorizó la operación de escritura simulada` — traza completa evalúa `get()` sobre el documento real, `meExists()` true, `me().role == 'admin'` true, `isAdmin()` true. Confirma que la regla no solo deniega correctamente a quien no debe escribir, sino que sí permite escribir a un admin real — cierra el caso positivo que las simulaciones 1-3 no cubrían.
+- Ninguna de las cuatro simulaciones escribe contra la base real (la "Zona de pruebas" es un evaluador de reglas aislado, no ejecuta la operación); no se publicó ningún cambio de reglas (se evitó deliberadamente el botón "Publicar" en todo momento, incluso cuando la consola mostró un estado local de "cambios sin publicar" al navegar el historial de versiones — ese estado nunca se envió al servidor).
+
+**Conclusión:** el modelo de seguridad de `palmares` (lectura pública, escritura solo admin) está correctamente desplegado y se comporta como se espera. Slice D no tiene ningún punto pendiente restante.
+
 ## Resto del plan de datos (sin cambios respecto a v3.1, aprobado)
 - Export/import dinámico por `STORES` (ya en el working tree).
 - IDs preservados globalmente vía `dbPut`/upsert — aprobado explícitamente por Codex para todas las stores, no solo Palmarés.
@@ -255,7 +271,7 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - Restauración parcial ante **fallo de red/cuota/permisos a mitad de escritura** → riesgo residual real, no mitigado (documentado, fuera de alcance).
 - "Fusionar" sobrescribe por ID sin avisar → advertencia explícita en el modal (hecho).
 - Confundir el techo de guardado (12) con el de exhibición simultánea (7) → constantes separadas + probado con 12 fotos reales.
-- Reglas Firestore de `palmares` para `gallery` → **sigue pendiente de validación manual en consola** (no verificable por código).
+- Reglas Firestore de `palmares` para `gallery` → **validado manualmente en consola (v3.4d, sección 10):** reglas desplegadas idénticas al `firebase/firestore.rules` local; simulado lectura anónima (permitida), escritura anónima (denegada) y escritura autenticada sin perfil admin (denegada).
 - Cambiar participantes de un playoff conserva resultados viejos → `assignPlayoffLink` limpia matches+historial; `clearPlayoffAssign`/`savePlayoffAssign` corregidos para hacer lo mismo (antes solo borraban matches).
 - Admin de playoff y Sorteo divergen → invalidación bidireccional probada en vivo (total y parcial por lado).
 - Undo global pisaba cambios concurrentes → journal acotado a fase/sorteo/matches tocados por la sesión (probado: no toca una fase real ajena).
@@ -279,7 +295,7 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 17. Corregir el bug de scroll continuo — segunda pasada: actualización atómica real (staging + commit síncrono) en panel/calendario, restauración de scroll acotada (sin pelear con gesto activo) en historial — **hecho** (v3.4), medido con muestreo de contenido/altura cada 5ms y traza de scroll real en escritorio y móvil.
 18. Corregir fade+rise en refrescos (`MOTION.settleWithin`) — **hecho** (v3.4).
 19. `node --check` + `git diff --check` + `graphify update .` — **hecho** (v3.4).
-20. Validar reglas Firestore de `palmares` en consola — **pendiente** (requiere acceso manual, no lo puede hacer el implementador; carry-over de v3.3, sin cambios — único punto abierto del slice).
+20. Validar reglas Firestore de `palmares` en consola — **hecho** (v3.4d, sección 10): reglas desplegadas verificadas idénticas al archivo local y comportamiento confirmado con 3 simulaciones reales en la Zona de pruebas (lectura anónima permitida, escritura anónima denegada, escritura autenticada sin perfil admin denegada).
 21. Dirty-check por firma de datos en `_renderHistoryFull` para que el reenfoque a Historial no reinicie el conteo animado ni borre el H2H — **hecho** (v3.4b), verificado con 1082 muestras sin reinicios.
 22. Recuperar el conteo animado sin reabrir el bug (disparo one-shot por `IntersectionObserver` propio, `_pubScheduleCount`) — **hecho** (v3.4b/c), verificado en vivo (27 pasos de easing, sin repetición en reenfoques).
 23. Corregir el scroll-spy saltándose Sorteo (`_buildFocusObserver` recalculando con rects en vivo de todas las secciones) — **hecho** (v3.4c), verificado con rueda real en ambas direcciones.
@@ -290,7 +306,7 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - Un solo escritor sobre el módulo.
 - No ejecutar sorteos, vínculos, imports ni subidas automatizadas contra producción sin autorización explícita — respetado.
 - No hay gates artificiales de porcentaje/token; el cierre depende de criterios funcionales y QA.
-- **Slice D aprobado funcionalmente por Codex y cerrado (2026-07-03).** Único punto fuera del alcance del implementador: validación manual de reglas Firestore de `palmares` en consola.
+- **Slice D aprobado funcionalmente por Codex y cerrado (2026-07-03).** Único punto que quedaba fuera del alcance del implementador (validación manual de reglas Firestore de `palmares` en consola) se completó el 2026-07-04 — ver sección 10. Slice D cerrado sin pendientes.
 
 ## Criterios de aceptación (final, v3.3)
 - Galería: persiste hasta 12, sala rota mostrando máx 7 simultáneas entre las 12. QA en 0/1/3/7/12 — **cumplido**.
@@ -313,7 +329,7 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - `firebase-config.js`/`cloudinary.js` no se tocan ni se stagean — **cumplido**.
 - `.serve-3000.*` no se stagean — **cumplido** (quedan sin trackear; no se pudieron borrar, proceso `node.exe` ajeno los tiene abiertos).
 - `node --check` limpio en los 12 archivos JS tocados (calendar.js, data.js, db.js, history.js, motion.js, nav.js, palmares.js, playoff.js, public.js, public-bracket.js, redesign-shell.js, sorteo.js), `git diff --check` limpio, `graphify update .` corrido — **cumplido**.
-- Reglas Firestore de `palmares` confirmadas en consola — **pendiente** (único punto fuera del alcance del implementador; requiere acceso manual a la consola de Firebase).
+- Reglas Firestore de `palmares` confirmadas en consola — **cumplido** (v3.4d, sección 10): reglas desplegadas == archivo local, 3 simulaciones reales confirman lectura pública / escritura solo-admin.
 - Sorteo público iguala la composición del prototipo sin perder datos ni animación real.
 - Admin conserva todas sus capacidades actuales.
 - Nuevo sorteo se anima una vez en público y actualiza contador/lista sin reload.
