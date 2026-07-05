@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TSC · Copa Suscriptores</title>
-<link rel="icon" type="image/png" href="assets/chibi/luisyuna-avatar.png">
-<link rel="apple-touch-icon" href="assets/chibi/luisyuna-avatar.png">
+<link rel="icon" type="image/png" href="assets/chibi/LuisYuNa_nuevo.png">
+<link rel="apple-touch-icon" href="assets/chibi/LuisYuNa_nuevo.png">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/variables.css">
 <link rel="stylesheet" href="css/layout.css">
@@ -23,8 +23,10 @@
 <div id="topbar">
   <div class="topbar-brand">
     <button class="icon-btn" id="pub-menu-btn" onclick="togglePubSidebar()" title="Menú" style="display:none;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-    <div class="topbar-logo">TSC</div>
-    <div class="topbar-name">Teams Subs <span>Cup</span></div>
+    <button type="button" class="topbar-brand-btn" onclick="goHome()" title="Ir a inicio">
+      <img class="topbar-logo" src="assets/chibi/LuisYuNa_nuevo.png" alt="Teams Subs Cup">
+      <div class="topbar-name">Teams Subs <span>Cup</span></div>
+    </button>
   </div>
   <!-- Topnav pública (rediseño Slice 3) — mapeada a goPublicPage() real.
        Gateada por STATE.mode (oculta en admin vía .is-hidden). Sorteo omitido a propósito. -->
@@ -153,38 +155,37 @@
 <div id="main">
 
   <!-- PÁGINAS PÚBLICAS -->
-  <div id="page-palmares" class="page active">
+  <div id="page-palmares" class="page public-section active">
+    <div class="proto-divider"><span class="pd-n">01</span><span class="pd-t">Palmarés</span></div>
     <div id="pub-palmares-content"></div>
   </div>
 
-  <div id="page-panel" class="page">
-    <div class="section-lbl">Competiciones</div>
+  <div id="page-panel" class="page public-section">
     <div id="pub-panel-content"></div>
+  </div>
+
+  <div id="page-calendario" class="page public-section">
+    <div class="proto-divider"><span class="pd-n">03</span><span class="pd-t">Calendario</span></div>
+    <div id="pub-calendar-content"></div>
+  </div>
+
+  <div id="page-equipos" class="page public-section">
+    <div class="proto-divider"><span class="pd-n">04</span><span class="pd-t">Equipos</span></div>
+    <div id="pub-teams-content"></div>
+  </div>
+
+  <div id="page-sorteo" class="page public-section" hidden>
+    <div class="proto-divider"><span class="pd-n">05</span><span class="pd-t">Sorteo</span></div>
+    <div id="sorteo-content-pub"></div>
+  </div>
+
+  <div id="page-historial" class="page public-section">
+    <div id="pub-history-content"></div>
   </div>
 
   <div id="page-competiciones" class="page">
     <div class="section-lbl">Competiciones activas</div>
     <div id="pub-comps-content"></div>
-  </div>
-
-  <div id="page-equipos" class="page">
-    <div class="section-lbl">Equipos</div>
-    <div id="pub-teams-content"></div>
-  </div>
-
-  <div id="page-historial" class="page">
-    <div class="section-lbl">Historial de partidos</div>
-    <div id="pub-history-content"></div>
-  </div>
-
-  <div id="page-calendario" class="page">
-    <div class="section-lbl">Próximos partidos</div>
-    <div id="pub-calendar-content"></div>
-  </div>
-
-  <div id="page-sorteo" class="page">
-    <div class="section-lbl">Sorteo en directo</div>
-    <div id="sorteo-content-pub"></div>
   </div>
 
   <!-- PÁGINAS ADMIN -->
@@ -381,6 +382,7 @@
 <script src="js/matches.js"></script>
 <script src="js/bracket.js"></script>
 <script src="js/playoff.js"></script>
+<script src="js/public-bracket.js"></script>
 <script src="js/public.js"></script>
 <script src="js/coins.js"></script>
 <script src="js/seasons.js"></script>
@@ -393,12 +395,6 @@
 <script src="js/calendar.js"></script>
 <script src="js/livematch.js"></script>
 
-<!-- Rediseño público (prototipo migrado) — boot gateado: no auto-ejecuta,
-     solo expone initRedesignPublic() para cuando exista el DOM de secciones -->
-<script src="js/redesign-public.js"></script>
-
-<!-- model-viewer — 3D trophy viewer (WebXR / WebGL) -->
-<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 
 </body>
 </html>

@@ -9,6 +9,7 @@ let _profileAvatarTouched = false;
 let _profileLogoData;
 let _profileLogoFile;
 let _profileLogoTouched = false;
+let _profileReturnFocus = null;   // elemento al que devolver el foco al cerrar el drawer
 
 function _pfEsc(v){
   return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -16,18 +17,85 @@ function _pfEsc(v){
 
 function _injectProfileModal(){
   if (document.getElementById('profile-modal')) return;
+  // Drawer anclado arriba-derecha (desktop) · full-height (móvil), no un modal centrado.
   const div = document.createElement('div');
-  div.className = 'modal-overlay';
+  div.className = 'profile-backdrop';
   div.id = 'profile-modal';
+  div.setAttribute('role','dialog');
+  div.setAttribute('aria-modal','true');
+  div.setAttribute('aria-label','Mi perfil');
   div.innerHTML = `
-    <div class="modal" style="max-width:460px;">
-      <div class="modal-hdr">
-        <div class="modal-title">Mi perfil</div>
-        <button class="modal-close" onclick="closeModal('profile-modal')">×</button>
+    <div class="profile-menu">
+      <div class="pp-drawer" id="profile-drawer" tabindex="-1">
+        <button type="button" class="pp-close" aria-label="Cerrar perfil" onclick="closeModal('profile-modal')">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div id="profile-body"></div>
       </div>
-      <div class="modal-body" id="profile-body"></div>
     </div>`;
   document.body.appendChild(div);
+  // Click en el backdrop (fuera del panel) cierra el drawer.
+  div.addEventListener('mousedown', e=>{ if(e.target===div) closeModal('profile-modal'); });
+  // Gestión de foco: el drawer cierra por varias vías (botón, backdrop, Escape
+  // global). Observamos la clase .open para correr setup/teardown sin importar
+  // cómo se cerró: foco al panel al abrir, atrapado mientras abierto, devuelto al
+  // disparador al cerrar.
+  let _wasOpen = false;
+  new MutationObserver(()=>{
+    const open = div.classList.contains('open');
+    if(open && !_wasOpen){
+      _wasOpen = true;
+      document.addEventListener('keydown', _profileTrapKeydown, true);
+      _onProfileOpen();
+    } else if(!open && _wasOpen){
+      _wasOpen = false;
+      document.removeEventListener('keydown', _profileTrapKeydown, true);
+      _onProfileClose();
+    }
+  }).observe(div, { attributes:true, attributeFilter:['class'] });
+}
+
+/* Elementos enfocables visibles dentro del drawer (orden DOM). */
+function _profileFocusables(drawer){
+  if(!drawer) return [];
+  return [...drawer.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+    .filter(el => el.offsetWidth>0 || el.offsetHeight>0 || el===document.activeElement);
+}
+
+/* Al abrir: recuerda el disparador, marca el botón como expandido y mueve el foco
+   al panel (primer enfocable, o el panel mismo como respaldo). */
+function _onProfileOpen(){
+  const drawer = document.getElementById('profile-drawer');
+  const btn = document.getElementById('profile-btn');
+  _profileReturnFocus = btn || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  if(btn) btn.setAttribute('aria-expanded','true');
+  if(!drawer) return;
+  const f = _profileFocusables(drawer);
+  (f[0] || drawer).focus({ preventScroll:true });
+}
+
+/* Al cerrar: desmarca el botón y devuelve el foco al disparador. */
+function _onProfileClose(){
+  const btn = document.getElementById('profile-btn');
+  if(btn) btn.setAttribute('aria-expanded','false');
+  const ret = _profileReturnFocus;
+  _profileReturnFocus = null;
+  if(ret && document.contains(ret)){ try{ ret.focus({ preventScroll:true }); }catch(e){} }
+}
+
+/* Atrapa el Tab dentro del drawer mientras está abierto (ciclo first↔last). */
+function _profileTrapKeydown(e){
+  if(e.key!=='Tab') return;
+  const drawer = document.getElementById('profile-drawer');
+  if(!drawer) return;
+  const f = _profileFocusables(drawer);
+  if(!f.length){ e.preventDefault(); drawer.focus({ preventScroll:true }); return; }
+  const first = f[0], last = f[f.length-1], active = document.activeElement;
+  if(e.shiftKey){
+    if(active===first || !drawer.contains(active)){ e.preventDefault(); last.focus(); }
+  } else {
+    if(active===last || !drawer.contains(active)){ e.preventDefault(); first.focus(); }
+  }
 }
 
 async function openProfile(){
@@ -48,8 +116,7 @@ async function renderProfileBody(){
   const body = document.getElementById('profile-body');
   if (!body) return;
 
-  const team  = AUTH.teamId != null ? await dbGet('teams', AUTH.teamId).catch(()=>null) : null;
-  const stats = team ? await _loadTeamStats(AUTH.teamId, team) : null;
+  const team   = AUTH.teamId != null ? await dbGet('teams', AUTH.teamId).catch(()=>null) : null;
   const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
   window._profileTeam = team;
 
@@ -57,140 +124,154 @@ async function renderProfileBody(){
   const email    = AUTH.user.email;
   const username = AUTH.profile?.username || '';
   const verified = AUTH.user.emailVerified;
-  const roleLbl  = AUTH.role === 'admin' ? 'Admin' : (AUTH.role === 'president' ? 'Presidente' : 'Usuario');
+  const roleLbl  = AUTH.role==='admin' ? 'Admin' : (AUTH.role==='president' ? 'Presidente' : 'Usuario');
 
   const avatarSrc = _profileAvatarData !== undefined ? _profileAvatarData : (AUTH.profile?.photoURL || null);
-  const avatarInner = avatarSrc
-    ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;">`
-    : `<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" style="display:block;color:var(--txt3);"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
+  const currentLogo = _profileLogoData !== undefined ? _profileLogoData : team?.logo;
 
-  const verBadge = verified
-    ? `<span style="color:#2ecc71;font-size:11px;font-weight:600;">✓ verificado</span>`
-    : `<span style="color:#FFC107;font-size:11px;font-weight:600;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> sin verificar</span>
-       <button class="btn btn-xs" onclick="profileResendVerification()" style="font-size:10px;padding:2px 7px;">Verificar</button>`;
+  const tc  = (team?.color  && /^#[0-9A-Fa-f]{3,8}$/.test(team.color))  ? team.color  : '#1a1a2e';
+  const tc2 = (team?.color2 && /^#[0-9A-Fa-f]{3,8}$/.test(team.color2)) ? team.color2 : tc;
 
-  const editBadge = `
-    <span style="position:absolute;bottom:3px;right:3px;background:var(--gold);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.5);pointer-events:none;">
-      <svg viewBox="0 0 24 24" width="12" height="12" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-    </span>`;
-
-  let html = `
-    <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px;">
-      <label for="profile-avatar-file" style="position:relative;width:72px;height:72px;flex:none;cursor:pointer;" title="Cambiar foto de perfil">
-        <div id="profile-avatar-preview" style="width:72px;height:72px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--card2);border:2px solid var(--brd2);">
-          ${avatarInner}
-        </div>
-        ${editBadge}
-      </label>
-      <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
-    </div>
-
-    <div class="form-group">
-      <label>Nombre para mostrar</label>
-      <input type="text" id="profile-name" value="${_pfEsc(name)}">
-    </div>
-    <div class="form-group">
-      <label>Nombre de usuario</label>
-      <div style="position:relative;">
-        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:14px;pointer-events:none;">@</span>
-        <input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario"
-          style="padding-left:26px;"
-          oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
-      </div>
-    </div>
-
-    <div style="font-size:12px;color:var(--txt3);margin:-4px 0 10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      ${_pfEsc(email)} ${verBadge} · <b>${roleLbl}</b>
-    </div>
-
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
-      <button class="btn btn-sm" onclick="profileTogglePasswordChange()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Cambiar contraseña</button>
-      <button class="btn btn-sm" onclick="profileToggleEmailChange()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Cambiar email</button>
-    </div>
-
-    <div id="profile-password-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">Contraseña actual</label>
-        <input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password">
-      </div>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">Nueva contraseña (mín. 6 caracteres)</label>
-        <input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password">
-      </div>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label style="font-size:12px;">Confirmar nueva contraseña</label>
-        <input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password">
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
-        <button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button>
-        <button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button>
-      </div>
-    </div>
-
-    <div id="profile-email-change-section" style="display:none;background:var(--card2);border-radius:8px;padding:12px;margin-top:10px;">
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">Nuevo email</label>
-        <input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off">
-      </div>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label style="font-size:12px;">Contraseña actual (para confirmar)</label>
-        <input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password">
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
-        <button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button>
-        <button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button>
-      </div>
-    </div>
-  `;
-
-  // ── Sección Club ──────────────────────────────────────────────
-  if (team){
-    const currentLogo = _profileLogoData !== undefined ? _profileLogoData : team.logo;
-    const logoInner = currentLogo
-      ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;">`
-      : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3))}</span>`;
-
-    html += `
-      <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
-      <div class="section-lbl" style="margin-bottom:10px;">Mi club</div>
-      ${locked ? `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:8px 10px;font-size:12px;color:var(--txt);margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> El administrador bloqueó la edición de nombre y escudo.</div>` : ''}
-    `;
-
-    if (stats) html += _statsHTML(stats);
-
-    html += `
-      <div style="display:flex;gap:14px;align-items:center;margin-bottom:12px;">
-        <label for="profile-logo-file" style="position:relative;width:64px;height:64px;flex:none;${locked?'':'cursor:pointer;'}" title="${locked?'':'Cambiar escudo'}">
-          <div id="profile-logo-preview" style="width:64px;height:64px;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${_pfEsc(team.color||'#333')};">
-            ${logoInner}
-          </div>
-          ${!locked ? `<span style="position:absolute;bottom:3px;right:3px;background:var(--gold);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.5);pointer-events:none;">
-            <svg viewBox="0 0 24 24" width="11" height="11" fill="#000"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-          </span>` : ''}
-        </label>
-        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
-        <div class="form-group" style="flex:1;margin:0;">
-          <label>Nombre del club</label>
-          <input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}>
-        </div>
-      </div>
-      <button class="btn btn-sm" onclick="profileViewMyMatches()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg> Ver el historial de mi club</button>
-    `;
-  } else if (AUTH.role === 'president'){
-    html += `
-      <div style="border-top:1px solid var(--brd);margin:16px 0 12px;"></div>
-      <div style="font-size:13px;color:var(--txt3);padding:6px 0;">
-        Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.
-      </div>`;
+  // Forma reciente: últimos 5 resultados del club (desde matches de la temporada)
+  let recentForm = [];
+  if(team){
+    try {
+      const done = (await getForSeason('matches'))
+        .filter(m=>(m.teamA===team.id||m.teamB===team.id) && m.goalsA!=null && m.goalsB!=null)
+        .sort((a,b)=>{
+          const ka=(a.scheduledDate||'')+String(a.id||0).padStart(9,'0');
+          const kb=(b.scheduledDate||'')+String(b.id||0).padStart(9,'0');
+          return ka<kb?-1:ka>kb?1:0;
+        });
+      recentForm = done.slice(-5).map(m=>{
+        const isA=m.teamA===team.id, gf=isA?m.goalsA:m.goalsB, ga=isA?m.goalsB:m.goalsA;
+        return gf>ga?'w':gf<ga?'l':'d';
+      });
+    } catch(e){ recentForm=[]; }
   }
 
-  html += `
-    <div class="modal-footer" style="margin-top:18px;padding:0;border:none;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+  const stats = team ? await _loadTeamStats(AUTH.teamId, team).catch(()=>null) : null;
+
+  // ── Crest para el header ─────────────────────────────────────
+  const crestContent = currentLogo
+    ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
+    : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${_pfEsc((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
+
+  // ── Header con gradiente del club ────────────────────────────
+  const _pipLetter = { w:'V', d:'E', l:'D' };
+  const hdrHtml = `<div class="pp-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
+    <div class="pp-id">
+      ${team ? `
+        <label for="profile-logo-file" style="${locked?'':'cursor:pointer;'}" title="${locked?'Bloqueado':'Cambiar escudo'}">
+          <div class="pp-crest" id="profile-logo-preview" style="background:${_pfEsc(tc)};">${crestContent}</div>
+        </label>
+        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
+      ` : `
+        <label for="profile-avatar-file" style="cursor:pointer;" title="Cambiar foto de perfil">
+          <div class="pp-crest" id="profile-avatar-preview" style="border-radius:50%;background:rgba(255,255,255,0.15);">
+            ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">` : `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
+          </div>
+        </label>
+        <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
+      `}
+      <div>
+        <div class="pp-club">${_pfEsc(team?.name || name)}</div>
+        <div class="pp-user">
+          ${_pfEsc(username ? '@'+username : email.split('@')[0])}
+          <span class="pp-role">${_pfEsc(roleLbl)}</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  // ── Cuerpo ───────────────────────────────────────────────────
+  let bd = '';
+
+  if(stats && stats.P > 0) bd += _statsHTML(stats);
+
+  if(recentForm.length){
+    bd += `<div class="pp-line">
+      <span class="pp-line-label">Forma reciente</span>
+      <div class="form-strip" title="Forma reciente (últimos ${recentForm.length})" aria-label="Forma reciente">${recentForm.map(r=>`<span class="form-pip ${r}" title="${r==='w'?'Victoria':r==='d'?'Empate':'Derrota'}">${_pipLetter[r]||''}</span>`).join('')}</div>
+    </div>`;
+  }
+
+  if(team){
+    bd += `<button type="button" class="pp-sec" onclick="profileViewMyMatches()">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver el historial de mi club</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>`;
+  }
+
+  if(AUTH.role==='admin'){
+    bd += `<button type="button" class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Panel Admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
+  }
+
+  if(team){
+    bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-club-section" onclick="profileToggleDisclosure('profile-club-section',this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>Club</span>
+      <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div id="profile-club-section" class="pp-disclosure" hidden>
+      ${locked ? `<div class="pp-lock"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>El administrador bloqueó la edición del club.</span></div>` : ''}
+      <div class="form-group" style="margin:0;"><label for="profile-team-name">Nombre del club</label><input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
+    </div>`;
+  } else {
+    if(AUTH.role==='president') bd += '<div class="pp-empty">Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.</div>';
+    bd += '<input type="hidden" id="profile-team-name" value="">';
+  }
+
+  bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-account-section" onclick="profileToggleDisclosure('profile-account-section',this)">
+    <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Mi cuenta</span>
+    <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+  <div id="profile-account-section" class="pp-disclosure" hidden>
+    ${team ? `<div class="pp-avatar-row">
+      <label for="profile-avatar-file" class="pp-avatar-edit" title="Cambiar foto de perfil">
+        <span id="profile-avatar-preview">${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}</span>
+        <svg class="pp-avatar-pencil" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+      </label>
+      <input type="file" id="profile-avatar-file" accept="image/*" hidden onchange="profileSelectAvatar(this)">
+      <span>Foto de perfil personal</span>
+    </div>` : ''}
+    <div class="form-group" style="margin:0;"><label for="profile-name">Nombre para mostrar</label><input type="text" id="profile-name" value="${_pfEsc(name)}"></div>
+    <div class="form-group" style="margin:0;"><label for="profile-username">Nombre de usuario</label>
+      <div class="pp-at-input"><span aria-hidden="true">@</span><input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"></div>
+    </div>
+    <div class="pp-email-status">${_pfEsc(email)} ${verified
+      ? `<span class="pp-verified"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>verificado</span>`
+      : `<span class="pp-unverified">sin verificar</span><button class="btn btn-xs" onclick="profileResendVerification()">Verificar</button>`}
+    </div>
+    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-password-change-section" onclick="profileTogglePasswordChange(this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Cambiar contraseña</span>
+      <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div id="profile-password-change-section" class="pp-disclosure pp-disclosure-nested" hidden>
+      <div class="form-group"><label for="profile-curr-pass-pw">Contraseña actual</label><input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="form-group"><label for="profile-new-pw">Nueva contraseña (mín. 6 caracteres)</label><input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="form-group"><label for="profile-new-pw2">Confirmar nueva contraseña</label><input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="pp-actions"><button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button><button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button></div>
+    </div>
+    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-email-change-section" onclick="profileToggleEmailChange(this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>Cambiar email</span>
+      <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <div id="profile-email-change-section" class="pp-disclosure pp-disclosure-nested" hidden>
+      <div class="form-group"><label for="profile-new-email">Nuevo email</label><input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off"></div>
+      <div class="form-group"><label for="profile-curr-pass-email">Contraseña actual (para confirmar)</label><input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password"></div>
+      <div class="pp-actions"><button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button><button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button></div>
+    </div>
+  </div>`;
+
+  body.innerHTML = `${hdrHtml}
+    <div class="pp-body">${bd}</div>
+    <div class="pp-foot">
       <button class="btn btn-danger btn-sm" onclick="closeModal('profile-modal');authSignOut();">Cerrar sesión</button>
       <button class="btn btn-primary" onclick="saveProfile()">Guardar cambios</button>
     </div>`;
-
-  body.innerHTML = html;
 }
 
 /* ── Estadísticas del club ──────────────────────────────────── */
@@ -305,9 +386,9 @@ function _injectCropModal(){
         </div>
         <div style="font-size:11px;color:var(--txt3);">Arrastra · Rueda o desliza para zoom</div>
         <div style="display:flex;align-items:center;gap:8px;width:100%;">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2.5"/></svg>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2.5"/></svg>
           <input type="range" id="crop-zoom-sl" min="0" max="100" value="0" style="flex:1;accent-color:var(--gold);" oninput="cropZoomSlider(this.value)">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2.5"/><line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="2"/><line x1="11" y1="8" x2="11" y2="14" stroke="currentColor" stroke-width="2"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="round" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2.5"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2"/><line x1="11" y1="8" x2="11" y2="14" stroke-width="2"/></svg>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
@@ -484,11 +565,11 @@ function profileSelectAvatar(input){
 }
 
 function _updateTopbarAvatar(url){
-  const btn = document.querySelector('.auth-avatar');
+  const btn = document.querySelector('.tp-avatar');
   if (!btn) return;
   btn.innerHTML = url
     ? `<img src="${_pfEsc(url)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
-    : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
+    : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 }
 
 /* ── Selección de escudo del club ───────────────────────────── */
@@ -515,11 +596,22 @@ async function profileResendVerification(){
   } catch(e){ showToast('Error: '+(e.code||e.message),'error'); }
 }
 
-function profileToggleEmailChange(){
+function profileToggleDisclosure(sectionId, button){
+  const sec = document.getElementById(sectionId);
+  if(!sec) return;
+  const trigger = button || document.querySelector(`[aria-controls="${sectionId}"]`);
+  const open = sec.hidden;
+  sec.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
+}
+
+function profileToggleEmailChange(button){
   const sec = document.getElementById('profile-email-change-section');
   if (!sec) return;
-  const open = sec.style.display === 'none' || !sec.style.display;
-  sec.style.display = open ? '' : 'none';
+  const trigger = button || document.querySelector('[aria-controls="profile-email-change-section"]');
+  const open = sec.hidden;
+  sec.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
   if (open) document.getElementById('profile-new-email')?.focus();
   else {
     const a = document.getElementById('profile-new-email');
@@ -552,11 +644,13 @@ async function profileChangeEmail(){
 
 /* ── Cambio de contraseña con re-autenticación ──────────────── */
 
-function profileTogglePasswordChange(){
+function profileTogglePasswordChange(button){
   const sec = document.getElementById('profile-password-change-section');
   if (!sec) return;
-  const open = sec.style.display === 'none' || !sec.style.display;
-  sec.style.display = open ? '' : 'none';
+  const trigger = button || document.querySelector('[aria-controls="profile-password-change-section"]');
+  const open = sec.hidden;
+  sec.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
   if (open) document.getElementById('profile-curr-pass-pw')?.focus();
   else ['profile-curr-pass-pw','profile-new-pw','profile-new-pw2']
          .forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });

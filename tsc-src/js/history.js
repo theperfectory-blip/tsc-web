@@ -27,12 +27,18 @@ const _histState = {
 let _histTeams = [];
 // Normaliza nombres: sin puntos/comas, espacios colapsados, mayúsculas
 const _histNorm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
+// Resuelve solo cuando el texto coincide exactamente con el nombre actual o histórico.
+function _histResolveExactTeam(query, teams){
+  const q = _histNorm(query);
+  if(!q || !teams || !teams.length) return null;
+  return teams.find(t => _histNorm(t.name) === q
+    || (t.previousNames||[]).some(p => _histNorm(p) === q)) || null;
+}
 // Resuelve un texto de búsqueda a UN equipo (o null si es ambiguo / sin match)
 function _histResolveTeam(query, teams){
   const q = _histNorm(query);
   if(!q || !teams || !teams.length) return null;
-  const exact = teams.find(t => _histNorm(t.name) === q
-    || (t.previousNames||[]).some(p => _histNorm(p) === q));
+  const exact = _histResolveExactTeam(query, teams);
   if(exact) return exact;
   const matches = teams.filter(t => {
     const names = [t.name, ...((t.previousNames)||[])].map(_histNorm);
@@ -312,11 +318,69 @@ async function renderAdmHistory(){
 }
 
 async function renderPubHistory(){
+  const renderToken = ++_pubHistRenderToken;
   _histState.mode = 'public';
   if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('partidos');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
-  await _renderHistoryFull(el, false);
+  // Antes del primer montaje real, #page-historial todavía no tiene
+  // `is-mounted` (ensurePublicSectionMounted la agrega recién DESPUÉS de que
+  // esta función termine) — así se distingue el primer render (deja que
+  // tsc:public-section-mounted → revealWithin haga la entrada fade+rise) de
+  // un refresco posterior (foco repetido o dato en vivo), que recrea
+  // .hito-stage/.h2h-frame/#pub-histm desde cero y NUNCA debe re-animarlos.
+  const isRefresh = document.getElementById('page-historial')?.classList.contains('is-mounted');
+  _injectHistHeader(0);
+  await _renderHistoryFull(el, false, renderToken);
+  if(isRefresh && window.MOTION?.settleWithin) MOTION.settleWithin(el);
+}
+
+/* ----------------------------------------------------------
+   CARRUSEL CC-HIST (cabecera sticky de la sección 06)
+   ---------------------------------------------------------- */
+let _pubHistCarousel = null;
+let _pubHistCarouselResizeBound = false;
+let _pubHistRenderToken = 0;
+/* Firma de los datos del último render público — permite que un refresco
+   pasivo (reenfoque/live) con datos idénticos no toque el DOM. */
+let _pubHistLastSig = null;
+function _pubBindHistCarouselResize(){
+  if(_pubHistCarouselResizeBound) return;
+  _pubHistCarouselResizeBound = true;
+  window.addEventListener('resize', ()=>{ _pubHistCarousel?.recenter?.(); });
+}
+async function _pubSwitchHistoryView(idx){
+  const anchor = typeof _pubCaptureVisualAnchor==='function'
+    ? _pubCaptureVisualAnchor(document.getElementById('page-historial'))
+    : null;
+  if(idx===0) await renderPubHistory();
+  else await renderPubHistoryStandings();
+  if(typeof _pubRestoreVisualAnchor==='function') await _pubRestoreVisualAnchor(anchor, 'historial');
+  else if(typeof focusPublicSection==='function') await focusPublicSection('historial');
+}
+function _injectHistHeader(activeIdx){
+  const page = document.getElementById('page-historial');
+  if(!page) return;
+  let sticky = page.querySelector('.comp-sticky.hist-header');
+  if(!sticky){
+    sticky = document.createElement('div');
+    sticky.className = 'comp-sticky hist-header';
+    sticky.innerHTML = '<div class="comp-title"><span class="pd-n">06</span>'
+      +'<div class="cc cc-hist" id="pub-cc-hist"><div class="cc-view"><div class="cc-track"></div></div></div>'
+      +'</div>';
+    const content = document.getElementById('pub-history-content');
+    if(content) page.insertBefore(sticky, content);
+    else page.prepend(sticky);
+  }
+  const cc = document.getElementById('pub-cc-hist');
+  if(cc && typeof _pubMakeCarousel==='function'){
+    cc.setAttribute('aria-label', 'Vista del historial');
+    _pubHistCarousel = _pubMakeCarousel(cc, ['Partidos','Tabla histórica'], activeIdx, i=>{
+      _pubSwitchHistoryView(i).catch(err=>console.error('[Historial] Error cambiando vista:', err));
+    });
+    _pubBindHistCarouselResize();
+    requestAnimationFrame(()=>{ _pubHistCarousel?.recenter?.(); });
+  }
 }
 
 /* Devuelve la unión: estáticos (JSON) + lives (IDB), todos resueltos.
@@ -359,47 +423,383 @@ async function _getResolvedRecords(){
 /* Hitos del historial público: 4 stat cards (partidos, goles, mayor goleada,
    temporadas) calculadas de los records resueltos. Los números animan con
    MOTION.countUp; «mayor goleada» es texto (marcador) → sin countUp. */
-function _pubHistoryHitos(records){
-  let goles=0, maxDiff=-1, maxLabel='—';
-  const temps = new Set();
-  for(const r of records){
-    const a=parseInt(r.golesA), b=parseInt(r.golesB);
-    if(!isNaN(a) && !isNaN(b)){
-      goles += a+b;
-      const diff=Math.abs(a-b);
-      if(diff>maxDiff){ maxDiff=diff; maxLabel = `${Math.max(a,b)}-${Math.min(a,b)}`; }
-    }
-    if(r.temporada) temps.add(String(r.temporada).trim());
+/* ═══════════════════════════════════════════════════════════════════
+   VISTA PÚBLICA «Historial» (Partidos): hitos + filtros (cc-games/cc-seasons)
+   + mano a mano con autocompletado por teclado + lista .histm.
+   La tabla administrativa .tbl NO se usa en público.
+   ═══════════════════════════════════════════════════════════════════ */
+const _pubH = {
+  all:[], teamList:[], game:'', season:'',
+  pickA:null, pickB:null, selectedId:null,
+  gameCar:null, seasonCar:null, blowout:null, mostGoals:null,
+};
+
+/* Orden de temporadas: T1, T2... primero; luego SEM1...; resto alfabético natural */
+function _histSeasonSort(a,b){
+  const key = v=>{
+    const s = String(v||'').trim();
+    const t = s.match(/^T\s*(\d+)$/i);     if(t) return [0, Number(t[1]), s];
+    const sem = s.match(/^SEM\s*(\d+)$/i); if(sem) return [1, Number(sem[1]), s];
+    return [2, 999, s];
+  };
+  const ka=key(a), kb=key(b);
+  return ka[0]-kb[0] || ka[1]-kb[1] || ka[2].localeCompare(kb[2],'es',{numeric:true});
+}
+function _pubHValid(m){ return m && m.equipoA && m.equipoB && m.golesA!=null && m.golesB!=null; }
+function _pubHWinner(m){
+  const res = computeResultado(m.golesA, m.golesB, m.penA, m.penB);
+  if(/Gana A/.test(res)) return 1;
+  if(/Gana B/.test(res)) return 2;
+  return 0;
+}
+function _pubHScore(m){
+  const pen = (m.penA!=null && m.penB!=null) ? ` (${m.penA}-${m.penB})` : '';
+  return `${m.golesA}-${m.golesB}${pen}`;
+}
+function _pubHIni(name){ return String(name||'?').replace(/[^A-Za-zÁÉÍÓÚÑ ]/g,'').split(/\s+/).map(w=>w[0]||'').join('').slice(0,3).toUpperCase() || '?'; }
+function _pubHTeamMeta(name){
+  const t = _pubH.teamList.find(x => _histNorm(x.name)===_histNorm(name) || (x.previousNames||[]).some(p=>_histNorm(p)===_histNorm(name)));
+  return t || { id:'_'+name, name, ini:_pubHIni(name), color:'#5f6368', color2:'#3c4043', search:_histNorm(name) };
+}
+function _pubHFiltered(){
+  return _pubH.all.filter(r => (!_pubH.game || r.juego===_pubH.game) && (!_pubH.season || r.temporada===_pubH.season));
+}
+function _pubHScopeLabel(){
+  return [_pubH.game || 'Todos los juegos', _pubH.season || 'Todas las temporadas'].join(' · ');
+}
+
+/* Lista .histm de partidos (renderer público, reemplaza la tabla .tbl) */
+function _pubHistmList(matches, title, selectedId){
+  const rows = matches.filter(_pubHValid).slice(0, 40);
+  if(!rows.length){
+    return `<div class="histm-row"><div class="hr-num">${_esc(title||'Sin partidos')}</div>
+      <div class="hr-duel"><span class="hr-team">No hay partidos para este filtro</span><span class="hr-score">—</span><span class="hr-team away">Ajusta juego o temporada</span></div></div>`;
   }
-  const card=(val,label,isText)=>`
-    <div class="hito-stage">
-      <div class="hito">
-        <b ${isText?'':`data-n="${val}"`}>${isText?_esc(val):'0'}</b>
-        <span>${_esc(label)}</span>
-      </div>
+  const head = `<div class="histm-row" style="background:var(--bg-deep);"><div class="hr-num">${_esc(title||'Partidos')}</div>
+    <div class="hr-duel"><span class="hr-team">${rows.length} partido${rows.length===1?'':'s'}</span><span class="hr-score">${matches.length>rows.length?'+':''}</span><span class="hr-team away">${_esc(_pubHScopeLabel())}</span></div></div>`;
+  const body = rows.map(m=>{
+    const w = _pubHWinner(m), wa = w===1, wb = w===2;
+    const meta = [m.temporada, m.instancia].filter(Boolean).join(' · ');
+    return `<div class="histm-row ${String(m.id)===String(selectedId)?'selected':''}">
+      <div class="hr-num">#${_esc(m.id||'')}<span style="display:block;font-size:10px;color:var(--txt3);letter-spacing:.5px;">${_esc(meta)}</span></div>
+      <div class="hr-duel"><span class="hr-team ${wa?'win':''}">${_esc(m.equipoA)}</span><span class="hr-score">${_esc(_pubHScore(m))}</span><span class="hr-team away ${wb?'win':''}">${_esc(m.equipoB)}</span></div>
     </div>`;
+  }).join('');
+  return head + body;
+}
+
+function _pubHistoryHitos(records){
+  const valid = records.filter(_pubHValid);
+  const goles = valid.reduce((s,r)=>s+(parseInt(r.golesA)||0)+(parseInt(r.golesB)||0),0);
   return `<div class="hitos-grid">
-    ${card(records.length,'Partidos jugados')}
-    ${card(goles,'Goles anotados')}
-    ${card(maxLabel,'Mayor goleada',true)}
-    ${card(temps.size,'Temporadas')}
+    <div class="hito-stage hito-filter-stage" data-reveal>
+      <div class="hito hito-centered" id="hito-total">
+        <b data-n="${valid.length}">0</b><span>Partidos</span>
+        <div class="hito-filter-row">
+          <div class="cc hito-filter-rail" id="cc-games"><div class="cc-view"><div class="cc-track"></div></div></div>
+          <span class="hito-filter-sep">—</span>
+          <div class="cc hito-filter-rail" id="cc-seasons"><div class="cc-view"><div class="cc-track"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="hito-stage" data-reveal>
+      <div class="hito hito-centered" id="hito-goals">
+        <b data-n="${goles}">0</b><span>Goles anotados</span>
+        <small class="hito-filter-note" id="hito-goals-scope">${valid.length?(goles/valid.length).toFixed(2):'0.00'} goles por partido</small>
+      </div>
+    </div>
+    <div class="hito-stage hito-click" data-reveal>
+      <button class="hito" id="hito-blowout" type="button"><b>—</b><span>Mayor goleada</span><small class="hito-scope" id="hito-blowout-scope">Toca para ver el partido</small></button>
+    </div>
+    <div class="hito-stage hito-click" data-reveal>
+      <button class="hito" id="hito-mostgoals" type="button"><b>—</b><span>Partido con más goles</span><small class="hito-scope" id="hito-mostgoals-scope">Toca para ver el partido</small></button>
+    </div>
   </div>`;
 }
 
-/* Anima los contadores de los hitos. Degrada a valor final si no hay MOTION
-   (o si el usuario pidió movimiento reducido — countUp lo respeta internamente). */
-function _pubHistoryCountUp(el){
-  const nums = el.querySelectorAll('.hito b[data-n]');
-  if(!(window.MOTION && typeof MOTION.countUp==='function')){
-    nums.forEach(b=>{ b.textContent = b.dataset.n; });
-    return;
-  }
-  nums.forEach(b=>{ const n=parseInt(b.dataset.n); if(!isNaN(n)) MOTION.countUp(b, n, { dur:1000 }); });
+/* Anima un número entero hacia su valor objetivo.
+   Degrada al valor final (sin animación) si no hay rAF o si el usuario pidió
+   movimiento reducido (prefers-reduced-motion). */
+const _pubHCountRaf = new WeakMap();
+function _pubHCount(el, to){
+  if(!el) return;
+  const previous = _pubHCountRaf.get(el);
+  if(previous) cancelAnimationFrame(previous);
+  _pubHCountRaf.delete(el);
+  const from = parseInt(String(el.textContent).replace(/\D/g,''))||0;
+  const _reduced = window.MOTION?.reduced?.() ?? matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(from===to || _reduced || !(window.requestAnimationFrame)){ el.textContent=String(to); return; }
+  const dur = Math.min(650, Math.max(220, Math.abs(to-from)*0.9)), t0 = performance.now();
+  (function step(ts){
+    const p = Math.min(1,(ts-t0)/dur), e = p<.5?2*p*p:-1+(4-2*p)*p;
+    el.textContent = String(Math.round(from+(to-from)*e));
+    if(p<1) _pubHCountRaf.set(el, requestAnimationFrame(step));
+    else _pubHCountRaf.delete(el);
+  })(t0);
 }
 
-async function _renderHistoryFull(el, isAdmin){
+/* Conteo one-shot disparado por viewport. La sección Historial se MONTA ~600px
+   antes de ser visible (montaje lazy del shell), así que animar en el montaje
+   gastaría la animación fuera de pantalla — el usuario nunca la vería. En su
+   lugar, el contador queda en 0 y anima 0→N recién cuando entra al viewport,
+   una sola vez. Un cambio de filtro (nodo ya marcado `data-counted`) anima de
+   inmediato porque la sección ya está visible y el usuario acaba de interactuar.
+   Mismo rootMargin/threshold que el reveal de motion.js para que conteo y
+   fade+rise entren juntos. */
+let _pubHCountObserver = null;
+function _pubHCountObs(){
+  if(_pubHCountObserver) return _pubHCountObserver;
+  if(!('IntersectionObserver' in window)) return null;
+  _pubHCountObserver = new IntersectionObserver((entries, obs)=>{
+    for(const e of entries){
+      if(!e.isIntersecting) continue;
+      obs.unobserve(e.target);
+      e.target.dataset.counted = '1';
+      _pubHCount(e.target, parseInt(e.target.dataset.n)||0);
+    }
+  }, { rootMargin:'0px 0px -8% 0px', threshold:0.08 });
+  return _pubHCountObserver;
+}
+
+/* Programa el conteo de un contador de hito:
+   - reduced-motion: valor final directo, sin animar ni observar.
+   - ya contado (revelado antes) o ya visible: anima de inmediato.
+   - primera vez y fuera de pantalla: queda en 0 y anima al entrar al viewport. */
+function _pubScheduleCount(el, to){
+  if(!el) return;
+  el.dataset.n = String(to);
+  const _reduced = window.MOTION?.reduced?.() ?? matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(_reduced){ el.textContent = String(to); el.dataset.counted = '1'; return; }
+  const obs = _pubHCountObs();
+  const r = el.getBoundingClientRect();
+  const visible = r.top < window.innerHeight && r.bottom > 0;
+  if(el.dataset.counted || !obs || visible){ el.dataset.counted = '1'; _pubHCount(el, to); return; }
+  el.textContent = '0';
+  obs.observe(el);
+}
+
+/* Recalcula hitos (cuenta, goles, mayor goleada, más goles) y los cablea al H2H */
+function _pubUpdateHitos(records){
+  const valid = records.filter(_pubHValid);
+  const goles = valid.reduce((s,r)=>s+(parseInt(r.golesA)||0)+(parseInt(r.golesB)||0),0);
+  const blowout = valid.slice().sort((a,b)=>
+    Math.abs((b.golesA||0)-(b.golesB||0))-Math.abs((a.golesA||0)-(a.golesB||0)) ||
+    ((b.golesA||0)+(b.golesB||0))-((a.golesA||0)+(a.golesB||0)))[0] || null;
+  const mostGoals = valid.slice().sort((a,b)=>
+    ((b.golesA||0)+(b.golesB||0))-((a.golesA||0)+(a.golesB||0)) ||
+    Math.abs((b.golesA||0)-(b.golesB||0))-Math.abs((a.golesA||0)-(a.golesB||0)))[0] || null;
+  _pubH.blowout = blowout; _pubH.mostGoals = mostGoals;
+
+  const totalB = document.querySelector('#hito-total b'), goalsB = document.querySelector('#hito-goals b');
+  if(totalB) _pubScheduleCount(totalB, valid.length);
+  if(goalsB) _pubScheduleCount(goalsB, goles);
+  const goalsScope = document.getElementById('hito-goals-scope');
+  if(goalsScope) goalsScope.textContent = `${valid.length?(goles/valid.length).toFixed(2):'0.00'} goles por partido`;
+
+  const blowB = document.querySelector('#hito-blowout b'), blowScope = document.getElementById('hito-blowout-scope');
+  if(blowB) blowB.textContent = blowout ? `${blowout.golesA}-${blowout.golesB}` : '—';
+  if(blowScope) blowScope.textContent = blowout ? `${blowout.equipoA} vs ${blowout.equipoB}` : 'Sin datos';
+  const mostB = document.querySelector('#hito-mostgoals b'), mostScope = document.getElementById('hito-mostgoals-scope');
+  if(mostB) mostB.textContent = mostGoals ? String((mostGoals.golesA||0)+(mostGoals.golesB||0)) : '—';
+  if(mostScope) mostScope.textContent = mostGoals ? `${mostGoals.equipoA} vs ${mostGoals.equipoB}` : 'Sin datos';
+
+  const blowEl = document.getElementById('hito-blowout');
+  if(blowEl) blowEl.onclick = ()=>{ if(blowout) histH2HShow(blowout.equipoA, blowout.equipoB); };
+  const mostEl = document.getElementById('hito-mostgoals');
+  if(mostEl) mostEl.onclick = ()=>{ if(mostGoals) histH2HShow(mostGoals.equipoA, mostGoals.equipoB); };
+}
+
+/* Pinta el mano a mano (resultado + lista de duelos directos) */
+function _pubDrawH2H(title){
+  const result = document.getElementById('h2h-result'), hint = document.getElementById('h2h-hint');
+  const histm = document.getElementById('pub-histm');
+  const pickA = _pubH.pickA, pickB = _pubH.pickB;
+  if(!result || !hint) return;
+  if(!pickA || !pickB || pickA.id===pickB.id){
+    result.classList.remove('show'); result.innerHTML=''; hint.style.display='';
+    if(histm) histm.innerHTML = _pubHistmList(_pubHFiltered().slice().sort((a,b)=>(b.id||0)-(a.id||0)), 'Últimos partidos', null);
+    return;
+  }
+  const namesA = new Set([pickA.name, ...((pickA.previousNames)||[])].map(_histNorm));
+  const namesB = new Set([pickB.name, ...((pickB.previousNames)||[])].map(_histNorm));
+  const direct = _pubHFiltered().filter(r =>
+    (namesA.has(_histNorm(r.equipoA)) && namesB.has(_histNorm(r.equipoB))) ||
+    (namesA.has(_histNorm(r.equipoB)) && namesB.has(_histNorm(r.equipoA))));
+  let wa=0, wb=0, dr=0, gfA=0, gfB=0;
+  direct.forEach(r=>{
+    const swap = namesA.has(_histNorm(r.equipoB));
+    const ga = Number(swap?r.golesB:r.golesA)||0, gb = Number(swap?r.golesA:r.golesB)||0;
+    gfA+=ga; gfB+=gb;
+    const w = _pubHWinner(swap ? {...r, golesA:r.golesB, golesB:r.golesA, penA:r.penB, penB:r.penA} : r);
+    if(w===1) wa++; else if(w===2) wb++; else dr++;
+  });
+  const iniA = pickA.ini||_pubHIni(pickA.name), iniB = pickB.ini||_pubHIni(pickB.name);
+  result.innerHTML = `<div class="h2h-face">
+    <div class="h2h-side" style="--team-color:${_esc(pickA.color||'#5f6368')};--team-color-2:${_esc(pickA.color2||pickA.color||'#3c4043')};"><div class="h2h-crest">${_esc(iniA)}</div><div class="h2h-name">${_esc(pickA.name)}</div></div>
+    <div class="h2h-vs">VS</div>
+    <div class="h2h-side" style="--team-color:${_esc(pickB.color||'#5f6368')};--team-color-2:${_esc(pickB.color2||pickB.color||'#3c4043')};"><div class="h2h-crest">${_esc(iniB)}</div><div class="h2h-name">${_esc(pickB.name)}</div></div>
+  </div><div class="h2h-record">${direct.length} duelo${direct.length===1?'':'s'} · <b>${wa}</b> ${_esc(iniA)} · <b>${dr}</b> empate${dr===1?'':'s'} · <b>${wb}</b> ${_esc(iniB)} · GF ${gfA}-${gfB}</div>`;
+  result.classList.add('show'); hint.style.display='none';
+  if(histm) histm.innerHTML = _pubHistmList(direct.slice().sort((a,b)=>(b.id||0)-(a.id||0)), title||'Mano a mano', _pubH.selectedId);
+}
+
+/* Aplica filtros (juego/temporada): hitos + H2H/lista.
+   Sincroniza el mismo filtro a la tabla histórica (_histStdState) para que ambas
+   vistas reflejen juego/temporada de forma coherente. */
+function _pubApplyFilters(){
+  _histStdState.fJuego = _pubH.game;
+  _histStdState.fTemp  = _pubH.season;
+  const filtered = _pubHFiltered();
+  _pubUpdateHitos(filtered);
+  if(_pubH.pickA && _pubH.pickB) _pubDrawH2H('Mano a mano');
+  else _pubDrawH2H();
+}
+
+/* Autocompletado H2H con teclado (↑/↓/Enter/Esc), foco, selección y blur */
+function _pubSetupH2H(){
+  const inA = document.getElementById('h2h-a'), inB = document.getElementById('h2h-b');
+  const acA = document.getElementById('h2h-ac-a'), acB = document.getElementById('h2h-ac-b');
+  if(!inA || !inB) return;
+
+  const wire = (input, ac, isA)=>{
+    let activeIdx = -1, items = [];
+    // Patrón ARIA combobox: el input refleja abierto/cerrado (aria-expanded) y
+    // la opción activa (aria-activedescendant); cada opción anuncia su estado
+    // (aria-selected) al lector de pantalla.
+    const close = ()=>{
+      ac.classList.remove('show'); activeIdx=-1;
+      input.setAttribute('aria-expanded','false');
+      input.removeAttribute('aria-activedescendant');
+    };
+    const highlight = ()=>{
+      const opts = ac.querySelectorAll('.h2h-ac-item');
+      opts.forEach((it,i)=>{
+        const on = i===activeIdx;
+        it.classList.toggle('active', on);
+        it.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      const act = opts[activeIdx];
+      if(act){ act.scrollIntoView({block:'nearest'}); input.setAttribute('aria-activedescendant', act.id); }
+      else input.removeAttribute('aria-activedescendant');
+    };
+    const choose = (t)=>{
+      if(!t) return;
+      if(isA) _pubH.pickA = t; else _pubH.pickB = t;
+      input.value = t.name; _pubH.selectedId = null; close();
+      _pubDrawH2H('Mano a mano');
+    };
+    const render = ()=>{
+      if(isA) _pubH.pickA=null; else _pubH.pickB=null;
+      const q = _histNorm(input.value);
+      items = q ? _pubH.teamList.filter(t=>t.search.includes(q)).slice(0,7) : [];
+      ac.innerHTML = items.map((t,i)=>`<div class="h2h-ac-item" id="${ac.id}-opt-${i}" role="option" aria-selected="false" style="--team-color:${_esc(t.color||'#5f6368')};" data-id="${_esc(t.id)}"><span class="h2h-ac-crest">${_esc(t.ini||_pubHIni(t.name))}</span>${_esc(t.name)}</div>`).join('');
+      const open = !!items.length;
+      ac.classList.toggle('show', open);
+      input.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if(!open) input.removeAttribute('aria-activedescendant');
+      activeIdx = -1;
+      ac.querySelectorAll('.h2h-ac-item').forEach((it,i)=>{
+        it.addEventListener('mousedown', e=>{ e.preventDefault(); choose(items[i]); });
+      });
+      // resolución por texto exacto (sin elegir de la lista)
+      const exact = _histResolveExactTeam(input.value, _pubH.teamList);
+      if(isA) _pubH.pickA = exact; else _pubH.pickB = exact;
+      if(_pubH.pickA && _pubH.pickB) _pubDrawH2H('Mano a mano');
+      else _pubDrawH2H();
+    };
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', e=>{
+      if(!ac.classList.contains('show') || !items.length){
+        if(e.key==='Enter'){ const exact=_histResolveTeam(input.value,_pubH.teamList); if(exact) choose(exact); }
+        return;
+      }
+      if(e.key==='ArrowDown'){ e.preventDefault(); activeIdx=Math.min(items.length-1, activeIdx+1); highlight(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); activeIdx=Math.max(0, activeIdx-1); highlight(); }
+      else if(e.key==='Enter'){ e.preventDefault(); choose(activeIdx>=0?items[activeIdx]:(_histResolveTeam(input.value,_pubH.teamList))); }
+      else if(e.key==='Escape'){ close(); }
+    });
+    input.addEventListener('blur', ()=> setTimeout(close, 120));
+  };
+  wire(inA, acA, true);
+  wire(inB, acB, false);
+}
+
+/* Carruseles cc-games / cc-seasons (reusa _pubMakeCarousel).
+   Abren en la posición del filtro vigente (persistido entre vistas). */
+function _pubBuildHistCarousels(){
+  const ccG = document.getElementById('cc-games'), ccS = document.getElementById('cc-seasons');
+  if(!ccG || !ccS || typeof _pubMakeCarousel!=='function') return;
+  const games = ['Todos', ...[...new Set(_pubH.all.map(r=>r.juego).filter(Boolean))].sort()];
+  const seasonsFor = g => ['Todas', ...[...new Set((g?_pubH.all.filter(r=>r.juego===g):_pubH.all).map(r=>r.temporada).filter(Boolean))].sort(_histSeasonSort)];
+  // Si el filtro persistido ya no existe en los datos, se descarta.
+  if(_pubH.game && !games.includes(_pubH.game)) _pubH.game = '';
+
+  const buildSeasons = (seasonIdx)=>{
+    _pubH.seasonCar = _pubMakeCarousel(ccS, seasonsFor(_pubH.game), seasonIdx, (i)=>{
+      const seasons = seasonsFor(_pubH.game);
+      _pubH.season = seasons[i]==='Todas' ? '' : seasons[i];
+      _pubH.selectedId = null; _pubApplyFilters();
+    });
+  };
+  const gameIdx = Math.max(0, games.indexOf(_pubH.game || 'Todos'));
+  _pubH.gameCar = _pubMakeCarousel(ccG, games, gameIdx, (i)=>{
+    _pubH.game = games[i]==='Todos' ? '' : games[i];
+    _pubH.season = ''; _pubH.selectedId = null;
+    buildSeasons(0);
+    _pubApplyFilters();
+  });
+  const seasons0 = seasonsFor(_pubH.game);
+  if(_pubH.season && !seasons0.includes(_pubH.season)) _pubH.season = '';
+  buildSeasons(Math.max(0, seasons0.indexOf(_pubH.season || 'Todas')));
+}
+
+/* Orquesta la vista pública «Partidos». Conserva el filtro juego/temporada entre
+   cambios de vista (Historial ↔ Tabla histórica) para que ambas vistas coincidan. */
+function _pubResetHistFilters(){
+  _pubH.game=''; _pubH.season=''; _pubH.selectedId=null;
+  _pubH.pickA=null; _pubH.pickB=null;
+  const inA=document.getElementById('h2h-a'), inB=document.getElementById('h2h-b');
+  if(inA) inA.value='';
+  if(inB) inB.value='';
+  document.getElementById('h2h-ac-a')?.classList.remove('show');
+  document.getElementById('h2h-ac-b')?.classList.remove('show');
+  _pubBuildHistCarousels();
+  _pubApplyFilters();
+}
+
+function _pubInitMatchesView(el, all){
+  _pubH.all = all.filter(_pubHValid);
+  _pubH.teamList = (_histTeams||[]).map(t => ({...t, ini: t.ini||_pubHIni(t.name), search: [t.name, ...((t.previousNames)||[])].map(_histNorm).join(' ')}))
+    .sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+  // El H2H seleccionado no persiste entre vistas; el filtro juego/temporada sí.
+  _pubH.pickA=null; _pubH.pickB=null; _pubH.selectedId=null;
+  _pubBuildHistCarousels();
+  _pubSetupH2H();
+  _pubApplyFilters();
+  const resetBtn=el.querySelector('#hist-reset');
+  if(resetBtn) resetBtn.addEventListener('click', _pubResetHistFilters);
+}
+
+async function _renderHistoryFull(el, isAdmin, renderToken=null){
   try {
     const all = await _getResolvedRecords();
+    if(!isAdmin && renderToken!==_pubHistRenderToken) return;
+
+    // Dirty-check (solo público): el reenfoque de la sección fuerza un render
+    // completo (nav.js) para no mostrar datos stale — pero si los datos NO
+    // cambiaron desde el último render y la vista Partidos ya está montada,
+    // reconstruir el DOM es destructivo gratis: reinicia el conteo animado de
+    // los hitos (arrancan en <b>0</b> y cuentan de nuevo), borra los inputs
+    // H2H del usuario y puede mover el scroll por el reemplazo del contenido
+    // bajo el viewport. Los datos SÍ se leen frescos en cada pasada (arriba):
+    // un cambio ocurrido fuera de foco cambia la firma y renderiza al volver.
+    // Si la vista actual no es Partidos (p.ej. Tabla histórica, o un cambio
+    // de vista explícito del usuario), no hay #pub-histm y se renderiza igual.
+    if(!isAdmin){
+      const sig = all.length + '|' + JSON.stringify(all);
+      if(sig === _pubHistLastSig && el.querySelector('#pub-histm')) return;
+      _pubHistLastSig = sig;
+    }
 
     if(!all.length){
       el.innerHTML = `<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">
@@ -422,51 +822,48 @@ async function _renderHistoryFull(el, isAdmin){
       return;
     }
 
-    // PÚBLICO: hitos broadcast + carrusel «Partidos | Tabla histórica».
-    // Las zonas de filtros/tabla viven dentro del pane "partidos" → los handlers
-    // (histSetFilter/histSetSearch/histShowMore) las encuentran como descendientes.
+    // PÚBLICO: hitos (con filtros cc-games/cc-seasons inline) + mano a mano con
+    // autocompletado por teclado + lista .histm. Sin tabla administrativa .tbl.
+    // Navegación «Historial | Tabla histórica» controlada por el carrusel cc-hist.
     el.innerHTML = `
       ${_pubHistoryHitos(all)}
-      <div class="hist-pub-tabs">
-        <button type="button" class="hist-tab active" data-tab="partidos">Partidos</button>
-        <button type="button" class="hist-tab" data-tab="tabla">Tabla histórica</button>
+      <div class="hist-duo">
+        <div class="h2h-frame" data-reveal>
+          <div class="h2h-card">
+            <div class="h2h-search">
+              <div class="h2h-field">
+                <input class="h2h-input" id="h2h-a" type="text" placeholder="Equipo 1" autocomplete="off" aria-label="Primer equipo"
+                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="h2h-ac-a" aria-haspopup="listbox">
+                <div class="h2h-ac" id="h2h-ac-a" role="listbox" aria-label="Resultados para el primer equipo"></div>
+              </div>
+              <span class="h2h-vs-sm">VS</span>
+              <div class="h2h-field">
+                <input class="h2h-input" id="h2h-b" type="text" placeholder="Equipo 2" autocomplete="off" aria-label="Segundo equipo"
+                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="h2h-ac-b" aria-haspopup="listbox">
+                <div class="h2h-ac" id="h2h-ac-b" role="listbox" aria-label="Resultados para el segundo equipo"></div>
+              </div>
+            </div>
+            <div class="h2h-hint" id="h2h-hint">Escribe dos equipos para ver su mano a mano</div>
+            <div class="h2h-result" id="h2h-result"></div>
+          </div>
+        </div>
+        <div class="histm" id="pub-histm" data-reveal></div>
       </div>
-      <div class="hist-pane" data-pane="partidos">
-        <div class="hist-filters-zone"></div>
-        <div class="hist-summary-zone" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
-        <div class="hist-table-zone card" style="overflow:auto;"></div>
-        <div class="hist-more-zone"></div>
-      </div>
-      <div class="hist-pane" data-pane="tabla" hidden></div>
+      <button class="hist-redo-btn" id="hist-reset" title="Limpiar filtros" aria-label="Limpiar filtros">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74"/><polyline points="3 3 3 9 9 9"/></svg>
+      </button>
     `;
-    _renderFiltersZone(el, all, false);
-    _refreshTableZone(el, all, false);
-    _pubHistoryCountUp(el);
-
-    // Carrusel de vistas: la tabla histórica se renderiza perezosamente al abrirla.
-    const paneP = el.querySelector('[data-pane="partidos"]');
-    const paneT = el.querySelector('[data-pane="tabla"]');
-    let tablaLoaded = false;
-    el.querySelectorAll('.hist-tab').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        const tab = btn.dataset.tab;
-        el.querySelectorAll('.hist-tab').forEach(b=>b.classList.toggle('active', b===btn));
-        if(paneP) paneP.hidden = tab!=='partidos';
-        if(paneT) paneT.hidden = tab!=='tabla';
-        if(tab==='tabla' && !tablaLoaded && paneT){
-          tablaLoaded = true;
-          await _renderHistoryStandingsInto(paneT, false);
-        }
-      });
-    });
+    // _pubInitMatchesView → _pubApplyFilters → _pubUpdateHitos anima los contadores
+    // una sola vez (vía _pubHCount, que respeta prefers-reduced-motion).
+    _pubInitMatchesView(el, all);
     return;
   } catch(err){
     console.error('[Historial] Error al renderizar:', err);
+    if(!isAdmin && renderToken!==_pubHistRenderToken) return;
     el.innerHTML = `
       <div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;">
-        <strong>Error al cargar el historial:</strong><br>
-        <code style="font-size:11px;color:var(--txt2);">${(err.message||err).toString().replace(/</g,'&lt;')}</code><br>
-        <span style="font-size:12px;color:var(--txt3);">Abre la consola (F12) para más detalles. Suele resolverse con un hard reload (Ctrl+Shift+R).</span>
+        <strong>No pudimos cargar el historial.</strong><br>
+        <span style="font-size:12px;color:var(--txt3);">Intenta nuevamente en unos segundos.</span>
       </div>`;
   }
 }
@@ -946,11 +1343,161 @@ async function renderAdmHistoryStandings(){
 }
 
 async function renderPubHistoryStandings(){
+  const renderToken = ++_pubHistRenderToken;
   _histStdState.mode = 'public';
+  // La tabla histórica pública hereda el filtro juego/temporada del carrusel.
+  _histStdState.fJuego = _pubH.game;
+  _histStdState.fTemp  = _pubH.season;
   if(typeof renderPubSidebarHistorial==='function') renderPubSidebarHistorial('tabla');
   const el = document.getElementById('pub-history-content');
   if(!el) return;
-  await _renderHistoryStandingsInto(el, false);
+  _injectHistHeader(1);
+  await _pubRenderHistoryStandings(el, renderToken);
+}
+
+/* ── Tabla histórica pública: 6 layouts responsive (_htLayout) + expansión ── */
+const _htState = { rows:[], expanded:false };
+function _htNum(v){ return Number.isFinite(Number(v)) ? String(Number(v)) : '—'; }
+function _htPct(v){ return Number.isFinite(Number(v)) ? `${Number(v).toFixed(1)}%` : '—'; }
+function _htStatCell(label, value){ return `<div class="ht-detail-item"><span>${_esc(label)}</span><b>${_esc(_htNum(value))}</b></div>`; }
+const _PB_X = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const _PB_PLUS = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+function _htLayout(){
+  const w = window.innerWidth;
+  if(w>=1360) return { key:'full', grid:'34px minmax(0,1.7fr) repeat(7,minmax(44px,.55fr)) 58px minmax(240px,1.35fr)', cols:['pj','pg','pe','pp','gf','gc','dif','pts','rend'], detailCols:'repeat(8,minmax(0,1fr))', canToggle:false };
+  if(w>=1180) return { key:'wide', grid:'34px minmax(0,1.65fr) repeat(6,minmax(42px,.52fr)) 56px minmax(220px,1.2fr)', cols:['pj','pg','pe','pp','gf','gc','pts','rend'], detailCols:'repeat(8,minmax(0,1fr))', canToggle:false };
+  if(w>=1080) return { key:'mid', grid:'34px minmax(0,1.6fr) repeat(4,minmax(42px,.52fr)) 56px minmax(200px,1.1fr)', cols:['pj','pg','pe','pp','pts','rend'], detailCols:'repeat(4,minmax(0,1fr))', canToggle:false };
+  if(w>=860)  return { key:'trim', grid:'34px minmax(0,1.5fr) repeat(3,minmax(42px,.5fr)) 56px minmax(160px,1fr)', cols:['pj','gf','gc','pts','rend'], detailCols:'repeat(4,minmax(0,1fr))', canToggle:false };
+  if(_htState.expanded) return { key:'detail', grid: w>=620 ? '32px minmax(0,1.1fr) minmax(250px,1fr)' : '30px minmax(0,1fr) minmax(170px,.95fr)', cols:['detail'], detailCols: w>=620 ? 'repeat(8,minmax(0,1fr))' : 'repeat(4,minmax(0,1fr))', canToggle:true };
+  return { key:'compact', grid: w>=620 ? '32px minmax(0,1.2fr) 46px 54px minmax(108px,1fr)' : '30px minmax(0,1fr) 40px 48px minmax(90px,1fr)', cols:['pj','pts','rend'], detailCols:'repeat(4,minmax(0,1fr))', canToggle:true };
+}
+function _htHeader(layout){
+  const toggle = layout.canToggle
+    ? `<button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="${layout.key==='detail'?'true':'false'}"><span>Rendimiento</span><span class="ht-head-ico">${layout.key==='detail'?_PB_X:_PB_PLUS}</span></button>`
+    : 'Rendimiento';
+  if(layout.key==='detail') return `<span>#</span><span>Equipo</span><span><button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="true"><span>Estadísticas</span><span class="ht-head-ico">${_PB_X}</span></button></span>`;
+  return `<span>#</span><span>Equipo</span>` + layout.cols.map(col=>{
+    if(col==='rend') return `<span>${toggle}</span>`;
+    return `<span class="ht-stat">${({pj:'PJ',pg:'PG',pe:'PE',pp:'PP',gf:'GF',gc:'GC',dif:'DIF',pts:'PTS'})[col]}</span>`;
+  }).join('');
+}
+function _htCrest(r){
+  const inner = r.logo ? `<img src="${_esc(r.logo)}" alt="">` : _esc(r.ini||_pubHIni(r.name));
+  return `<span class="ht-crest" style="background:${_esc(r.color||'#5f6368')};">${inner}</span>`;
+}
+function _htRow(r, layout){
+  const detail = `<div class="ht-detail">`
+    + _htStatCell('PJ', r.pj) + _htStatCell('PG', r.w) + _htStatCell('PE', r.d) + _htStatCell('PP', r.l)
+    + _htStatCell('GF', r.gf) + _htStatCell('GC', r.gc) + _htStatCell('DIF', r.dif) + _htStatCell('PTS', r.pts)
+    + `</div>`;
+  if(layout.key==='detail'){
+    return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
+      <div class="ht-team">${_htCrest(r)}<span class="ht-name">${_esc(r.name)}</span></div>${detail}</div>`;
+  }
+  const cells = layout.cols.map(col=>{
+    if(col==='rend'){
+      const width = Math.max(4, Math.min(100, Number(r.rend)||0)).toFixed(1);
+      return `<div class="ht-rend"><div class="ht-bar"><i style="width:0%;" data-w="${width}"></i></div><span class="ht-pct">${_htPct(r.rend)}</span></div>`;
+    }
+    const val = ({pj:r.pj,pg:r.w,pe:r.d,pp:r.l,gf:r.gf,gc:r.gc,dif:r.dif,pts:r.pts})[col];
+    const cls = col==='pts' ? 'ht-pts' : 'ht-col';
+    return `<span class="${cls} ${layout.canToggle?'ht-col-hide-in-detail':''}">${_esc(_htNum(val))}</span>`;
+  }).join('');
+  return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
+    <div class="ht-team">${_htCrest(r)}<span class="ht-name">${_esc(r.name)}</span></div>${cells}</div>`;
+}
+function _renderHtTable(el){
+  const card = el.querySelector('.ht-card');
+  const head = card?.querySelector('.ht-row.hdr');
+  const rows = card?.querySelector('#ht-rows');
+  if(!card || !head || !rows) return;
+  const layout = _htLayout();
+  card.dataset.layout = layout.key;
+  card.style.setProperty('--ht-grid', layout.grid);
+  card.style.setProperty('--ht-detail-cols', layout.detailCols);
+  head.innerHTML = _htHeader(layout);
+  rows.innerHTML = _htState.rows.map(r=>_htRow(r, layout)).join('');
+  // Rellena las barras de rendimiento (transición CSS desde 0%).
+  requestAnimationFrame(()=>{ rows.querySelectorAll('.ht-bar i').forEach(b=>{ b.style.width = (b.dataset.w||0)+'%'; }); });
+}
+
+let _htBound = false;
+let _htObserver = null;
+function _bindHtTable(el){
+  const card = el.querySelector('.ht-card');
+  if(!card) return;
+  card.addEventListener('click', e=>{
+    const btn = e.target.closest('[data-ht-toggle="rend"]');
+    if(!btn || window.innerWidth>=860) return;
+    _htState.expanded = !_htState.expanded;
+    _renderHtTable(el);
+  });
+  if(!_htBound){
+    _htBound = true;
+    window.addEventListener('resize', ()=>{
+      const live = document.querySelector('#pub-history-content .ht-card');
+      if(!live) return;
+      if(window.innerWidth>=860 && _htState.expanded) _htState.expanded = false;
+      _renderHtTable(live.closest('#pub-history-content') || document);
+    });
+  }
+  // Anima barras al entrar en viewport
+  _htObserver?.disconnect();
+  _htObserver = null;
+  if('IntersectionObserver' in window){
+    _htObserver = new IntersectionObserver((ents,obs)=>{
+      ents.forEach(e=>{ if(!e.isIntersecting) return;
+        card.querySelectorAll('.ht-bar i').forEach(bar=>{ bar.style.width=(bar.dataset.w||0)+'%'; });
+        obs.unobserve(e.target);
+      });
+    },{threshold:0.1});
+    _htObserver.observe(card);
+  }
+}
+
+/* Renderer público de la tabla histórica con markup .ht-* responsive (sin controles admin). */
+async function _pubRenderHistoryStandings(el, renderToken){
+  try {
+    const data = await _computeHistoricalStandings();
+    if(renderToken!==_pubHistRenderToken) return;
+    if(!data.standings.length){
+      el.innerHTML = '<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">No hay datos suficientes para la tabla histórica.</div>';
+      return;
+    }
+    _htState.expanded = false;
+    _htState.rows = data.standings.map((s,i)=>({
+      pos:i+1, name:s.name||'?', ini:(s.ini||(s.name||'?').substring(0,3)).toUpperCase(),
+      color:s.color||'#5f6368', logo:s.logo||null,
+      pj:s.pj, w:s.v, d:s.e, l:s.p, gf:s.gf, gc:s.gc, dif:s.dg, pts:s.pts,
+      rend:(s.rendimiento||0)*100,
+    }));
+    el.innerHTML = `<div class="ht-card"><div class="ht-row hdr"></div><div id="ht-rows"></div></div>`;
+    _renderHtTable(el);
+    _bindHtTable(el);
+  } catch(err){
+    console.error('[Tabla histórica pública]', err);
+    if(renderToken!==_pubHistRenderToken) return;
+    el.innerHTML = '<div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;"><strong>No pudimos calcular la tabla histórica.</strong><br><span style="font-size:12px;color:var(--txt3);">Intenta nuevamente en unos segundos.</span></div>';
+  }
+}
+
+/* Activa el mano a mano público entre dos equipos (por inicial o nombre).
+   Si la vista «Partidos» del Historial no está montada, la renderiza primero. */
+async function histH2HShow(qA, qB){
+  if(!document.getElementById('h2h-a')) await renderPubHistory();
+  const resolve = q => _pubH.teamList.find(t=>(t.ini||'').toUpperCase()===String(q).toUpperCase())
+    || _histResolveTeam(q, _pubH.teamList)
+    || _pubHTeamMeta(q);
+  const ta = resolve(qA), tb = resolve(qB);
+  if(!ta || !tb) return;
+  _pubH.pickA = ta; _pubH.pickB = tb; _pubH.selectedId = null;
+  const inA = document.getElementById('h2h-a'), inB = document.getElementById('h2h-b');
+  if(inA) inA.value = ta.name;
+  if(inB) inB.value = tb.name;
+  _pubDrawH2H('Mano a mano');
+  const _h2hReduced = window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
+  document.querySelector('.h2h-frame')?.scrollIntoView({behavior:_h2hReduced?'auto':'smooth', block:'center'});
 }
 
 async function _renderHistoryStandingsInto(el, isAdmin){

@@ -156,6 +156,7 @@
   display:flex;align-items:center;gap:8px;min-width:200px;
   animation:toastIn 0.2s ease;pointer-events:all;
 }
+.toast-icon{width:17px;height:17px;flex:none;}
 .toast-item.success{border-left:3px solid var(--green);}
 .toast-item.error{border-left:3px solid var(--red);}
 @keyframes toastIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}

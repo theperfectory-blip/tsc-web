@@ -44,6 +44,31 @@
   // no resetear al primer ítem cuando el admin reabre el modal.
   let _pickerLastCompId  = null;
   let _pickerLastPhaseId = null;
+  // Journal de "Deshacer cambios" del picker Vincular: en vez de un snapshot
+  // global de TODAS las fases/sorteos (que podría pisar ediciones concurrentes
+  // de otro admin en fases que ni tocamos), guarda solo lo efectivamente
+  // tocado durante la sesión del modal: fases (por id), matches+historial
+  // (por phaseId+matchIdx) y el registro sorteo de esta temporada.
+  let _linkSessionJournal = null;
+  function _journalCapturePhase(phase) {
+    if (!_linkSessionJournal || !phase) return;
+    if (!_linkSessionJournal.phases.has(phase.id)) {
+      _linkSessionJournal.phases.set(phase.id, JSON.parse(JSON.stringify(phase)));
+    }
+  }
+  async function _journalCaptureMatches(phaseId, matchIdx, matches) {
+    if (!_linkSessionJournal) return;
+    const key = `${phaseId}:${matchIdx}`;
+    if (_linkSessionJournal.matches.has(key)) return;
+    const historyRows = [];
+    for (const m of matches) {
+      historyRows.push(...(await dbGetAll('matchHistory', h => h.matchRef === m.id)));
+    }
+    _linkSessionJournal.matches.set(key, {
+      matches: JSON.parse(JSON.stringify(matches)),
+      history: JSON.parse(JSON.stringify(historyRows))
+    });
+  }
   // Flag de "equipo en animación": mientras está seteado, los renders tratan
   // a ese equipo como NO sorteado (no se tacha en la urna ni cuenta en los
   // contadores). Se limpia 1s después de terminar la animación, recién ahí
@@ -97,7 +122,17 @@
      espectadores en sus móviles necesitan esto para ver el sorteo en vivo
      (con la animación pick-and-open-ball), no solo al recargar. */
   let _sorteoUnsub = null;
-  let _pendingSnap = null;   // snapshot recibido durante una animación (se procesa al terminar)
+  // Cola FIFO de eventos de bola NORMALIZADOS (no snapshots completos, que
+  // podrían pisarse entre sí si llegan varios mientras hay una animación en
+  // curso). Cada evento: { bomboId, teamId, ord, at }. `_knownDrawnKeys`
+  // dedupea por identidad estable (bomboId+at; fallback bomboId+ord+teamId
+  // para datos legacy sin `at`) para no reencolar lo mismo si Firestore
+  // reenvía el mismo snapshot.
+  let _drawEventQueue = [];
+  let _knownDrawnKeys = new Set();
+  function _drawnKey(bomboId, d) {
+    return d?.at != null ? `${bomboId}:${d.at}` : `${bomboId}:${d?.ord ?? ''}:${d?.teamId}`;
+  }
   function _subscribeSorteoLive() {
     if (typeof dbSubscribe !== 'function') { ensureBC(); return; }
     _unsubscribeSorteoLive();
@@ -108,41 +143,89 @@
   }
   async function onSorteoSnapshot(rows) {
     if (!root || !readOnly) return;
-    // Si hay una animación en curso, NO procesar el snapshot: un renderAll
-    // aquí recrearía el DOM y dejaría la animación pegada a media pose.
-    // El estado ya quedó cargado antes de animar; el próximo snapshot sincroniza.
-    if (busy) { _pendingSnap = rows; return; }
     const rec = rows.find(r => r.season === stateSeason);
     if (!rec) return;
     const newBombos = rec.bombos || [];
-    // Detectar un equipo recién sorteado comparando con el estado conocido.
-    let nd = null;
+
+    // Detectar TODAS las bolas nuevas (no solo la última) en TODOS los
+    // bombos, comparando contra lo que ya conocemos localmente. Encola
+    // eventos normalizados — no snapshots — para no perder sorteos rápidos.
     for (const nb of newBombos) {
       const ob = state.bombos.find(b => b.id === nb.id);
-      const oldCount = ob ? ob.drawn.length : 0;
-      if ((nb.drawn || []).length > oldCount) {
-        const last = nb.drawn[nb.drawn.length - 1];
-        nd = { bomboId: nb.id, teamId: last.teamId, ord: nb.drawn.length };
-        break;
+      const known = ob ? ob.drawn.length : 0;
+      const drawnArr = nb.drawn || [];
+      if (drawnArr.length < known) {
+        // Reset detectado en este bombo: cancelar animaciones obsoletas de
+        // ESTE bombo que estuvieran encoladas (ya no corresponden a nada).
+        _drawEventQueue = _drawEventQueue.filter(ev => ev.bomboId !== nb.id);
+        continue;
+      }
+      for (let i = known; i < drawnArr.length; i++) {
+        const d = drawnArr[i];
+        const key = _drawnKey(nb.id, d);
+        if (_knownDrawnKeys.has(key)) continue;
+        _knownDrawnKeys.add(key);
+        if (!_drawEventQueue.some(ev => ev._key === key)) {
+          _drawEventQueue.push({ bomboId: nb.id, teamId: d.teamId, ord: i + 1, at: d.at, _key: key });
+        }
       }
     }
+
     const visible = root && root.offsetParent !== null;
-    if (nd && !busy && visible) {
-      // Reproducir la animación del nuevo equipo (igual que el broadcast 'draw').
-      await loadState();
-      state.activeId = nd.bomboId;
-      await refreshTeamsCache();
-      const b = activeBombo(); if (!b) return;
-      const drawnSet = new Set(b.drawn.map(d => d.teamId));
-      const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id)).length;
-      await playDrawAnimation(b, nd.teamId, nd.ord, remaining);
-    } else {
-      // Reset / nuevo bombo / no visible: refrescar el estado sin animar.
+    if (!visible) {
+      // Offscreen/en background: sincronizar SIN animar y sin dejar cola
+      // pendiente — al volver se debe ver el estado vigente, no un replay
+      // masivo de todo lo que se perdió.
+      _drawEventQueue.length = 0;
       const keepLocalActive = state.activeId;
       await loadState();
       if (keepLocalActive && state.bombos.find(b => b.id === keepLocalActive)) state.activeId = keepLocalActive;
       await renderAll();
       if (typeof refreshSorteoTabVisibility === 'function') refreshSorteoTabVisibility();
+      return;
+    }
+    if (busy) return; // finishSequence() drena la cola al terminar la animación en curso.
+    if (_drawEventQueue.length) {
+      await _processDrawQueue();
+    } else {
+      // Nada nuevo que animar (p.ej. cambió un link, no una bola): refrescar en silencio.
+      const keepLocalActive = state.activeId;
+      await loadState();
+      if (keepLocalActive && state.bombos.find(b => b.id === keepLocalActive)) state.activeId = keepLocalActive;
+      await renderAll();
+      if (typeof refreshSorteoTabVisibility === 'function') refreshSorteoTabVisibility();
+    }
+  }
+
+  /* Procesa la cola en orden, una animación a la vez. playDrawAnimation()
+     marca busy=true de inmediato pero la secuencia real corre vía setTimeout
+     encadenados (no vía esta promesa) — por eso el loop corta apenas busy
+     pasa a true; finishSequence() vuelve a llamar a esta función al terminar
+     para drenar lo que haya quedado en la cola (sin solapar animaciones). */
+  // Guard SÍNCRONO aparte de `busy`: `busy` recién se pone en true DENTRO de
+  // playDrawAnimation, después de un `await loadState()`. Si dos snapshots
+  // casi simultáneos llaman a _processDrawQueue() antes de que cualquiera
+  // llegue a ese punto, ambos verían busy=false y arrancarían la animación
+  // en paralelo (solapamiento). _queueProcessing se marca ANTES del primer
+  // await, así la segunda llamada corta de inmediato y confía en que el
+  // drenaje ya en curso (o finishSequence al terminar) recoja lo encolado.
+  let _queueProcessing = false;
+  async function _processDrawQueue() {
+    if (_queueProcessing) return;
+    _queueProcessing = true;
+    try {
+      while (_drawEventQueue.length && !busy) {
+        const ev = _drawEventQueue.shift();
+        await loadState();
+        state.activeId = ev.bomboId;
+        await refreshTeamsCache();
+        const b = activeBombo(); if (!b) continue;
+        const drawnSet = new Set(b.drawn.map(d => d.teamId));
+        const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id)).length;
+        await playDrawAnimation(b, ev.teamId, ev.ord, remaining);
+      }
+    } finally {
+      _queueProcessing = false;
     }
   }
 
@@ -234,9 +317,8 @@
   /* ---------------- Mount ---------------- */
   async function mount(container) {
     _unsubscribeSorteoLive();   // cancelar suscripción en vivo previa si se remonta
-    container.innerHTML = TEMPLATE;
+    container.innerHTML = readOnly ? TEMPLATE_PUBLIC : TEMPLATE;
     root = container;
-    root.classList.toggle('sorteo-readonly', !!readOnly);
     chibi          = container.querySelector('.chibi-anchor');
     frameEls       = container.querySelectorAll('.chibi-frame');
     revealCard     = container.querySelector('.reveal-card');
@@ -287,6 +369,8 @@
       container.querySelector('#btn-add-bombo').addEventListener('click', addBombo);
       container.querySelector('#btn-rename-bombo').addEventListener('click', renameActiveBombo);
       container.querySelector('#btn-delete-bombo').addEventListener('click', deleteActiveBombo);
+    } else {
+      _bindChibiRig(container);
     }
     btnSound.addEventListener('click', toggleSound);
 
@@ -303,6 +387,36 @@
     } else {
       ensureBC();
     }
+  }
+
+  /* Rig 2.5D del chibi (solo público, /prototype): sigue el cursor con
+     inercia. Sin listener nuevo si hay reduced-motion o no hay puntero
+     preciso (táctil): "sin seguimiento, respiración ni sacudidas". Al
+     desmontar (remount reemplaza el DOM del stage) el loop se autolimita:
+     el stage removido ya no recibe pointermove, así que cx/cy solo
+     terminan de asentarse hacia 0 y el rAF se detiene solo. */
+  function _bindChibiRig(container) {
+    const reduced = (window.MOTION && typeof MOTION.reduced === 'function' && MOTION.reduced()) ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || !matchMedia('(pointer:fine)').matches) return;
+    const stage = container.querySelector('.sorteo-stage');
+    const tilt  = container.querySelector('#sorteo-chibi-tilt');
+    if (!stage || !tilt) return;
+    let tx = 0, ty = 0, cx = 0, cy = 0, raf = null;
+    function loop() {
+      cx += (tx - cx) * 0.09; cy += (ty - cy) * 0.09;
+      tilt.style.transform = `rotateY(${cx.toFixed(2)}deg) rotateX(${cy.toFixed(2)}deg)`;
+      if (Math.abs(tx - cx) > 0.02 || Math.abs(ty - cy) > 0.02) raf = requestAnimationFrame(loop);
+      else raf = null;
+    }
+    const ensure = () => { if (!raf) raf = requestAnimationFrame(loop); };
+    stage.addEventListener('pointermove', e => {
+      const r = stage.getBoundingClientRect();
+      tx = ((e.clientX - r.left) / r.width  * 2 - 1) * 7;
+      ty = -((e.clientY - r.top) / r.height * 2 - 1) * 5;
+      ensure();
+    });
+    stage.addEventListener('pointerleave', () => { tx = 0; ty = 0; ensure(); });
   }
 
   /* ---------------- Bombos UI ---------------- */
@@ -340,7 +454,6 @@
     // el admin no se ve forzado a seguir la selección del espectador.
     if (!readOnly) await saveState();
     await refreshActive();
-    await renderLinkedPhasesMirror();
   }
 
   async function renderBombosBar() {
@@ -437,6 +550,10 @@
     await playDrawAnimation(b, teamId, ord, pool.length - 1);
   }
 
+  function reducedMotion() {
+    return !!(window.MOTION && typeof MOTION.reduced === 'function' && MOTION.reduced());
+  }
+
   async function playDrawAnimation(b, teamId, ord, remaining) {
     busy = true;
     // Flag: durante la animación + 1s post, los renders tratan a este equipo
@@ -449,6 +566,20 @@
     // animación. El chip migra al final tachado recién 1s después.
     await renderPool();
     await renderBombosBar();
+
+    if (reducedMotion()) {
+      // Movimiento reducido: publica el resultado estático de inmediato —
+      // sin frames, drumroll, sparks, shake ni confetti. La reveal card
+      // (aria-live="polite") sigue anunciando el resultado igual que en
+      // el flujo normal, solo que sin la coreografía previa. Usa su propia
+      // finalización (finishSequenceReduced): NO reutiliza finishSequence()
+      // porque esa oculta la tarjeta de inmediato y encadena 280ms+1000ms
+      // de esperas que no aportan nada sin animación que sincronizar.
+      showFrame(SEQ[SEQ.length - 1].frame);
+      showRevealCard(teamName(teamId), ord, remaining, b.name);
+      finishSequenceReduced();
+      return;
+    }
 
     drumHandle = playDrumrollAudio(PRE_REVEAL_MS - 80);
 
@@ -491,16 +622,49 @@
           const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id));
           if (!remaining.length && b.drawn.length) flashHint(`${b.name} completo`, true);
         }
-        // Público en vivo: si llegó un sorteo durante esta animación, procesarlo ahora.
-        if (readOnly && _pendingSnap) {
-          const snap = _pendingSnap; _pendingSnap = null;
-          onSorteoSnapshot(snap);
+        // Público en vivo: drenar la cola si llegaron más sorteos durante esta animación
+        // (busy ya es false acá, así que _processDrawQueue puede seguir con el siguiente).
+        if (readOnly && _drawEventQueue.length && root && root.offsetParent !== null) {
+          await _processDrawQueue();
         }
       }, 1000);
     }, 280);
   }
 
+  // Pausa estática (sin movimiento) antes de finalizar un sorteo con
+  // movimiento reducido: no sincroniza ninguna animación, solo le da tiempo
+  // al lector de pantalla de anunciar la reveal card (aria-live="polite")
+  // antes de que el resto del estado (controles, pool, cola realtime) se
+  // libere de una sola vez.
+  const REDUCED_REVEAL_PAUSE_MS = 700;
+
+  function finishSequenceReduced() {
+    drumHandle = null;
+    setTimeout(async () => {
+      hideRevealCard();
+      showFrame(0);
+      chibi.classList.add('idle');
+      _drawingTeamId = null;
+      busy = false;
+      await renderAll();
+      setControlsBusy(false);
+      const b = activeBombo();
+      if (b) {
+        const drawnSet = new Set(b.drawn.map(d => d.teamId));
+        const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id));
+        if (!remaining.length && b.drawn.length) flashHint(`${b.name} completo`, true);
+      }
+      // Público en vivo: drenar la cola si llegaron más sorteos durante esta pausa
+      // (busy ya es false acá, así que _processDrawQueue puede seguir con el siguiente).
+      if (readOnly && _drawEventQueue.length && root && root.offsetParent !== null) {
+        await _processDrawQueue();
+      }
+    }, REDUCED_REVEAL_PAUSE_MS);
+  }
+
   function setControlsBusy(b) {
+    // btnSorteo/btnReset no existen en el template público (solo-admin).
+    if (!btnSorteo) return;
     const ab = activeBombo();
     let hasPool = false;
     if (ab) {
@@ -649,100 +813,44 @@
     await refreshTeamsCache();
     await renderBombosBar();
     await refreshActive();
-    await renderLinkedPhasesMirror();
   }
   async function refreshActive() {
     await refreshTeamsCache();
     await renderPool();
     renderDrawn();
     renderHint();
+    _renderPubSummary();
+    await _renderPubUrna();
     setControlsBusy(false);
     await renderBombosBar();
-    await renderLinkedPhasesMirror();
   }
 
-  /* Mirror: muestra debajo del sorteo los grupos/brackets vinculados desde
-     CUALQUIER bola sorteada en la temporada actual. Solo las tablas/llaves;
-     no incluye partidos ni fechas (esa data vive en la página Partidos). */
-  async function renderLinkedPhasesMirror() {
-    const mirror = root?.querySelector('#sorteo-phases-mirror');
-    if (!mirror) return;
-
-    // Conjunto único de phaseIds linkeados desde cualquier bola.
-    const phaseIds = new Set();
-    for (const bb of state.bombos) {
-      for (const d of (bb.drawn || [])) {
-        if (d.link?.phaseId) phaseIds.add(d.link.phaseId);
-      }
-    }
-    if (!phaseIds.size) {
-      mirror.innerHTML = '';
-      return;
-    }
-
-    // Cargar fases en lote y filtrar a las que existen en esta temporada.
-    const phases = [];
-    for (const pid of phaseIds) {
-      const p = await dbGet('phases', pid);
-      if (!p) continue;
-      // Solo competiciones de la temporada cargada.
-      const comp = await dbGet('competitions', p.compId);
-      if (!comp || comp.season !== stateSeason) continue;
-      phases.push({ phase: p, comp });
-    }
-    phases.sort((a, b) =>
-      (a.comp.name || '').localeCompare(b.comp.name || '', 'es') ||
-      (a.phase.name || '').localeCompare(b.phase.name || '', 'es')
-    );
-
-    if (!phases.length) { mirror.innerHTML = ''; return; }
-
-    // Render skeleton: una tarjeta por fase, con su propio container interno.
-    mirror.innerHTML = `
-      <div class="mirror-hdr">Vinculaciones en curso</div>
-      <div class="mirror-grid">
-        ${phases.map(({ phase, comp }) => {
-          const cls = phase.type === 'bracket' ? 'mirror-card bracket' : 'mirror-card groups';
-          const containerId = phase.type === 'bracket'
-            ? `bracket-container-${phase.id}`
-            : `groups-container-${phase.id}`;
-          return `<div class="${cls}">
-            <div class="mirror-card-hdr">
-              <span class="mirror-comp">${escapeHtml(comp.name)}</span>
-              <span class="mirror-sep">·</span>
-              <span class="mirror-phase">${escapeHtml(phase.name || ('Fase '+phase.id))}</span>
-              <span class="mirror-type ${phase.type}">${phase.type === 'bracket' ? 'Bracket' : 'Grupos'}</span>
-            </div>
-            <div class="mirror-card-body" id="${containerId}"></div>
-          </div>`;
-        }).join('')}
-      </div>`;
-
-    // Disparar el render real de cada fase usando las funciones existentes.
-    // isAdmin=false para que no expongan controles editables en el mirror.
-    for (const { phase } of phases) {
-      try {
-        if (phase.type === 'bracket' && typeof renderBracket === 'function') {
-          await renderBracket(phase.id, `bracket-container-${phase.id}`, false);
-        } else if (phase.type === 'groups' && typeof renderGroupTable === 'function') {
-          await renderGroupTable(phase.id, `groups-container-${phase.id}`, false);
-        }
-      } catch (e) {
-        console.warn('mirror render failed for phase', phase.id, e);
-      }
-    }
+  /* Resumen compacto del <summary> público: "Ver equipos · N pendientes ·
+     M sorteados". Solo aplica al template público (el admin no lo tiene). */
+  function _renderPubSummary() {
+    if (!readOnly) return;
+    const el = root?.querySelector('#sorteo-pub-summary');
+    if (!el) return;
+    const b = activeBombo();
+    if (!b) { el.textContent = 'Ver equipos'; return; }
+    const drawnSet = new Set(effectiveDrawnIds(b));
+    const visibleIds = b.teamIds.filter(teamIsActive);
+    const pending = visibleIds.filter(id => !drawnSet.has(id)).length;
+    const drawn = visibleIds.length - pending;
+    el.textContent = `Ver equipos · ${pending} pendiente${pending===1?'':'s'} · ${drawn} sorteado${drawn===1?'':'s'}`;
   }
+
   async function renderPool(opts = {}) {
     const { highlightId } = opts;
     const b = activeBombo();
-    poolEls.innerHTML = '';
+    if (poolEls) poolEls.innerHTML = '';
     const visibleIds = b ? b.teamIds.filter(teamIsActive) : [];
     const drawnSet = b ? new Set(effectiveDrawnIds(b)) : new Set();
     const total = visibleIds.length;
     const remaining = visibleIds.filter(id => !drawnSet.has(id)).length;
     poolCounter.querySelector('.num').textContent = remaining;
     poolCounter.querySelector('.total').textContent = '/ ' + total;
-    if (!b) return;
+    if (!b || !poolEls) return;
     // Disponibles primero (no sorteados), luego ya sorteados al final.
     // Mientras hay una bola en animación, ese equipo se considera "no sorteado"
     // para que su chip no aparezca tachado hasta 1s después del confeti.
@@ -764,13 +872,81 @@
       poolEls.appendChild(c);
     });
   }
+
+  /* Urna pública (/prototype): dos grupos separados — "Pendientes en la
+     urna" (chip de una línea) y "Ya sorteados" (chip de 2 líneas: nombre +
+     destino "COMP · FASE", o "Destino pendiente" si la bola no tiene link
+     todavía). El slot exacto (grupo/posición/cruce/lado) NO se muestra acá
+     a propósito — vive en la sección 02, que es la única representación
+     pública del destino real. Fases/competiciones se cargan UNA vez por
+     render (no por pill) y el texto va por textContent (sin innerHTML). */
+  async function _renderPubUrna() {
+    if (!readOnly) return;
+    const pendingEl = root?.querySelector('#sorteo-pub-pending');
+    const drawnEl2  = root?.querySelector('#sorteo-pub-drawn');
+    if (!pendingEl || !drawnEl2) return;
+    const b = activeBombo();
+    if (!b) { pendingEl.innerHTML = ''; drawnEl2.innerHTML = ''; return; }
+
+    const visibleIds = b.teamIds.filter(teamIsActive);
+    const effective = new Set(effectiveDrawnIds(b));
+    const notDrawn = visibleIds.filter(id => !effective.has(id));
+    const alreadyDrawn = visibleIds.filter(id => effective.has(id));
+
+    pendingEl.innerHTML = '';
+    notDrawn.forEach(id => {
+      const c = document.createElement('span');
+      c.className = 'uchip';
+      c.textContent = teamName(id);
+      pendingEl.appendChild(c);
+    });
+
+    // Precarga de fases/competiciones referenciadas por los links de ESTE
+    // bombo — una sola consulta por fase/competición distinta, no por pill.
+    const phaseIds = new Set();
+    for (const d of b.drawn) if (d.link?.phaseId) phaseIds.add(d.link.phaseId);
+    const phaseById = new Map();
+    const compById = new Map();
+    for (const pid of phaseIds) {
+      const p = await dbGet('phases', pid);
+      if (!p) continue;
+      phaseById.set(pid, p);
+      if (!compById.has(p.compId)) compById.set(p.compId, await dbGet('competitions', p.compId));
+    }
+    const PHASE_KIND_LABEL = { groups:'Fase grupos', bracket:'Eliminatoria', playoff:'Playoff', single:'Final' };
+
+    drawnEl2.innerHTML = '';
+    alreadyDrawn.forEach(id => {
+      const d = b.drawn.find(dd => dd.teamId === id);
+      const c = document.createElement('span');
+      c.className = 'uchip out uchip-2l';
+      const nameEl = document.createElement('b');
+      nameEl.textContent = teamName(id);
+      const destEl = document.createElement('small');
+      const phase = d?.link?.phaseId != null ? phaseById.get(d.link.phaseId) : null;
+      if (phase) {
+        const comp = compById.get(phase.compId);
+        // Nombre real de la fase primero; la etiqueta genérica por tipo
+        // solo si la fase no tiene nombre propio.
+        const phaseLabel = phase.name || PHASE_KIND_LABEL[phase.type] || '';
+        destEl.textContent = comp?.name ? `${comp.name} · ${phaseLabel}` : phaseLabel;
+      } else {
+        destEl.textContent = 'Destino pendiente';
+      }
+      c.appendChild(nameEl);
+      c.appendChild(destEl);
+      drawnEl2.appendChild(c);
+    });
+  }
+
   function renderDrawn() {
+    if (!drawnEl) return; // el template público no tiene #drawn-list (reemplazado por _renderPubUrna)
     const b = activeBombo();
     // Indexa cada entrada con su índice global en b.drawn para callbacks.
     const indexed = b
       ? b.drawn.map((d, i) => ({ d, i })).filter(x => teamIsActive(x.d.teamId))
       : [];
-    drawnHdrCount.textContent = indexed.length;
+    if (drawnHdrCount) drawnHdrCount.textContent = indexed.length;
     if (!b || !indexed.length) {
       drawnEl.innerHTML = '<div class="drawn-empty">Sin sorteos aún</div>';
       return;
@@ -805,6 +981,7 @@
     if (!link) return '';
     if (link.kind === 'group') return `→ Grupo ${String.fromCharCode(65 + link.groupIdx)} · pos ${link.posIdx + 1}`;
     if (link.kind === 'bracket') return `→ Llave ${link.slotIdx + 1} · lado ${link.side}`;
+    if (link.kind === 'playoff') return `→ Playoff · Cruce ${link.matchIdx + 1} · lado ${link.side}`;
     return '→ vinculado';
   }
 
@@ -837,13 +1014,13 @@
       selPhaseId = null;
     }
 
-    // Snapshot al abrir el modal para "Deshacer cambios". Copia profunda
-    // de todas las fases y de todos los registros sorteo: cubre cualquier
-    // cosa que se modifique durante la sesión del modal (incluso si se
-    // cambia entre múltiples fases).
-    const undoSnapshot = {
-      phases:  JSON.parse(JSON.stringify(await dbGetAll('phases'))),
-      sorteos: JSON.parse(JSON.stringify(await dbGetAll('sorteo')))
+    // Journal de "Deshacer cambios": arranca vacío en fases/matches (se llena
+    // bajo demanda, la primera vez que cada uno se toca durante esta sesión)
+    // + el registro sorteo de esta temporada tal cual está al abrir el modal.
+    _linkSessionJournal = {
+      phases: new Map(),
+      matches: new Map(),
+      sorteoBefore: stateRecordId != null ? JSON.parse(JSON.stringify(await dbGet('sorteo', stateRecordId))) : null
     };
 
     document.getElementById('sorteo-link-picker')?.remove();
@@ -889,13 +1066,15 @@
 
     async function refreshPhases() {
       const cid = parseInt(compSel.value);
-      const phases = await dbGetAll('phases', p => p.compId === cid && (p.type === 'groups' || p.type === 'bracket'));
+      const phases = await dbGetAll('phases', p => p.compId === cid && (p.type === 'groups' || p.type === 'bracket' || p.type === 'playoff'));
+      const bracketIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+      const groupsIcon  = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
       phaseSel.innerHTML = phases.length
         ? phases.map(p => {
-            const tag = p.type === 'bracket' ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>' : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>';
+            const tag = p.type === 'groups' ? groupsIcon : bracketIcon;
             return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${tag} ${escapeHtml(p.name || ('Fase '+p.id))}</option>`;
           }).join('')
-        : '<option value="">Sin fases tipo grupos / bracket</option>';
+        : '<option value="">Sin fases tipo grupos / bracket / playoff</option>';
       if (!phases.find(p => p.id === selPhaseId)) selPhaseId = phases[0]?.id || null;
       if (selPhaseId) phaseSel.value = selPhaseId;
       _pickerLastPhaseId = selPhaseId;
@@ -982,6 +1161,72 @@
         });
         return;
       }
+      if (phase.type === 'playoff') {
+        const matchups = parseInt(phase.config?.matchups) || (phase.playoffSlots || []).length || 0;
+        if (!matchups) {
+          gridEl.innerHTML = '<div style="padding:24px;color:var(--txt3);text-align:center;">Playoff sin cruces configurados.</div>';
+          return;
+        }
+        const slots = phase.playoffSlots || Array(matchups).fill(null).map(() => ({ teamA:null, teamB:null }));
+        const refs = phase.slotRefs || [];
+        const findRef = (si, sd) => refs.find(r => r.slotIdx === si && r.side === sd);
+        const slotCells = [];
+        for (let si = 0; si < matchups; si++) {
+          for (const sd of ['A','B']) {
+            const r = findRef(si, sd);
+            let tid = null, kind = null;
+            if (r) {
+              kind = r.type;
+              tid = r.type === 'team' ? parseInt(r.teamId) : await resolveSlotRef(r);
+            } else {
+              tid = sd === 'A' ? slots[si]?.teamA : slots[si]?.teamB;
+            }
+            slotCells.push({ si, sd, tid, kind });
+          }
+        }
+        gridEl.innerHTML = `<div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+          Playoff · ${matchups} cruce${matchups===1?'':'s'}
+        </div>
+        <div class="slp-bracket">
+          ${Array.from({length:matchups},(_,si)=>{
+            const cellA = slotCells.find(c=>c.si===si && c.sd==='A');
+            const cellB = slotCells.find(c=>c.si===si && c.sd==='B');
+            const cellHtml = (cell) => {
+              const t = cell.tid;
+              if (t != null) {
+                const mine = t === teamId;
+                const labelExtra = cell.kind === 'team'
+                  ? (mine ? '' : '<span class="slp-tag-soft">sorteo</span>')
+                  : (cell.kind ? '<span class="slp-tag-warn">ref dinámica</span>' : '');
+                return `<div class="slp-bslot ${mine?'mine':'taken'}" data-si="${cell.si}" data-sd="${cell.sd}">
+                  <span class="slp-side">${cell.sd}</span>
+                  <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                  ${mine ? '<span class="slp-tag">aquí</span>' : labelExtra}
+                </div>`;
+              }
+              return `<div class="slp-bslot empty" data-si="${cell.si}" data-sd="${cell.sd}">
+                <span class="slp-side">${cell.sd}</span>
+                <span class="slp-hint">click para asignar</span>
+              </div>`;
+            };
+            return `<div class="slp-bmatch">
+              <div class="slp-bmatch-hdr">Cruce ${si+1}</div>
+              ${cellHtml(cellA)}
+              ${cellHtml(cellB)}
+            </div>`;
+          }).join('')}
+        </div>`;
+        gridEl.querySelectorAll('.slp-bslot').forEach(el => {
+          if (el.classList.contains('mine')) return;
+          el.addEventListener('click', async () => {
+            const si = parseInt(el.dataset.si);
+            const sd = el.dataset.sd;
+            await assignPlayoffLink(drawnGlobalIdx, selPhaseId, si, sd);
+            await refreshGrid();
+          });
+        });
+        return;
+      }
       if (phase.type !== 'groups') {
         gridEl.innerHTML = '<div style="padding:24px;color:var(--txt3);text-align:center;">Tipo de fase no soportado en sorteo.</div>';
         return;
@@ -1049,16 +1294,28 @@
       await refreshGrid();
     });
     wrap.querySelector('#slp-undo').addEventListener('click', async () => {
-      // Restaurar todas las fases tocadas (escribimos todas; las no tocadas
-      // simplemente se sobrescriben con su mismo contenido).
-      for (const p of undoSnapshot.phases) {
+      const journal = _linkSessionJournal;
+      if (!journal) return;
+      // Restaurar SOLO las fases efectivamente tocadas durante esta sesión
+      // (no todas las fases de la DB: evita pisar ediciones concurrentes de
+      // otro admin en fases que esta sesión nunca modificó).
+      for (const p of journal.phases.values()) {
         await dbPut('phases', p);
         if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(p.id);
       }
-      // Restaurar registros sorteo (incluye links de todas las bolas).
-      for (const s of undoSnapshot.sorteos) {
-        await dbPut('sorteo', s);
+      // Restaurar SOLO los matches (+ su historial) de los cruces playoff tocados.
+      for (const entry of journal.matches.values()) {
+        for (const m of entry.matches) await dbPut('matches', m);
+        for (const h of entry.history) await dbPut('matchHistory', h);
       }
+      // Restaurar el registro sorteo de esta temporada a como estaba al abrir el modal.
+      if (journal.sorteoBefore) await dbPut('sorteo', journal.sorteoBefore);
+      // Nueva baseline: la sesión sigue abierta y puede volver a tocar cosas.
+      _linkSessionJournal = {
+        phases: new Map(),
+        matches: new Map(),
+        sorteoBefore: journal.sorteoBefore ? JSON.parse(JSON.stringify(journal.sorteoBefore)) : null
+      };
       // Recargar estado en memoria y refrescar UI + broadcast a otras pestañas.
       await loadState();
       broadcast({ type:'state', season: stateSeason });
@@ -1082,6 +1339,7 @@
     // 2. Cargar fase y normalizar groups.
     const phase = await dbGet('phases', phaseId);
     if (!phase) return;
+    _journalCapturePhase(phase);
     const groups = phase.groups ? JSON.parse(JSON.stringify(phase.groups)) : {};
 
     // 3. Si el equipo está en otra posición de esta misma fase, lo quitamos.
@@ -1139,6 +1397,7 @@
     if (!link) return;
     const phase = await dbGet('phases', link.phaseId);
     if (!phase) return;
+    _journalCapturePhase(phase);
     if (link.kind === 'group') {
       const groups = phase.groups ? JSON.parse(JSON.stringify(phase.groups)) : {};
       const arr = groups[link.groupIdx] || [];
@@ -1157,6 +1416,24 @@
       });
       await dbPut('phases', { ...phase, slotRefs: refs });
       if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(link.phaseId);
+    } else if (link.kind === 'playoff') {
+      const key = link.side === 'A' ? 'teamA' : 'teamB';
+      const slots = phase.playoffSlots ? JSON.parse(JSON.stringify(phase.playoffSlots)) : [];
+      let changed = false;
+      if (slots[link.matchIdx] && slots[link.matchIdx][key] === teamId) {
+        slots[link.matchIdx] = { ...slots[link.matchIdx], [key]: null };
+        changed = true;
+      }
+      // Solo retira refs tipo 'team' del mismo equipo en ese matchIdx+side (no toca refs dinámicas heredadas).
+      const refs = (phase.slotRefs || []).filter(r => {
+        const match = r.slotIdx === link.matchIdx && r.side === link.side;
+        if (!match) return true;
+        return !(r.type === 'team' && parseInt(r.teamId) === teamId);
+      });
+      if (changed || refs.length !== (phase.slotRefs || []).length) {
+        await dbPut('phases', { ...phase, playoffSlots: slots, slotRefs: refs });
+        if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(link.phaseId);
+      }
     }
   }
 
@@ -1174,6 +1451,7 @@
     // 2. Cargar fase y trabajar sobre slotRefs.
     const phase = await dbGet('phases', phaseId);
     if (!phase) return;
+    _journalCapturePhase(phase);
     let refs = (phase.slotRefs || []).slice();
 
     // 3. Si el mismo equipo ya estaba en otro slot 'team' de esta fase, sacarlo.
@@ -1215,6 +1493,90 @@
       showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side} · reemplazó ref dinámica`);
     } else {
       showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side}`);
+    }
+  }
+
+  /* Asignar bola a un lado (A/B) de un cruce de playoff. Escribe en
+     playoffSlots[matchIdx] igual que savePlayoffAssign (playoff.js), pero
+     retira SOLO el slotRef del mismo matchIdx+side (preserva el lado opuesto):
+     los renderers reales aplican slotRefs DESPUÉS de playoffSlots, así que una
+     ref vieja en ese lado volvería a tapar el equipo recién sorteado. */
+  async function assignPlayoffLink(drawnGlobalIdx, phaseId, matchIdx, side) {
+    if (readOnly) return;
+    if (side !== 'A' && side !== 'B') return;
+    const b = activeBombo(); if (!b) return;
+    const entry = b.drawn[drawnGlobalIdx]; if (!entry) return;
+    const teamId = entry.teamId;
+    const key = side === 'A' ? 'teamA' : 'teamB';
+
+    // 1. Liberar vínculo previo de esta bola.
+    if (entry.link) await unbindFromPhase(entry.link, teamId);
+
+    // 2. Cargar fase y normalizar playoffSlots/slotRefs.
+    const phase = await dbGet('phases', phaseId);
+    if (!phase) return;
+    _journalCapturePhase(phase);
+    const baseCount = phase.playoffSlots?.length || parseInt(phase.config?.matchups) || 0;
+    const slots = phase.playoffSlots ? JSON.parse(JSON.stringify(phase.playoffSlots)) : [];
+    while (slots.length < Math.max(baseCount, matchIdx + 1)) slots.push({ teamA:null, teamB:null });
+    let refs = (phase.slotRefs || []).slice();
+
+    // 3. Si el mismo equipo ya estaba en OTRO lado directo de esta fase, retirarlo.
+    slots.forEach((s, i) => {
+      if (!s) return;
+      if (s.teamA === teamId && !(i === matchIdx && side === 'A')) s.teamA = null;
+      if (s.teamB === teamId && !(i === matchIdx && side === 'B')) s.teamB = null;
+    });
+    // ...y de cualquier slotRef tipo 'team' de esta fase en otro cruce/lado.
+    refs = refs.filter(r => !(r.type === 'team' && parseInt(r.teamId) === teamId && !(r.slotIdx === matchIdx && r.side === side)));
+
+    // 4. Detectar ocupante anterior del lado destino (directo o por ref dinámica).
+    const prevRef = (phase.slotRefs || []).find(r => r.slotIdx === matchIdx && r.side === side);
+    const prevDirect = slots[matchIdx][key];
+    const hadDynamicRef = !!prevRef && prevRef.type !== 'team';
+    const priorTeamId = prevRef && prevRef.type === 'team' ? parseInt(prevRef.teamId) : prevDirect;
+    const displacedTeamId = priorTeamId;
+    const changed = hadDynamicRef || priorTeamId !== teamId;
+
+    // 5. Retirar únicamente el slotRef del mismo matchIdx+side (preserva el lado opuesto).
+    refs = refs.filter(r => !(r.slotIdx === matchIdx && r.side === side));
+
+    // 6. Escribir la asignación canónica (mismo destino que savePlayoffAssign).
+    slots[matchIdx] = { ...slots[matchIdx], [key]: teamId };
+
+    await dbPut('phases', { ...phase, playoffSlots: slots, slotRefs: refs });
+    if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(phaseId);
+
+    // 7. Si cambió el ocupante de este lado, limpiar matches + historial del cruce
+    //    (mismo criterio que savePlayoffAssign: evita mezclar resultados de una pareja anterior).
+    if (changed) {
+      const oldMatches = await dbGetAll('matches', m => m.phaseId === phaseId && m.matchIdx === matchIdx);
+      await _journalCaptureMatches(phaseId, matchIdx, oldMatches);
+      for (const m of oldMatches) {
+        await dbDelete('matches', m.id);
+        if (typeof removeHistoryByMatchRef === 'function') await removeHistoryByMatchRef(m.id);
+      }
+    }
+
+    // 8. Invalidar links stale en TODOS los bombos.
+    for (const bb of state.bombos) {
+      for (const d of bb.drawn) {
+        if (!d.link || d.link.phaseId !== phaseId || d.link.kind !== 'playoff') continue;
+        if (d.link.matchIdx === matchIdx && d.link.side === side && d.teamId !== teamId) d.link = null;
+        else if (d.teamId === teamId && !(d.link.matchIdx === matchIdx && d.link.side === side)) d.link = null;
+      }
+    }
+
+    entry.link = { phaseId, kind:'playoff', matchIdx, side };
+    await saveState();
+    await refreshActive();
+
+    if (displacedTeamId != null && displacedTeamId !== teamId) {
+      showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side} · desplazado ${teamName(displacedTeamId)}`);
+    } else if (prevRef && prevRef.type !== 'team') {
+      showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side} · reemplazó ref dinámica`);
+    } else {
+      showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side}`);
     }
   }
   function escapeHtml(s) {
@@ -1307,9 +1669,73 @@
         </div>
       </aside>
     </div>
+  `;
 
-    <!-- Mirror de fases vinculadas por el sorteo (grupos/brackets en construcción) -->
-    <div id="sorteo-phases-mirror" class="sorteo-mirror"></div>
+  /* Template público, fiel a /prototype: escenario ancho con chibi grande
+     centrado (rig 2.5D), encabezado compacto, contador, y Bombos/Urna/
+     Resultado en un panel secundario expandible (no permanente), DENTRO del
+     escenario — igual que /prototype (prototype.html:1213-1251), no como
+     sección aparte. No hay tablero de destino acá: la sección 02 (página
+     "panel"/Competiciones) es la ÚNICA representación pública del destino
+     real (grupo/posición/cruce/lado); acá cada bola sorteada solo indica
+     a qué competición·fase va, o "Destino pendiente". Reusa #pool-counter/
+     #bombos-bar/#bombo-badge/#btn-sound/.chibi-anchor/.chibi-frame/
+     .spark-burst/.confetti-layer/.reveal-* de siempre. Omite los botones
+     solo-admin (sortear/reset/editar equipos/bombos) — nunca se wirean en
+     modo readOnly. #team-chips/#drawn-list/#drawn-count NO existen acá
+     (renderPool/renderDrawn quedan null-safe); en su lugar,
+     #sorteo-pub-pending/#sorteo-pub-drawn los llena _renderPubUrna(). */
+  const TEMPLATE_PUBLIC = `
+    <div class="sorteo-pub">
+      <section class="sorteo-stage" data-reveal>
+        <div class="sorteo-hdr">
+          <span class="pip"></span>
+          <span class="sorteo-title">Sorteo en directo</span>
+          <span class="pill live">EN VIVO</span>
+          <span id="bombo-badge" class="bombo-badge">—</span>
+          <button id="btn-sound" class="icon-mini" title="Sonido"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
+        </div>
+
+        <div class="chibi-rig">
+          <div class="chibi-glow"></div>
+          <div class="confetti-layer"></div>
+          <div class="chibi-tilt" id="sorteo-chibi-tilt">
+            <div class="chibi-anchor idle sorteo-pub-chibi">
+              ${framesHtml}
+              <div class="spark-burst"></div>
+            </div>
+          </div>
+          <div class="reveal-card" aria-live="polite">
+            <div class="reveal-label">Equipo elegido</div>
+            <div class="reveal-name">—</div>
+            <div class="reveal-meta">—</div>
+          </div>
+        </div>
+
+        <div class="sorteo-counter" id="pool-counter">
+          <span class="num">0</span><small><span class="total">/ 0</span> en la urna</small>
+        </div>
+        <div class="stage-hint" hidden></div>
+
+        <details class="urna-wrap">
+          <summary class="urna-sum">
+            <svg class="us-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span id="sorteo-pub-summary">Ver equipos</span>
+          </summary>
+          <div class="urna-body">
+            <div class="bombos-bar" id="bombos-bar"></div>
+            <div class="urna-group">
+              <span class="urna-lbl">Pendientes en la urna</span>
+              <div class="urna" id="sorteo-pub-pending"></div>
+            </div>
+            <div class="urna-group">
+              <span class="urna-lbl">Ya sorteados</span>
+              <div class="urna" id="sorteo-pub-drawn"></div>
+            </div>
+          </div>
+        </details>
+      </section>
+    </div>
   `;
 
   /* ---------------- Public API ---------------- */
@@ -1350,6 +1776,38 @@
     },
     getBombos() { return JSON.parse(JSON.stringify(state.bombos)); },
     getActive() { return JSON.parse(JSON.stringify(activeBombo())); },
-    async reset() { if (!readOnly) await resetActive(); }
+    async reset() { if (!readOnly) await resetActive(); },
+    /** Consistencia bidireccional con la administración normal de playoff
+     *  (playoff.js): si `savePlayoffAssign`/`clearPlayoffAssign` reemplaza o
+     *  limpia un lado que el Sorteo había vinculado, invalida ese link para
+     *  no dejar badges/destinos stale. Funciona aunque el módulo Sorteo no
+     *  esté montado (opera directo sobre el registro en DB); si SÍ está
+     *  montado en esta pestaña para la misma temporada, refresca en vivo.
+     *  `side` null invalida ambos lados (A y B) del cruce. */
+    async invalidatePlayoffLink(phaseId, matchIdx, side = null) {
+      const season = (typeof STATE !== 'undefined' && STATE.season) || 1;
+      const recs = await dbGetAll('sorteo', r => r.season === season);
+      if (!recs.length) return;
+      const rec = recs[0];
+      let touched = false;
+      const bombos = (rec.bombos || []).map(bb => ({
+        ...bb,
+        drawn: (bb.drawn || []).map(d => {
+          if (d.link && d.link.phaseId === phaseId && d.link.kind === 'playoff' &&
+              d.link.matchIdx === matchIdx && (side == null || d.link.side === side)) {
+            touched = true;
+            return { ...d, link: null };
+          }
+          return d;
+        })
+      }));
+      if (!touched) return;
+      await dbPut('sorteo', { ...rec, bombos, updatedAt: Date.now() });
+      if (root && stateSeason === season) {
+        await loadState();
+        await renderAll();
+      }
+      broadcast({ type:'state', season });
+    }
   };
 })();

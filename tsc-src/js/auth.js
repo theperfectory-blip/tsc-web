@@ -218,7 +218,7 @@ function renderAuthUI(){
     // Botón de perfil con el diseño del rediseño (pill + avatar + chevron),
     // pero conserva el flujo real: onclick → openProfile() (modal completo).
     area.innerHTML =
-      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" onclick="openProfile()">
+      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-modal" onclick="openProfile()">
         <span class="tp-avatar" style="overflow:hidden;">${avatar}</span>
         <svg class="tp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>`;
