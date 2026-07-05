@@ -121,6 +121,8 @@ function teamLogoHtml(name, team, size=28){
   window.launchChampionFireworks = function(teamColors){
     // Si ya hay fuegos corriendo, no relanzar
     if(_fwRunning) return;
+    // Movimiento reducido: sin canvas, partículas, rAF ni audio de cohetes/explosión.
+    if(window.MOTION && typeof MOTION.reduced === 'function' && MOTION.reduced()) return;
 
     // Parsear color del equipo → RGB para variantes
     function hexToRgb(hex){

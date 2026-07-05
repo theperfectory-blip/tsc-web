@@ -550,6 +550,10 @@
     await playDrawAnimation(b, teamId, ord, pool.length - 1);
   }
 
+  function reducedMotion() {
+    return !!(window.MOTION && typeof MOTION.reduced === 'function' && MOTION.reduced());
+  }
+
   async function playDrawAnimation(b, teamId, ord, remaining) {
     busy = true;
     // Flag: durante la animación + 1s post, los renders tratan a este equipo
@@ -562,6 +566,20 @@
     // animación. El chip migra al final tachado recién 1s después.
     await renderPool();
     await renderBombosBar();
+
+    if (reducedMotion()) {
+      // Movimiento reducido: publica el resultado estático de inmediato —
+      // sin frames, drumroll, sparks, shake ni confetti. La reveal card
+      // (aria-live="polite") sigue anunciando el resultado igual que en
+      // el flujo normal, solo que sin la coreografía previa. Usa su propia
+      // finalización (finishSequenceReduced): NO reutiliza finishSequence()
+      // porque esa oculta la tarjeta de inmediato y encadena 280ms+1000ms
+      // de esperas que no aportan nada sin animación que sincronizar.
+      showFrame(SEQ[SEQ.length - 1].frame);
+      showRevealCard(teamName(teamId), ord, remaining, b.name);
+      finishSequenceReduced();
+      return;
+    }
 
     drumHandle = playDrumrollAudio(PRE_REVEAL_MS - 80);
 
@@ -611,6 +629,37 @@
         }
       }, 1000);
     }, 280);
+  }
+
+  // Pausa estática (sin movimiento) antes de finalizar un sorteo con
+  // movimiento reducido: no sincroniza ninguna animación, solo le da tiempo
+  // al lector de pantalla de anunciar la reveal card (aria-live="polite")
+  // antes de que el resto del estado (controles, pool, cola realtime) se
+  // libere de una sola vez.
+  const REDUCED_REVEAL_PAUSE_MS = 700;
+
+  function finishSequenceReduced() {
+    drumHandle = null;
+    setTimeout(async () => {
+      hideRevealCard();
+      showFrame(0);
+      chibi.classList.add('idle');
+      _drawingTeamId = null;
+      busy = false;
+      await renderAll();
+      setControlsBusy(false);
+      const b = activeBombo();
+      if (b) {
+        const drawnSet = new Set(b.drawn.map(d => d.teamId));
+        const remaining = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id));
+        if (!remaining.length && b.drawn.length) flashHint(`${b.name} completo`, true);
+      }
+      // Público en vivo: drenar la cola si llegaron más sorteos durante esta pausa
+      // (busy ya es false acá, así que _processDrawQueue puede seguir con el siguiente).
+      if (readOnly && _drawEventQueue.length && root && root.offsetParent !== null) {
+        await _processDrawQueue();
+      }
+    }, REDUCED_REVEAL_PAUSE_MS);
   }
 
   function setControlsBusy(b) {

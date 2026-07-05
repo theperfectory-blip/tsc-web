@@ -738,7 +738,7 @@ function _calWireHero(scope){
   if(comp) comp.addEventListener('click', (e)=>{ e.stopPropagation(); _calHeroGoComp(); }, listen);
   const cal = scope.querySelector('.hm-cta-cal');
   if(cal) cal.addEventListener('click', (e)=>{ e.stopPropagation();
-    scope.querySelector('.metro')?.scrollIntoView({behavior:'smooth', block:'start'}); }, listen);
+    scope.querySelector('.metro')?.scrollIntoView({behavior:_reduced()?'auto':'smooth', block:'start'}); }, listen);
 
   /* ── Proximidad del radar en vivo ─────────────────────────────────────────
      Si el hero está en vivo, el cursor sobre la tarjeta acerca el sonido (limpio
@@ -1035,7 +1035,10 @@ async function renderPubCalendar(){
       tmp.innerHTML = toRender.map(metroDay).join('');
       while(tmp.firstChild) metroEl.insertBefore(tmp.firstChild, btn);
       if(!_pending.length) btn.remove();
-      else btn.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      else{
+        const reduced = window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
+        btn.scrollIntoView({ behavior:reduced?'auto':'smooth', block:'nearest' });
+      }
     });
   };
   _wireMore();

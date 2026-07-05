@@ -1,6 +1,8 @@
-# Pre-slice — Macro Slice D · Backup/Restauración + Sorteo público en tiempo real (v3.4d — CERRADO SIN PENDIENTES)
+# Pre-slice — Macro Slice D · Backup/Restauración + Sorteo público en tiempo real (v3.4f — verificación de reduced-motion en curso)
 
-> **v3.4d (2026-07-04) — cierre absoluto.** Se validó manualmente en la consola de Firebase el único punto que quedaba fuera de alcance: las reglas Firestore de `palmares`. Ver sección 10 para el detalle (reglas desplegadas vs. locales, 3 simulaciones en la Zona de pruebas). Slice D queda cerrado sin ningún punto pendiente.
+> **v3.4f (2026-07-04) — corrección tras revisión de Codex.** La verificación inicial de `prefers-reduced-motion` (v3.4e) fue **incompleta**: solo cubrió los entry points genéricos de `motion.js` (`reveal`, `ticker`, `countUp`), no las coreografías propias de `sorteo.js` (7 frames + drumroll + sparks + confetti, ~5s) ni los fuegos artificiales canvas de `bracket.js` (~7s), ni varios `scrollIntoView({behavior:'smooth'})` forzados en `calendar.js`/`history.js`, ni el rebote elástico del volumen en `ui-utils.js`. Codex encontró los 4 puntos y esta ronda los corrige — ver sección 11 reescrita. **El commit documental "sin pendientes" de v3.4e NO está autorizado**; el merge sigue detenido hasta que Codex valide esta corrección y se re-verifique la coreografía normal (animaciones activadas).
+
+> **v3.4d (2026-07-04) — cierre absoluto.** Se validó manualmente en la consola de Firebase el único punto que quedaba fuera de alcance en ese momento: las reglas Firestore de `palmares`. Ver sección 10 para el detalle (reglas desplegadas vs. locales, 4 simulaciones en la Zona de pruebas, incluyendo el caso positivo con UID real de admin).
 
 > **v3.4c (2026-07-03) — cierre funcional.** Codex aprobó funcionalmente el último punto de código pendiente (scroll-spy saltándose la sección 05 al cruzar Equipos↔Historial) tras verificación en navegador real. Ver sección 9 para causa raíz, cambio de código, secuencias verificadas y QA.
 
@@ -196,7 +198,7 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - `renderPubPanel()`: no necesitó el mismo tratamiento — la sección 02 no usa `[data-reveal]` en ningún nodo propio (confirmado por grep), sigue sin fade genérico de wrapper, sin cambios respecto a v3.3.
 
 **Verificado en esta ronda:** se invocó `renderPubCalendar()`/`renderPubHistory()` directamente sobre una sección ya montada (con contenido previo real) y se confirmó que el nodo `[data-reveal]` resultante es un nodo DOM distinto al anterior (`sameNode:false` — realmente se reconstruyó) pero queda con `revealBound:"1"`, `revealed:"1"`, `opacity` computado `"1"` y `transform` computado `"none"` de inmediato, sin pasar por el `IntersectionObserver`. El disparo real de la animación de entrada en el **primer** montaje (mount limpio) no se volvió a re-verificar en esta ronda porque no cambió respecto a v3.3 (ya verificado entonces).
-- `prefers-reduced-motion`: no se pudo emular en este entorno de preview (no hay herramienta de emulación de media features a nivel de navegador expuesta en esta sesión, y `_mql` se captura una sola vez al cargar `motion.js` — sobreescribir `MOTION.reduced` desde fuera no intercepta la referencia interna que usa `reveal()`). Se confirmó por lectura de código que la lógica de `reduced()`/`_settle()` no se modificó en esta ronda; queda pendiente una verificación en vivo con la preferencia del SO activada.
+- `prefers-reduced-motion`: `reveal()`/`_settle()` y `MOTION.ticker()` ya la respetaban sin tocar código; pero la primera pasada (v3.4e) fue incompleta — Codex encontró 4 coreografías fuera de `motion.js` que la ignoraban por completo, corregidas en v3.4f (sección 11): sorteo, fuegos del bracket, scrolls forzados y rebote del volumen. **Pendiente de validación de Codex y re-verificación con animaciones activadas antes de cerrar.**
 
 ## 8 — Pills del Sorteo: legibilidad y semántica (corregido)
 
@@ -244,6 +246,49 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 
 **Conclusión:** el modelo de seguridad de `palmares` (lectura pública, escritura solo admin) está correctamente desplegado y se comporta como se espera. Slice D no tiene ningún punto pendiente restante.
 
+## 11 — `prefers-reduced-motion`: verificación inicial incompleta, corregida tras revisión de Codex (v3.4e → v3.4f)
+
+**Alcance:** el otro punto que quedaba documentado como "no se pudo emular en este entorno" en las secciones 7/9 y en criterios de aceptación. El usuario activó la preferencia real del sistema operativo (Windows → Accesibilidad → Efectos visuales → **Efectos de animación: Desactivado**) y se verificó en el navegador real conectado (no en el entorno de preview aislado, que no expone emulación de media features).
+
+### v3.4e — primera pasada (incompleta)
+
+**Verificado (`http://localhost:3000`, navegador real con la preferencia del SO activa):**
+- `window.matchMedia('(prefers-reduced-motion: reduce)').matches` → `true` y `MOTION.reduced()` → `true`: la preferencia del SO se propaga correctamente hasta la media query del navegador y hasta el gate interno de `motion.js`.
+- `reveal()` (usado por `revealWithin`/`revealAll` en calendario/sorteo/historial): los nodos `[data-reveal]` ya montados (`hero-match`, `sorteo-stage`) muestran `data-revealed="1"`, `opacity:1`, `transform:none` — confirma que tomaron la rama `if (reduced()) { _settle(el); return; }` y nunca pasaron por el estado oculto (`opacity:0`) ni por el `IntersectionObserver` de animación.
+- `MOTION.ticker('#ticker', ...)` (marquesina del ticker, cableada en `public.js:661`): `#ticker` tiene un solo hijo (`#ticker-track`, sin clon `aria-hidden`) y `transform:none` — confirma que tomó la rama `if (reduced()) return () => {};` sin clonar el track ni animar `translateX`.
+
+**Nota metodológica (sigue vigente):** una llamada directa a `scrollToPublicSection('calendario')` vía consola tardó más de 45s y su promesa fue abortada por el timeout del harness de automatización antes de llegar al `window.scrollTo` final (dejando `STATE.publicPage` actualizado pero `scrollY` en 0) — esto es un artefacto de invocar la función interna por consola con un timeout más corto que el montaje real (probablemente una espera de red de Firestore), no un bug de reduced-motion.
+
+**Corrección propia (autocrítica, antes de la revisión de Codex):** esta primera pasada solo cubrió los entry points genéricos de `motion.js`. **No revisó las coreografías con temporizadores propios fuera de `motion.js`** (sorteo, fuegos artificiales canvas, `scrollIntoView` puntuales, rebote de UI). Esa fue la brecha real que Codex encontró.
+
+### v3.4f — hallazgos de Codex y corrección
+
+**Codex reprodujo 4 puntos donde la preferencia del SO se ignoraba por completo** (reveal/ticker no los cubren porque son coreografías con su propio `setTimeout`/`requestAnimationFrame`, no pasan por `MOTION.reveal`/`MOTION.ticker`):
+1. `sorteo.js` (`playDrawAnimation`, líneas ~553-585): ejecutaba los 7 frames + drumroll + esperas + sparks + confetti (~5s) sin importar la preferencia.
+2. `bracket.js` (`launchChampionFireworks`, líneas ~121-123): canvas + partículas + `requestAnimationFrame` + audio de cohetes/explosión durante 7s, sin gate.
+3. `calendar.js` (líneas 740-741 y 1038) e `history.js` (línea 1499): `scrollIntoView({behavior:'smooth'})` forzado, ignorando la preferencia.
+4. `ui-utils.js` (`springBack`, líneas 209-236): rebote elástico del control de volumen con overshoot, 430ms de `requestAnimationFrame`, sin gate.
+
+**Fix aplicado (5 archivos JS):**
+- **`bracket.js`:** `launchChampionFireworks` retorna antes de crear el canvas/audio si `MOTION.reduced()` es `true`.
+- **`calendar.js` (2 sitios) e `history.js` (1 sitio):** los tres `scrollIntoView` usan `behavior: reduced ? 'auto' : 'smooth'` (reutilizando el `_reduced()` ya existente en el closure del hero; inline en los otros dos sitios, mismo patrón que el resto del archivo).
+- **`ui-utils.js`:** `springBack()` llama a `clearOvfImmediate()` y retorna de inmediato si `reduced`, sin entrar al loop de `requestAnimationFrame` de 430ms con overshoot.
+- **`sorteo.js`:** `playDrawAnimation` gana una rama `reducedMotion()` que muestra el frame final + `showRevealCard()` (aria-live) sin frames/drumroll/sparks/shake/confetti.
+
+**Primer intento de fix del sorteo — también incompleto (encontrado por Codex, no autodetectado):** la rama reducida inicial llamaba a `setTimeout(finishSequence, 0)`, reutilizando la finalización del flujo normal — pero `finishSequence()` oculta la reveal card de inmediato (`hideRevealCard()` es la primera línea) y encadena esperas de 280ms + 1000ms que no tienen ningún propósito sin animación que sincronizar. Resultado real: la tarjeta casi no llegaba a mostrarse, `busy` seguía bloqueado 1.28s sin motivo, y los controles/urna/cola realtime se actualizaban tarde.
+
+**Fix definitivo:** nueva función `finishSequenceReduced()`, independiente de `finishSequence()`, con su propia pausa estática (`REDUCED_REVEAL_PAUSE_MS = 700`, sin animación — solo tiempo de lectura para el aria-live) y una única finalización atómica al final de esa pausa: oculta la tarjeta, resetea el frame a idle, libera `busy`, re-renderiza, libera controles y drena la cola realtime **todo junto**, sin los delays de 280ms/1000ms del flujo normal.
+
+**Verificado (sin ejecutar un sorteo real — un `drawNext()` real escribiría en el Firestore de producción, prohibido sin autorización):**
+- **Fireworks:** se llamó a `window.launchChampionFireworks(...)` directamente (no muta datos) con `MOTION.reduced()===true` → cero `<canvas id="fw-canvas">` creado, cero `AudioContext` instanciado (interceptado con un stub temporal).
+- **H2H scroll (`history.js`):** se invocó `histH2HShow('MALVINAS JR', 'LA BOLSA FC')` con dos equipos reales de la DB de desarrollo → `scrollIntoView` capturado con un monkey-patch temporal de `Element.prototype.scrollIntoView` (revertido, nunca persistido): `{"behavior":"auto","block":"center"}`.
+- **Volumen (`ui-utils.js`):** se simuló un arrastre real más allá del borde con `PointerEvent` sintéticos (`pointerdown`/`pointermove`/`pointerup`) sobre `#vol-track-outer` (revelado vía `openSettings()`) → al soltar, `track.style.transform` se limpia a `''` en el mismo tick y **cero llamadas a `requestAnimationFrame`** durante la prueba (interceptado con un stub temporal) — antes corría 430ms de spring con overshoot.
+- **Sorteo:** se expuso temporalmente `window.__sorteoDebug = { playDrawAnimation, finishSequenceReduced, teamName, isBusy }` (removido del código antes de este commit — no queda en el diff) y se invocó `playDrawAnimation` con un bombo/equipo ficticios (`__test_bombo__`/`__fake_team_1__`, nunca parte de `state.bombos` real, cero `dbPut`/`saveState`/`broadcast`). Con un `MutationObserver` sobre `.reveal-card` y `.chibi-rig` más `isBusy()`: la tarjeta pasó a visible (`reveal-card in`) a los ~1-2ms de la llamada, y la ocultación + `chibi` a idle + `busy→false` ocurrieron **en el mismo instante** (una sola mutación agrupada), repetido en 2 corridas independientes. El tiempo absoluto observado hasta esa finalización (~1.3-1.5s) es mayor que los 700ms configurados por un artefacto de *throttling* de temporizadores en la pestaña automatizada (el mismo patrón de retraso ya documentado para `scrollToPublicSection`/`setInterval` en esta sesión) — lo relevante y confirmado es que la finalización es **atómica** (un solo salto, no dos escalonados) y que la tarjeta es visible desde el primer instante, no que el número absoluto de ms coincida exactamente en este entorno.
+- **`calendar.js` (CTA "Calendario completo" y "Cargar más"):** no se pudieron ejercitar en vivo — el dataset de desarrollo actual no cumple las condiciones que renderizan esos dos elementos (`.hm-cta-cal` solo aparece si el partido destacado no tiene competición asociada; "Cargar más" solo si hay fechas pendientes más allá del horizonte). Verificado por lectura de código: mismo patrón `_reduced()`/`MOTION.reduced()` ya confirmado funcional en los otros casos, `node --check` limpio.
+- Sin errores de consola en ninguna prueba (verificado con `read_console_messages`). Cero escrituras a Firestore de producción en toda la ronda.
+
+**Pendiente antes de cerrar v3.4f:** con la preferencia del SO todavía **desactivada** (movimiento reducido), falta que Codex valide esta corrección. Después de esa validación, el usuario reactivará las animaciones de Windows y se reverificará la coreografía normal (no reducida) de sorteo/fuegos/scrolls/volumen para descartar regresiones antes de cerrar el punto y autorizar el commit documental de cierre.
+
 ## Resto del plan de datos (sin cambios respecto a v3.1, aprobado)
 - Export/import dinámico por `STORES` (ya en el working tree).
 - IDs preservados globalmente vía `dbPut`/upsert — aprobado explícitamente por Codex para todas las stores, no solo Palmarés.
@@ -264,7 +309,15 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - `db.js`: `dbSubscribe` con dedupe de snapshots idénticos (v3.4b) — mejora válida, no fue la causa del bug de Historial, se conserva.
 - `redesign-shell.js`: `_buildFocusObserver` recalcula el candidato con rects en vivo de todas las secciones activas en cada callback, en vez de depender solo de `entries` (v3.4c, sección 9) — corrige el salto de Sorteo detectado por Codex.
 
-**NO tocados:** `state.js`, `cloudinary.js`, `firebase-config.js`, `public-bracket.js`, `standings.js`, `palmares.js`/`teams.js` (01/04 — sin regresión medida, no se tocaron). No se creó ningún store ni segundo módulo paralelo.
+**Tocados en v3.4f (corrección de `prefers-reduced-motion`, sección 11):**
+- `sorteo.js`: `playDrawAnimation` gana rama `reducedMotion()` (resultado estático + aria-live, sin frames/drumroll/sparks/shake/confetti); nueva `finishSequenceReduced()` con finalización propia y atómica (`REDUCED_REVEAL_PAUSE_MS`), independiente de `finishSequence()`.
+- `bracket.js`: `launchChampionFireworks` sale antes de crear canvas/audio si `MOTION.reduced()`.
+- `calendar.js`: los dos `scrollIntoView` (CTA "Calendario completo" y "Cargar más") usan `behavior:'auto'` cuando `reduced`.
+- `history.js`: el `scrollIntoView` del H2H usa `behavior:'auto'` cuando `reduced`.
+- `ui-utils.js`: `springBack()` llama a `clearOvfImmediate()` y retorna si `reduced`, sin el loop de `requestAnimationFrame` con overshoot.
+- `teams.js`: corregido un salto de línea en blanco al final de archivo (`git diff --check origin/main...HEAD` lo señalaba) — sin cambios funcionales.
+
+**NO tocados:** `state.js`, `cloudinary.js`, `firebase-config.js`, `public-bracket.js`, `standings.js`, `palmares.js` (01/04 — sin regresión medida, no se tocaron). No se creó ningún store ni segundo módulo paralelo.
 
 ## Riesgos + mitigaciones (final, v3.3)
 - Restauración parcial ante backup **estructuralmente inválido** → prevalidación completa antes de tocar la DB (mitigado, probado).
@@ -282,8 +335,8 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - **Scroll-spy se saltaba la sección 05 Sorteo al cruzar Equipos↔Historial** (bug real reproducido 3/3 veces por Codex, no autodetectado) → `_buildFocusObserver` (`redesign-shell.js`) recalcula el candidato con rects en vivo de todas las secciones activas en cada callback en vez de depender solo de `entries` del `IntersectionObserver` (corregido y cerrado — ver sección 9).
 - El conteo animado de los hitos de Historial se reiniciaba en cada reenfoque (efecto colateral del `renderPubHistory()` forzado) → corregido con dirty-check por firma de datos; eso a su vez apagó la animación por completo (se disparaba solo en el montaje, que ocurre fuera de viewport) → corregido con disparo one-shot por `IntersectionObserver` propio del contador (`_pubScheduleCount`). Ambos puntos cerrados y verificados — ver sección 9.
 - Fade+rise no cableado en refrescos (solo en el primer montaje) → `MOTION.settleWithin` asienta los nodos `[data-reveal]` reconstruidos sin re-animarlos (corregido, verificado con `renderPubCalendar`/`renderPubHistory` invocados directamente sobre una sección ya montada).
-- `prefers-reduced-motion` no se pudo emular en este entorno de preview (sin herramienta de emulación de media features expuesta) → riesgo residual: falta una verificación en vivo con la preferencia del SO activada; la lógica no se modificó en esta ronda (ya funcionaba antes).
-- Ninguna prueba de esta ronda usó un evento de rueda (`wheel`) real del sistema operativo — se usó `window.scrollBy` sintético en pasos fijos, que sí probó exhaustivamente ausencia de saltos/colapsos pero no reproduce exactamente la cadencia/variabilidad de un mouse o trackpad real.
+- `prefers-reduced-motion` → **corregido en v3.4f (sección 11), pendiente de validación de Codex y de re-verificación con animaciones activadas**: Codex encontró 4 coreografías (sorteo, fuegos del bracket, scrolls forzados, rebote de volumen) que ignoraban la preferencia; corregidas en `bracket.js`, `calendar.js`, `history.js`, `sorteo.js`, `ui-utils.js`. El primer intento de fix del sorteo también fue incompleto (reutilizaba los delays de `finishSequence`) — corregido con `finishSequenceReduced()` dedicada.
+- Ninguna prueba de esta ronda (v3.3/v3.4) usó un evento de rueda (`wheel`) real del sistema operativo — se usó `window.scrollBy` sintético en pasos fijos, que sí probó exhaustivamente ausencia de saltos/colapsos pero no reproduce exactamente la cadencia/variabilidad de un mouse o trackpad real. **Superado en v3.4c (sección 9):** verificado después con rueda real del navegador conectado del usuario, en ambas direcciones, sin saltos de sección — esta limitación ya no aplica.
 - QA de esta ronda no mutó Firestore/Cloudinary de producción — todas las verificaciones fueron lecturas (`renderPub*` invocados directamente, `ensurePublicSectionMounted`, scroll sintético) contra el backend Firestore real del proyecto (`tsc-web-yuna`, confirmado activo — `USE_FIRESTORE=true` en este entorno), sin ningún `dbPut`/`dbAdd`/`dbDelete`.
 
 ## Pasos de ejecución (histórico, cumplido)
@@ -300,13 +353,13 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 22. Recuperar el conteo animado sin reabrir el bug (disparo one-shot por `IntersectionObserver` propio, `_pubScheduleCount`) — **hecho** (v3.4b/c), verificado en vivo (27 pasos de easing, sin repetición en reenfoques).
 23. Corregir el scroll-spy saltándose Sorteo (`_buildFocusObserver` recalculando con rects en vivo de todas las secciones) — **hecho** (v3.4c), verificado con rueda real en ambas direcciones.
 24. QA con evento de rueda real del sistema operativo — **hecho en esta sub-iteración** (v3.4c, vía navegador conectado del usuario), cerrando la limitación de método documentada en la ronda anterior.
-25. Verificación en vivo de `prefers-reduced-motion` con la preferencia del SO activada — **sigue pendiente**, no se pudo emular en ningún entorno disponible; no bloqueante para el cierre (la lógica de `reduced()`/`_settle()` no se tocó en todo el slice).
+25. Verificación en vivo de `prefers-reduced-motion` con la preferencia del SO activada — **v3.4e incompleta, corregida en v3.4f** (sección 11): 4 coreografías fuera de `motion.js` (sorteo, fuegos, scrolls forzados, rebote de volumen) ignoraban la preferencia; corregidas en 5 archivos JS y reverificadas sin mutar datos reales. **Pendiente:** validación de Codex + re-verificación con animaciones activadas.
 
 ## Gates de ejecución
 - Un solo escritor sobre el módulo.
 - No ejecutar sorteos, vínculos, imports ni subidas automatizadas contra producción sin autorización explícita — respetado.
 - No hay gates artificiales de porcentaje/token; el cierre depende de criterios funcionales y QA.
-- **Slice D aprobado funcionalmente por Codex y cerrado (2026-07-03).** Único punto que quedaba fuera del alcance del implementador (validación manual de reglas Firestore de `palmares` en consola) se completó el 2026-07-04 — ver sección 10. Slice D cerrado sin pendientes.
+- **Slice D aprobado funcionalmente por Codex (2026-07-03).** Reglas Firestore de `palmares` validadas en consola el 2026-07-04 (sección 10). **`prefers-reduced-motion` en curso (sección 11, v3.4f):** Codex encontró 4 gaps el 2026-07-04 (sorteo, fuegos, scrolls, volumen), corregidos y reverificados con animaciones desactivadas — **pendiente validación de Codex de esta corrección y re-verificación de la coreografía normal con animaciones reactivadas.** El commit documental "sin pendientes" y el merge a `main` quedan detenidos hasta entonces.
 
 ## Criterios de aceptación (final, v3.3)
 - Galería: persiste hasta 12, sala rota mostrando máx 7 simultáneas entre las 12. QA en 0/1/3/7/12 — **cumplido**.
@@ -325,7 +378,7 @@ Ese fix expuso un segundo bug, más grave, que causaba el colapso de scroll — 
 - Scroll-spy no se salta ninguna sección al cruzar rápido entre ellas — **cumplido**: `_buildFocusObserver` recalcula con rects en vivo de todas las secciones activas, no solo las que cambiaron de intersección en el callback — ver sección 9.
 - Conteo animado de los hitos de Historial se dispara una sola vez al entrar en viewport y no se reinicia en reenfoques posteriores — **cumplido**, verificado con 131 muestras en 4 reenfoques (un solo valor) y con la animación completa capturada en vivo al primer ingreso.
 - Fade+rise cableado en calendario (hero + `.metro-day`), sorteo (`.sorteo-stage`) e historial — **cumplido**, y además, nuevo en esta ronda: los refrescos posteriores al primer montaje asientan sus nodos `[data-reveal]` reconstruidos sin re-animarlos (`MOTION.settleWithin`, verificado con `renderPubCalendar`/`renderPubHistory` invocados sobre una sección ya montada).
-- `prefers-reduced-motion` — **no verificado en esta ronda** (sin herramienta de emulación disponible); la lógica no se tocó.
+- `prefers-reduced-motion` — **en curso (v3.4f, sección 11):** 4 gaps encontrados por Codex corregidos (sorteo, fuegos, scrolls, volumen); pendiente validación de Codex y re-verificación de la coreografía normal con animaciones activadas antes de marcar como cumplido.
 - `firebase-config.js`/`cloudinary.js` no se tocan ni se stagean — **cumplido**.
 - `.serve-3000.*` no se stagean — **cumplido** (quedan sin trackear; no se pudieron borrar, proceso `node.exe` ajeno los tiene abiertos).
 - `node --check` limpio en los 12 archivos JS tocados (calendar.js, data.js, db.js, history.js, motion.js, nav.js, palmares.js, playoff.js, public.js, public-bracket.js, redesign-shell.js, sorteo.js), `git diff --check` limpio, `graphify update .` corrido — **cumplido**.

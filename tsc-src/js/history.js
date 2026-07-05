@@ -1496,7 +1496,8 @@ async function histH2HShow(qA, qB){
   if(inA) inA.value = ta.name;
   if(inB) inB.value = tb.name;
   _pubDrawH2H('Mano a mano');
-  document.querySelector('.h2h-frame')?.scrollIntoView({behavior:'smooth', block:'center'});
+  const _h2hReduced = window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
+  document.querySelector('.h2h-frame')?.scrollIntoView({behavior:_h2hReduced?'auto':'smooth', block:'center'});
 }
 
 async function _renderHistoryStandingsInto(el, isAdmin){

@@ -208,6 +208,8 @@ function initVolSlider(){
   /* Animación spring-back con leve overshoot al soltar */
   function springBack(){
     cancelAnimationFrame(springId);
+    const reduced = window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
+    if (reduced) { clearOvfImmediate(); return; }
     const m  = track.style.transform || '';
     const sx = parseFloat(m.match(/scaleX\(([^)]+)\)/)?.[1] ?? 1);
     const sy = parseFloat(m.match(/scaleY\(([^)]+)\)/)?.[1] ?? 1);

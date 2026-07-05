@@ -737,4 +737,3 @@ function _pubBindTeamsSpotlight(){
     card.style.setProperty('--my', (e.clientY - r.top) + 'px');
   }, { passive:true });
 }
-
