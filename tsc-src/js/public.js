@@ -27,7 +27,8 @@ function _pubMakeCarousel(cc, items, activeIdx, onChange){
   const curTx = ()=> new DOMMatrixReadOnly(getComputedStyle(track).transform).m41;
   function center(animate){
     const it = track.children[idx]; if(!it) return;
-    const PEEK = window.innerWidth <= 560 ? 14 : 30;
+    const isHitoFilter = cc.classList.contains('hito-filter-rail');
+    const PEEK = isHitoFilter ? (window.innerWidth <= 560 ? 4 : 6) : (window.innerWidth <= 560 ? 14 : 30);
     if(!animate) track.style.transition = 'none';
     view.style.width = (it.offsetWidth + PEEK*2) + 'px';
     const tx = view.clientWidth/2 - (it.offsetLeft + it.offsetWidth/2);

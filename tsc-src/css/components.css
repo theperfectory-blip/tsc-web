@@ -113,7 +113,7 @@
 
 /* Stats cards */
 .stat-card{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);padding:14px;}
-.stat-num{font-family:'Bebas Neue';font-size:34px;color:var(--gold);}
+.stat-num{font-family:'Bebas Neue';font-size:34px;color:var(--gold-ink);}
 .stat-lbl{font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
 
 /* Toggle */
@@ -221,7 +221,7 @@
   flex-shrink:0;
   outline:none;
 }
-.theme-pill:focus-visible{box-shadow:0 0 0 2px var(--gold);}
+.theme-pill:focus-visible{box-shadow:0 0 0 2px var(--focus-ring);}
 [data-theme="light"] .theme-pill{
   background:#ffffff;border-color:#e4e4e7;
 }
@@ -338,7 +338,7 @@
 .btn-quiet{border-color:transparent;background:transparent;color:var(--txt2);}
 .btn-quiet:hover{color:var(--txt);background:var(--card2);}
 .btn:focus-visible,.btn-gold:focus-visible,.btn-ghost:focus-visible{
-  outline:2px solid var(--gold);outline-offset:2px;
+  outline:2px solid var(--focus-ring);outline-offset:2px;
 }
 
 /* ---- Chips de estado broadcast ---- */
@@ -352,7 +352,7 @@
 .chip-live .chip-dot{width:6px;height:6px;border-radius:50%;background:#ff5252;animation:chipPulse 1.4s var(--ease-in-out) infinite;}
 .chip-final{background:var(--card2);color:var(--txt2);border:1px solid var(--brd2);letter-spacing:1.5px;}
 .chip-vs{background:transparent;color:var(--txt3);font-family:'Bebas Neue';letter-spacing:2px;}
-.chip-today{background:var(--gold-l);color:var(--gold);border:1px solid var(--gold-b);}
+.chip-today{background:var(--gold-l);color:var(--gold-ink);border:1px solid var(--gold-b);}
 .chip-soon{background:var(--blue-l);color:#7eb0ff;border:1px solid rgba(59,130,246,0.35);}
 @keyframes chipPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(0.7);}}
 
@@ -372,7 +372,7 @@
 .score-row:hover{border-color:var(--gold-b);transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,0.5);}
 .score-row:hover::after{animation:scoreSheen .7s var(--ease-out) forwards;}
 @keyframes scoreSheen{to{transform:translateX(120%);}}
-.score-row:hover .score-n:not(.lose){color:var(--gold);text-shadow:0 0 20px var(--gold-glow);}
+.score-row:hover .score-n:not(.lose){color:var(--gold-ink);text-shadow:0 0 20px var(--gold-glow);}
 .score-row:has(.chip-live){animation:scoreLive 1.8s ease-in-out infinite;}
 @keyframes scoreLive{0%,100%{box-shadow:0 0 0 1px transparent;}50%{box-shadow:0 0 18px var(--green-glow);}}
 .score-edge{width:6px;flex:none;background:var(--team-color);transition:width var(--dur-mid) var(--ease-out);}

@@ -120,55 +120,90 @@
   /* ---- Tiempo real CROSS-DEVICE para espectadores (Firestore onSnapshot). ----
      BroadcastChannel solo sincroniza pestañas del mismo dispositivo; los
      espectadores en sus móviles necesitan esto para ver el sorteo en vivo
-     (con la animación pick-and-open-ball), no solo al recargar. */
+     (con la animación pick-and-open-ball), no solo al recargar.
+     Dos suscripciones con roles distintos:
+     - 'sorteoEvents' (documento inmutable por bola sorteada, id entero
+       asignado atómicamente vía _fsNextId) → ÚNICA fuente que dispara
+       animación de bola nueva.
+     - 'sorteo' (documento resumen: bombos/activeId/links) → cambios de SETUP
+       (agregar/renombrar bombo, editar equipos de un bombo, cambiar bombo
+       activo, vincular/desvincular) que NO son una bola nueva. Sin esto el
+       público remoto solo se enteraba de esos cambios al recargar, porque
+       saveState() los emite por BroadcastChannel (solo mismo dispositivo). */
   let _sorteoUnsub = null;
-  // Cola FIFO de eventos de bola NORMALIZADOS (no snapshots completos, que
-  // podrían pisarse entre sí si llegan varios mientras hay una animación en
-  // curso). Cada evento: { bomboId, teamId, ord, at }. `_knownDrawnKeys`
-  // dedupea por identidad estable (bomboId+at; fallback bomboId+ord+teamId
-  // para datos legacy sin `at`) para no reencolar lo mismo si Firestore
-  // reenvía el mismo snapshot.
+  let _sorteoStateUnsub = null;
+  // Cola FIFO de eventos de bola NORMALIZADOS: { bomboId, teamId, ord, at }.
+  // `_knownDrawnKeys` dedupea por el id propio del evento (estable y único,
+  // asignado por Firestore) para no reencolar lo mismo si el snapshot se
+  // reenvía. `_knownEventCountByBombo` solo sirve para detectar un reset
+  // (sorteoEvents borrado para ese bombo) y descartar cola obsoleta.
   let _drawEventQueue = [];
   let _knownDrawnKeys = new Set();
-  function _drawnKey(bomboId, d) {
-    return d?.at != null ? `${bomboId}:${d.at}` : `${bomboId}:${d?.ord ?? ''}:${d?.teamId}`;
-  }
+  let _knownEventCountByBombo = {};
+  // El PRIMER snapshot de 'sorteoEvents' tras cada (re)suscripción es el
+  // historial existente, no bolas nuevas — un espectador que entra tarde (o
+  // recién monta el módulo) no debe ver un replay de todo lo ya sorteado.
+  // Se usa como línea de base (puebla _knownDrawnKeys/_knownEventCountByBombo
+  // sin encolar nada) y recién desde el segundo snapshot en adelante se
+  // anima lo que llegue de más.
+  let _sorteoBaselineReady = false;
   function _subscribeSorteoLive() {
     if (typeof dbSubscribe !== 'function') { ensureBC(); return; }
     _unsubscribeSorteoLive();
-    _sorteoUnsub = dbSubscribe('sorteo', r => r.season === stateSeason, onSorteoSnapshot);
+    _sorteoBaselineReady = false;
+    _sorteoUnsub = dbSubscribe('sorteoEvents', r => r.season === stateSeason, onSorteoEventsSnapshot);
+    _sorteoStateUnsub = dbSubscribe('sorteo', r => r.season === stateSeason, onSorteoStateSnapshot);
   }
   function _unsubscribeSorteoLive() {
     if (_sorteoUnsub) { try { _sorteoUnsub(); } catch(e){} _sorteoUnsub = null; }
+    if (_sorteoStateUnsub) { try { _sorteoStateUnsub(); } catch(e){} _sorteoStateUnsub = null; }
+    clearTimeout(_sorteoStateDebounceTimer);
+    clearTimeout(_sorteoStateFallbackTimer);
+    _pendingSorteoStateRefresh = false;
+    _lastSorteoStateRows = null;
   }
-  async function onSorteoSnapshot(rows) {
+  async function onSorteoEventsSnapshot(rows) {
     if (!root || !readOnly) return;
-    const rec = rows.find(r => r.season === stateSeason);
-    if (!rec) return;
-    const newBombos = rec.bombos || [];
 
-    // Detectar TODAS las bolas nuevas (no solo la última) en TODOS los
-    // bombos, comparando contra lo que ya conocemos localmente. Encola
-    // eventos normalizados — no snapshots — para no perder sorteos rápidos.
-    for (const nb of newBombos) {
-      const ob = state.bombos.find(b => b.id === nb.id);
-      const known = ob ? ob.drawn.length : 0;
-      const drawnArr = nb.drawn || [];
-      if (drawnArr.length < known) {
-        // Reset detectado en este bombo: cancelar animaciones obsoletas de
-        // ESTE bombo que estuvieran encoladas (ya no corresponden a nada).
-        _drawEventQueue = _drawEventQueue.filter(ev => ev.bomboId !== nb.id);
-        continue;
+    // Agrupar por bombo y ordenar por id (entero, asignado en orden de
+    // creación) → orden total confiable sin depender de `at` (reloj cliente).
+    const sorted = rows.slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+    const byBombo = {};
+    sorted.forEach(ev => { (byBombo[ev.bomboId] ||= []).push(ev); });
+
+    if (!_sorteoBaselineReady) {
+      // Línea de base: registrar lo que YA existe sin encolar animación.
+      _sorteoBaselineReady = true;
+      _knownDrawnKeys = new Set();
+      _knownEventCountByBombo = {};
+      for (const [bomboId, evs] of Object.entries(byBombo)) {
+        _knownEventCountByBombo[bomboId] = evs.length;
+        evs.forEach(ev => _knownDrawnKeys.add('sorteoEvents:' + ev.id));
       }
-      for (let i = known; i < drawnArr.length; i++) {
-        const d = drawnArr[i];
-        const key = _drawnKey(nb.id, d);
-        if (_knownDrawnKeys.has(key)) continue;
+      const keepLocalActive = state.activeId;
+      await loadState();
+      if (keepLocalActive && state.bombos.find(b => b.id === keepLocalActive)) state.activeId = keepLocalActive;
+      await renderAll();
+      if (typeof refreshSorteoTabVisibility === 'function') refreshSorteoTabVisibility();
+      return;
+    }
+
+    for (const [bomboId, evs] of Object.entries(byBombo)) {
+      const known = _knownEventCountByBombo[bomboId] || 0;
+      if (evs.length < known) {
+        // Reset detectado (sorteoEvents del bombo se vació): descartar cola
+        // pendiente de ESTE bombo, ya no corresponde a nada.
+        _drawEventQueue = _drawEventQueue.filter(ev => ev.bomboId !== bomboId);
+      }
+      _knownEventCountByBombo[bomboId] = evs.length;
+      evs.forEach((ev, i) => {
+        const key = 'sorteoEvents:' + ev.id;
+        if (_knownDrawnKeys.has(key)) return;
         _knownDrawnKeys.add(key);
-        if (!_drawEventQueue.some(ev => ev._key === key)) {
-          _drawEventQueue.push({ bomboId: nb.id, teamId: d.teamId, ord: i + 1, at: d.at, _key: key });
+        if (!_drawEventQueue.some(q => q._key === key)) {
+          _drawEventQueue.push({ bomboId, teamId: ev.teamId, ord: i + 1, at: ev.at, _key: key });
         }
-      }
+      });
     }
 
     const visible = root && root.offsetParent !== null;
@@ -195,6 +230,82 @@
       await renderAll();
       if (typeof refreshSorteoTabVisibility === 'function') refreshSorteoTabVisibility();
     }
+  }
+
+  /* Cambios de SETUP en el documento 'sorteo' (bombos, equipos, activeId,
+     links) — nunca dispara animación por sí solo. drawNext() escribe 'sorteo'
+     Y 'sorteoEvents' en la MISMA transacción, así que este snapshot también
+     se dispara para una bola nueva — pero Firestore NO garantiza que las dos
+     colecciones lleguen en orden. Si 'sorteo' llega primero, renderizar de
+     inmediato mostraría el equipo sorteado ANTES de que 'sorteoEvents' abra
+     la animación (spoiler).
+
+     La garantía real NO es el timing (un debounce corto solo reduce la
+     probabilidad, no la elimina) — es inspeccionar el CONTENIDO: si algún
+     bombo del snapshot trae más `drawn` que el estado local conocido, hay
+     una bola sin revelar todavía y NO se renderiza en silencio, sin importar
+     cuánto haya esperado. Se marca pendiente y _processDrawQueue() (que ya
+     hace su propio loadState() fresco antes de animar cada bola) termina
+     aplicando esta misma escritura en el momento correcto — o, si
+     'sorteoEvents' nunca llega a procesarla (permisos, red), un fallback
+     acotado fuerza el refresco para no dejar la vista congelada para
+     siempre. El debounce se mantiene solo como colchón para no disparar
+     loadState()+renderAll() en cada snapshot suelto si llegan varios juntos. */
+  let _sorteoStateDebounceTimer = null;
+  let _sorteoStateFallbackTimer = null;
+  let _pendingSorteoStateRefresh = false;
+  let _lastSorteoStateRows = null;
+  const SORTEO_STATE_DEBOUNCE_MS = 400;
+  // Si tras esto 'sorteoEvents' todavía no procesó la bola pendiente, se
+  // fuerza el refresco igual — mejor perder la animación de esa bola puntual
+  // que congelar al público viendo datos viejos indefinidamente.
+  const SORTEO_STATE_FALLBACK_MS = 5000;
+  function onSorteoStateSnapshot(rows) {
+    if (!root || !readOnly) return;
+    _lastSorteoStateRows = rows;
+    clearTimeout(_sorteoStateDebounceTimer);
+    _sorteoStateDebounceTimer = setTimeout(_maybeApplySorteoStateRefresh, SORTEO_STATE_DEBOUNCE_MS);
+  }
+  // ¿El snapshot de 'sorteo' MÁS RECIENTE trae, para algún bombo, más bolas
+  // sorteadas que las que el estado local ya conoce? Comparación por
+  // contenido (drawn.length), no por timing.
+  function _sorteoStateHasUnrevealedDraw() {
+    const rec = (_lastSorteoStateRows || []).find(r => r.season === stateSeason);
+    if (!rec) return false;
+    return (rec.bombos || []).some(nb => {
+      const known = state.bombos.find(b => b.id === nb.id);
+      return (nb.drawn?.length || 0) > (known?.drawn?.length || 0);
+    });
+  }
+  async function _maybeApplySorteoStateRefresh() {
+    if (!root || !readOnly) return;
+    if (busy || _drawEventQueue.length || _sorteoStateHasUnrevealedDraw()) {
+      // Animación en curso, bola por animar, o bola sorteada que 'sorteoEvents'
+      // todavía no reveló: no pisarla. finishSequence()/finishSequenceReduced()
+      // lo aplican cuando todo quede idle; el fallback cubre el caso borde de
+      // que 'sorteoEvents' nunca llegue.
+      _pendingSorteoStateRefresh = true;
+      clearTimeout(_sorteoStateFallbackTimer);
+      _sorteoStateFallbackTimer = setTimeout(_forceSorteoStateRefreshIfIdle, SORTEO_STATE_FALLBACK_MS);
+      return;
+    }
+    clearTimeout(_sorteoStateFallbackTimer);
+    await _applySorteoStateRefreshNow();
+  }
+  // Red de seguridad: solo actúa si sigue todo idle (si mientras tanto
+  // arrancó una animación real, la deja seguir su curso normal).
+  async function _forceSorteoStateRefreshIfIdle() {
+    if (!root || !readOnly || !_pendingSorteoStateRefresh) return;
+    if (busy || _drawEventQueue.length) return;
+    await _applySorteoStateRefreshNow();
+  }
+  async function _applySorteoStateRefreshNow() {
+    _pendingSorteoStateRefresh = false;
+    const keepLocalActive = state.activeId;
+    await loadState();
+    if (keepLocalActive && state.bombos.find(b => b.id === keepLocalActive)) state.activeId = keepLocalActive;
+    await renderAll();
+    if (typeof refreshSorteoTabVisibility === 'function') refreshSorteoTabVisibility();
   }
 
   /* Procesa la cola en orden, una animación a la vez. playDrawAnimation()
@@ -533,6 +644,22 @@
   }
 
   /* ---------------- Sorteo flow ---------------- */
+  /* Índice aleatorio criptográficamente seguro en [0, n) — rejection sampling
+     sobre crypto.getRandomValues para no introducir sesgo de módulo. Solo
+     para decidir QUÉ equipo sale del bombo; los efectos visuales (confetti,
+     chispas) siguen con Math.random(), no necesitan ser criptográficos. */
+  function _secureRandomIndex(n) {
+    if (n <= 0) return 0;
+    if (typeof crypto === 'undefined' || typeof crypto.getRandomValues !== 'function') {
+      return Math.floor(Math.random() * n); // fallback defensivo (entorno sin Web Crypto)
+    }
+    const max = Math.floor(0xFFFFFFFF / n) * n; // último múltiplo de n que cabe en 32 bits
+    const buf = new Uint32Array(1);
+    let x;
+    do { crypto.getRandomValues(buf); x = buf[0]; } while (x >= max);
+    return x % n;
+  }
+
   async function drawNext() {
     if (busy || readOnly) return;
     const b = activeBombo();
@@ -542,12 +669,72 @@
     const pool = b.teamIds.filter(id => teamIsActive(id) && !drawnSet.has(id));
     if (!pool.length) { flashHint('No quedan equipos en este bombo'); return; }
 
-    const teamId = pool[Math.floor(Math.random() * pool.length)];
-    const ord = b.drawn.length + 1;
-    b.drawn.push({ teamId, at: Date.now() });
-    await saveState();
+    let teamId, ord, remaining;
+    if (typeof USE_FIRESTORE !== 'undefined' && USE_FIRESTORE) {
+      // Firestore: transacción atómica — relee el pool DENTRO de la
+      // transacción (no confía en `pool`/`b` capturados arriba, que pueden
+      // estar obsoletos si otro admin sorteó justo antes) y escribe el
+      // resumen ('sorteo') + el evento inmutable ('sorteoEvents') en el mismo
+      // commit. Si dos admins sortean casi simultáneo, Firestore reintenta
+      // automáticamente la transacción que pierde la carrera, ya con el pool
+      // actualizado por la otra — no se puede repetir ni perder un equipo.
+      let result;
+      try {
+        result = await db.runTransaction(async tx => {
+          const sorteoRef  = db.collection('sorteo').doc(String(stateRecordId));
+          const counterRef = db.collection('_counters').doc('sorteoEvents');
+          const [sorteoSnap, counterSnap] = await Promise.all([tx.get(sorteoRef), tx.get(counterRef)]);
+          const rec = sorteoSnap.data();
+          const bombo = (rec.bombos || []).find(x => x.id === b.id);
+          if (!bombo) throw new Error('BOMBO_NOT_FOUND');
+          const freshDrawnSet = new Set(bombo.drawn.map(d => d.teamId));
+          const freshPool = bombo.teamIds.filter(id => activeTeamIds.has(id) && !freshDrawnSet.has(id));
+          if (!freshPool.length) throw new Error('EMPTY_POOL');
+
+          const pickedTeamId = freshPool[_secureRandomIndex(freshPool.length)];
+          const pickedOrd = bombo.drawn.length + 1;
+          const at = Date.now();
+          const newBombo = { ...bombo, drawn: [...bombo.drawn, { teamId: pickedTeamId, at }] };
+          const newBombos = rec.bombos.map(x => x.id === bombo.id ? newBombo : x);
+          tx.set(sorteoRef, { ...rec, bombos: newBombos, updatedAt: at });
+
+          const nextEventId = ((counterSnap.exists ? counterSnap.data().value : 0) || 0) + 1;
+          tx.set(counterRef, { value: nextEventId }, { merge: true });
+          tx.set(db.collection('sorteoEvents').doc(String(nextEventId)), {
+            id: nextEventId, season: stateSeason, bomboId: bombo.id, teamId: pickedTeamId,
+            poolBefore: freshPool, poolAfter: freshPool.filter(id => id !== pickedTeamId),
+            at, adminUid: (typeof AUTH !== 'undefined' && AUTH.user?.uid) || null,
+            stateRecordId
+          });
+          return { teamId: pickedTeamId, ord: pickedOrd, remaining: freshPool.length - 1 };
+        });
+      } catch (err) {
+        if (err && err.message === 'EMPTY_POOL') flashHint('No quedan equipos en este bombo');
+        else { console.error('[Sorteo] Error en transacción de sorteo:', err); showToastSafe('No se pudo sortear, reintenta', 'error'); }
+        return;
+      }
+      teamId = result.teamId; ord = result.ord; remaining = result.remaining;
+      // Reflejar el resultado en el estado LOCAL de este mismo cliente (el
+      // admin que sorteó) sin esperar al propio onSnapshot — misma UX de siempre.
+      b.drawn.push({ teamId, at: Date.now() });
+    } else {
+      // IndexedDB local: un solo dispositivo, sin concurrencia real entre
+      // admins — se mantiene el camino simple de siempre; solo cambia la
+      // fuente de aleatoriedad (crypto en vez de Math.random) para elegir equipo.
+      teamId = pool[_secureRandomIndex(pool.length)];
+      ord = b.drawn.length + 1;
+      remaining = pool.length - 1;
+      b.drawn.push({ teamId, at: Date.now() });
+      await saveState();
+      await dbAdd('sorteoEvents', {
+        season: stateSeason, bomboId: b.id, teamId,
+        poolBefore: pool, poolAfter: pool.filter(id => id !== teamId),
+        at: Date.now(), adminUid: null, stateRecordId
+      });
+    }
+
     broadcast({ type:'draw', season: stateSeason, bomboId: b.id, teamId, ord });
-    await playDrawAnimation(b, teamId, ord, pool.length - 1);
+    await playDrawAnimation(b, teamId, ord, remaining);
   }
 
   function reducedMotion() {
@@ -627,6 +814,11 @@
         if (readOnly && _drawEventQueue.length && root && root.offsetParent !== null) {
           await _processDrawQueue();
         }
+        // Si un cambio de setup llegó mientras esto corría, recién ahora
+        // (todo idle) es seguro aplicarlo sin pisar la animación.
+        if (readOnly && _pendingSorteoStateRefresh && !busy && !_drawEventQueue.length) {
+          await _maybeApplySorteoStateRefresh();
+        }
       }, 1000);
     }, 280);
   }
@@ -658,6 +850,11 @@
       // (busy ya es false acá, así que _processDrawQueue puede seguir con el siguiente).
       if (readOnly && _drawEventQueue.length && root && root.offsetParent !== null) {
         await _processDrawQueue();
+      }
+      // Si un cambio de setup llegó mientras esto corría, recién ahora
+      // (todo idle) es seguro aplicarlo sin pisar la animación.
+      if (readOnly && _pendingSorteoStateRefresh && !busy && !_drawEventQueue.length) {
+        await _maybeApplySorteoStateRefresh();
       }
     }, REDUCED_REVEAL_PAUSE_MS);
   }
@@ -698,6 +895,10 @@
     if (!confirm(`¿Reiniciar "${b.name}"? Los equipos volverán a la urna.`)) return;
     b.drawn = [];
     await saveState();
+    // Borrar también el log de eventos de este bombo (reset = empezar de
+    // cero, mismo criterio que ya aplicaba al array `drawn`).
+    const oldEvents = await dbGetAll('sorteoEvents', r => r.bomboId === b.id && r.season === stateSeason);
+    await Promise.all(oldEvents.map(ev => dbDelete('sorteoEvents', ev.id)));
     await refreshActive();
   }
 
@@ -1691,7 +1892,6 @@
         <div class="sorteo-hdr">
           <span class="pip"></span>
           <span class="sorteo-title">Sorteo en directo</span>
-          <span class="pill live">EN VIVO</span>
           <span id="bombo-badge" class="bombo-badge">—</span>
           <button id="btn-sound" class="icon-mini" title="Sonido"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
         </div>

@@ -1851,6 +1851,84 @@ function _palmIsHex(v){
   return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
 }
 
+/* ---- --metal-ink: variante de TEXTO garantizada ≥4.5:1, para cualquier
+   color (los 5 de PALMARES_COMPS_DEFAULT o uno custom cargado por un admin).
+   --metal en sí NUNCA se toca (trofeo 3D, bordes, fills siguen con el color
+   crudo). Esto es appearance, no dato: mostramos el mismo color de marca,
+   solo oscurecido lo mínimo necesario cuando se usa como texto. ---- */
+function _palmHexToRgbObj(hex){
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : null;
+}
+function _palmRelLuminance({ r, g, b }){
+  const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+/* Emula color-mix(in srgb, metalHex P%, baseHex) — interpolación lineal
+   directa sobre los canales sRGB (0-255), igual que hace el navegador con
+   `in srgb`. Devuelve la luminancia relativa del resultado. */
+function _palmMixLuminance(metalHex, baseHex, metalPercent){
+  const m = _palmHexToRgbObj(metalHex), b = _palmHexToRgbObj(baseHex);
+  const p = metalPercent / 100;
+  return _palmRelLuminance({
+    r: m.r * p + b.r * (1 - p),
+    g: m.g * p + b.g * (1 - p),
+    b: m.b * p + b.b * (1 - p),
+  });
+}
+/* --card2/--card3 en modo claro (variables.css). --metal-ink se pinta sobre
+   3 fondos reales, todos ellos color-mix(--metal, superficie) — NO sobre la
+   superficie pura: `.mv-nav-row.on` (16% metal + card3), `.mv-cta` normal
+   (12% metal + card2) y `.mv-cta:hover/:focus` (22% metal + card2). Como el
+   propio --metal tiñe el fondo, calibrar solo contra la superficie pura no
+   alcanza (medido: oro caía a 4.22:1, bronce a 4.04:1, un rojo custom a
+   3.39:1) — hay que recalcular la mezcla real para CADA color de --metal. */
+const _PALM_CARD2_LIGHT = '#F0EEE8';
+const _PALM_CARD3_LIGHT = '#E6E4DC';
+function _palmWorstBgLumFor(metalHex){
+  return Math.min(
+    _palmMixLuminance(metalHex, _PALM_CARD3_LIGHT, 16), // .mv-nav-row.on
+    _palmMixLuminance(metalHex, _PALM_CARD2_LIGHT, 12), // .mv-cta
+    _palmMixLuminance(metalHex, _PALM_CARD2_LIGHT, 22), // .mv-cta:hover/:focus-visible
+  );
+}
+/* Umbral real de búsqueda: más estricto que 4.5 a propósito. El binary search
+   trabaja en RGB continuo pero el resultado se cuantiza a 8 bits por canal al
+   volver a hex — sin este margen, un color que cierra justo en 4.50 puede
+   terminar en 4.49 tras el floor/redondeo. */
+const _PALM_INK_TARGET_RATIO = 4.6;
+function _palmContrastSafeInk(hex, bgLum){
+  const rgb = _palmHexToRgbObj(hex);
+  if (!rgb) return hex;
+  const maxL1 = (bgLum + 0.05) / _PALM_INK_TARGET_RATIO - 0.05;
+  if (_palmRelLuminance(rgb) <= maxL1) return hex; // ya cumple: se muestra sin tocar
+  // Oscurece por escalado uniforme de RGB (conserva el tono) hasta cumplir el umbral.
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    const scaled = { r: rgb.r * mid, g: rgb.g * mid, b: rgb.b * mid };
+    if (_palmRelLuminance(scaled) <= maxL1) lo = mid; else hi = mid;
+  }
+  // floor (no round): al cuantizar a 8 bits solo puede oscurecer más, nunca
+  // aclarar de vuelta por encima del umbral ya verificado.
+  const toHex = v => Math.floor(v).toString(16).padStart(2, '0');
+  return `#${toHex(rgb.r * lo)}${toHex(rgb.g * lo)}${toHex(rgb.b * lo)}`;
+}
+function _palmMetalInk(color){
+  const hex = _palmIsHex(color) ? color : '#DAA520';
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  return isLight ? _palmContrastSafeInk(hex, _palmWorstBgLumFor(hex)) : hex;
+}
+/* Recalcula --metal-ink en los nodos ya montados cuando cambia el tema —
+   evita depender de que el usuario vuelva a navegar a Palmarés para que
+   el color de texto se re-evalúe contra la superficie correcta. */
+document.addEventListener('tsc:theme-changed', () => {
+  document.querySelectorAll('#mv, .mv-nav-row, .mv-stage').forEach(el => {
+    const current = el.style.getPropertyValue('--metal').trim();
+    if (current) el.style.setProperty('--metal-ink', _palmMetalInk(current));
+  });
+});
+
 function _palmTeamColors(team, comp){
   const c1 = _palmIsHex(team?.color) ? team.color : (_palmIsHex(comp?.color) ? comp.color : '#DAA520');
   const c2 = _palmIsHex(team?.color2) ? team.color2 : c1;
@@ -1961,7 +2039,7 @@ function _palmVitrineShellHTML(){
   const rawMetal = _PALM_PUB.compData[_PALM_PUB.compIdx]?.comp?.color;
   const metal = _palmIsHex(rawMetal) ? rawMetal : '#DAA520';
   return `
-    <section class="mv" id="mv" style="--metal:${_escAttr(metal)}">
+    <section class="mv" id="mv" style="--metal:${_escAttr(metal)};--metal-ink:${_escAttr(_palmMetalInk(rawMetal))}">
       <div class="mv-head">
         <div class="mv-head-id">
           <span class="mv-head-ico" aria-hidden="true">${headIcon}</span>
@@ -2002,7 +2080,6 @@ function _palmVitrineShellHTML(){
       </div>
       <div class="sala-cap">
         <div class="sc-kick">Sala de trofeos · TSC</div>
-        <div class="sc-name" id="sala-champ"></div>
       </div>
       <div class="sala-top">
         <div class="sala-nav">
@@ -2017,13 +2094,13 @@ function _palmVitrineShellHTML(){
         </div>
       </div>
       <div class="sala-note" id="sala-hint">
-        <span class="sh-g">
+        <span class="sh-g" aria-label="Flechas izquierda y derecha: cambiar competición">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-          ←/→ competición
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </span>
-        <span class="sh-g">
+        <span class="sh-g" aria-label="Flechas arriba y abajo: cambiar campeón">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
-          ↑/↓ campeón
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </span>
         <span class="sh-esc">Esc cerrar</span>
       </div>
@@ -2035,7 +2112,7 @@ function _palmVitrineNavHTML(){
   return _PALM_PUB.compData.map((entry, idx) => {
     const icon = _palmLineArt(renderTrophy(entry.comp.key, 36), 2.2);
     return `
-      <button class="mv-nav-row${idx === _PALM_PUB.compIdx ? ' on' : ''}" type="button" data-comp-idx="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')}" aria-pressed="${idx === _PALM_PUB.compIdx ? 'true' : 'false'}">
+      <button class="mv-nav-row${idx === _PALM_PUB.compIdx ? ' on' : ''}" type="button" data-comp-idx="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${_escAttr(_palmMetalInk(entry.comp.color))}" aria-pressed="${idx === _PALM_PUB.compIdx ? 'true' : 'false'}">
         <span class="mv-nav-ico" aria-hidden="true">${icon}</span>
         <span class="mv-nav-name">${_esc(entry.comp.label)}</span>
         <svg class="mv-nav-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
@@ -2050,7 +2127,7 @@ function _palmVitrineHeroHTML(entry, idx){
   const full = renderTrophy(entry.comp.key, 200);
   const line = _palmLineArt(full, 1.5);
   return `
-    <button class="mv-stage" type="button" data-open-sala="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')}" aria-haspopup="dialog" aria-controls="sala"${disabled}>
+    <button class="mv-stage" type="button" data-open-sala="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${_escAttr(_palmMetalInk(entry.comp.color))}" aria-haspopup="dialog" aria-controls="sala"${disabled}>
       <div class="mv-scene">
         <div class="mv-axis"></div>
         <div class="mv-halo"></div>
@@ -2095,7 +2172,10 @@ function _palmRenderVitrine(){
   const data = document.getElementById('mv-data');
   const entry = _PALM_PUB.compData[_PALM_PUB.compIdx] || null;
   const mv = document.getElementById('mv');
-  if (mv) mv.style.setProperty('--metal', _palmIsHex(entry?.comp?.color) ? entry.comp.color : '#DAA520');
+  if (mv) {
+    mv.style.setProperty('--metal', _palmIsHex(entry?.comp?.color) ? entry.comp.color : '#DAA520');
+    mv.style.setProperty('--metal-ink', _palmMetalInk(entry?.comp?.color));
+  }
   if (nav) nav.innerHTML = _palmVitrineNavHTML();
   if (hero) hero.innerHTML = _palmVitrineHeroHTML(entry, _PALM_PUB.compIdx);
   if (data) data.innerHTML = _palmVitrineDataHTML(entry);
@@ -2273,13 +2353,10 @@ function _palmRenderSala(){
   sala.style.setProperty('--spark-r', _palmHexToRgba(lightColors.c2, .94));
 
   const compEl = document.getElementById('sala-comp');
-  const champEl = document.getElementById('sala-champ');
   const plateEl = document.getElementById('sala-plate-txt');
   const dotsEl = document.getElementById('sala-dots');
-  const edition = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
   const plateEdition = ['CAMPEÓN', rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
   if (compEl) compEl.textContent = comp.comp.label;
-  if (champEl) champEl.textContent = `${team?.name || 'Sin campeón'}${edition ? ` — ${edition}` : ''}`;
   if (plateEl) {
     plateEl.innerHTML = `<b>${_esc(team?.name || 'Sin campeón')}</b><small>${_esc(plateEdition)}</small>`;
   }

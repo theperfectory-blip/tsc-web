@@ -105,6 +105,19 @@ function goHome(){
 }
 
 /* ----------------------------------------------------------
+   PERSISTENCIA DE NAVEGACIÓN — para que un reload no vuelva siempre a
+   Palmarés/público (restauración en ui-utils.js, window.onload).
+   ---------------------------------------------------------- */
+function _persistNav(){
+  try{
+    localStorage.setItem('tsc_mode', STATE.mode);
+    localStorage.setItem('tsc_public_page', STATE.publicPage);
+    localStorage.setItem('tsc_admin_page', STATE.adminPage);
+    localStorage.setItem('tsc_season', String(STATE.season));
+  }catch(e){}
+}
+
+/* ----------------------------------------------------------
    MODO: PÚBLICO / ADMIN
    ---------------------------------------------------------- */
 function setMode(mode){
@@ -117,6 +130,7 @@ function setMode(mode){
     }
   }
   STATE.mode = mode;
+  _persistNav();
   const isAdmin = mode==='admin';
   // Al salir de admin, cerrar el centro de partido en vivo (es solo-gestión).
   if(!isAdmin){ const _lm=document.getElementById('live-match-wrap'); if(_lm) _lm.innerHTML=''; }
@@ -169,6 +183,7 @@ function goPublicPage(page, navEl){
   }
 
   STATE.publicPage = page;
+  _persistNav();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
   // Marcar ítem activo en el pub-sidebar
@@ -196,6 +211,7 @@ function goAdminPage(page, navEl){
   if(typeof liveStop==='function') liveStop();   // sin tiempo real en modo admin
   if(typeof liveRadarStop==='function') liveRadarStop();
   STATE.adminPage = page;
+  _persistNav();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page)?.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -306,13 +322,18 @@ async function _subscribeFocusedPublicSection(page, forceRefresh){
       await sub('palmares', ['palmares','palmares-comps','settings','teams'], ()=>renderPubPalmares());
       break;
     case 'panel':
-      await sub('panel', ['matches','phases','teams'], ()=>renderPubPanel());
+      // renderPubPanel() lee 'competitions' (nombre/color de la comp activa
+      // en el carrusel) además de matches/phases/teams — sin suscribirla, un
+      // cambio admin ahí (renombrar/recolorear/reactivar) no se veía en vivo.
+      await sub('panel', ['matches','phases','teams','competitions'], ()=>renderPubPanel());
       break;
     case 'equipos':
       await sub('equipos', ['teams'], ()=>_refreshPubTeams());
       break;
     case 'calendario':
-      await sub('calendario', ['matches','phases','teams','calDayLabels'], ()=>renderPubCalendar());
+      // Mismo motivo que panel: renderPubCalendar() resuelve el nombre de
+      // competición por fase (compById) para las tarjetas del cronograma.
+      await sub('calendario', ['matches','phases','teams','calDayLabels','competitions'], ()=>renderPubCalendar());
       break;
     case 'historial':
       await sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
@@ -370,6 +391,7 @@ async function _focusPublicSectionInner(page, options){
   const changed = _publicFocusedPage !== page;
   const token = ++_publicFocusToken;
   STATE.publicPage = page;
+  _persistNav();
   _publicFocusedPage = page;
   document.querySelectorAll('.page.active').forEach(p=>p.classList.remove('active'));
   section.classList.add('active');
@@ -453,6 +475,7 @@ async function refreshSorteoTabVisibility(){
       else focusPublicSection('panel');
     }else{
       STATE.publicPage = 'panel';
+      _persistNav();
       document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
       document.getElementById('page-panel')?.classList.add('active');
       if(typeof syncRedesignTopnav==='function') syncRedesignTopnav('panel');
@@ -569,6 +592,7 @@ async function loadSeasons(){
 async function onSeasonChange(val){
   if(!val) return;
   STATE.season = parseInt(val);
+  _persistNav();
   window._fwLaunched = {}; // resetear fuegos al cambiar temporada
   await refreshSorteoTabVisibility();
   const page = STATE.mode==='admin' ? STATE.adminPage : STATE.publicPage;

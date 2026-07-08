@@ -333,6 +333,27 @@
         </div>
         <div id="settings-tz-preview" style="font-size:11px;color:var(--txt3);margin-top:4px;min-height:16px;"></div>
       </div>
+
+      <div class="form-group" style="margin-top:18px;margin-bottom:0;">
+        <label>Estela de cursor</label>
+        <div class="trail-picker" id="trail-picker">
+          <button type="button" data-variant="ribbon" title="Ribbon elástico" aria-label="Ribbon elástico" onclick="pickCursorTrail('ribbon')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14c2.5-6 4.5-6 7 0s4.5 6 7 0 4.5-6 6-3"/></svg>
+          </button>
+          <button type="button" data-variant="sparks" title="Chispas" aria-label="Chispas" onclick="pickCursorTrail('sparks')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z"/><path d="M19 15l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6z"/></svg>
+          </button>
+          <button type="button" data-variant="comet" title="Comet" aria-label="Comet" onclick="pickCursorTrail('comet')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="7" r="2.2"/><path d="M15 8.6C11.5 11 8 12.5 4.5 18"/></svg>
+          </button>
+          <button type="button" data-variant="constellation" title="Constelación" aria-label="Constelación" onclick="pickCursorTrail('constellation')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><line x1="8.4" y1="10.7" x2="15.6" y2="6.3"/><line x1="8.4" y1="13.3" x2="15.6" y2="17.7"/></svg>
+          </button>
+          <button type="button" data-variant="off" title="Sin estela" aria-label="Sin estela" onclick="pickCursorTrail('off')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" onclick="saveSettings()">Guardar</button>
@@ -365,6 +386,7 @@
 
 <script src="js/state.js"></script>
 <script src="js/motion.js"></script>
+<script src="js/cursor-fx.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/cloudinary.js"></script>

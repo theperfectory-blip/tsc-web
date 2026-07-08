@@ -2,9 +2,12 @@
    SORTEO — Animación chibi + reveal de equipo
    ============================================================ */
 
-/* --- Tokens del sorteo — dark por defecto (el stage tiene fondo oscuro propio) ---
-   .sorteo-stage usa estos tokens y siempre es dark.
-   .sorteo-side los redefine en [data-theme="light"] para adaptar las tarjetas. */
+/* --- Tokens del sorteo — dark por defecto ---
+   Tanto .sorteo-stage (escenario) como .sorteo-side (bombos/urna/resultado)
+   usan estos tokens. En [data-theme="light"] se remapean a nivel de tema
+   (más abajo), no por contenedor: Sorteo es una sección normal del recorrido
+   público y debe responder al tema igual que el resto — a diferencia de
+   #sala (Sala de Trofeos fullscreen), que sí es siempre dark por diseño. */
 :root {
   --bg-1:             #0D1118;
   --bg-2:             #141820;
@@ -19,9 +22,10 @@
   --sorteo-glow-soft: rgba(201,168,76,0.18);
 }
 
-/* Light mode: remap tokens solo en el sidebar (las tarjetas de bombos/equipos).
-   El .sorteo-stage queda intacto con sus valores dark. */
-[data-theme="light"] .sorteo-side {
+/* Light mode: remap a nivel de tema (no scoped a un contenedor), así cubre
+   tanto el stage admin (sorteo.css) como el stage público (redesign.css)
+   sin depender de qué wrapper los envuelva (.sorteo-grid vs .sorteo-pub). */
+[data-theme="light"] {
   --bg-1:        var(--card);
   --bg-2:        var(--card2);
   --bg-3:        var(--card2);
@@ -58,7 +62,9 @@
   flex-direction: column;
 }
 
-/* Subtle scanline / spotlight texture */
+/* Subtle scanline / spotlight texture. La línea repetida es blanca (pensada
+   para el fondo oscuro); en claro se invierte a negra a la misma alfa
+   casi-imperceptible, si no desaparece sobre la superficie clara. */
 .sorteo-stage::before {
   content: "";
   position: absolute; inset: 0;
@@ -66,6 +72,11 @@
     radial-gradient(circle at 50% 95%, rgba(255,210,63,0.12), transparent 60%),
     repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
   pointer-events: none;
+}
+[data-theme="light"] .sorteo-stage::before {
+  background-image:
+    radial-gradient(circle at 50% 95%, rgba(201,168,76,0.10), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, transparent 1px 3px);
 }
 
 /* Stage header strip */
@@ -95,7 +106,7 @@
   display: flex; align-items: baseline; gap: 6px;
   font-family: 'Bebas Neue', sans-serif; letter-spacing: 1.5px;
 }
-.stage-counter .num { color: var(--gold); font-size: 26px; }
+.stage-counter .num { color: var(--gold-ink); font-size: 26px; }
 .stage-counter .total { color: var(--text-mute); font-size: 18px; }
 .stage-counter .lbl {
   margin-left: 8px; font: 700 10px/1 'Barlow Condensed', sans-serif;
@@ -184,7 +195,7 @@
   transform: translate(-50%, -50%) scale(0.2);
   opacity: 0;
   width: min(440px, 90%);
-  background: linear-gradient(180deg, #1a2132 0%, #11151c 100%);
+  background: linear-gradient(180deg, var(--card2) 0%, var(--card) 100%);
   border: 1px solid var(--gold);
   border-radius: var(--radius-lg);
   padding: 22px 28px 26px;
@@ -212,7 +223,7 @@
 }
 .reveal-label {
   font: 700 11px/1 'Barlow Condensed', sans-serif;
-  letter-spacing: 3px; text-transform: uppercase; color: var(--gold);
+  letter-spacing: 3px; text-transform: uppercase; color: var(--gold-ink);
   margin-bottom: 8px;
 }
 .reveal-name {
@@ -226,7 +237,7 @@
   font: 600 11px/1 'Barlow Condensed', sans-serif;
   letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim);
 }
-.reveal-meta b { color: var(--gold); font-weight: 700; }
+.reveal-meta b { color: var(--gold-ink); font-weight: 700; }
 
 /* Confetti container */
 .confetti-layer {
@@ -278,7 +289,7 @@
 }
 .btn-sorteo:active:not(:disabled) { transform: translateY(0); }
 .btn-sorteo:disabled {
-  background: #2a313c; color: rgba(255,255,255,0.38); border-color: var(--border);
+  background: var(--bg-3); color: var(--text-mute); border-color: var(--border);
   box-shadow: none; cursor: not-allowed;
 }
 .btn-ghost {
@@ -319,7 +330,7 @@
 .bombo-badge {
   font: 700 10px/1 'Barlow Condensed', sans-serif;
   letter-spacing: 1.6px; text-transform: uppercase;
-  background: rgba(255,210,63,0.12); color: var(--gold);
+  background: rgba(255,210,63,0.12); color: var(--gold-ink);
   border: 1px solid rgba(255,210,63,0.3);
   padding: 4px 9px; border-radius: 999px;
   margin-left: 4px;
@@ -349,7 +360,7 @@
 .bombo-tab:hover { color: var(--text); border-color: var(--text-mute); }
 .bombo-tab.active {
   background: rgba(255,210,63,0.12);
-  border-color: var(--gold); color: var(--gold);
+  border-color: var(--gold); color: var(--gold-ink);
 }
 .bombo-tab-name { font-weight: 600; }
 .bombo-tab-count {
@@ -359,7 +370,7 @@
   border-radius: 999px; padding: 3px 7px;
 }
 .bombo-tab.active .bombo-tab-count {
-  background: rgba(255,210,63,0.2); color: var(--gold);
+  background: rgba(255,210,63,0.2); color: var(--gold-ink);
 }
 .side-card {
   background: var(--bg-1);
@@ -386,7 +397,7 @@
   font: 700 10px/1 'Barlow Condensed', sans-serif;
   letter-spacing: 1.5px; text-transform: uppercase;
 }
-.side-hdr .pill.live { background: rgba(255,210,63,0.12); color: var(--gold); border-color: rgba(255,210,63,0.3); }
+.side-hdr .pill.live { background: rgba(255,210,63,0.12); color: var(--gold-ink); border-color: rgba(255,210,63,0.3); }
 
 .side-body {
   flex: 1;
@@ -412,17 +423,17 @@
 .chip .dot { display: none; }   /* punto dorado deshabilitado */
 .chip.drawn {
   background: transparent;
-  border-color: var(--border-soft, #2a2a2a);
-  color: rgba(138,147,163,0.55);
+  border-color: var(--border-soft);
+  color: var(--text-mute);
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
-  text-decoration-color: rgba(138,147,163,0.55);
+  text-decoration-color: var(--text-mute);
   opacity: 0.7;
 }
 .chip.now {
   background: rgba(255,210,63,0.14);
   border-color: var(--gold);
-  color: var(--gold);
+  color: var(--gold-ink);
   animation: chip-pop 600ms ease-out;
 }
 .chip.now .dot {
@@ -452,7 +463,7 @@
 .drawn-row .num {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 18px; letter-spacing: 1px;
-  color: var(--gold); text-align: center;
+  color: var(--gold-ink); text-align: center;
 }
 .drawn-row .name {
   font-weight: 600; font-size: 13.5px;
@@ -493,7 +504,7 @@
 .drawn-link {
   font: 600 11px/1 'Barlow Condensed', sans-serif;
   letter-spacing: .5px;
-  color: var(--gold, #C9A84C);
+  color: var(--gold-ink, #C9A84C);
   background: rgba(201,168,76,0.10);
   border: 1px solid rgba(201,168,76,0.35);
   border-radius: 3px;
@@ -514,7 +525,11 @@
   cursor: pointer;
   transition: border-color .12s, color .12s;
 }
-.drawn-link-btn:hover { color: var(--gold, #C9A84C); border-color: rgba(201,168,76,0.5); }
+.drawn-link-btn:hover { color: var(--gold-ink, #C9A84C); border-color: rgba(201,168,76,0.5); }
+.drawn-link-btn:focus-visible,
+.icon-mini:focus-visible,
+.btn-sorteo:focus-visible,
+.btn-ghost:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .drawn-row { display:flex; align-items:center; gap:8px; }
 
 /* Grid del picker */
