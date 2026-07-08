@@ -25,6 +25,7 @@ service cloud.firestore {
     match /settings/{id}       { allow read: if true; allow write: if isAdmin(); }
     match /matchHistory/{id}   { allow read: if true; allow write: if isAdmin(); }
     match /sorteo/{id}         { allow read: if true; allow write: if isAdmin(); }
+    match /sorteoEvents/{id}   { allow read: if true; allow write: if isAdmin(); }
     match /palmares/{id}       { allow read: if true; allow write: if isAdmin(); }
     match /palmares-comps/{id} { allow read: if true; allow write: if isAdmin(); }
     match /calDayLabels/{id}   { allow read: if true; allow write: if isAdmin(); }

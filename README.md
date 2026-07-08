@@ -126,20 +126,27 @@ O automático con GitHub Actions (ver `.github/workflows/firebase-hosting.yml`).
 
 ## 📊 Estado actual
 
-✅ **Completado (Fases 0–6B)**
+✅ **Completado (Fases 0–7 base)**
 - Backend Firestore con IDs enteros autoincrementales
 - Auth multi-rol (público/president/admin)
 - Reglas de seguridad por rol
 - Partidos en vivo con actualizaciones tiempo real
+- Calendario público con partido en vivo del momento y siguiente partido
 - UI responsive móvil (375px+)
 - Audio: radar ping, sonidos UI, configuración volumen
 - Logos vía Cloudinary
 - Palmarés completo con reordenamiento manual
+- Rediseño visual "motion site" desplegado en producción
 
-⏳ **En desarrollo (Fases 6C–7)**
-- Push FCM (notificaciones móviles)
-- Correo SMTP personalizado
+⏳ **En desarrollo (Fase 7 hardening)**
+- Pulido de modo claro: contraste, focus ring y superficies del Sorteo
+- Fondo global dinámico / mouse tracker
+- QA visual final dark/light + reduced motion
+
+⏭️ **Siguiente (Fase 8)**
 - APK Android (Capacitor)
+- Notificaciones nativas FCM para presidentes
+- Correo SMTP personalizado queda como backlog opcional, no bloqueante
 
 ## 🔧 Arquitectura
 

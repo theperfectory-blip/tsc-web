@@ -46,7 +46,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
   font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1px;
   text-transform:uppercase;color:var(--txt3);transition:color var(--dur-fast);}
 .sec-nav-btn:hover{color:var(--txt2);}
-.sec-nav-btn.active{color:var(--gold);}
+.sec-nav-btn.active{color:var(--gold-ink);}
 .sec-nav-ind{position:absolute;bottom:0;left:0;width:0;height:2px;pointer-events:none;
   background:linear-gradient(90deg,var(--gold),var(--green-hi));
   transition:left var(--dur-mid) var(--ease-out),width var(--dur-mid) var(--ease-out);}
@@ -71,7 +71,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
   font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;
   transition:color var(--dur-fast),border-color var(--dur-fast);}
 .pub-pnav-item:hover{color:var(--txt2);}
-.pub-pnav-item.active{color:var(--gold);border-bottom-color:var(--gold);}
+.pub-pnav-item.active{color:var(--gold-ink);border-bottom-color:var(--gold);}
 /* Pantalla chica: fuera [Temporada], queda solo la foto de perfil a la derecha. */
 @media(max-width:600px){ #topbar .chip-today{display:none;} }
 /* Móvil público: la nav de secciones ocupa una fila propia completa (Opción A, C-polish).
@@ -117,7 +117,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 .tb-enter:hover{background:var(--gold-l);border-color:var(--gold);transform:translateY(-1px);}
 .tb-enter svg{width:15px;height:15px;flex:none;}
 /* Acceso Admin discreto dentro del menú de perfil (sólo rol admin en la app real). */
-.pp-admin{border:1px solid var(--gold-b)!important;color:var(--gold)!important;}
+.pp-admin{border:1px solid var(--gold-b)!important;color:var(--gold-ink)!important;}
 .pp-admin svg{width:16px;height:16px;flex:none;}
 .tp-btn{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;border-radius:999px;
   background:var(--card2);border:1px solid var(--brd2);cursor:pointer;
@@ -143,7 +143,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
   border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.35);color:#fff;display:flex;
   align-items:center;justify-content:center;cursor:pointer;line-height:1;}
 .pp-close:hover{background:rgba(0,0,0,0.55);}
-.pp-close:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.pp-close:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 /* Móvil: el drawer ocupa toda la pantalla (full-height) en vez de anclarse arriba-derecha */
 @media(max-width:560px){
   .profile-menu{top:0;right:0;left:0;bottom:0;width:100%;transform:translateY(12px);}
@@ -168,7 +168,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
   background:
     radial-gradient(ellipse 70% 80% at 50% 115%, rgba(201,168,76,0.20), transparent 65%),
     radial-gradient(ellipse 50% 40% at 50% -10%, rgba(201,168,76,0.06), transparent 70%),
-    #07090D;
+    var(--bg-deep);
   border:1px solid var(--brd);
   padding:clamp(24px,4vw,48px) clamp(16px,3vw,40px);
 }
@@ -381,11 +381,9 @@ body.sala-open{overflow:hidden;}
   transition:opacity 0.8s var(--ease-out) 0.75s, transform 0.8s var(--ease-out) 0.75s;}
 #sala.open .sala-cap{opacity:1;transform:translateX(-50%);}
 .sala-cap .sc-kick{font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:3px;color:var(--gold);text-transform:uppercase;}
-.sala-cap .sc-name{font-family:'Bebas Neue';font-size:clamp(18px,2.4vw,26px);letter-spacing:1px;color:var(--txt);margin-top:4px;
-  text-shadow:0 2px 10px rgba(0,0,0,0.8);}
 @media(max-width:899px){
   /* la placa sobre el pedestal ya nombra al campeón: el caption inferior
-     sobra en móvil y chocaba con la placa — se oculta para ganar aire */
+     sobra en móvil — se oculta para ganar aire */
   .sala-cap{display:none;}
 }
 .sala-btn{width:40px;height:40px;border-radius:50%;cursor:pointer;flex:none;
@@ -393,7 +391,7 @@ body.sala-open{overflow:hidden;}
   display:flex;align-items:center;justify-content:center;
   transition:color var(--dur-fast),border-color var(--dur-fast),transform var(--dur-fast);}
 .sala-btn:hover{color:var(--gold);border-color:var(--gold-b);transform:translateY(-1px);}
-.sala-btn:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.sala-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .sala-btn svg{width:17px;height:17px;}
 .sala-top{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:flex-start;justify-content:space-between;padding:14px 16px;}
 .sala-controls{display:flex;gap:8px;flex:none;}
@@ -410,7 +408,7 @@ body.sala-open{overflow:hidden;}
 .sala-dot::before{content:'';position:absolute;left:10px;top:50%;width:24px;height:3px;border-radius:2px;
   transform:translateY(-50%);background:rgba(255,255,255,0.22);transition:background var(--dur),width var(--dur),left var(--dur);}
 .sala-dot.on::before{left:6px;width:32px;background:var(--gold);}
-.sala-dot:focus-visible{outline:2px solid var(--gold-b);outline-offset:-2px;border-radius:5px;}
+.sala-dot:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px;border-radius:5px;}
 .sala-note{position:absolute;bottom:14px;left:0;right:0;z-index:10;
   display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;
   font-family:'Barlow Condensed';font-size:11px;font-weight:600;letter-spacing:1.5px;
@@ -503,7 +501,7 @@ body.sala-open{overflow:hidden;}
 .stand-row{font-family:'Barlow Condensed';font-size:15px;font-weight:600;
   transition:background var(--dur-fast);}
 .stand-row:hover{background:color-mix(in srgb, var(--team-color) 13%, transparent);}
-.stand-row:hover .st-pts{color:var(--gold);text-shadow:0 0 14px var(--gold-glow);}
+.stand-row:hover .st-pts{color:var(--gold-ink);text-shadow:0 0 14px var(--gold-glow);}
 .stand-row:hover .st-crest{transform:scale(1.1);box-shadow:0 0 12px color-mix(in srgb,var(--team-color) 60%,transparent);}
 /* bloque fijo: posición + escudo + nombre, pegado al borde izquierdo */
 .st-fix{position:sticky;left:0;z-index:2;background:var(--card);
@@ -513,7 +511,7 @@ body.sala-open{overflow:hidden;}
 .stand-row.zone-up .st-fix{box-shadow:inset 3px 0 0 var(--green);}
 .stand-row.zone-down .st-fix{box-shadow:inset 3px 0 0 var(--red);}
 .st-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;}
-.zone-up .st-pos{color:var(--green);}
+.zone-up .st-pos{color:var(--green-ink);}
 .zone-down .st-pos{color:var(--red);}
 .st-crest{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
   background:var(--team-color);color:#fff;font-family:'Bebas Neue';font-size:10px;
@@ -527,7 +525,7 @@ body.sala-open{overflow:hidden;}
 .stand-colhead span{text-align:center;padding:8px 0;}
 .stand-colhead .st-fix{background:var(--card);padding:8px 8px 8px 14px;
   grid-template-columns:none;display:flex;align-items:center;}
-.stand-colhead .st-ph{color:var(--gold);}
+.stand-colhead .st-ph{color:var(--gold-ink);}
 /* difuminado de bordes (aparece según haya más para scrollear) */
 .stand-fade{position:absolute;top:0;bottom:0;width:46px;pointer-events:none;z-index:3;
   opacity:0;transition:opacity .22s var(--ease-out);}
@@ -582,11 +580,11 @@ body.sala-open{overflow:hidden;}
 .tie-leg{text-align:center;font-family:'Barlow Condensed';font-size:16px;font-weight:600;color:var(--txt2);font-variant-numeric:tabular-nums;}
 .tie-agg{text-align:center;font-family:'Bebas Neue';font-size:26px;color:var(--txt);}
 .tie-row.winner{background:linear-gradient(90deg,var(--gold-l),transparent 75%);}
-.tie-row.winner .tie-agg{color:var(--gold);text-shadow:0 0 18px var(--gold-glow);}
+.tie-row.winner .tie-agg{color:var(--gold-ink);text-shadow:0 0 18px var(--gold-glow);}
 .tie-row.loser{opacity:0.55;}
 .tie-pending{font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.5px;}
 /* Badge ganador (Lucide check, sin glifos) + sufijo 'v' por gol de visita */
-.tie-win{display:inline-flex;align-items:center;gap:2px;flex:none;color:var(--gold);}
+.tie-win{display:inline-flex;align-items:center;gap:2px;flex:none;color:var(--gold-ink);}
 .tie-win svg{width:14px;height:14px;}
 .tie-win small{font-size:9px;line-height:1;letter-spacing:0;font-family:'Barlow Condensed';font-weight:700;}
 .tie-name{display:inline-flex;align-items:center;gap:6px;min-width:0;}
@@ -615,7 +613,7 @@ body.sala-open{overflow:hidden;}
   cursor:pointer;line-height:1;color:var(--txt2);transition:background .18s,color .18s,border-color .18s,opacity .18s;}
 .gbr-nav-btn:hover{background:rgba(255,255,255,.06);color:var(--txt);border-color:var(--brd2);}
 .gbr-nav-btn[disabled]{opacity:.34;cursor:default;pointer-events:none;}
-.gbr-nav-btn:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.gbr-nav-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .gbr-round-title{min-width:0;font-family:'Barlow Condensed';font-size:12px;font-weight:700;
   letter-spacing:.4px;color:var(--txt);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .gbr-mobile-viewport{position:relative;overflow:hidden;padding:0 8px 14px;}
@@ -651,11 +649,11 @@ body.sala-open{overflow:hidden;}
 .gbr-name-mini{flex:1;font-family:'Barlow Condensed';font-size:13px;font-weight:600;white-space:normal;color:var(--txt2);line-height:1.05;display:block;min-width:0;}
 .gbr-mobile-card .gbr-teamline.win .gbr-name-mini{color:var(--txt);font-weight:700;}
 .gbr-score-mini{font-family:'Bebas Neue';font-size:18px;min-width:16px;text-align:right;line-height:1;color:var(--txt3);flex:none;}
-.gbr-mobile-card .gbr-teamline.win .gbr-score-mini{color:var(--gold);}
+.gbr-mobile-card .gbr-teamline.win .gbr-score-mini{color:var(--gold-ink);}
 .gbr-sep-mini{height:1px;background:var(--brd);margin:0 8px;}
 .gbr-date-mini{font-family:'Barlow Condensed';font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.3px;padding:8px 10px 4px;display:flex;align-items:center;gap:5px;}
 .gbr-win-badge{display:inline-flex;align-items:center;gap:1px;flex-shrink:0;padding:1px 4px;border-radius:4px;
-  border:1px solid rgba(201,168,76,.34);background:rgba(201,168,76,.14);color:var(--gold);line-height:1;}
+  border:1px solid rgba(201,168,76,.34);background:rgba(201,168,76,.14);color:var(--gold-ink);line-height:1;}
 .gbr-win-badge svg{width:11px;height:11px;}
 .gbr-win-badge small{font-size:8px;line-height:1;}
 .gbr-live-tag{display:inline-flex;align-items:center;gap:4px;font-family:'Barlow Condensed';font-size:9px;font-weight:700;
@@ -664,7 +662,7 @@ body.sala-open{overflow:hidden;}
 .gbr-mobile-wrap{display:block;}
 .gbr-tree-wrap{display:none;}
 .gbr-champ{text-align:center;padding:6px 0 14px;}
-.gbr-champ .gbr-champ-lbl{font-family:'Barlow Condensed';font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-top:8px;}
+.gbr-champ .gbr-champ-lbl{font-family:'Barlow Condensed';font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold-ink);margin-top:8px;}
 .gbr-champ .gbr-champ-name{font-family:'Bebas Neue';font-size:24px;letter-spacing:1px;color:var(--txt);line-height:1.1;}
 .gbr-champ.tbd{opacity:.45;}
 .gbr-champ.tbd .gbr-champ-lbl{color:var(--txt3);}
@@ -683,7 +681,7 @@ body.sala-open{overflow:hidden;}
 .gbr-tree-row.win .gbr-tree-name{color:var(--txt);font-weight:700;}
 .gbr-tree-sep{height:1px;background:var(--brd);margin:0 10px;}
 .gbr-tree-score{font-family:'Bebas Neue';font-size:20px;min-width:22px;text-align:right;line-height:1;color:var(--txt3);flex:none;}
-.gbr-tree-row.win .gbr-tree-score{color:var(--gold);}
+.gbr-tree-row.win .gbr-tree-score{color:var(--gold-ink);}
 .gbr-rtitle{height:32px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';
   font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);}
 @media(max-width:760px){
@@ -746,7 +744,7 @@ body.sala-open{overflow:hidden;}
 .hm-collapsible{gap:0;}
 .hm-peek{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;position:relative;z-index:1;}
 .hm-toggle{width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;}
-.hm-toggle:focus-visible{outline:2px solid var(--gold-b);outline-offset:7px;border-radius:var(--r);}
+.hm-toggle:focus-visible{outline:2px solid var(--focus-ring);outline-offset:7px;border-radius:var(--r);}
 .hm-peek-lbl{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:3px;
   text-transform:uppercase;color:var(--gold);}
 .hm-peek .hm-count{font-size:clamp(2.6rem,1.4rem+3.4vw,4rem);}
@@ -798,7 +796,7 @@ body.sala-open{overflow:hidden;}
   box-shadow:0 0 14px var(--gold-glow);
 }
 .metro-date{font-family:'Bebas Neue';font-size:18px;letter-spacing:0.5px;display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-.metro-day.today .metro-date{color:var(--gold);}
+.metro-day.today .metro-date{color:var(--gold-ink);}
 .metro-day.empty{padding-bottom:12px;}
 .metro-day.empty .metro-date{font-size:13px;color:var(--txt3);margin-bottom:0;font-family:'Barlow Condensed';font-weight:600;letter-spacing:1px;}
 .metro-match{
@@ -809,7 +807,7 @@ body.sala-open{overflow:hidden;}
              border-color var(--dur-fast),background var(--dur-fast);
 }
 .metro-match:hover{transform:translateX(4px);border-color:var(--gold-b);background:var(--card2);}
-.metro-match .mm-time{font-family:'Bebas Neue';font-size:15px;color:var(--gold);min-width:44px;}
+.metro-match .mm-time{font-family:'Bebas Neue';font-size:15px;color:var(--gold-ink);min-width:44px;}
 .metro-match .mm-comp{font-size:10px;letter-spacing:1px;color:var(--txt3);text-transform:uppercase;margin-left:auto;white-space:nowrap;}
 .metro-match .mm-crest{width:20px;height:20px;border-radius:5px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--tc,#333);color:#fff;font-family:'Bebas Neue';font-size:8px;}
 .metro-match .mm-fixture{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
@@ -830,7 +828,7 @@ body.sala-open{overflow:hidden;}
   color:var(--gold);background:none;border:1px solid var(--brd);border-radius:999px;padding:7px 16px;
   transition:border-color var(--dur-fast),background var(--dur-fast),color var(--dur-fast);}
 .metro-more:hover{border-color:var(--gold-b);background:color-mix(in srgb,var(--gold) 8%,transparent);color:var(--gold-hi);}
-.metro-more:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.metro-more:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 /* Día pasado (solo el más reciente queda visible) — en gris, dinámica del main. */
 .metro-day.past{opacity:0.55;}
 .metro-day.past .metro-dot{background:var(--txt3);border-color:var(--brd2);box-shadow:none;}
@@ -913,7 +911,7 @@ body.sala-open{overflow:hidden;}
 .club-stats{display:flex;gap:0;}
 .club-stat{flex:1;display:flex;flex-direction:column;gap:1px;}
 .club-stat b{font-family:'Bebas Neue';font-size:16px;font-weight:400;color:var(--txt);line-height:1;}
-.club-stat b.gold{color:var(--gold);}
+.club-stat b.gold{color:var(--gold-ink);}
 .club-stat span{font-family:'Barlow Condensed';font-size:9px;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt3);}
 .club-foot{display:flex;flex-direction:column;align-items:flex-start;gap:4px;}
 .club-foot .fs-lbl{font-family:'Barlow Condensed';font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
@@ -951,12 +949,15 @@ body.sala-open{overflow:hidden;}
 .load-more.loading svg{animation:lmSpin 0.7s linear infinite;}
 @keyframes lmSpin{to{transform:rotate(360deg);}}
 /* A11y: foco visible + estados deshabilitado/cargando */
-.load-more:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+.load-more:focus-visible{outline:2px solid var(--focus-ring);outline-offset:3px;}
 .load-more[disabled]{opacity:0.5;cursor:not-allowed;pointer-events:none;}
 .load-more[aria-busy="true"]{pointer-events:none;}
 @media(prefers-reduced-motion:reduce){.load-more.loading svg{animation:none;}}
 
-/* ============ 06 · SORTEO ============ */
+/* ============ 06 · SORTEO ============
+   El escenario responde al tema (a diferencia de #sala, que sí es siempre
+   dark por diseño): en light usa superficies claras con glow dorado/azul
+   suave; en dark conserva su base #07090D sin cambios. */
 .sorteo-stage{
   position:relative;border-radius:var(--rl);overflow:hidden;border:1px solid var(--brd);
   background:
@@ -965,23 +966,30 @@ body.sala-open{overflow:hidden;}
   display:flex;flex-direction:column;align-items:center;gap:18px;
   padding:clamp(24px,4vw,44px) clamp(16px,3vw,36px);
 }
+[data-theme="light"] .sorteo-stage{
+  background:
+    radial-gradient(ellipse 45% 38% at 50% 92%, var(--gold-l), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 0%, var(--blue-l), transparent 70%),
+    var(--bg-deep);
+}
 .sorteo-hdr{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;}
 .sorteo-title{font-family:'Bebas Neue';font-size:clamp(1.6rem,1rem+2vw,2.4rem);letter-spacing:1.5px;}
 /* tamaño original del arte (547×821); sólo se reduce si no cabe en móvil */
 .sorteo-chibi{width:547px;max-width:84vw;height:auto;filter:drop-shadow(0 16px 26px rgba(0,0,0,0.55));}
-.sorteo-counter{font-family:'Bebas Neue';font-size:30px;color:var(--gold);line-height:1;}
+.sorteo-counter{font-family:'Bebas Neue';font-size:30px;color:var(--gold-ink);line-height:1;}
 .sorteo-counter small{font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:1.5px;}
 /* Equipos de la urna: ocultos en un desplegable, abren con el resumen */
 .urna-wrap{width:100%;max-width:560px;border:1px solid var(--brd);border-radius:var(--rl);
-  background:rgba(255,255,255,0.02);overflow:hidden;}
+  background:var(--card2);overflow:hidden;}
 .urna-sum{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
   padding:12px 16px;font-family:'Barlow Condensed';font-weight:700;font-size:13px;
   letter-spacing:1px;text-transform:uppercase;color:var(--txt2);user-select:none;}
 .urna-sum::-webkit-details-marker{display:none;}
-.urna-sum .us-chev{width:16px;height:16px;color:var(--gold);transition:transform var(--dur);flex:none;}
+.urna-sum .us-chev{width:16px;height:16px;color:var(--gold-ink);transition:transform var(--dur);flex:none;}
 .urna-wrap[open] .urna-sum .us-chev{transform:rotate(180deg);}
 .urna-sum b{color:var(--txt);}
 .urna-sum .us-sep{color:var(--txt3);font-weight:600;}
+.urna-sum:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px;}
 .urna-body{padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;}
 .urna-group{display:flex;flex-direction:column;gap:7px;}
 .urna-lbl{font-family:'Barlow Condensed';font-size:10px;font-weight:700;letter-spacing:1.5px;
@@ -1029,7 +1037,7 @@ body.sala-open{overflow:hidden;}
 @keyframes hitoSpin{to{transform:translate(-50%,-50%) rotate(360deg);}}
 .hito{position:relative;z-index:1;height:100%;padding:14px 16px;
   background:var(--card);border-radius:calc(var(--rl) - 2px);}
-.hito b{display:block;font-family:'Bebas Neue';font-size:clamp(26px,4vw,38px);font-weight:400;color:var(--gold);line-height:1;}
+.hito b{display:block;font-family:'Bebas Neue';font-size:clamp(26px,4vw,38px);font-weight:400;color:var(--gold-ink);line-height:1;}
 .hito span{font-family:'Barlow Condensed';font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);}
 .hito-click{cursor:pointer;appearance:none;border:none;width:100%;text-align:left;
   font-family:inherit;transition:background var(--dur-fast,0.15s);}
@@ -1039,7 +1047,7 @@ body.sala-open{overflow:hidden;}
   color:var(--txt3);margin-top:4px;font-family:'Barlow Condensed',sans-serif;}
 /* Hito «Partidos» con carruseles de filtro inline (cc-games — cc-seasons) */
 .hito-stage button.hito{display:block;width:100%;border:0;color:inherit;text-align:left;cursor:pointer;font-family:inherit;}
-.hito-stage button.hito:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.hito-stage button.hito:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .hito-centered{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;}
 .hito-centered b,.hito-centered span,.hito-centered small{text-align:left;}
 .hito-filter-row{display:flex;align-items:center;justify-content:flex-start;gap:5px;margin-top:8px;max-width:100%;min-width:0;}
@@ -1099,7 +1107,7 @@ body.sala-open{overflow:hidden;}
 .h2h-input{width:100%;padding:11px 12px;border-radius:10px;background:var(--bg);
   border:1px solid var(--brd2);color:var(--txt);font-family:'Barlow Condensed';
   font-size:15px;font-weight:600;letter-spacing:0.3px;transition:border-color var(--dur-fast);}
-.h2h-input:focus{outline:none;border-color:var(--gold-b);}
+.h2h-input:focus{outline:none;border-color:var(--focus-ring);box-shadow:0 0 0 1px var(--focus-ring);}
 .h2h-input::placeholder{color:var(--txt3);font-weight:500;}
 .h2h-vs-sm{font-family:'Bebas Neue';font-size:22px;color:var(--gold-lo);flex:none;}
 .h2h-ac{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:6;
@@ -1112,7 +1120,7 @@ body.sala-open{overflow:hidden;}
 .h2h-ac-item:hover,.h2h-ac-item.active{background:color-mix(in srgb,var(--gold) 14%,transparent);color:var(--txt);}
 .h2h-ac-crest{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;
   background:var(--team-color,#444);color:#fff;font-family:'Bebas Neue';font-size:10px;flex:none;}
-.h2h-ac-item mark{background:none;color:var(--gold);}
+.h2h-ac-item mark{background:none;color:var(--gold-ink);}
 /* resultado del enfrentamiento (oculto hasta elegir ambos equipos) */
 .h2h-result{display:none;flex-direction:column;gap:14px;}
 .h2h-result.show{display:flex;}
@@ -1143,7 +1151,7 @@ body.sala-open{overflow:hidden;}
   font-family:'Barlow Condensed';font-weight:600;font-size:15px;}
 .hr-duel .hr-team{min-width:0;text-align:right;}
 .hr-duel .hr-team.away{text-align:left;}
-.hr-duel .hr-team.win{color:var(--gold);transition:text-shadow var(--dur-mid);}
+.hr-duel .hr-team.win{color:var(--gold-ink);transition:text-shadow var(--dur-mid);}
 .histm-row:hover .hr-team.win{text-shadow:0 0 16px var(--gold-glow);}
 .hr-duel .hr-score{font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;flex:none;
   transition:text-shadow var(--dur-mid);}
@@ -1158,7 +1166,7 @@ body.sala-open{overflow:hidden;}
 .ht-row:last-child{border-bottom:none;}
 .ht-row.hdr{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--txt);padding:7px 12px;background:var(--bg-deep);}
 .ht-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;}
-.ht-row:nth-child(2) .ht-pos{color:var(--gold);}
+.ht-row:nth-child(2) .ht-pos{color:var(--gold-ink);}
 .ht-team{display:flex;align-items:center;gap:8px;min-width:0;}
 .ht-crest{width:24px;height:24px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--tc,#333);color:#fff;font-family:'Bebas Neue';font-size:9px;overflow:hidden;}
 .ht-crest img{width:100%;height:100%;object-fit:cover;}
@@ -1176,7 +1184,7 @@ body.sala-open{overflow:hidden;}
 .ht-head-btn{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:none;color:inherit;cursor:pointer;
   font:inherit;letter-spacing:inherit;text-transform:inherit;}
 .ht-head-btn:hover{color:var(--txt);}
-.ht-head-btn:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.ht-head-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .ht-head-btn[aria-pressed="true"]{color:var(--gold);}
 .ht-head-btn .ht-head-ico{font-family:'Bebas Neue';font-size:14px;line-height:1;color:var(--gold-lo);display:inline-flex;}
 .ht-card[data-layout="detail"] .ht-rend,.ht-card[data-layout="detail"] .ht-col-hide-in-detail{display:none;}
@@ -1190,7 +1198,7 @@ body.sala-open{overflow:hidden;}
   font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;
   color:var(--txt3);transition:color var(--dur-fast);}
 .hist-tab:hover{color:var(--txt2);}
-.hist-tab.active{color:var(--gold);}
+.hist-tab.active{color:var(--gold-ink);}
 .hist-tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;
   background:linear-gradient(90deg,var(--gold),var(--green-hi));}
 .hist-pane[hidden]{display:none;}
@@ -1229,7 +1237,7 @@ body.sala-open{overflow:hidden;}
   font-family:'Barlow Condensed';font-weight:600;font-size:14px;color:var(--txt2);cursor:pointer;
   width:100%;min-height:44px;background:transparent;text-align:left;gap:10px;}
 .pp-sec:hover{border-color:var(--brd2);color:var(--txt);}
-.pp-sec:focus-visible{outline:2px solid var(--gold-b);outline-offset:2px;}
+.pp-sec:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .pp-sec .pp-chevron{flex:none;transition:transform var(--dur-fast);}
 .pp-sec[aria-expanded="true"] .pp-chevron{transform:rotate(90deg);}
 .pp-disclosure{display:flex;flex-direction:column;gap:10px;padding:12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
@@ -1253,3 +1261,21 @@ body.sala-open{overflow:hidden;}
 .pp-unverified{color:#FFC107;font-size:11px;font-weight:600;}
 .pp-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
 .pp-foot{padding:14px 18px;border-top:1px solid var(--brd);display:flex;justify-content:space-between;gap:10px;flex:none;background:var(--card);}
+
+/* ============================================================
+   ESTELA DE CURSOR — cursor-fx.js
+   Canvas fijo por encima de todo el contenido (ver Configuración
+   general → "Estela de cursor" para elegir variante).
+   ============================================================ */
+#cursor-fx{position:fixed;inset:0;z-index:var(--z-cursor-fx);pointer-events:none;}
+
+/* --- selector dentro del modal de Configuración --- */
+.trail-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.trail-picker button{
+  display:flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;
+  border-radius:9px;border:1px solid var(--brd2);background:var(--card2);color:var(--txt2);
+  cursor:pointer;transition:color var(--dur-fast),background var(--dur-fast),border-color var(--dur-fast);
+}
+.trail-picker button:hover{color:var(--txt);background:var(--card3);}
+.trail-picker button.active{color:var(--gold);border-color:var(--gold-b);background:var(--gold-l);}
+.trail-picker button:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}

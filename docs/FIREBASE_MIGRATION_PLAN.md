@@ -1,9 +1,9 @@
 # Plan de migración a Firebase — TSC Web
 
 > Objetivo: pasar de IndexedDB (datos aislados por dispositivo) a un backend
-> compartido en la nube con **login multi-rol**, **datos en tiempo real** y
-> **notificaciones push "partido en vivo"**, manteniendo el frontend estático
-> y porteándolo luego a **APK Android**.
+> compartido en la nube con **login multi-rol** y **datos en tiempo real**,
+> manteniendo el frontend estático y porteándolo luego a **APK Android** con
+> notificaciones nativas.
 
 Stack elegido: **Firebase** (Firestore + Auth + FCM + Hosting) — gratis (plan Spark)
 para el volumen de este proyecto. Ver sección *Costos*.
@@ -24,9 +24,9 @@ para el volumen de este proyecto. Ver sección *Costos*.
 - ✅ **Fase 4** completa: reglas de seguridad por rol **desplegadas y probadas**
   (lectura pública, escritura solo admin, presidente edita su equipo,
   auto-registro seguro sin posibilidad de auto-ascenso). Ya NO en modo prueba.
-- ✅ **Fases 5–6A/6B** completas: usuarios vinculados, tiempo real onSnapshot, partidos en vivo (grupos/bracket/playoff), audio, Cloudinary logos, calendario con cronograma admin + línea de metro pública en tiempo real.
-- ⏳ **Siguiente — Fase 6 (resto)**: transmisión en vivo (embed YouTube + toggle admin + notificaciones).
-- ⏭️ **Fase 7**: Rediseño visual "motion site".
+- ✅ **Fase 6 web completa**: usuarios vinculados, tiempo real onSnapshot, partidos en vivo (grupos/bracket/playoff), audio, Cloudinary logos, calendario con cronograma admin + línea de metro pública en tiempo real. El calendario ya cubre el partido en vivo del momento y el siguiente partido; no habrá embed de YouTube ni toggle paralelo de "partido destacado".
+- ✅ **Fase 7**: rediseño visual "motion site" desplegado en producción.
+- ⏳ **Fase 7 hardening**: pulido de tema claro, foco/contraste, Sorteo en modo claro y fondo global dinámico.
 - ⏭️ **Fase 8**: APK Android (Capacitor) + FCM push nativo para presidentes.
 
 ---
@@ -224,20 +224,21 @@ service cloud.firestore {
 
 ---
 
-## 4. Notificaciones push "en vivo" (FCM)
+## 4. Notificaciones nativas en app (FCM)
 
-Recibir push es gratis. El único matiz es *desde dónde se dispara* de forma
-segura (la clave de servidor no puede vivir en el cliente).
+Las notificaciones push pasan a la **Fase 8**, junto con el APK Android. No se
+implementan como PWA/web push ni como feature web separada. El calendario y el
+centro de partidos ya muestran en tiempo real el partido en vivo del momento y
+el siguiente partido dentro de la web.
 
 ```
-Admin marca partido "en vivo"  (escribe match.live = true)
+App Android registra token FCM en users/{uid}.fcmTokens
         │
-        ├── Opción A: Cloud Function (onUpdate de matches) → FCM Admin SDK
-        │            requiere plan Blaze (tarjeta, pero $0 a esta escala)
+        ├── Evento relevante de partido/calendario
+        │   ("tu equipo juega hoy", "partido en vivo", "resultado actualizado")
         │
-        └── Opción B: el cliente admin llama a un Worker gratis
-                     (Vercel / Cloudflare) que guarda la server key y manda FCM
-                     → $0, sin tarjeta. Recomendado para arrancar.
+        └── Worker/servicio seguro dispara FCM a presidentes vinculados
+            (la clave de servidor nunca vive en el cliente)
 
 Destino: tokens en users/{uid}.fcmTokens del presidente del equipo que juega.
 ```
@@ -246,10 +247,11 @@ Destino: tokens en users/{uid}.fcmTokens del presidente del equipo que juega.
 
 ## 5. Tiempo real "en vivo"
 
-La vista pública / del presidente se suscribe con `onSnapshot` a los partidos
-`live == true` (o al próximo partido de su equipo). Cuando el admin actualiza el
-marcador, **todos los teléfonos conectados lo ven al instante**, sin recargar.
-Esto es exactamente para lo que Firestore fue diseñado.
+La vista pública / del presidente se suscribe con `onSnapshot` a partidos,
+fases y calendario. Cuando el admin actualiza el marcador, **todos los teléfonos
+conectados lo ven al instante**, sin recargar. Esto ya cubre el partido en vivo
+del momento y el siguiente partido; no se crea un segundo sistema de "partido
+destacado" porque duplicaría la fuente de verdad del calendario.
 
 ---
 
@@ -278,8 +280,8 @@ JSON. Pipeline:
 | **3** | Auth: login, `users`, quitar toggle Público/Admin, rol+teamId | Medio | 2–3 días |
 | **4** | Reglas de seguridad por rol + pruebas | Medio-alto | 1–2 días |
 | **5** | Pestaña Perfil + Admin→Usuarios (vincular usuario↔equipo) | Medio | 1–2 días |
-| **6** | Tiempo real (`onSnapshot`) + transmisión en vivo (embed YouTube, toggle admin) | Medio | 1–2 días |
-| **7** | Rediseño visual completo ("motion site") — nueva identidad, animaciones, UX premium | Alto | 3–5 días |
+| **6** | Tiempo real (`onSnapshot`) + partido en vivo/siguiente partido desde calendario | Cerrada | Hecho |
+| **7** | Rediseño visual completo ("motion site") — nueva identidad, animaciones, UX premium | En hardening | Pulido actual |
 | **8** | APK Android (Capacitor) + FCM push nativo + lock landscape + Web App Manifest | Medio | 2–3 días |
 
 > Las fases 0–2 son la columna vertebral y se pueden hacer **sin tocar la UI**.
@@ -297,19 +299,18 @@ JSON. Pipeline:
 |---|---|---|
 | Firestore + Auth + Hosting | Spark (gratis) | **$0** (volumen muy por debajo de límites) |
 | FCM (push) | — | **$0** ilimitado |
-| Disparo de push | Worker Vercel/Cloudflare free | **$0** sin tarjeta |
+| Disparo de push nativo | Worker Vercel/Cloudflare free | **$0** sin tarjeta |
 | APK (build + sideload) | Capacitor + distribución directa | **$0** |
 | *(opcional)* Google Play | pago único | $25 una vez |
 
 ---
 
-## 9. Decisiones abiertas (a confirmar antes de Fase 3–4)
+## 9. Decisiones abiertas vigentes
 
-1. ¿Qué edita exactamente un **presidente**? (propuesta: solo su equipo; marcadores = admin)
-2. ¿Push para **Opción A** (Cloud Function + tarjeta) u **Opción B** (worker gratis)?
-3. ¿Login solo email/contraseña, o también Google?
-4. ¿Los presidentes se **auto-registran** (y el admin aprueba) o **el admin los crea**?
-5. ¿Capacitor (recomendado, acceso nativo a FCM) o TWA/Bubblewrap para el APK?
+1. ¿Capacitor (recomendado, acceso nativo a FCM) o TWA/Bubblewrap para el APK?
+2. ¿El disparo FCM se hará con Worker gratis o Cloud Function?
+3. ¿Qué eventos exactos notifican al presidente? Propuesta: partido de su equipo hoy, partido en vivo, resultado actualizado y rival definido.
+4. ¿SMTP queda como backlog opcional o se elimina del alcance?
 
 ---
 

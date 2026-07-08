@@ -218,7 +218,7 @@
   cursor: pointer;
 }
 .palm-gallery-icon-btn:hover:not(:disabled) { color: var(--gold); border-color: var(--gold-b); }
-.palm-gallery-icon-btn:focus-visible { outline: 2px solid var(--gold-b); outline-offset: 2px; }
+.palm-gallery-icon-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .palm-gallery-icon-btn:disabled { opacity: .3; cursor: default; }
 .palm-gallery-icon-btn svg {
   width: 17px;
@@ -286,7 +286,7 @@
 
 .mv {
   background: rgba(255,255,255,.022);
-  border: 1px solid rgba(255,255,255,.07);
+  border: 1px solid var(--brd);
   border-radius: 18px;
   padding: 20px 22px;
 }
@@ -310,7 +310,7 @@
 .mv-head-ico {
   width: 40px;
   height: 48px;
-  color: #DAA520;
+  color: var(--gold-ink);
   display: flex;
   flex: none;
 }
@@ -348,7 +348,7 @@
 }
 
 .mv-stats b {
-  color: #DAA520;
+  color: var(--gold-ink);
   font-size: 14px;
   font-weight: 700;
   margin-right: 3px;
@@ -404,10 +404,10 @@
   gap: 11px;
   width: 100%;
   text-align: left;
-  border: 1px solid rgba(255,255,255,.07);
+  border: 1px solid var(--brd);
   border-radius: 12px;
   padding: 11px 13px;
-  background: rgba(20,24,31,.82);
+  background: transparent;
   color: var(--txt);
   cursor: pointer;
   transition: transform .4s ease, filter .4s ease, border-color .2s, background .2s;
@@ -415,9 +415,14 @@
   font-family: inherit;
 }
 
+.mv-nav-row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .mv-nav-row:hover {
-    background: rgba(33,39,50,.92);
+    background: var(--card3);
     transform: scale(1.1);
   }
 
@@ -429,13 +434,13 @@
 
 .mv-nav-row.on {
   border-color: var(--metal);
-  background: color-mix(in srgb, var(--metal) 16%, rgba(20,24,31,.85));
+  background: color-mix(in srgb, var(--metal) 16%, var(--card3));
 }
 
 .mv-nav-ico {
   width: 24px;
   height: 29px;
-  color: var(--metal);
+  color: var(--metal-ink);
   flex: none;
   display: flex;
 }
@@ -452,7 +457,7 @@
 
 .mv-nav-row.on .mv-nav-name,
 .mv-nav-row.on .mv-nav-chev {
-  color: var(--metal);
+  color: var(--metal-ink);
 }
 
 .mv-nav-chev {
@@ -490,6 +495,11 @@
 .mv-stage:disabled {
   cursor: default;
   opacity: .78;
+}
+
+.mv-stage:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 .mv-scene {
@@ -599,18 +609,18 @@
   margin-top: 11px;
   padding: 10px 18px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--metal) 12%, rgba(20,24,31,.7));
+  background: color-mix(in srgb, var(--metal) 12%, var(--card2));
   border: 1px solid color-mix(in srgb, var(--metal) 45%, transparent);
   font-size: 12px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--metal);
+  color: var(--metal-ink);
   transition: background .2s;
 }
 
 .mv-stage:hover:not(:disabled) .mv-cta,
 .mv-stage:focus-visible:not(:disabled) .mv-cta {
-  background: color-mix(in srgb, var(--metal) 22%, rgba(20,24,31,.7));
+  background: color-mix(in srgb, var(--metal) 22%, var(--card2));
 }
 
 .mv-data {
@@ -621,8 +631,8 @@
 }
 
 .mv-vig {
-  background: rgba(20,24,31,.82);
-  border: 1px solid rgba(255,255,255,.07);
+  background: var(--card2);
+  border: 1px solid var(--brd);
   border-radius: 12px;
   padding: 14px;
 }

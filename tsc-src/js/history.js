@@ -1386,6 +1386,14 @@ function _htCrest(r){
   const inner = r.logo ? `<img src="${_esc(r.logo)}" alt="">` : _esc(r.ini||_pubHIni(r.name));
   return `<span class="ht-crest" style="background:${_esc(r.color||'#5f6368')};">${inner}</span>`;
 }
+/* Nombre del equipo + ícono ⓘ si tiene nombres anteriores (mismo patrón que
+   _histStdRowHTML: hover muestra title en desktop, tocar abre popover vía
+   histShowPrev en móvil). */
+function _htNameHTML(r){
+  if(!(r.previousNames && r.previousNames.length)) return `<span class="ht-name">${_esc(r.name)}</span>`;
+  const tooltip = _esc(['Nombres anteriores:', ...r.previousNames.map(p=>`• ${p}`)].join('\n'));
+  return `<span class="ht-name hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;">${_esc(r.name)}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
+}
 function _htRow(r, layout){
   const detail = `<div class="ht-detail">`
     + _htStatCell('PJ', r.pj) + _htStatCell('PG', r.w) + _htStatCell('PE', r.d) + _htStatCell('PP', r.l)
@@ -1393,7 +1401,7 @@ function _htRow(r, layout){
     + `</div>`;
   if(layout.key==='detail'){
     return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
-      <div class="ht-team">${_htCrest(r)}<span class="ht-name">${_esc(r.name)}</span></div>${detail}</div>`;
+      <div class="ht-team">${_htCrest(r)}${_htNameHTML(r)}</div>${detail}</div>`;
   }
   const cells = layout.cols.map(col=>{
     if(col==='rend'){
@@ -1405,7 +1413,7 @@ function _htRow(r, layout){
     return `<span class="${cls} ${layout.canToggle?'ht-col-hide-in-detail':''}">${_esc(_htNum(val))}</span>`;
   }).join('');
   return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
-    <div class="ht-team">${_htCrest(r)}<span class="ht-name">${_esc(r.name)}</span></div>${cells}</div>`;
+    <div class="ht-team">${_htCrest(r)}${_htNameHTML(r)}</div>${cells}</div>`;
 }
 function _renderHtTable(el){
   const card = el.querySelector('.ht-card');
@@ -1471,6 +1479,7 @@ async function _pubRenderHistoryStandings(el, renderToken){
       color:s.color||'#5f6368', logo:s.logo||null,
       pj:s.pj, w:s.v, d:s.e, l:s.p, gf:s.gf, gc:s.gc, dif:s.dg, pts:s.pts,
       rend:(s.rendimiento||0)*100,
+      previousNames:s.previousNames||[],
     }));
     el.innerHTML = `<div class="ht-card"><div class="ht-row hdr"></div><div id="ht-rows"></div></div>`;
     _renderHtTable(el);

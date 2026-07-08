@@ -60,6 +60,9 @@ function setTheme(theme){
   // Compatibilidad con los viejos botones si quedaran en el DOM:
   document.getElementById('theme-dark-btn')?.classList.toggle('btn-primary',theme==='dark');
   document.getElementById('theme-light-btn')?.classList.toggle('btn-primary',theme==='light');
+  // Notifica a módulos que cachean colores derivados del tema en inline style
+  // (p.ej. palmares.js → --metal-ink) para que se recalculen sin esperar un re-render.
+  document.dispatchEvent(new CustomEvent('tsc:theme-changed', { detail: { theme } }));
 }
 function toggleTheme(){
   setTheme(STATE.theme === 'light' ? 'dark' : 'light');
@@ -74,9 +77,19 @@ function _syncVolGradient(val){
 /* ----------------------------------------------------------
    SETTINGS
    ---------------------------------------------------------- */
+/* Estela de cursor (cursor-fx.js): aplica en vivo + persiste (misma lógica que setTheme). */
+function pickCursorTrail(v){
+  window.CURSOR_FX?.setVariant(v);
+  document.querySelectorAll('#trail-picker button').forEach(b=>b.classList.toggle('active', b.dataset.variant===v));
+}
+function _syncCursorTrailPicker(){
+  const current = window.CURSOR_FX?.getVariant ? window.CURSOR_FX.getVariant() : (localStorage.getItem('tsc_cursorfx_variant')||'off');
+  document.querySelectorAll('#trail-picker button').forEach(b=>b.classList.toggle('active', b.dataset.variant===current));
+}
 function openSettings(){
   openModal('settings-modal');
   initVolSlider();
+  _syncCursorTrailPicker();
   // Sonido
   const on  = document.getElementById('snd-on');
   const vol = document.getElementById('snd-vol');
@@ -570,10 +583,53 @@ window.addEventListener('load', async ()=>{
   if(typeof seedPalmaresIfEmpty==='function') await seedPalmaresIfEmpty();
   // v4: re-asignar títulos huérfanos de DIABLOS ROJOS a AC ANGELES ROJOS
   await migratePalmaresV4DiablosToAngeles();
+
+  // Restaurar navegación (temporada/página/modo) para que un reload no
+  // vuelva siempre a Palmarés en público. Dos cosas deben pasar ANTES de lo
+  // que las invalidaría: `savedMode` se captura ANTES de setMode('public')
+  // (que persiste tsc_mode=public de inmediato — leerlo después de eso
+  // siempre daría 'public', nunca 'admin'), y STATE.season se ajusta ANTES
+  // de loadSeasons() (que arma el <select> marcando la temporada según
+  // STATE.season en ese momento — ajustarlo después deja el dropdown
+  // mostrando la temporada equivocada aunque STATE.season ya sea correcto).
+  const savedMode = localStorage.getItem('tsc_mode');
+  try{
+    const savedSeasons = await dbGetAll('seasons');
+    const savedSeason = parseInt(localStorage.getItem('tsc_season'));
+    if(Number.isFinite(savedSeason) && savedSeasons.some(s=>s.number===savedSeason)){
+      STATE.season = savedSeason;
+    }
+    const savedPublicPage = localStorage.getItem('tsc_public_page');
+    const validPublicPages = typeof getPublicScrollPages === 'function' ? getPublicScrollPages() : [];
+    if(savedPublicPage && validPublicPages.includes(savedPublicPage)){
+      STATE.publicPage = savedPublicPage;
+    }
+    const savedAdminPage = localStorage.getItem('tsc_admin_page');
+    if(savedAdminPage) STATE.adminPage = savedAdminPage;
+  }catch(e){}
+
   await loadSeasons();
   setMode('public');
   // Inicializar autenticación (Firebase Auth + roles)
   if(typeof onAuthInit === 'function') onAuthInit();
+
+  // Si la última sesión estaba en modo admin, subir a admin en cuanto la
+  // sesión se confirme. Usa `savedMode` (capturado arriba, ANTES de que
+  // setMode('public') sobrescribiera tsc_mode) — no se puede re-leer
+  // localStorage acá. AUTH.role lo resuelve el listener propio de onAuthInit
+  // (auth.js) con su propia consulta a Firestore — esperamos (con reintentos
+  // acotados) en vez de duplicar esa consulta acá. Si no es admin (o no hay
+  // sesión), no hace nada.
+  if(savedMode==='admin' && typeof firebase!=='undefined' && typeof firebase.auth==='function'){
+    const unsub = firebase.auth().onAuthStateChanged(async (user)=>{
+      unsub();
+      if(!user) return;
+      for(let i=0; i<10 && AUTH.role!=='admin'; i++){
+        await new Promise(r=>setTimeout(r,150));
+      }
+      if(AUTH.role==='admin') setMode('admin');
+    });
+  }
 });
 
 /* ----------------------------------------------------------
@@ -586,7 +642,7 @@ async function notifyTeamChanged(teamId){
     Object.keys(_resolveCache).forEach(key => delete _resolveCache[key]);
   }
   if(typeof _standingsCache !== 'undefined'){
-    _standingsCache.clear?.();
+    Object.keys(_standingsCache).forEach(key => delete _standingsCache[key]);
   }
 
   // Regenerar registros de historial para la temporada actual si el equipo cambió de nombre

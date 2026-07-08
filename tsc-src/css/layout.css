@@ -25,13 +25,35 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   font:inherit;color:inherit;-webkit-tap-highlight-color:transparent;
   border-radius:var(--r);
 }
-.topbar-brand-btn:hover{opacity:0.85;}
-.topbar-brand-btn:active{opacity:0.7;}
+.topbar-brand-btn:active{opacity:0.75;}
 .topbar-logo{
   height:36px;width:36px;object-fit:contain;flex-shrink:0;display:block;
+  transition:transform var(--dur-fast) var(--ease-out-soft);
 }
-.topbar-name{font-family:'Bebas Neue';font-size:20px;letter-spacing:1px;color:#fff;}
-.topbar-name span{color:var(--gold);}
+.topbar-brand-btn:hover .topbar-logo{transform:scale(1.07);}
+/* Lockup de marca estilo gráfica deportiva: "TEAMS SUBS" en tinta del tema
+   (legible en claro y oscuro) + "CUP" en gradiente dorado (gradiente = marca,
+   plano = dato) con leve inclinación de broadcast. */
+.topbar-name{
+  font-family:'Bebas Neue';font-size:21px;letter-spacing:0.5px;
+  color:var(--txt);line-height:1;
+  display:flex;align-items:baseline;gap:7px;
+  transform:skewX(-4deg);
+}
+.topbar-name span{
+  font-size:24px;letter-spacing:2.5px;margin-right:2.5px;/* compensa el tracking del último glifo */
+  background:linear-gradient(165deg,var(--gold-hi) 8%,var(--gold) 46%,var(--gold-lo) 92%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:var(--gold);
+  transition:filter var(--dur-fast) var(--ease-out-soft);
+}
+.topbar-brand-btn:hover .topbar-name span{filter:drop-shadow(0 0 7px var(--gold-glow));}
+/* Modo claro: el ramp dorado estándar es demasiado claro sobre nav blanco →
+   gradiente con paradas oscurecidas alrededor de --gold-ink (#7A5F1E). */
+[data-theme="light"] .topbar-name span{
+  background:linear-gradient(165deg,#B08A2E 8%,#8F7530 50%,#6B5522 92%);
+  -webkit-background-clip:text;background-clip:text;
+}
 .topbar-right{display:flex;align-items:center;gap:6px;}
 
 /* Móvil: dejar solo el círculo "TSC" y compactar la barra para que TODO

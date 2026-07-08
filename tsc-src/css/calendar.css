@@ -116,7 +116,7 @@
   font-size:13px;font-family:inherit;
   transition:border-color 0.15s;
 }
-.cal-inp:focus{ outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-l); }
+.cal-inp:focus{ outline:none;border-color:var(--focus-ring);box-shadow:0 0 0 2px var(--focus-ring); }
 .cal-inp-date{ width:138px; }
 .cal-inp-time{ width:88px; }
 
@@ -172,7 +172,7 @@
   font-weight:700;font-size:20px;text-transform:uppercase;
   letter-spacing:0.3px;color:var(--txt);
 }
-.cal-pub-day-hdr--today .cal-pub-day-name{ color:var(--green); }
+.cal-pub-day-hdr--today .cal-pub-day-name{ color:var(--green-ink); }
 .cal-pub-day-cnt{
   font-size:12px;color:var(--txt3);
 }
@@ -353,7 +353,7 @@
   font-size:14px;font-weight:700;color:var(--txt2);
   white-space:nowrap;letter-spacing:.2px;
 }
-.cal-tl-station--now    .cal-tl-label{ color:var(--gold); }
+.cal-tl-station--now    .cal-tl-label{ color:var(--gold-ink); }
 .cal-tl-station--past   .cal-tl-label{ color:var(--txt3); }
 .cal-tl-station--active .cal-tl-label{ color:var(--txt); }
 
@@ -522,7 +522,7 @@
   white-space:nowrap;width:48px;flex-shrink:0;
   user-select:none;
 }
-.cal-lbl-day--today  .cal-lbl-date{ color:var(--gold); }
+.cal-lbl-day--today  .cal-lbl-date{ color:var(--gold-ink); }
 .cal-lbl-day--future .cal-lbl-date{ color:var(--txt2); }
 
 /* input de texto */
@@ -534,7 +534,7 @@
   cursor:pointer;flex-shrink:0;
   transition:border-color .15s;
 }
-.cal-lbl-type:focus{ outline:none;border-color:var(--gold); }
+.cal-lbl-type:focus{ outline:none;border-color:var(--focus-ring); }
 .cal-lbl-type option{ background:var(--card); }
 .cal-lbl-inp{
   flex:1;min-width:0;

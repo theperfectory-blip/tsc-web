@@ -9,6 +9,14 @@
   --gold-l:rgba(201,168,76,0.12);
   --gold-b:rgba(201,168,76,0.28);
   --gold-glow:rgba(201,168,76,0.45);
+  /* ---- Tokens semánticos de TEXTO (separados de fondo/borde/superficie) ----
+     --gold/--green siguen siendo el acento de fills/CTAs/superficies activas,
+     sin tocar. --gold-ink/--green-ink son para texto/números/labels: en dark
+     son iguales al acento (ya tienen contraste de sobra sobre --bg oscuro);
+     en light se redefinen más abajo a un tono que cumple ≥4.5:1. */
+  --gold-ink:var(--gold);
+  --green-ink:var(--green);
+  --focus-ring:var(--gold); /* anillo de foco sólido; en dark el dorado normal ya cumple ≥3:1 */
 
   --blue:#3B82F6;
   --blue-l:rgba(59,130,246,0.12);
@@ -72,6 +80,7 @@
   --z-toast:700;
   --z-tooltip:800;
   --z-fullscreen:900;
+  --z-cursor-fx:950;          /* estela de cursor: por encima de todo, incl. #sala */
 
   /* Bracket eliminatorio (renderBracketHTML / scaleBracket) */
   --bk-card-w:220px;
@@ -93,7 +102,14 @@
   --brd2:rgba(0,0,0,0.15);
   --txt:#1A1A1A;
   --txt2:#555555;
-  --txt3:#999999;
+  --txt3:#666666;             /* antes #999999: 2.6:1, insuficiente para texto/captions chicos */
+  /* gold-ink/green-ink: calibrados contra --card3 (#E6E4DC), la más oscura
+     de las superficies claras del tema — si pasan ahí, pasan también sobre
+     --bg/--bg-deep/--card/--card2 (todas más claras que --card3). Verificado
+     en navegador ≥4.5:1 en las cinco. */
+  --gold-ink:#7A5F1E;
+  --green-ink:#166F42;
+  --focus-ring:var(--gold-ink); /* anillo de foco: sólido, ≥3:1 (--gold-b es translúcido y da ~1.2:1) */
 }
 
 /* ============================================================

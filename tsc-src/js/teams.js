@@ -441,6 +441,8 @@ async function saveTeam(id){
   } else {
     teamId = await dbAdd('teams',{...data, season:1, createdAt:new Date().toISOString()});
     showToast('Equipo creado');
+    // Notificar cambio de equipo para recargar vistas dinámicas (mismo trato que editar)
+    await notifyTeamChanged(teamId);
   }
   // Vincular la cuenta del presidente (selector). Mueve users.teamId.
   const _presSel = document.getElementById('tf-pres-uid');
@@ -459,6 +461,7 @@ async function deleteTeam(id){
     async ()=>{
       await dbDelete('teams',id);
       showToast('Equipo eliminado');
+      await notifyTeamChanged(id);
       renderAdmTeams();
     }
   );
@@ -480,10 +483,14 @@ function _clubCols(){
   return cols > 0 ? cols : 3;
 }
 
-/* Tamaño de tanda: completa la fila actual (si el resize cambió columnas) + filas enteras */
+/* Tamaño de tanda: completa la fila actual (si el resize cambió columnas) + filas enteras.
+   Escritorio (mismo breakpoint que .clubs-grid en redesign.css): siempre 2 filas completas,
+   sin importar cuántas columnas entren por el auto-fill. Móvil: comportamiento previo (~6). */
 function _clubBatch(){
   const cols = _clubCols();
-  const base = Math.max(cols, Math.round(6 / cols) * cols);
+  const base = window.innerWidth >= 700
+    ? cols * 2
+    : Math.max(cols, Math.round(6 / cols) * cols);
   const rem  = _pubTeamsView.shown % cols;
   return rem ? (cols - rem) + base : base;
 }
