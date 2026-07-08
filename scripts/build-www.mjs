@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'tsc-src');
 const DEST = join(ROOT, 'www');
-const INCLUDE = ['index.html', 'css', 'js', 'assets', 'data'];
+const INCLUDE = ['index.html', 'manifest.webmanifest', 'css', 'js', 'assets', 'data'];
 
 rmSync(DEST, { recursive: true, force: true });
 mkdirSync(DEST, { recursive: true });
