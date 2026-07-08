@@ -1,12 +1,12 @@
-# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-04)
+# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-08)
 
 ## Corpus Check
-- 45 files · ~1,101,563 words
+- 45 files · ~1,104,703 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2633 nodes · 6894 edges · 49 communities detected
-- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 1318 edges (avg confidence: 0.8)
+- 2633 nodes · 6897 edges · 49 communities detected
+- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 1321 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -63,7 +63,7 @@
 ## God Nodes (most connected - your core abstractions)
 1. `copy()` - 167 edges
 2. `set()` - 133 edges
-3. `dbGetAll()` - 112 edges
+3. `dbGetAll()` - 113 edges
 4. `dbGetAll()` - 104 edges
 5. `dbGet()` - 81 edges
 6. `add()` - 76 edges
@@ -102,31 +102,31 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
-Nodes (82): loop(), scaleBracket(), spawnRocket(), histShowPrev(), _palmOpenSala(), pubScoreDateNav(), _pubScoresPagerHtml(), _tkEsc() (+74 more)
+Nodes (81): loop(), rgbStr(), scaleBracket(), spawnRocket(), computeBounds(), histShowPrev(), _palmOpenSala(), pubScoreDateNav() (+73 more)
 
 ### Community 1 - "Community 1"
+Cohesion: 0.01
+Nodes (122): destroy(), dynCall(), _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), as(), _bindAction() (+114 more)
+
+### Community 2 - "Community 2"
 Cohesion: 0.02
 Nodes (258): buildBracketRounds(), buildBracketSlots(), closeBracketMatchModal(), deleteBracketMatch(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase(), getTeamLogo() (+250 more)
 
-### Community 2 - "Community 2"
-Cohesion: 0.01
-Nodes (116): _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), as(), bind(), _bindAction(), bl (+108 more)
-
 ### Community 3 - "Community 3"
 Cohesion: 0.02
-Nodes (38): addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), computeBounds(), createAttributesKey(), createDefaultMaterial() (+30 more)
+Nodes (59): N(), DRACOLoader, addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), createAttributesKey() (+51 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.03
-Nodes (68): A(), B(), C(), D(), e(), F(), G(), h() (+60 more)
+Cohesion: 0.02
+Nodes (8): ea, ic, ne, qs, Rt, setDirection(), si, We
 
 ### Community 5 - "Community 5"
-Cohesion: 0.02
-Nodes (4): bi, Et(), Lt, re
+Cohesion: 0.03
+Nodes (59): Particle, teamLogoHtml(), A(), B(), C(), D(), e(), F() (+51 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.03
-Nodes (61): _authErrorMsg(), _authEsc(), authForgotPassword(), authSignOut(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit() (+53 more)
+Cohesion: 0.02
+Nodes (16): GLTFCubicSplineQuaternionInterpolant, bl, bt(), el(), Ga, gc, jt(), Na (+8 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.04
@@ -134,43 +134,43 @@ Nodes (93): _cleanup(), resize(), _initChrome(), onScroll(), _play(), _initPubSi
 
 ### Community 8 - "Community 8"
 Cohesion: 0.03
-Nodes (73): abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert(), AttributeOctahedronTransform() (+65 more)
+Nodes (71): abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert(), AttributeOctahedronTransform() (+63 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.03
-Nodes (6): fs(), In, mc, ne, on, We
-
-### Community 10 - "Community 10"
 Cohesion: 0.05
 Nodes (86): _calCommitStage(), _calCtaBtn(), _calFormatDay(), _calHeroGoComp(), _calHeroGoH2H(), _calHeroHtml(), _calInitHeroCountdown(), calLblNavMonth() (+78 more)
 
-### Community 11 - "Community 11"
+### Community 10 - "Community 10"
 Cohesion: 0.05
 Nodes (81): _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc() (+73 more)
 
-### Community 12 - "Community 12"
+### Community 11 - "Community 11"
 Cohesion: 0.05
 Nodes (40): _getAudioCtx(), Rocket, _soundExplosion(), _soundRocketLaunch(), _palmApplyVol(), _palmAudio(), _PalmSmoke, _palmSoundOff() (+32 more)
 
-### Community 13 - "Community 13"
-Cohesion: 0.03
-Nodes (13): destroy(), ac, ea, ia, je, jl(), qs, setUsage() (+5 more)
-
-### Community 14 - "Community 14"
-Cohesion: 0.03
-Nodes (8): bt(), jt(), Na, qt, ta, Ut(), wt(), zt()
-
-### Community 15 - "Community 15"
+### Community 12 - "Community 12"
 Cohesion: 0.08
 Nodes (68): hexToRgb(), lighten(), openColorPicker(), activeBombo(), addBombo(), assignBracketLink(), assignLink(), assignPlayoffLink() (+60 more)
 
+### Community 13 - "Community 13"
+Cohesion: 0.06
+Nodes (50): _authErrorMsg(), _authEsc(), authForgotPassword(), authSignOut(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit() (+42 more)
+
+### Community 14 - "Community 14"
+Cohesion: 0.07
+Nodes (6): dh, kl, _lendControlInterpolant(), _takeBackControlInterpolant(), yl, zl
+
+### Community 15 - "Community 15"
+Cohesion: 0.05
+Nodes (7): ac, ia, jl(), setUsage(), _t(), wl, yn()
+
 ### Community 16 - "Community 16"
-Cohesion: 0.04
-Nodes (9): Particle, rgbStr(), co, lineTo(), moveTo(), oo, Po, Rt (+1 more)
+Cohesion: 0.08
+Nodes (4): co, oo, Po, vo()
 
 ### Community 17 - "Community 17"
-Cohesion: 0.04
-Nodes (8): dh, ic, kl, _lendControlInterpolant(), rh, _takeBackControlInterpolant(), yl, zl
+Cohesion: 0.11
+Nodes (3): bc, In, on
 
 ### Community 18 - "Community 18"
 Cohesion: 0.18
@@ -347,17 +347,17 @@ Nodes (1): Drumroll Sound Effect
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 18`?**
-  _High betweenness centrality (0.149) - this node is a cross-community bridge._
-- **Why does `add()` connect `Community 10` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 11`, `Community 13`, `Community 15`?**
-  _High betweenness centrality (0.086) - this node is a cross-community bridge._
-- **Why does `copy()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 8`, `Community 9`, `Community 13`, `Community 14`, `Community 16`, `Community 17`?**
-  _High betweenness centrality (0.077) - this node is a cross-community bridge._
+- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 15`, `Community 18`?**
+  _High betweenness centrality (0.148) - this node is a cross-community bridge._
+- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 8`, `Community 14`, `Community 15`, `Community 16`, `Community 17`?**
+  _High betweenness centrality (0.100) - this node is a cross-community bridge._
+- **Why does `add()` connect `Community 9` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 10`, `Community 12`, `Community 13`?**
+  _High betweenness centrality (0.083) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 27 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**
   _`set()` has 27 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 111 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
-  _`dbGetAll()` has 111 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 112 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
+  _`dbGetAll()` has 112 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 101 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
   _`dbGetAll()` has 101 INFERRED edges - model-reasoned connections that need verification._

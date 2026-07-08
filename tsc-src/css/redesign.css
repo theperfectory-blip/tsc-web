@@ -78,7 +78,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
    Gateado por #topbar.public-mode → admin sigue en una sola fila. */
 @media(max-width:600px){
   #topbar.public-mode{flex-wrap:wrap;height:auto;}
-  #topbar.public-mode .topbar-nav{order:3;flex-basis:100%;height:38px;border-top:1px solid var(--brd);}
+  #topbar.public-mode .topbar-nav{order:3;flex-basis:100%;height:44px;border-top:1px solid var(--brd);}
 }
 
 /* Ticker de resultados bajo la topbar.
