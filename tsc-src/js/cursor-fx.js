@@ -20,11 +20,24 @@
 
    Respeta prefers-reduced-motion (no arranca el canvas) y pausa
    el loop en pestaña oculta o tras reposo prolongado del mouse.
+
+   Táctil (móvil web y APK Capacitor): no hay puntero real que perseguir,
+   así que el módulo entero queda inerte — ni crea el canvas ni escucha
+   pointermove. IS_TOUCH se calcula una sola vez al cargar el script (el
+   tipo de puntero de un dispositivo no cambia en caliente).
    ============================================================ */
 (function () {
   const VARIANTS = ['ribbon', 'sparks', 'comet', 'constellation', 'off'];
   const STORE_KEY = 'tsc_cursorfx_variant';
   const IDLE_STOP_MS = 1400;
+
+  function _isTouchDevice() {
+    try {
+      if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+    } catch (_) { /* matchMedia no disponible */ }
+    return (navigator.maxTouchPoints || 0) > 0;
+  }
+  const IS_TOUCH = _isTouchDevice();
 
   let canvas, ctx, dpr = 1;
   let variant = 'off';
@@ -196,7 +209,7 @@
   }
 
   function wake() {
-    if (running || variant === 'off' || MOTION.reduced()) return;
+    if (IS_TOUCH || running || variant === 'off' || MOTION.reduced()) return;
     running = true;
     raf = requestAnimationFrame(frame);
   }
@@ -208,6 +221,7 @@
   }
 
   function setVariant(v) {
+    if (IS_TOUCH) { variant = 'off'; return; } // sin puntero real: la elección de settings no activa nada
     if (!VARIANTS.includes(v)) return;
     variant = v;
     try { localStorage.setItem(STORE_KEY, v); } catch (_) { /* storage no disponible */ }
@@ -216,9 +230,15 @@
     if (v === 'off' || MOTION.reduced()) stop(); else wake();
   }
 
-  function getVariant() { return variant; }
+  function getVariant() { return IS_TOUCH ? 'off' : variant; }
 
   function init() {
+    if (IS_TOUCH) {
+      // Defensivo: si por lo que sea ya hay un canvas en el DOM (HMR, doble
+      // carga del script), sacarlo — en táctil nunca debe quedar visible.
+      document.getElementById('cursor-fx')?.remove();
+      return;
+    }
     canvas = document.createElement('canvas');
     canvas.id = 'cursor-fx';
     canvas.setAttribute('aria-hidden', 'true');
