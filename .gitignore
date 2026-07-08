@@ -1,6 +1,5 @@
 # ─── Dependencias ───
 node_modules/
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
@@ -35,13 +34,15 @@ tsc-src/js/firebase-config.js
 tsc-src/js/cloudinary.js
 # Ver DEPLOY.md para instrucciones de configuración
 
-# ─── Build / distribución APK ───
-/android/
-/ios/
+# ─── App nativa Android (Capacitor) — el proyecto SÍ se versiona, solo
+#     sus artefactos de build quedan afuera (ver android/.gitignore) ───
 *.apk
 *.aab
 /dist/
 /www/
+
+# ─── Logs locales de servidores de desarrollo (npx serve, etc.) ───
+tsc-src/.serve-*.log
 
 # ─── Sistema operativo ───
 Thumbs.db

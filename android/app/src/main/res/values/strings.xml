@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TEAM SUBS CUP</string>
+    <string name="title_activity_main">TEAM SUBS CUP</string>
+    <string name="package_name">web.teamsubscup.app</string>
+    <string name="custom_url_scheme">web.teamsubscup.app</string>
+</resources>
