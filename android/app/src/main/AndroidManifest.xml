@@ -28,9 +28,18 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- FCM: ícono/color por defecto de las notificaciones (silueta blanca,
+             @capacitor/push-notifications no necesita más wiring de manifest —
+             el propio plugin trae el <service> de FirebaseMessagingService). -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_notify" />
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_color" />
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ (API 33): notificaciones requieren permiso runtime explícito
+         (ver tsc-src/js/push.js → PushNotifications.requestPermissions()). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

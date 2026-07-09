@@ -61,8 +61,9 @@ keystore.properties
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
-# google-services.json
+# Google Services (Firebase) — google-services.json SÍ se versiona a propósito:
+# mismo criterio que tsc-src/js/firebase-config.js (config pública del cliente,
+# no secreto; la seguridad la dan las reglas de Firestore, no ocultar esto).
 
 # Freeline
 freeline.py

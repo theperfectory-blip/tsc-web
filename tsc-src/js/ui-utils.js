@@ -99,6 +99,16 @@ function openSettings(){
     if (vol) vol.value = v;
     _syncVolGradient(v);
   }
+  // Notificaciones (FCM) — el control entero se oculta fuera de la app
+  // Android empaquetada (window.PUSH no existe o isSupported()===false en
+  // web de escritorio/PWA): no tiene sentido mostrarlo ahí.
+  const pushGroup = document.getElementById('settings-push-group');
+  const pushOn = document.getElementById('push-on');
+  if (pushGroup){
+    const supported = !!(window.PUSH && window.PUSH.isSupported());
+    pushGroup.style.display = supported ? '' : 'none';
+    if (supported && pushOn) pushOn.checked = window.PUSH.isEnabled();
+  }
   // Zona horaria — poblar datalist una sola vez y restaurar valor guardado
   const tzInput = document.getElementById('settings-timezone');
   const tzList  = document.getElementById('settings-tz-list');
@@ -114,6 +124,35 @@ function openSettings(){
       || localStorage.getItem('tsc_timezone')
       || Intl.DateTimeFormat().resolvedOptions().timeZone;
     settingsUpdateTzPreview();
+  }
+}
+
+/* Toggle "Notificaciones" (FCM, solo Android empaquetado). enable() dispara
+   el permission request real de Android 13+ recién acá — nunca al abrir la
+   app. Si el usuario niega el permiso del sistema, el checkbox vuelve a
+   destildarse (queda igual que si nunca lo hubiera activado). */
+async function setPushOn(b){
+  const checkbox = document.getElementById('push-on');
+  const status = document.getElementById('push-status');
+  if (!window.PUSH || !window.PUSH.isSupported()) return;
+
+  if (!b){
+    await window.PUSH.disable();
+    if (status) status.textContent = '';
+    return;
+  }
+
+  if (status) status.textContent = 'Activando…';
+  const res = await window.PUSH.enable();
+  if (res.ok){
+    if (status) status.textContent = '';
+    showToast('Notificaciones activadas');
+  } else {
+    if (checkbox) checkbox.checked = false;
+    if (status) status.textContent = res.reason === 'permission-denied'
+      ? 'Permiso denegado en Android — actívalo desde Ajustes del sistema.'
+      : 'No se pudo activar. Intenta de nuevo.';
+    showToast('No se pudieron activar las notificaciones','error');
   }
 }
 

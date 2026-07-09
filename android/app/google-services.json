@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1063027550773",
+    "project_id": "tsc-web-yuna",
+    "storage_bucket": "tsc-web-yuna.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1063027550773:android:897d62f777b9ce72775f7c",
+        "android_client_info": {
+          "package_name": "web.teamsubscup.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMzxcvFu7qGuI7XHjsaxA8oCeppFQakUk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
