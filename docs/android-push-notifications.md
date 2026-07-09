@@ -63,11 +63,13 @@ ni la zona horaria del servidor.
 ## Flujos de notificación (diseño — backend NO implementado todavía)
 
 Son **dos** notificaciones distintas, con textos distintos. En el arranque del
-stream, solo los presidentes del **primer partido** reciben dos avisos separados
-por ~1 minuto: primero "juega hoy" (como parte del broadcast del dia) y luego
-"juega a continuacion". El resto de presidentes que juegan ese dia recibe solo
-el broadcast "juega hoy", salvo los del **segundo partido**, que tambien reciben
-"juega a continuacion" en el arranque porque son el siguiente turno.
+stream, "juega hoy" sale como broadcast a **todos** los que juegan ese día y,
+~1 minuto después, "juega a continuación" sale a los presidentes del **primer**
+y del **segundo** partido. Por eso, en el arranque, los presidentes del 1º y del
+2º partido reciben **dos** avisos separados por ~1 minuto (broadcast "juega hoy"
++ "juega a continuación"), mientras que el resto de los que juegan ese día recibe
+solo el broadcast "juega hoy". El broadcast no tiene excepciones: todo el que
+juega hoy lo recibe.
 
 ### "Tu equipo juega HOY" — MANUAL
 
@@ -159,10 +161,10 @@ ya era así).
   en UI antes de enviar (esto SÍ manda notificaciones reales, no debe ser un
   click accidental).
 - "Juega a continuacion": (a) arranque del stream, ~1 min despues del
-  broadcast "juega hoy", a los presidentes del 1º + 2º partido; asi solo los
-  del 1º reciben dos avisos separados por 1 minuto, mientras los del 2º reciben
-  solo el aviso de continuacion; (b) durante el stream, enganchado al toggle
-  "En Vivo" de `matches.js`/`bracket.js`, al siguiente partido programado.
+  broadcast "juega hoy", a los presidentes del 1º + 2º partido (por lo que 1º y
+  2º reciben dos avisos separados por 1 minuto: broadcast "juega hoy" +
+  continuacion); (b) durante el stream, enganchado al toggle "En Vivo" de
+  `matches.js`/`bracket.js`, al siguiente partido programado.
 - Deep-link: al tocar la notificación (`pushNotificationActionPerformed`),
   navegar directo a Calendario o al partido correspondiente en vez de solo
   abrir la app en Palmarés.
