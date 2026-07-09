@@ -12,8 +12,11 @@
   /* Splash de arranque — inline a propósito: debe pintar en el primer frame,
      sin esperar a que carguen los css/ externos (ver boot-splash en body). */
   #boot-splash{position:fixed;inset:0;z-index:99999;background:#0C0F14;
-    display:flex;align-items:center;justify-content:center;transition:opacity .35s ease;}
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+    transition:opacity .35s ease;}
   #boot-splash img{width:42vw;max-width:280px;height:auto;}
+  #boot-splash-status{color:#C9A84C;font-family:'Barlow Condensed',sans-serif;
+    font-size:14px;letter-spacing:.5px;text-align:center;min-height:1em;opacity:.85;padding:0 24px;}
   #boot-splash.boot-splash-hide{opacity:0;pointer-events:none;}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
@@ -32,10 +35,14 @@
      El splash NATIVO de Android (styles.xml → AppTheme.NoActionBarLaunch)
      solo cubre el tramo lanzamiento→primer paint del WebView; este overlay
      es el que de verdad muestra el escudo TSC grande y evita cualquier
-     pantalla vacía/blanca entre medio. Se oculta en 'tsc:public-section-mounted'
-     (nav.js → ensurePublicSectionMounted), con un timeout de seguridad. -->
+     pantalla vacía/blanca entre medio. Se oculta SOLO en 'tsc:public-section-mounted'
+     (nav.js → ensurePublicSectionMounted, dispara con el primer render público
+     real) — a propósito SIN timeout que lo oculte igual: revelar un fondo
+     vacío detrás es peor que dejarlo. Si el bootstrap tarda o falla, se queda
+     este mismo fondo oscuro + logo y solo se agrega un aviso de estado ENCIMA. -->
 <div id="boot-splash" aria-hidden="true">
   <img src="assets/tsc_sin_fondo.png" alt="">
+  <div id="boot-splash-status"></div>
 </div>
 <script>
 (function(){
@@ -46,9 +53,17 @@
     setTimeout(function(){ el.remove(); }, 400);
   }
   document.addEventListener('tsc:public-section-mounted', hideBootSplash, { once:true });
-  // Red de seguridad: si el bootstrap falla y el evento nunca llega, no dejar
-  // el splash pegado para siempre tapando una app que en realidad ya cargó.
-  setTimeout(hideBootSplash, 8000);
+
+  function showStatus(text){
+    var el = document.getElementById('boot-splash-status');
+    if(el) el.textContent = text;
+  }
+  setTimeout(function(){
+    if(document.getElementById('boot-splash')) showStatus('Esto está tardando más de lo normal…');
+  }, 10000);
+  setTimeout(function(){
+    if(document.getElementById('boot-splash')) showStatus('Problema al cargar. Revisa tu conexión e intenta de nuevo.');
+  }, 25000);
 })();
 </script>
 
