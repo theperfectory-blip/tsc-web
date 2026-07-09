@@ -8,6 +8,14 @@
 <link rel="apple-touch-icon" href="assets/chibi/LuisYuNa_nuevo.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0C0F14">
+<style>
+  /* Splash de arranque — inline a propósito: debe pintar en el primer frame,
+     sin esperar a que carguen los css/ externos (ver boot-splash en body). */
+  #boot-splash{position:fixed;inset:0;z-index:99999;background:#0C0F14;
+    display:flex;align-items:center;justify-content:center;transition:opacity .35s ease;}
+  #boot-splash img{width:42vw;max-width:280px;height:auto;}
+  #boot-splash.boot-splash-hide{opacity:0;pointer-events:none;}
+</style>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/variables.css">
 <link rel="stylesheet" href="css/layout.css">
@@ -18,6 +26,31 @@
 <link rel="stylesheet" href="css/redesign.css">
 </head>
 <body>
+
+<!-- Splash de arranque (overlay web) — visible desde el primer paint hasta
+     que el bootstrap real (initDB/loadSeasons/primer render público) termina.
+     El splash NATIVO de Android (styles.xml → AppTheme.NoActionBarLaunch)
+     solo cubre el tramo lanzamiento→primer paint del WebView; este overlay
+     es el que de verdad muestra el escudo TSC grande y evita cualquier
+     pantalla vacía/blanca entre medio. Se oculta en 'tsc:public-section-mounted'
+     (nav.js → ensurePublicSectionMounted), con un timeout de seguridad. -->
+<div id="boot-splash" aria-hidden="true">
+  <img src="assets/tsc_sin_fondo.png" alt="">
+</div>
+<script>
+(function(){
+  function hideBootSplash(){
+    var el = document.getElementById('boot-splash');
+    if(!el) return;
+    el.classList.add('boot-splash-hide');
+    setTimeout(function(){ el.remove(); }, 400);
+  }
+  document.addEventListener('tsc:public-section-mounted', hideBootSplash, { once:true });
+  // Red de seguridad: si el bootstrap falla y el evento nunca llega, no dejar
+  // el splash pegado para siempre tapando una app que en realidad ya cargó.
+  setTimeout(hideBootSplash, 8000);
+})();
+</script>
 
 <!-- ============================================================
      TOPBAR
