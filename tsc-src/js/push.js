@@ -53,6 +53,10 @@
     if (!token) return 'none';
     return `${String(token).slice(0, 8)}...${String(token).slice(-6)}`;
   }
+  function _clearToken() {
+    _token = null;
+    try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
+  }
 
   function _bindListeners(pn) {
     if (_listenersBound) return;
@@ -85,8 +89,15 @@
     });
   }
 
-  async function enable() {
-    if (!IS_NATIVE_ANDROID) return { ok: false, reason: 'not-native-android' };
+  /* `askIfNeeded=true` (toggle del usuario, único caller real hoy) puede
+     disparar requestPermissions() — el usuario acaba de tocar el control,
+     hay contexto de sobra. `askIfNeeded=false` (re-registro silencioso al
+     abrir la app) NUNCA debe mostrar el diálogo del sistema: si el permiso
+     ya no está 'granted' (p.ej. el usuario lo revocó a mano en Ajustes de
+     Android mientras tanto), simplemente se apaga el flag en silencio —
+     mostrar el diálogo sin que el usuario haya tocado nada en la app violaría
+     la regla central de este módulo. */
+  async function _requestAndRegister(askIfNeeded) {
     const pn = _plugin();
     if (!pn) return { ok: false, reason: 'plugin-unavailable' };
 
@@ -95,14 +106,15 @@
     let perm;
     try {
       perm = await pn.checkPermissions();
-      if (perm.receive !== 'granted') perm = await pn.requestPermissions();
+      if (perm.receive !== 'granted' && askIfNeeded) perm = await pn.requestPermissions();
     } catch (e) {
       return { ok: false, reason: 'permission-error', error: e };
     }
 
     if (perm.receive !== 'granted') {
       try { localStorage.setItem(ENABLED_KEY, '0'); } catch (_) {}
-      return { ok: false, reason: 'permission-denied' };
+      _clearToken();
+      return { ok: false, reason: askIfNeeded ? 'permission-denied' : 'permission-revoked' };
     }
 
     try {
@@ -115,10 +127,14 @@
     return { ok: true };
   }
 
+  async function enable() {
+    if (!IS_NATIVE_ANDROID) return { ok: false, reason: 'not-native-android' };
+    return _requestAndRegister(true);
+  }
+
   async function disable() {
     try { localStorage.setItem(ENABLED_KEY, '0'); } catch (_) {}
-    _token = null;
-    try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
+    _clearToken();
     const pn = _plugin();
     if (pn && typeof pn.removeAllDeliveredNotifications === 'function') {
       try { await pn.removeAllDeliveredNotifications(); } catch (_) {}
@@ -134,8 +150,10 @@
     getToken,
   };
 
-  // Si ya estaba activado en una sesión anterior, re-registrar al abrir sin
-  // volver a pedir permiso (register() es idempotente; checkPermissions ya
-  // debería resolver 'granted' sin mostrar ningún diálogo al usuario).
-  if (IS_NATIVE_ANDROID && isEnabled()) enable();
+  // Si ya estaba activado en una sesión anterior, re-registrar al abrir SIN
+  // pedir permiso (askIfNeeded=false): si el permiso ya no está concedido
+  // (revocado a mano en Ajustes del sistema desde la última sesión), esto
+  // apaga el flag en silencio en vez de sorprender al usuario con el diálogo
+  // apenas abre la app.
+  if (IS_NATIVE_ANDROID && isEnabled()) _requestAndRegister(false);
 })();
