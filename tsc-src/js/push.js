@@ -15,13 +15,18 @@
    para que la UI (toggle "Notificaciones" en Configuración) lo dispare con
    contexto. Android 13+ recién ahí dispara el permission request real.
 
-   A propósito NO guarda el token en Firestore todavía — falta decidir
-   colección/owner/reglas/borrado al logout. Por ahora el token solo vive en
-   memoria + localStorage, expuesto vía window.PUSH.getToken() para debug.
+   Token FCM → Firestore: se guarda en users/{uid}.fcmTokens (arrayUnion,
+   es un array porque un mismo presidente puede tener la app en varios
+   dispositivos). Solo se escribe si hay AUTH.user en ese momento — si el
+   token llega mientras se navega como invitado, queda solo local y
+   window.PUSH.syncUser() lo sube retroactivo cuando el usuario loguea
+   (ver docs/android-push-notifications.md para el diseño completo,
+   incluyendo los flujos de notificación que TODAVÍA no tienen backend).
    ============================================================ */
 (function () {
   const ENABLED_KEY = 'tsc_push_enabled';
   const TOKEN_KEY = 'tsc_push_token';
+  const PENDING_REMOVE_KEY = 'tsc_push_pending_remove_token';
 
   function _isNativeAndroid() {
     try {
@@ -57,6 +62,96 @@
     _token = null;
     try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
   }
+  function _setPendingTokenRemoval(token) {
+    if (!token) return;
+    try { localStorage.setItem(PENDING_REMOVE_KEY, token); } catch (_) {}
+  }
+  function _clearPendingTokenRemoval(token) {
+    try {
+      const pending = localStorage.getItem(PENDING_REMOVE_KEY);
+      if (!token || pending === token) localStorage.removeItem(PENDING_REMOVE_KEY);
+    } catch (_) {}
+  }
+
+  /* users/{uid} vía AUTH.user — null si nadie está logueado (invitado en
+     modo público) o si firebase/AUTH todavía no cargaron. */
+  function _pushDocRef() {
+    try {
+      if (typeof AUTH === 'undefined' || !AUTH.user) return null;
+      if (typeof firebase === 'undefined' || !firebase.firestore) return null;
+      return firebase.firestore().collection('users').doc(AUTH.user.uid);
+    } catch (_) { return null; }
+  }
+
+  function _currentTimezone() {
+    try {
+      return (typeof AUTH !== 'undefined' && AUTH.profile && AUTH.profile.timezone)
+        || localStorage.getItem('tsc_timezone')
+        || Intl.DateTimeFormat().resolvedOptions().timeZone
+        || null;
+    } catch (_) { return null; }
+  }
+
+  /* Best-effort a propósito: sin usuario logueado no escribe nada (el token
+     ya quedó local, se sube con syncUser() al iniciar sesión); si Firestore
+     falla (offline, permisos), solo loguea — nunca rompe la UI del toggle. */
+  async function _syncTokenToFirestore(token) {
+    if (!token) return;
+    const ref = _pushDocRef();
+    if (!ref) return;
+    try {
+      await ref.update({
+        fcmTokens: firebase.firestore.FieldValue.arrayUnion(token),
+        pushEnabled: true,
+        pushPlatform: 'android',
+        timezone: _currentTimezone(),
+        pushUpdatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('[push] no se pudo sincronizar el token a Firestore:', e && (e.code || e.message));
+    }
+  }
+
+  /* Quita SOLO el token indicado del array (arrayRemove) — no toca los
+     tokens de otros dispositivos del mismo usuario. */
+  async function _removeTokenFromFirestore(token) {
+    const ref = _pushDocRef();
+    if (!ref) return false;
+    try {
+      const upd = { pushEnabled: false, pushUpdatedAt: new Date().toISOString() };
+      if (token) upd.fcmTokens = firebase.firestore.FieldValue.arrayRemove(token);
+      await ref.update(upd);
+      return true;
+    } catch (e) {
+      console.warn('[push] no se pudo quitar el token de Firestore:', e && (e.code || e.message));
+      return false;
+    }
+  }
+
+  async function _removeTokenBestEffort(token) {
+    if (!token) return true;
+    const ok = await _removeTokenFromFirestore(token);
+    if (ok) _clearPendingTokenRemoval(token);
+    else _setPendingTokenRemoval(token);
+    return ok;
+  }
+
+  async function _flushPendingTokenRemoval() {
+    let pending = null;
+    try { pending = localStorage.getItem(PENDING_REMOVE_KEY) || null; } catch (_) {}
+    if (!pending) return true;
+    const ok = await _removeTokenFromFirestore(pending);
+    if (ok) _clearPendingTokenRemoval(pending);
+    return ok;
+  }
+
+  async function _disableLocalPushFlagAndToken() {
+    const tokenToRemove = _token;
+    try { localStorage.setItem(ENABLED_KEY, '0'); } catch (_) {}
+    await _removeTokenBestEffort(tokenToRemove);
+    _clearToken();
+    return tokenToRemove;
+  }
 
   function _bindListeners(pn) {
     if (_listenersBound) return;
@@ -69,6 +164,7 @@
       // (una vista admin/debug puede leerlo cuando se necesite).
       console.log('[push] token FCM registrado:', _tokenHint(_token));
       document.dispatchEvent(new CustomEvent('tsc:push-token', { detail: { token: _token } }));
+      _syncTokenToFirestore(_token);
     });
 
     pn.addListener('registrationError', (err) => {
@@ -112,8 +208,7 @@
     }
 
     if (perm.receive !== 'granted') {
-      try { localStorage.setItem(ENABLED_KEY, '0'); } catch (_) {}
-      _clearToken();
+      await _disableLocalPushFlagAndToken();
       return { ok: false, reason: askIfNeeded ? 'permission-denied' : 'permission-revoked' };
     }
 
@@ -124,6 +219,11 @@
     }
 
     try { localStorage.setItem(ENABLED_KEY, '1'); } catch (_) {}
+    await _flushPendingTokenRemoval();
+    // Si el token ya existía de antes (el SO no siempre re-dispara
+    // 'registration' para un token ya vigente), sincronizarlo igual —
+    // el listener de arriba solo cubre el caso de un token NUEVO.
+    if (_token) _syncTokenToFirestore(_token);
     return { ok: true };
   }
 
@@ -133,12 +233,36 @@
   }
 
   async function disable() {
-    try { localStorage.setItem(ENABLED_KEY, '0'); } catch (_) {}
-    _clearToken();
+    await _disableLocalPushFlagAndToken();
     const pn = _plugin();
     if (pn && typeof pn.removeAllDeliveredNotifications === 'function') {
       try { await pn.removeAllDeliveredNotifications(); } catch (_) {}
     }
+    return { ok: true };
+  }
+
+  /* Llamada por auth.js cuando el usuario inicia sesión: si ya había un
+     token local (registrado mientras navegaba como invitado, o de una
+     sesión previa en este mismo dispositivo) lo asocia a la cuenta que
+     acaba de loguear. No pide permiso ni toca el plugin nativo — solo
+     Firestore. */
+  async function syncUser() {
+    if (!IS_NATIVE_ANDROID) return { ok: false, reason: 'not-native-android' };
+    await _flushPendingTokenRemoval();
+    if (!_token) return { ok: false, reason: 'no-local-token' };
+    await _syncTokenToFirestore(_token);
+    return { ok: true };
+  }
+
+  /* Llamada por auth.js ANTES de cerrar sesión (mientras AUTH.user todavía
+     apunta al usuario saliente): desasocia el token de ESE usuario en
+     Firestore sin tocar el estado local ni el plugin nativo. Así, si otra
+     persona loguea en el mismo dispositivo compartido, no sigue recibiendo
+     los avisos del usuario anterior — y si el registro FCM local sigue
+     vigente, syncUser() lo re-asocia al que loguee después. */
+  async function clearUserToken() {
+    if (!IS_NATIVE_ANDROID) return { ok: false, reason: 'not-native-android' };
+    await _removeTokenFromFirestore(_token);
     return { ok: true };
   }
 
@@ -148,6 +272,8 @@
     enable,
     disable,
     getToken,
+    syncUser,
+    clearUserToken,
   };
 
   // Si ya estaba activado en una sesión anterior, re-registrar al abrir SIN

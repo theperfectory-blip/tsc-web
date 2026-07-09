@@ -51,11 +51,19 @@ service cloud.firestore {
                     && request.resource.data.role == 'president'
                     && request.resource.data.teamId == null;
 
-      // Edita su propio perfil SIN tocar rol ni equipo; el admin puede todo.
+      // Edita su propio perfil — allowlist explícita (no blocklist): un
+      // usuario solo puede tocar los campos de perfil + push/timezone de
+      // abajo. Antes esto era "cualquier campo salvo role/teamId/lockEdits",
+      // lo que también dejaba reescribir email/uid/createdAt sin querer.
+      // fcmTokens/pushEnabled/pushPlatform/pushUpdatedAt: ver tsc-src/js/push.js
+      // (Fase 8, notificaciones FCM) y docs/android-push-notifications.md.
       allow update: if isAdmin()
                     || (request.auth.uid == uid
-                        && !request.resource.data.diff(resource.data)
-                              .affectedKeys().hasAny(['role','teamId','lockEdits']));
+                        && request.resource.data.diff(resource.data)
+                              .affectedKeys().hasOnly([
+                                'displayName', 'username', 'photoURL', 'timezone',
+                                'fcmTokens', 'pushEnabled', 'pushPlatform', 'pushUpdatedAt'
+                              ]));
 
       // Cada quien puede borrar su propia cuenta; el admin, cualquiera.
       allow delete: if isAdmin() || request.auth.uid == uid;

@@ -160,6 +160,14 @@ function _authErrorMsg(e){
 }
 
 async function authSignOut(){
+  // Antes de perder AUTH.user: si este dispositivo tenía push activado,
+  // desasociar el token FCM de la cuenta saliente (no toca el permiso ni
+  // el registro nativo — ver tsc-src/js/push.js). Evita que, en un
+  // dispositivo compartido, la cuenta que se va siga recibiendo avisos
+  // dirigidos a quien loguee después.
+  if (typeof window.PUSH?.clearUserToken === 'function'){
+    try { await window.PUSH.clearUserToken(); } catch(e){}
+  }
   try { await firebase.auth().signOut(); showToast('Sesión cerrada'); }
   catch(e){ showToast('Error al cerrar sesión','error'); }
 }
@@ -196,6 +204,12 @@ function onAuthInit(){
       try { profile = await _loadProfile(user); }
       catch(e){ profile = { role:'president', teamId:null, displayName:user.email }; }
       AUTH = { user, role: profile.role || 'president', teamId: (profile.teamId ?? null), profile };
+      // Si este dispositivo ya tenía un token FCM local (registrado como
+      // invitado, o de una sesión previa), asociarlo a la cuenta recién
+      // logueada. No pide permiso ni toca el plugin nativo — solo Firestore.
+      if (typeof window.PUSH?.syncUser === 'function'){
+        window.PUSH.syncUser().catch(()=>{});
+      }
     } else {
       AUTH = { user: null, role: 'public', teamId: null, profile: null };
     }
