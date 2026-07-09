@@ -1,14 +1,35 @@
 apply plugin: 'com.android.application'
 
+// Firma de release: opcional a propósito — sin android/app/keystore.properties
+// (nunca versionado, ver android/.gitignore) el release queda SIN FIRMAR y
+// hay que firmarlo aparte. Cada dev/CI crea su propio keystore local; ver
+// docs/android-build.md para el paso a paso. No se genera ningún keystore acá.
+def keystorePropertiesFile = file('keystore.properties')
+def keystoreProperties = new Properties()
+def hasKeystoreProperties = keystorePropertiesFile.exists()
+if (hasKeystoreProperties) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "web.teamsubscup.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        release {
+            if (hasKeystoreProperties) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     defaultConfig {
         applicationId "web.teamsubscup.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -18,6 +39,9 @@ android {
     }
     buildTypes {
         release {
+            if (hasKeystoreProperties) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
