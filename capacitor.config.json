@@ -1,5 +1,6 @@
 {
   "appId": "web.teamsubscup.app",
   "appName": "TEAM SUBS CUP",
-  "webDir": "www"
+  "webDir": "www",
+  "backgroundColor": "#0C0F14"
 }
