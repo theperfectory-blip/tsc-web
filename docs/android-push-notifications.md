@@ -63,8 +63,11 @@ ni la zona horaria del servidor.
 ## Flujos de notificación (diseño — backend NO implementado todavía)
 
 Son **dos** notificaciones distintas, con textos distintos. En el arranque del
-stream salen encadenadas: primero "juega hoy" y, ~1 minuto después, "juega a
-continuación".
+stream, solo los presidentes del **primer partido** reciben dos avisos separados
+por ~1 minuto: primero "juega hoy" (como parte del broadcast del dia) y luego
+"juega a continuacion". El resto de presidentes que juegan ese dia recibe solo
+el broadcast "juega hoy", salvo los del **segundo partido**, que tambien reciben
+"juega a continuacion" en el arranque porque son el siguiente turno.
 
 ### "Tu equipo juega HOY" — MANUAL
 
@@ -89,10 +92,10 @@ Propósito: avisar a los presidentes de un partido inminente para que estén
 listos. Tiene **dos** disparadores:
 
 **(a) Arranque del stream (primer partido).** Como el primer partido no tiene
-un partido previo que se ponga "En Vivo" para dispararlo, el backend lo manda
-automáticamente **~1 minuto después** del "juega hoy". Ejemplo: Luis arranca el
-stream con Malvinas vs Lechugueros de primer partido → "juega a continuación"
-sale a **4 presidentes**:
+un partido previo que se ponga "En Vivo" para dispararlo, el backend manda
+"juega a continuacion" automaticamente **~1 minuto despues** del broadcast
+"juega hoy". Ejemplo: Luis arranca el stream con Malvinas vs Lechugueros de
+primer partido -> "juega a continuacion" sale a **4 presidentes**:
 
 - los 2 del **primer** partido (Malvinas y Lechugueros — les toca ya), y
 - los 2 del **segundo** partido programado (van justo después).
@@ -102,10 +105,12 @@ como "En Vivo" (toggle live), el backend notifica a los 2 presidentes del
 **siguiente** partido programado en el calendario — el que va a continuación del
 que se acaba de poner en vivo, no del que ya está en vivo.
 
-- **Deduplicación:** clave `type + nextMatchId + teamId`. Un mismo próximo
-  partido no genera más de un aviso por equipo, aunque se dispare por dos vías
-  (p.ej. el segundo partido: una vez en el arranque y otra al marcar el primero
-  en vivo — con esta clave, recibe uno solo).
+- **Deduplicacion:** clave `type + targetMatchId + teamId`, donde
+  `targetMatchId` es el partido avisado (el primero cuando le toca ya, o el
+  siguiente cuando va a continuacion). Un mismo partido objetivo no genera mas
+  de un aviso por equipo, aunque se dispare por dos vias (p.ej. el segundo
+  partido: una vez en el arranque y otra al marcar el primero en vivo — con
+  esta clave, recibe uno solo).
 
 El evento de finalización de partido puede servir como fallback defensivo si más
 adelante se decide reintentar eventos perdidos, pero el disparador de producto
@@ -153,10 +158,11 @@ ya era así).
 - Botón admin "Notificar stream de hoy" en Calendario/Admin + confirmación
   en UI antes de enviar (esto SÍ manda notificaciones reales, no debe ser un
   click accidental).
-- "Juega a continuación": (a) arranque del stream, ~1 min después del "juega
-  hoy", a los presidentes del 1º + 2º partido; (b) durante el stream,
-  enganchado al toggle "En Vivo" de `matches.js`/`bracket.js`, al siguiente
-  partido programado.
+- "Juega a continuacion": (a) arranque del stream, ~1 min despues del
+  broadcast "juega hoy", a los presidentes del 1º + 2º partido; asi solo los
+  del 1º reciben dos avisos separados por 1 minuto, mientras los del 2º reciben
+  solo el aviso de continuacion; (b) durante el stream, enganchado al toggle
+  "En Vivo" de `matches.js`/`bracket.js`, al siguiente partido programado.
 - Deep-link: al tocar la notificación (`pushNotificationActionPerformed`),
   navegar directo a Calendario o al partido correspondiente en vez de solo
   abrir la app en Palmarés.
