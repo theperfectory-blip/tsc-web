@@ -119,6 +119,73 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 /* Acceso Admin discreto dentro del menú de perfil (sólo rol admin en la app real). */
 .pp-admin{border:1px solid var(--gold-b)!important;color:var(--gold-ink)!important;}
 .pp-admin svg{width:16px;height:16px;flex:none;}
+
+/* Admin móvil: el sidebar de escritorio pasa a drawer. El botón flotante queda
+   semitransparente cuando está desfijado para no competir con la pantalla. */
+.admin-drawer-btn{display:none!important;}
+@media(max-width:768px){
+  body.admin-mode #main.with-sidebar{
+    margin-left:0!important;
+    max-width:none;
+    width:100%;
+  }
+  body.admin-mode #sidebar.open{
+    display:flex;
+    position:fixed;
+    top:var(--topbar-h,48px);
+    left:0;
+    bottom:0;
+    width:min(250px,78vw);
+    padding-top:12px;
+    background:rgba(9,12,16,0.94);
+    border-right:1px solid var(--gold-b);
+    box-shadow:14px 0 34px rgba(0,0,0,0.48);
+    transform:translateX(-100%);
+    opacity:0;
+    pointer-events:none;
+    z-index:var(--z-sidebar);
+    transition:transform var(--dur-mid) var(--ease-out),opacity var(--dur-mid) var(--ease-out);
+  }
+  body.admin-mode.admin-sidebar-pinned #sidebar.open{
+    transform:translateX(0);
+    opacity:1;
+    pointer-events:auto;
+  }
+  body.admin-mode .admin-drawer-btn{
+    display:inline-flex!important;
+    position:fixed;
+    top:calc((var(--topbar-h,48px) - 44px) / 2);
+    left:8px;
+    z-index:calc(var(--z-topbar) + 1);
+    min-width:44px;
+    min-height:44px;
+    align-items:center;
+    justify-content:center;
+    opacity:0.3;
+    border-color:var(--gold-b);
+    background:rgba(20,24,32,0.82);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 10px 24px rgba(0,0,0,0.35);
+    transition:opacity var(--dur-fast),background var(--dur-fast),border-color var(--dur-fast),transform var(--dur-fast);
+  }
+  body.admin-mode .admin-drawer-btn:hover,
+  body.admin-mode .admin-drawer-btn:focus-visible,
+  body.admin-mode.admin-sidebar-pinned .admin-drawer-btn{
+    opacity:1;
+    background:var(--card3);
+    border-color:var(--gold);
+  }
+  body.admin-mode .admin-drawer-btn:active{transform:scale(0.96);}
+  body.admin-mode .topbar-brand-btn{
+    visibility:hidden;
+    pointer-events:none;
+  }
+  body.admin-mode #sidebar .nav-item{
+    min-height:44px;
+    padding:9px 18px;
+  }
+}
 .tp-btn{display:flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;border-radius:999px;
   background:var(--card2);border:1px solid var(--brd2);cursor:pointer;
   transition:border-color var(--dur-fast),transform var(--dur-fast);}

@@ -95,6 +95,21 @@ function closePubSidebar(){
   document.getElementById('pub-sidebar-backdrop')?.classList.remove('open');
 }
 
+function _syncAdminSidebarToggle(){
+  const btn = document.getElementById('admin-drawer-btn');
+  if(!btn) return;
+  const pinned = document.body.classList.contains('admin-sidebar-pinned');
+  btn.setAttribute('aria-pressed', pinned ? 'true' : 'false');
+  btn.title = pinned ? 'Ocultar menú admin' : 'Menú admin';
+  btn.setAttribute('aria-label', btn.title);
+}
+
+function toggleAdminSidebar(){
+  if(STATE.mode !== 'admin') return;
+  document.body.classList.toggle('admin-sidebar-pinned');
+  _syncAdminSidebarToggle();
+}
+
 /* ----------------------------------------------------------
    LOGO/NOMBRE DEL TOPBAR → volver a inicio (Palmarés público)
    ---------------------------------------------------------- */
@@ -132,6 +147,9 @@ function setMode(mode){
   STATE.mode = mode;
   _persistNav();
   const isAdmin = mode==='admin';
+  document.body.classList.toggle('admin-mode', isAdmin);
+  if(!isAdmin) document.body.classList.remove('admin-sidebar-pinned');
+  _syncAdminSidebarToggle();
   // Al salir de admin, cerrar el centro de partido en vivo (es solo-gestión).
   if(!isAdmin){ const _lm=document.getElementById('live-match-wrap'); if(_lm) _lm.innerHTML=''; }
 
