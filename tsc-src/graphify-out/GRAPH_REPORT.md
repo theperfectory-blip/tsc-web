@@ -1,13 +1,13 @@
-﻿# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-10)
+# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-10)
 
 ## Corpus Check
-- 47 files Â· ~1,117,405 words
+- 47 files · ~1,117,481 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2698 nodes Â· 7076 edges Â· 51 communities detected
-- Extraction: 81% EXTRACTED Â· 19% INFERRED Â· 0% AMBIGUOUS Â· INFERRED: 1369 edges (avg confidence: 0.8)
-- Token cost: 0 input Â· 0 output
+- 2698 nodes · 7076 edges · 51 communities detected
+- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 1369 edges (avg confidence: 0.8)
+- Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Community 0|Community 0]]
@@ -76,29 +76,29 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `parse()` --calls--> `getBombos()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\sorteo.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\sorteo.js
 - `add()` --calls--> `_calRowOk()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\calendar.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\calendar.js
 - `copy()` --calls--> `ensureInt8()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
 - `set()` --calls--> `_emscripten_memcpy_big()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
 - `locateFile()` --calls--> `v()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_wasm_wrapper.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_wasm_wrapper.js
 
 ## Hyperedges (group relationships)
-- **All Public Pages in index.html** â€” index_html_pub_page_palmares, index_html_pub_page_panel, index_html_pub_page_equipos, index_html_pub_page_historial, index_html_pub_page_sorteo [EXTRACTED 1.00]
-- **All Admin Pages in index.html** â€” index_html_adm_page_dashboard, index_html_adm_page_equipos, index_html_adm_page_usuarios, index_html_adm_page_competiciones, index_html_adm_page_fases, index_html_adm_page_partidos, index_html_adm_page_sorteo, index_html_adm_page_coins, index_html_adm_page_temporadas, index_html_adm_page_datos, index_html_adm_page_historial, index_html_adm_page_historial_tabla, index_html_adm_page_palmares [EXTRACTED 1.00]
-- **8-Frame Chibi Sorteo Animation (draw reveal sequence)** â€” chibi_01_idle, chibi_02_reach, chibi_03_grab, chibi_04_hold, chibi_05_show, chibi_06_crack, chibi_07_open, chibi_08_celebrate [EXTRACTED 1.00]
-- **Top 5 God Nodes (most connected functions)** â€” audit_report_dbGetAll, audit_report_dbGet, audit_report_showToast, audit_report_dbPut, audit_report_dbAdd [EXTRACTED 1.00]
-- **Global Modals in index.html** â€” index_html_settings_modal, index_html_confirm_overlay, index_html_toast [EXTRACTED 1.00]
-- **Tournament Phase Type Ã¢â€ â€™ Config Schema Ã¢â€ â€™ Render Function Pipeline** â€” phase_type_liga, data_phase_config_liga, fn_renderligastandings [EXTRACTED 0.95]
-- **IndexedDB CRUD Layer: dbAdd/dbPut/dbGet/dbDelete** â€” fn_dbadd, fn_dbput, fn_dbget, fn_dbdelete, fn_dbgetall [EXTRACTED 1.00]
-- **App Initialization: initDB Ã¢â€ â€™ seedData Ã¢â€ â€™ loadSeasons Ã¢â€ â€™ setMode** â€” fn_initdb, fn_seedinitialdata, fn_loadseasons, fn_setmode [EXTRACTED 1.00]
-- **Gold-toned Trophy Group** â€” trophy_01_classica, trophy_02_imperial, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica [EXTRACTED 0.95]
-- **Silver/Chrome Trophy Group** â€” trophy_04_orejona, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula [EXTRACTED 0.95]
-- **Football Ball Design Trophy Group** â€” trophy_03_konami, trophy_09_geometrica [EXTRACTED 0.90]
-- **All Palmares Trophy Assets** â€” trophy_01_classica, trophy_02_imperial, trophy_03_konami, trophy_04_orejona, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula, concept_palmares_module [INFERRED 0.95]
+- **All Public Pages in index.html** — index_html_pub_page_palmares, index_html_pub_page_panel, index_html_pub_page_equipos, index_html_pub_page_historial, index_html_pub_page_sorteo [EXTRACTED 1.00]
+- **All Admin Pages in index.html** — index_html_adm_page_dashboard, index_html_adm_page_equipos, index_html_adm_page_usuarios, index_html_adm_page_competiciones, index_html_adm_page_fases, index_html_adm_page_partidos, index_html_adm_page_sorteo, index_html_adm_page_coins, index_html_adm_page_temporadas, index_html_adm_page_datos, index_html_adm_page_historial, index_html_adm_page_historial_tabla, index_html_adm_page_palmares [EXTRACTED 1.00]
+- **8-Frame Chibi Sorteo Animation (draw reveal sequence)** — chibi_01_idle, chibi_02_reach, chibi_03_grab, chibi_04_hold, chibi_05_show, chibi_06_crack, chibi_07_open, chibi_08_celebrate [EXTRACTED 1.00]
+- **Top 5 God Nodes (most connected functions)** — audit_report_dbGetAll, audit_report_dbGet, audit_report_showToast, audit_report_dbPut, audit_report_dbAdd [EXTRACTED 1.00]
+- **Global Modals in index.html** — index_html_settings_modal, index_html_confirm_overlay, index_html_toast [EXTRACTED 1.00]
+- **Tournament Phase Type â†’ Config Schema â†’ Render Function Pipeline** — phase_type_liga, data_phase_config_liga, fn_renderligastandings [EXTRACTED 0.95]
+- **IndexedDB CRUD Layer: dbAdd/dbPut/dbGet/dbDelete** — fn_dbadd, fn_dbput, fn_dbget, fn_dbdelete, fn_dbgetall [EXTRACTED 1.00]
+- **App Initialization: initDB â†’ seedData â†’ loadSeasons â†’ setMode** — fn_initdb, fn_seedinitialdata, fn_loadseasons, fn_setmode [EXTRACTED 1.00]
+- **Gold-toned Trophy Group** — trophy_01_classica, trophy_02_imperial, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica [EXTRACTED 0.95]
+- **Silver/Chrome Trophy Group** — trophy_04_orejona, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula [EXTRACTED 0.95]
+- **Football Ball Design Trophy Group** — trophy_03_konami, trophy_09_geometrica [EXTRACTED 0.90]
+- **All Palmares Trophy Assets** — trophy_01_classica, trophy_02_imperial, trophy_03_konami, trophy_04_orejona, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula, concept_palmares_module [INFERRED 0.95]
 
 ## Communities
 
@@ -308,7 +308,7 @@ Nodes (1): Drumroll Sound Effect
 
 ## Knowledge Gaps
 - **44 isolated node(s):** `tc`, `Graph Statistics (291 nodes, 727 edges, 28 communities)`, `dbGetAll (77 edges God Node)`, `dbGet (51 edges God Node)`, `showToast (34 edges God Node)` (+39 more)
-  These have â‰¤1 connection - possible missing edges or undocumented components.
+  These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 29`** (2 nodes): `PLAYOFF Phase Config Schema`, `PLAYOFF Phase Type (Aggregate Two-Leg)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 30`** (2 nodes): `LIGA Phase Config Schema`, `LIGA Phase Type (Group Stage)`
@@ -358,11 +358,11 @@ Nodes (1): Drumroll Sound Effect
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 14`, `Community 15`, `Community 16`, `Community 17`?**
-  _High betweenness centrality (0.170) - this node is a cross-community bridge._
-- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 3`, `Community 7`, `Community 8`, `Community 9`, `Community 11`, `Community 13`, `Community 15`, `Community 17`, `Community 18`, `Community 20`?**
-  _High betweenness centrality (0.095) - this node is a cross-community bridge._
+  _High betweenness centrality (0.147) - this node is a cross-community bridge._
 - **Why does `add()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 9`, `Community 12`, `Community 14`, `Community 16`, `Community 17`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+  _High betweenness centrality (0.075) - this node is a cross-community bridge._
+- **Why does `re` connect `Community 0` to `Community 1`, `Community 3`, `Community 10`, `Community 11`, `Community 15`, `Community 17`?**
+  _High betweenness centrality (0.074) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 27 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**

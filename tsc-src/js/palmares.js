@@ -3120,13 +3120,23 @@ function _palmCupCtrl(){
     cup.add(obj);
     cup.position.y = _PALM_CUP_VIEW.baseY;
     scene.add(cup);
-    host?.querySelector('.palm-sala-svg')?.remove();
+    // querySelectorAll, no querySelector: si hubo renders rápidos seguidos
+    // (cambio de campeón repetido) puede quedar más de un placeholder viejo.
+    host?.querySelectorAll('.palm-sala-svg').forEach(el => el.remove());
     if(reducedMotionQuery.matches) renderTick();
   }
 
   function loadCup(url, svg){
     const token = ++loadToken;
-    if (url && loadedUrl === url && cup) return Promise.resolve();
+    if (url && loadedUrl === url && cup) {
+      // Reutiliza la copa ya puesta (mismo modelo) — este camino NO pasa por
+      // placeCup(), así que el placeholder SVG que _palmRenderSala() siempre
+      // vuelve a insertar (cupHost.innerHTML = svg) hay que limpiarlo acá
+      // también, o queda visible detrás del canvas ya montado.
+      host?.querySelectorAll('.palm-sala-svg').forEach(el => el.remove());
+      if (reducedMotionQuery.matches) renderTick();
+      return Promise.resolve();
+    }
     clearCup();
     if (!url) {
       showSvg(svg);
