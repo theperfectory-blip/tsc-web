@@ -230,9 +230,8 @@ function renderTopbarBrand(){
 /* ---- Refleja el estado de sesión en la topbar ---- */
 function renderAuthUI(){
   renderTopbarBrand();
-  const area   = document.getElementById('auth-area');
-  const btnPub = document.getElementById('btn-pub');
-  const btnAdm = document.getElementById('btn-adm');
+  const area    = document.getElementById('auth-area');
+  const btnMode = document.getElementById('btn-mode');
   if (!area) return;
   if (AUTH.user){
     // Solo avatar (sin nombre). Foto de perfil (Firestore) > Firebase Auth photo > SVG genérico.
@@ -247,12 +246,10 @@ function renderAuthUI(){
         <span class="tp-avatar" style="overflow:hidden;">${avatar}</span>
         <svg class="tp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>`;
-    if (btnAdm) btnAdm.style.display = (AUTH.role === 'admin') ? '' : 'none';
-    if (btnPub) btnPub.style.display = (AUTH.role === 'admin') ? '' : 'none';
+    if (btnMode) btnMode.style.display = (AUTH.role === 'admin') ? '' : 'none';
   } else {
     area.innerHTML = `<button class="mode-btn" onclick="openAuthModal()">Entrar</button>`;
-    if (btnAdm) btnAdm.style.display = 'none';
-    if (btnPub) btnPub.style.display = 'none';
+    if (btnMode) btnMode.style.display = 'none';
     if (STATE.mode === 'admin' && typeof setMode === 'function') setMode('public');
   }
 }

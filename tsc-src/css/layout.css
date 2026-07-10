@@ -17,6 +17,8 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   background:var(--nav);border-bottom:1px solid var(--gold-b);
   display:flex;align-items:center;justify-content:space-between;
   padding:0 18px;height:48px;gap:10px;
+  flex-wrap:nowrap; /* una sola fila, siempre — si algún día sobra un control, se
+                        comprime (min-width:0 en los hijos), nunca se apila. */
 }
 .topbar-brand{display:flex;align-items:center;gap:8px;}
 .topbar-brand-btn{
@@ -54,27 +56,27 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   background:linear-gradient(165deg,#B08A2E 8%,#8F7530 50%,#6B5522 92%);
   -webkit-background-clip:text;background-clip:text;
 }
-.topbar-right{display:flex;align-items:center;gap:6px;}
+.topbar-right{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:nowrap;}
 
 /* Móvil/APK: acá SÍ alterna chibi vs. texto según sesión — renderTopbarBrand()
    (auth.js) solo pone/quita la clase .is-authenticated en .topbar-brand-btn,
    sin tocar ningún atributo hidden en el DOM. En desktop el chibi y el texto
    van siempre juntos, sin toggle (por eso estas reglas viven únicamente
-   dentro de este media query). Compacta además el resto de la barra para que
-   TODO (marca · temporada · perfil · ⚙) quepa en pantallas pequeñas (iPhone
-   SE). Alto mínimo ~40px en
-   los tocables (season-sel/icon-btn/tb-enter): a este ancho se compacta el
-   padding visual, pero el ÁREA de toque real no debe bajar del mínimo táctil
-   recomendado (~40-44px) solo porque se ve angosto. */
+   dentro de este media query). La temporada vive en Configuración (ver
+   #settings-modal), no en la topbar — acá solo quedan: marca, toggle de modo
+   (admin), avatar y ⚙, para que quepan cómodos en pantallas chicas (iPhone
+   SE). Mismo alto mínimo táctil (~40px) y mismo gap en avatar/mode-btn/⚙
+   para que se vean como un solo grupo de controles, no tres tamaños distintos. */
 @media(max-width:520px){
   .topbar-brand-btn:not(.is-authenticated) .topbar-logo{display:none;}
   .topbar-brand-btn.is-authenticated .topbar-name{display:none;}
   #topbar{padding:0 8px;gap:6px;}
-  .topbar-right{gap:5px;min-width:0;}
-  .season-sel{padding:4px 6px;font-size:12px;max-width:88px;min-height:40px;}
+  .topbar-right{gap:5px;}
   .mode-btn{padding:4px 8px;font-size:12px;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;min-height:40px;}
   .icon-btn{padding:4px 7px;font-size:16px;display:inline-flex;align-items:center;justify-content:center;min-height:40px;min-width:40px;}
   .tb-enter{min-height:40px;}
+  .tp-btn{min-height:40px;}
+  .tp-chev{display:none;} /* sin affordance de hover en touch, no aporta nada acá */
 }
 
 .season-sel{

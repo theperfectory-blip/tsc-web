@@ -135,6 +135,10 @@ function _persistNav(){
 /* ----------------------------------------------------------
    MODO: PÚBLICO / ADMIN
    ---------------------------------------------------------- */
+/* Botón único de la topbar (#btn-mode): alterna al modo contrario del actual. */
+function toggleMode(){
+  setMode(STATE.mode === 'admin' ? 'public' : 'admin');
+}
 function setMode(mode){
   if(mode==='admin' && STATE.mode!=='admin'){
     // Modo admin requiere sesión iniciada con rol 'admin'
@@ -176,8 +180,9 @@ function setMode(mode){
     if(typeof renderPublicTicker==='function') renderPublicTicker();   // llamada defensiva (sin dep. de orden de carga)
   }
 
-  document.getElementById('btn-pub')?.classList.toggle('active',!isAdmin);
-  document.getElementById('btn-adm')?.classList.toggle('active',isAdmin);
+  // El botón muestra el DESTINO (a dónde vas), no el modo actual.
+  const btnMode = document.getElementById('btn-mode');
+  if (btnMode) btnMode.textContent = isAdmin ? 'Público' : 'Admin';
   // Mostrar/ocultar el topnav del rediseño según el modo (oculto en admin) — defensiva
   if(typeof syncRedesignShellMode === 'function') syncRedesignShellMode(mode);
   if(isAdmin){
