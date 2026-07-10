@@ -2724,13 +2724,21 @@ async function _palmSwapSala(direction, mutate){
   const token = ++_PALM_PUB.salaSwapToken;
   const horizontal = direction === 'left' || direction === 'right';
   const prop = horizontal ? '--sala-slide-x' : '--sala-slide-y';
+  const otherProp = horizontal ? '--sala-slide-y' : '--sala-slide-x';
   const unit = horizontal ? 'vw' : 'vh';
   const dist = horizontal ? 7 : 6;
   const outVal = (direction === 'left' || direction === 'up') ? -dist : dist;
 
+  // Limpia cualquier resto de un swap anterior CANCELADO (p.ej. el usuario
+  // cambia de eje —comp→campeón— antes de que termine el primero): ese swap
+  // viejo va a detectar el token inválido y salir sin tocar `otherProp`, así
+  // que si no se limpia acá puede quedar pegado indefinidamente.
+  sala.classList.remove('sala-swap-instant');
+  sala.style.removeProperty(otherProp);
+
   sala.style.setProperty(prop, `${outVal}${unit}`);
   await _palmWaitTransition(180);
-  if (token !== _PALM_PUB.salaSwapToken) return;
+  if (token !== _PALM_PUB.salaSwapToken) { sala.style.removeProperty(prop); return; }
 
   mutate();
 
@@ -2744,7 +2752,7 @@ async function _palmSwapSala(direction, mutate){
   sala.style.setProperty(prop, '0');
 
   await _palmWaitTransition(260);
-  if (token !== _PALM_PUB.salaSwapToken) return;
+  if (token !== _PALM_PUB.salaSwapToken) { sala.style.removeProperty(prop); return; }
   sala.style.removeProperty(prop);
 }
 
@@ -2806,10 +2814,18 @@ function _palmBindSalaDialog(){
     const dot = e.target.closest('[data-sala-dot]');
     if (dot) {
       const dotIndex = Number(dot.dataset.salaDot) || 0;
-      _PALM_PUB.salaChampIdx = dotIndex;
-      _palmRenderSala();
-      requestAnimationFrame(() => {
-        document.querySelector(`#sala-dots [data-sala-dot="${dotIndex}"]`)?.focus({ preventScroll:true });
+      if (dotIndex === _PALM_PUB.salaChampIdx) return;
+      // Misma transición que las flechas arriba/abajo — antes esto saltaba
+      // _palmSwapSala() por completo (rompía la regla de transición global)
+      // y tampoco invalidaba un swap en curso, así que un swap anterior podía
+      // terminar después y pisar el campeón elegido por el dot.
+      const dir = dotIndex > _PALM_PUB.salaChampIdx ? 'up' : 'down';
+      _palmSwapSala(dir, () => {
+        _PALM_PUB.salaChampIdx = dotIndex;
+        _palmRenderSala();
+        requestAnimationFrame(() => {
+          document.querySelector(`#sala-dots [data-sala-dot="${dotIndex}"]`)?.focus({ preventScroll:true });
+        });
       });
       return;
     }
