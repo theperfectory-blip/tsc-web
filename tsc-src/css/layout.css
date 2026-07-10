@@ -58,25 +58,36 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 }
 .topbar-right{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:nowrap;}
 
-/* Móvil/APK: acá SÍ alterna chibi vs. texto según sesión — renderTopbarBrand()
-   (auth.js) solo pone/quita la clase .is-authenticated en .topbar-brand-btn,
-   sin tocar ningún atributo hidden en el DOM. En desktop el chibi y el texto
-   van siempre juntos, sin toggle (por eso estas reglas viven únicamente
-   dentro de este media query). La temporada vive en Configuración (ver
-   #settings-modal), no en la topbar — acá solo quedan: marca, toggle de modo
-   (admin), avatar y ⚙, para que quepan cómodos en pantallas chicas (iPhone
-   SE). Mismo alto mínimo táctil (~40px) y mismo gap en avatar/mode-btn/⚙
-   para que se vean como un solo grupo de controles, no tres tamaños distintos. */
+/* Móvil/APK: con la temporada movida a Configuración, el topbar tiene aire de
+   sobra — la marca completa (chibi + "Teams Subs Cup") vuelve a mostrarse
+   siempre, igual que en desktop, solo que compactada de tamaño. El criterio
+   principal para mostrar/ocultar deja de ser la sesión; es puramente ancho de
+   viewport (ver fallback ≤360px más abajo, el único lugar donde la sesión
+   vuelve a decidir). Acá además: toggle de modo (admin), avatar y ⚙, con
+   mismo alto mínimo táctil (~40px) y mismo gap para verse como un solo grupo
+   de controles. */
 @media(max-width:520px){
-  .topbar-brand-btn:not(.is-authenticated) .topbar-logo{display:none;}
-  .topbar-brand-btn.is-authenticated .topbar-name{display:none;}
   #topbar{padding:0 8px;gap:6px;}
+  .topbar-brand{gap:5px;}
+  .topbar-logo{height:30px;width:30px;}
+  .topbar-name{font-size:18px;gap:5px;}
+  .topbar-name span{font-size:20px;}
   .topbar-right{gap:5px;}
   .mode-btn{padding:4px 8px;font-size:12px;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;min-height:40px;}
   .icon-btn{padding:4px 7px;font-size:16px;display:inline-flex;align-items:center;justify-content:center;min-height:40px;min-width:40px;}
   .tb-enter{min-height:40px;}
   .tp-btn{min-height:40px;}
   .tp-chev{display:none;} /* sin affordance de hover en touch, no aporta nada acá */
+}
+
+/* Fallback solo para pantallas muy angostas (iPhone SE y similares, ≤360px):
+   ahí sí no entra el lockup completo, así que se vuelve a alternar chibi vs.
+   texto según sesión (renderTopbarBrand() en auth.js, clase .is-authenticated
+   — no toca ningún atributo hidden en el DOM). Es la ÚNICA franja de ancho
+   donde la sesión decide qué se ve. */
+@media(max-width:360px){
+  .topbar-brand-btn.is-authenticated .topbar-name{display:none;}
+  .topbar-brand-btn:not(.is-authenticated) .topbar-logo{display:none;}
 }
 
 .season-sel{
