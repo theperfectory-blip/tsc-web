@@ -4,6 +4,12 @@
 (function () {
   let ctx = null;
   let masterGain = null;
+  // Estado runtime de "en background" — distinto de `enabled`/localStorage:
+  // getCtx() reanuda el ctx solo con esto en false, así un setInterval vivo
+  // (p.ej. el radar de partido en vivo en live.js) no puede reactivar el
+  // audio mientras la app sigue minimizada. Solo unlock() (gesto explícito
+  // del usuario) lo vuelve a poner en false.
+  let backgroundPaused = false;
 
   function getCtx() {
     if (!ctx) {
@@ -235,16 +241,47 @@
   window.SFX = {
     enabled: _snd.on,
     volume: _snd.vol,
-    unlock() { getCtx(); if (masterGain) masterGain.gain.value = this.volume; },
+    // Gesto explícito del usuario: recién acá se levanta backgroundPaused,
+    // nunca automáticamente (ni por un setInterval, ni al volver del background).
+    unlock() { backgroundPaused = false; getCtx(); if (masterGain) masterGain.gain.value = this.volume; },
     setVolume(v) { this.volume = Math.max(0, Math.min(1, v)); if (masterGain) masterGain.gain.value = this.volume; try{ localStorage.setItem('tsc_sound_vol', String(this.volume)); }catch(e){} },
     getVolume() { return this.volume; },
-    playDrumRoll(ms) { if (!this.enabled) return { stop(){} }; return playDrumRoll(ms); },
-    playTada()       { if (!this.enabled) return; playTada(); },
-    playSnare()      { if (!this.enabled) return; const c = getCtx(); if (c) snareHit(c.currentTime + 0.01, 1); },
-    radarPing()      { if (!this.enabled) return; radarPingBus(1); },
-    radarStart()     { if (!this.enabled) return; radarBusStart(); },
-    radarStop()      { radarBusStop(); },                          // siempre hace fade-out (aunque esté silenciado)
+    playDrumRoll(ms) { if (!this.enabled || backgroundPaused) return { stop(){} }; return playDrumRoll(ms); },
+    playTada()       { if (!this.enabled || backgroundPaused) return; playTada(); },
+    playSnare()      { if (!this.enabled || backgroundPaused) return; const c = getCtx(); if (c) snareHit(c.currentTime + 0.01, 1); },
+    radarPing()      { if (!this.enabled || backgroundPaused) return; radarPingBus(1); },
+    radarStart()     { if (!this.enabled || backgroundPaused) return; radarBusStart(); },
+    radarStop()      { radarBusStop(); },                          // siempre hace fade-out (aunque esté silenciado o en background)
     radarProximity(near){ radarBusProximity(!!near); },
-    setEnabled(b)    { this.enabled = !!b; if(!b) radarBusStop(); try{ localStorage.setItem('tsc_sound_on', b ? '1':'0'); }catch(e){} }
+    setEnabled(b)    { this.enabled = !!b; if(!b) radarBusStop(); try{ localStorage.setItem('tsc_sound_on', b ? '1':'0'); }catch(e){} },
+    // Pausa de RUNTIME por background (minimizar app/pestaña oculta) — a
+    // propósito NO toca `this.enabled` ni localStorage: es un mute temporal,
+    // no un cambio de preferencia. backgroundPaused bloquea que un timer vivo
+    // (radar de live.js) reanude el ctx solo; únicamente unlock() (gesto
+    // explícito del usuario) lo vuelve a habilitar.
+    pauseForBackground(reason){
+      backgroundPaused = true;
+      radarBusStop();
+      if (ctx && ctx.state === 'running') ctx.suspend().catch(()=>{});
+    }
   };
 })();
+
+/* ============================================================
+   Corte de audio al pasar a background (minimizar APK, cambiar de
+   pestaña, perder foco de ventana) — NO es el toggle de preferencia de
+   sonido: es runtime-only, no persiste nada, y no auto-reanuda al volver
+   (el uso normal de cada pantalla vuelve a arrancar su propio audio si
+   corresponde cuando el usuario realmente interactúa de nuevo).
+   ============================================================ */
+function pauseAllAppAudio(reason){
+  window.SFX?.pauseForBackground?.(reason);
+  if (typeof window.PALM_THEME?.pauseForBackground === 'function') window.PALM_THEME.pauseForBackground();
+  else window.PALM_THEME?.stop?.();
+  window.SORTEO_AUDIO?.stop?.();
+  window.BRACKET_AUDIO?.pauseForBackground?.();
+  document.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch(_){} });
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAllAppAudio('hidden'); });
+window.addEventListener('pagehide', () => pauseAllAppAudio('pagehide'));
+window.addEventListener('blur', () => pauseAllAppAudio('blur'));

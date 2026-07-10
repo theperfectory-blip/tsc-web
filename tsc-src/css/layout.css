@@ -56,13 +56,19 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 }
 .topbar-right{display:flex;align-items:center;gap:6px;}
 
-/* Móvil: dejar solo el círculo "TSC" y compactar la barra para que TODO
-   (logo · temporada · perfil · ⚙) quepa en pantallas pequeñas (iPhone SE).
-   Alto mínimo ~40px en los tocables (season-sel/icon-btn/tb-enter): a este
-   ancho se compacta el padding visual, pero el ÁREA de toque real no debe
-   bajar del mínimo táctil recomendado (~40-44px) solo porque se ve angosto. */
+/* Móvil/APK: acá SÍ alterna chibi vs. texto según sesión — renderTopbarBrand()
+   (auth.js) solo pone/quita la clase .is-authenticated en .topbar-brand-btn,
+   sin tocar ningún atributo hidden en el DOM. En desktop el chibi y el texto
+   van siempre juntos, sin toggle (por eso estas reglas viven únicamente
+   dentro de este media query). Compacta además el resto de la barra para que
+   TODO (marca · temporada · perfil · ⚙) quepa en pantallas pequeñas (iPhone
+   SE). Alto mínimo ~40px en
+   los tocables (season-sel/icon-btn/tb-enter): a este ancho se compacta el
+   padding visual, pero el ÁREA de toque real no debe bajar del mínimo táctil
+   recomendado (~40-44px) solo porque se ve angosto. */
 @media(max-width:520px){
-  .topbar-name{display:none;}
+  .topbar-brand-btn:not(.is-authenticated) .topbar-logo{display:none;}
+  .topbar-brand-btn.is-authenticated .topbar-name{display:none;}
   #topbar{padding:0 8px;gap:6px;}
   .topbar-right{gap:5px;min-width:0;}
   .season-sel{padding:4px 6px;font-size:12px;max-width:88px;min-height:40px;}

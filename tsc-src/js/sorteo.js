@@ -424,6 +424,9 @@
       drumAudio.pause(); drumAudio.currentTime = 0;
     }
   }
+  // Corte de audio por background (pauseAllAppAudio en sounds.js) — sin fade
+  // ni tocar SFX.enabled, solo detiene el redoble si estaba sonando.
+  window.SORTEO_AUDIO = { stop: () => stopDrumroll(false) };
 
   /* ---------------- Mount ---------------- */
   async function mount(container) {

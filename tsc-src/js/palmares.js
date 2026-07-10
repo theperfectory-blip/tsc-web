@@ -869,6 +869,19 @@ function _palmTheme(){
       visible = false;
       apply();
     },
+    // Pausa INMEDIATA por background — a diferencia de stop()/apply(), que
+    // hacen fade-out (hasta 1.2s) + pauseAfterFade() (850ms más), esto pausa
+    // el <audio> ya mismo. También suspende _palmAudioCtx (compartido con los
+    // efectos de zoom playPalmZoom/playPalmZoomOut) por si justo hay uno en
+    // vuelo al minimizar. No llama dispose(): el controller (nodos Web Audio)
+    // sigue vivo para retomar sin reconstruir todo al volver — playIfNeeded()
+    // ya sabe resumir el ctx cuando haga falta.
+    pauseForBackground(){
+      visible = false;
+      clearTimeout(pauseTimer);
+      if (audio) audio.pause();
+      if (_palmAudioCtx?.state === 'running') _palmAudioCtx.suspend().catch(()=>{});
+    },
     onGlobalSoundChange(){
       userActivated = true;
       if(enabled() && visible) this.start(false);

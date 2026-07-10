@@ -67,6 +67,11 @@ function teamLogoHtml(name, team, size=28){
     return _audioCtx;
   }
 
+  // Corte de audio por background (pauseAllAppAudio en sounds.js) — los
+  // sonidos de fuegos son cortos, pero por las dudas de que quede uno en
+  // vuelo justo al minimizar.
+  window.BRACKET_AUDIO = { pauseForBackground(){ try{ _audioCtx?.suspend?.(); }catch(_){} } };
+
   // Sonido de cohete subiendo: silbido ascendente
   function _soundRocketLaunch(volScale){
     try{

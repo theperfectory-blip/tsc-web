@@ -217,8 +217,19 @@ function onAuthInit(){
   });
 }
 
+/* ---- Marca de la topbar: chibi con sesión, texto "Teams Subs Cup" sin ella
+   (solo mobile/APK — ver layout.css @media(max-width:520px); en desktop van
+   siempre juntos). Solo alterna una clase: nada de `hidden` falso en el DOM
+   mientras el elemento sigue visible en desktop por CSS. ---- */
+function renderTopbarBrand(){
+  const btn = document.querySelector('.topbar-brand-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-authenticated', !!AUTH.user);
+}
+
 /* ---- Refleja el estado de sesión en la topbar ---- */
 function renderAuthUI(){
+  renderTopbarBrand();
   const area   = document.getElementById('auth-area');
   const btnPub = document.getElementById('btn-pub');
   const btnAdm = document.getElementById('btn-adm');
