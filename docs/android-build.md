@@ -39,6 +39,53 @@ Si se agregó/cambió algo en `tsc-src/`, correr también:
 cd tsc-src && graphify update .
 ```
 
+## Regla de trabajo: debug vs release
+
+Hay dos artefactos distintos y se usan para cosas distintas.
+
+### APK debug
+
+Ruta:
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Uso correcto:
+
+- Desarrollo rapido con Codex/Claude.
+- Emulador y pruebas tecnicas de WebView/CDP.
+- Inspeccionar consola, DOM, estado interno, errores JS y recursos cargados.
+- Iterar cambios sin preparar una build candidata.
+
+No usar como build de prueba real para el usuario final. Puede estar firmado
+con debug, tener comportamiento de depuracion y no representa exactamente el
+paquete que se debe validar en telefono fisico.
+
+### APK release
+
+Ruta generada por Gradle:
+
+```text
+android/app/build/outputs/apk/release/app-release.apk
+```
+
+Uso correcto:
+
+- Test real en telefono fisico.
+- Validar rendimiento real, splash, audio, portrait, sala de trofeos 3D,
+  notificaciones y navegacion.
+- Build candidata para compartir fuera del flujo de desarrollo.
+
+Regla practica:
+
+1. Codex/Claude desarrollan y diagnostican primero con debug.
+2. Cuando el cambio queda cerrado, correr `npm run build:www`,
+   `npx cap copy android` y `./gradlew :app:assembleRelease`.
+3. El usuario prueba en su telefono usando el APK release.
+4. Si el usuario reporta un bug desde telefono, se corrige en codigo, se
+   valida en debug si ayuda al diagnostico, y se vuelve a generar release.
+
 ## Generar un APK debug desde línea de comandos
 
 ```bash
