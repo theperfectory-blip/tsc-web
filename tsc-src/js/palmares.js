@@ -1844,7 +1844,10 @@ const _PALM_PUB = {
   // preload en curso que ya no corresponde mostrar.
   salaLoadToken: 0,
   roomImagesReady: false,
-  roomImagesPromise: null
+  roomImagesPromise: null,
+  // Cancela una transición de swap (comp/campeón) en curso si el usuario
+  // dispara otra antes de que termine — ver _palmSwapSala().
+  salaSwapToken: 0
 };
 
 const _PALM_SALA_IMG = {
@@ -2676,7 +2679,10 @@ function _palmCloseSala(restoreFocus = true){
   const sala = document.getElementById('sala');
   if (!sala || sala.hidden) return;
   _PALM_PUB.salaLoadToken++; // cancela cualquier _palmPrepareSala en curso (open a medias)
-  sala.classList.remove('open', 'loading');
+  _PALM_PUB.salaSwapToken++; // cancela cualquier _palmSwapSala en curso
+  sala.classList.remove('open', 'loading', 'sala-swap-instant');
+  sala.style.removeProperty('--sala-slide-x');
+  sala.style.removeProperty('--sala-slide-y');
   _palmHideSalaLoader();
   sala.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('sala-open');
@@ -2694,11 +2700,62 @@ function _palmCloseSala(restoreFocus = true){
   }, closeDelay);
 }
 
+function _palmWaitTransition(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/* Transición direccional secuencial (sale → cambia índice/re-renderiza →
+   entra) para cambiar de competición ('left'/'right') o campeón ('up'/
+   'down') dentro de una sala ya abierta. Secuencial y NO simultánea a
+   propósito: hay un solo WebGLRenderer/canvas para la copa 3D — no existe
+   "copa vieja saliendo mientras la nueva entra", es la misma copa
+   re-posicionada entre los dos tramos. `mutate` cambia los índices y llama
+   a _palmRenderSala(); corre recién cuando el contenido actual ya salió.
+   Convive con el sistema de carga existente (_palmPrepareSala/
+   .sala-cup-loading/salaLoadToken) sin duplicarlo: si la copa nueva no está
+   en modelCache, el pulso local de siempre sigue apareciendo en el tramo de
+   entrada, esto solo mueve el contenedor. */
+async function _palmSwapSala(direction, mutate){
+  const sala = document.getElementById('sala');
+  if (!sala || sala.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    mutate();
+    return;
+  }
+  const token = ++_PALM_PUB.salaSwapToken;
+  const horizontal = direction === 'left' || direction === 'right';
+  const prop = horizontal ? '--sala-slide-x' : '--sala-slide-y';
+  const unit = horizontal ? 'vw' : 'vh';
+  const dist = horizontal ? 7 : 6;
+  const outVal = (direction === 'left' || direction === 'up') ? -dist : dist;
+
+  sala.style.setProperty(prop, `${outVal}${unit}`);
+  await _palmWaitTransition(180);
+  if (token !== _PALM_PUB.salaSwapToken) return;
+
+  mutate();
+
+  // Salto instantáneo al lado opuesto (técnica FLIP) antes de animar la
+  // entrada: sin esto, el contenido nuevo rebotaría desde donde salió el
+  // anterior en vez de venir del lado correcto.
+  sala.classList.add('sala-swap-instant');
+  sala.style.setProperty(prop, `${-outVal}${unit}`);
+  void sala.offsetHeight; // fuerza reflow: registra la posición saltada antes de reactivar la transición
+  sala.classList.remove('sala-swap-instant');
+  sala.style.setProperty(prop, '0');
+
+  await _palmWaitTransition(260);
+  if (token !== _PALM_PUB.salaSwapToken) return;
+  sala.style.removeProperty(prop);
+}
+
 function _palmMoveSalaChamp(delta){
   const comp = _palmCurrentSalaComp();
   if (!comp?.records?.length) return;
-  _PALM_PUB.salaChampIdx = (_PALM_PUB.salaChampIdx + delta + comp.records.length) % comp.records.length;
-  _palmRenderSala();
+  const dir = delta > 0 ? 'up' : 'down';
+  _palmSwapSala(dir, () => {
+    _PALM_PUB.salaChampIdx = (_PALM_PUB.salaChampIdx + delta + comp.records.length) % comp.records.length;
+    _palmRenderSala();
+  });
 }
 
 function _palmMoveSalaComp(delta){
@@ -2708,9 +2765,12 @@ function _palmMoveSalaComp(delta){
   const next = (activeIdx + delta + list.length) % list.length;
   const nextComp = list[next];
   if (!nextComp) return;
-  _PALM_PUB.salaCompIdx = _PALM_PUB.compData.findIndex(entry => entry.comp.key === nextComp.comp.key);
-  _PALM_PUB.salaChampIdx = 0;
-  _palmRenderSala();
+  const dir = delta > 0 ? 'left' : 'right';
+  _palmSwapSala(dir, () => {
+    _PALM_PUB.salaCompIdx = _PALM_PUB.compData.findIndex(entry => entry.comp.key === nextComp.comp.key);
+    _PALM_PUB.salaChampIdx = 0;
+    _palmRenderSala();
+  });
 }
 
 function _palmBindSalaDialog(){

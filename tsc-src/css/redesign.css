@@ -293,9 +293,44 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 @property --br-y{syntax:'<percentage>';inherits:true;initial-value:19%;}
 #sala{position:fixed;inset:0;z-index:var(--z-fullscreen);background:#030405;overflow:hidden;
   opacity:0;pointer-events:none;
+  --sala-slide-x:0;--sala-slide-y:0;
   transition:opacity 0.7s var(--ease-in-out),
     --beam-l 0.9s ease, --beam-r 0.9s ease, --beam-l-soft 0.9s ease, --beam-r-soft 0.9s ease;}
 #sala.open{opacity:1;pointer-events:auto;}
+/* Transición direccional al cambiar de competición (horizontal) o campeón
+   (vertical) dentro de una sala ya abierta — ver _palmSwapSala() en
+   palmares.js. Usa la propiedad `translate` (independiente de `transform`,
+   CSS Transforms Level 2) a propósito: #sala-cup y #sala-plate YA tienen su
+   propio `transform` (centrado) y #sala-plate además tiene una transición
+   de 1s con delay para el reveal inicial — animar `transform` acá pisaría
+   ambas cosas. `translate` compone solo, con su propia transición corta e
+   independiente, sin tocar ninguna de las dos.
+   #sala-comp/#sala-dots/.sala-collage no tienen conflicto de transform,
+   pero se maneja igual por consistencia (un solo mecanismo para las 5). */
+.sala-comp,.sala-dots,.sala-collage,.sala-cup,.sala-plate{
+  translate:var(--sala-slide-x) var(--sala-slide-y);
+  transition:translate .24s var(--ease-out);
+}
+.sala-plate{
+  /* se agrega translate a la transition list existente — NO se toca la de
+     opacity/transform del reveal inicial (1s, delay 0.4s). */
+  transition:opacity 1s var(--ease-out) 0.4s, transform 1s var(--ease-out) 0.4s, translate .24s var(--ease-out);
+}
+/* Salto instantáneo (sin transición) al reposicionar del lado opuesto justo
+   antes de animar la entrada — técnica FLIP: se fuerza un reflow entre
+   agregar y quitar esta clase (ver _palmSwapSala) para que el navegador
+   registre la posición "saltada" antes de reactivar la transición. */
+.sala-swap-instant .sala-comp,
+.sala-swap-instant .sala-dots,
+.sala-swap-instant .sala-collage,
+.sala-swap-instant .sala-cup,
+.sala-swap-instant .sala-plate{
+  transition:none;
+}
+@media(prefers-reduced-motion:reduce){
+  .sala-comp,.sala-dots,.sala-collage,.sala-cup{transition:none;}
+  .sala-plate{transition:opacity 1s var(--ease-out) 0.4s, transform 1s var(--ease-out) 0.4s;}
+}
 /* .loading revela #sala (igual que .open) pero SIN disparar las transiciones
    de reveal (#sala.open .foo) — la sala real queda montándose tapada por
    .sala-loader hasta que _palmPrepareSala() confirma que lo crítico cargó;
