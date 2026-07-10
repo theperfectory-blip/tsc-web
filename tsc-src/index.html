@@ -30,29 +30,93 @@
 </head>
 <body>
 
-<!-- Splash de arranque (overlay web) — visible desde el primer paint hasta
-     que el bootstrap real (initDB/loadSeasons/primer render público) termina.
-     El splash NATIVO de Android (styles.xml → AppTheme.NoActionBarLaunch)
-     solo cubre el tramo lanzamiento→primer paint del WebView; este overlay
-     es el que de verdad muestra el escudo TSC grande y evita cualquier
-     pantalla vacía/blanca entre medio. Se oculta SOLO en 'tsc:public-section-mounted'
-     (nav.js → ensurePublicSectionMounted, dispara con el primer render público
-     real) — a propósito SIN timeout que lo oculte igual: revelar un fondo
-     vacío detrás es peor que dejarlo. Si el bootstrap tarda o falla, se queda
-     este mismo fondo oscuro + logo y solo se agrega un aviso de estado ENCIMA. -->
+<!-- Splash de arranque (overlay web) — visible desde el primer paint hasta que
+     el bootstrap real termina. El splash NATIVO de Android (styles.xml →
+     AppTheme.NoActionBarLaunch) solo cubre el tramo lanzamiento→primer paint
+     del WebView; este overlay es el que de verdad muestra el escudo TSC
+     grande y evita cualquier pantalla vacía/blanca entre medio.
+
+     Se oculta SOLO cuando 'tsc:boot-ready' confirma señales reales de listo
+     (ver window.TSC_BOOT_READY / markBootStep / waitBootAssets más abajo):
+     DOM cargado, primer render público montado (nav.js →
+     ensurePublicSectionMounted), fuentes (document.fonts.ready), el logo del
+     splash y la imagen de YuNa precargados, y en APK/Capacitor un doble
+     requestAnimationFrame extra tras el render para no revelar un frame a
+     medio pintar. A propósito SIN timeout que lo oculte igual: revelar un
+     fondo vacío/a medias detrás es peor que dejarlo. Si el bootstrap tarda o
+     falla, se queda este mismo fondo oscuro + logo y solo se agrega un aviso
+     de estado ENCIMA — un asset no crítico que falla (ver 'error' abajo) se
+     marca como completo igual para no colgar el splash para siempre. -->
 <div id="boot-splash" aria-hidden="true">
   <img src="assets/tsc_sin_fondo.png" alt="">
   <div id="boot-splash-status"></div>
 </div>
 <script>
 (function(){
+  var READY_KEYS = ['dom','publicMounted','fonts','logoImg','yunaImg'];
+  var state = { _failed: [] };
+  var readyResolve;
+  var readyPromise = new Promise(function(res){ readyResolve = res; });
+
+  function checkReady(){
+    for(var i=0;i<READY_KEYS.length;i++){ if(!state[READY_KEYS[i]]) return; }
+    readyResolve();
+  }
+  window.markBootStep = function(name, failed){
+    if(state[name]) return;
+    state[name] = true;
+    if(failed) state._failed.push(name); // asset no crítico: se sigue igual, solo queda registrado
+    checkReady();
+  };
+  window.waitBootAssets = function(){ return readyPromise; };
+  window.TSC_BOOT_READY = state; // debug: window.TSC_BOOT_READY.publicMounted, ._failed, etc.
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){ markBootStep('dom'); });
+  } else { markBootStep('dom'); }
+
+  document.addEventListener('tsc:public-section-mounted', function(){ markBootStep('publicMounted'); }, { once:true });
+
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(function(){ markBootStep('fonts'); }, function(){ markBootStep('fonts', true); });
+  } else { markBootStep('fonts'); }
+
+  var splashImg = document.querySelector('#boot-splash img');
+  if(splashImg && splashImg.complete && splashImg.naturalWidth > 0){
+    markBootStep('logoImg');
+  } else if(splashImg){
+    splashImg.addEventListener('load', function(){ markBootStep('logoImg'); }, { once:true });
+    splashImg.addEventListener('error', function(){ markBootStep('logoImg', true); }, { once:true });
+  } else { markBootStep('logoImg'); }
+
+  var yunaImg = new Image();
+  yunaImg.addEventListener('load', function(){ markBootStep('yunaImg'); }, { once:true });
+  yunaImg.addEventListener('error', function(){ markBootStep('yunaImg', true); }, { once:true });
+  yunaImg.src = 'assets/chibi/LuisYuNa_nuevo.png';
+
+  function isNativeApk(){
+    try {
+      return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+    } catch(_){ return false; }
+  }
+
+  window.hideBootSplashWhenReady = function(){
+    return waitBootAssets().then(function(){
+      if(!isNativeApk()) return;
+      return new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+    }).then(function(){
+      document.dispatchEvent(new CustomEvent('tsc:boot-ready'));
+    });
+  };
+
   function hideBootSplash(){
     var el = document.getElementById('boot-splash');
     if(!el) return;
     el.classList.add('boot-splash-hide');
     setTimeout(function(){ el.remove(); }, 400);
   }
-  document.addEventListener('tsc:public-section-mounted', hideBootSplash, { once:true });
+  document.addEventListener('tsc:boot-ready', hideBootSplash, { once:true });
+  window.hideBootSplashWhenReady();
 
   function showStatus(text){
     var el = document.getElementById('boot-splash-status');

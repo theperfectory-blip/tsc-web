@@ -1,13 +1,13 @@
-# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-10)
+﻿# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-10)
 
 ## Corpus Check
-- 47 files · ~1,115,316 words
+- 47 files Â· ~1,117,405 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2689 nodes · 7050 edges · 51 communities detected
-- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 1362 edges (avg confidence: 0.8)
-- Token cost: 0 input · 0 output
+- 2698 nodes Â· 7076 edges Â· 51 communities detected
+- Extraction: 81% EXTRACTED Â· 19% INFERRED Â· 0% AMBIGUOUS Â· INFERRED: 1369 edges (avg confidence: 0.8)
+- Token cost: 0 input Â· 0 output
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Community 0|Community 0]]
@@ -68,127 +68,127 @@
 3. `dbGetAll()` - 115 edges
 4. `dbGetAll()` - 104 edges
 5. `dbGet()` - 81 edges
-6. `add()` - 76 edges
+6. `add()` - 78 edges
 7. `re` - 75 edges
 8. `dbGet()` - 75 edges
 9. `showToast()` - 71 edges
 10. `qt` - 70 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `parse()` --calls--> `getBombos()`  [INFERRED]
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\sorteo.js
 - `add()` --calls--> `_calRowOk()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\calendar.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\calendar.js
 - `copy()` --calls--> `ensureInt8()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
 - `set()` --calls--> `_emscripten_memcpy_big()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
 - `locateFile()` --calls--> `v()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_wasm_wrapper.js
-- `renderMatchesList()` --calls--> `pubShowMatchesGroup()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\matches.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\public.js
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js â†’ C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_wasm_wrapper.js
 
 ## Hyperedges (group relationships)
-- **All Public Pages in index.html** — index_html_pub_page_palmares, index_html_pub_page_panel, index_html_pub_page_equipos, index_html_pub_page_historial, index_html_pub_page_sorteo [EXTRACTED 1.00]
-- **All Admin Pages in index.html** — index_html_adm_page_dashboard, index_html_adm_page_equipos, index_html_adm_page_usuarios, index_html_adm_page_competiciones, index_html_adm_page_fases, index_html_adm_page_partidos, index_html_adm_page_sorteo, index_html_adm_page_coins, index_html_adm_page_temporadas, index_html_adm_page_datos, index_html_adm_page_historial, index_html_adm_page_historial_tabla, index_html_adm_page_palmares [EXTRACTED 1.00]
-- **8-Frame Chibi Sorteo Animation (draw reveal sequence)** — chibi_01_idle, chibi_02_reach, chibi_03_grab, chibi_04_hold, chibi_05_show, chibi_06_crack, chibi_07_open, chibi_08_celebrate [EXTRACTED 1.00]
-- **Top 5 God Nodes (most connected functions)** — audit_report_dbGetAll, audit_report_dbGet, audit_report_showToast, audit_report_dbPut, audit_report_dbAdd [EXTRACTED 1.00]
-- **Global Modals in index.html** — index_html_settings_modal, index_html_confirm_overlay, index_html_toast [EXTRACTED 1.00]
-- **Tournament Phase Type â†’ Config Schema â†’ Render Function Pipeline** — phase_type_liga, data_phase_config_liga, fn_renderligastandings [EXTRACTED 0.95]
-- **IndexedDB CRUD Layer: dbAdd/dbPut/dbGet/dbDelete** — fn_dbadd, fn_dbput, fn_dbget, fn_dbdelete, fn_dbgetall [EXTRACTED 1.00]
-- **App Initialization: initDB â†’ seedData â†’ loadSeasons â†’ setMode** — fn_initdb, fn_seedinitialdata, fn_loadseasons, fn_setmode [EXTRACTED 1.00]
-- **Gold-toned Trophy Group** — trophy_01_classica, trophy_02_imperial, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica [EXTRACTED 0.95]
-- **Silver/Chrome Trophy Group** — trophy_04_orejona, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula [EXTRACTED 0.95]
-- **Football Ball Design Trophy Group** — trophy_03_konami, trophy_09_geometrica [EXTRACTED 0.90]
-- **All Palmares Trophy Assets** — trophy_01_classica, trophy_02_imperial, trophy_03_konami, trophy_04_orejona, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula, concept_palmares_module [INFERRED 0.95]
+- **All Public Pages in index.html** â€” index_html_pub_page_palmares, index_html_pub_page_panel, index_html_pub_page_equipos, index_html_pub_page_historial, index_html_pub_page_sorteo [EXTRACTED 1.00]
+- **All Admin Pages in index.html** â€” index_html_adm_page_dashboard, index_html_adm_page_equipos, index_html_adm_page_usuarios, index_html_adm_page_competiciones, index_html_adm_page_fases, index_html_adm_page_partidos, index_html_adm_page_sorteo, index_html_adm_page_coins, index_html_adm_page_temporadas, index_html_adm_page_datos, index_html_adm_page_historial, index_html_adm_page_historial_tabla, index_html_adm_page_palmares [EXTRACTED 1.00]
+- **8-Frame Chibi Sorteo Animation (draw reveal sequence)** â€” chibi_01_idle, chibi_02_reach, chibi_03_grab, chibi_04_hold, chibi_05_show, chibi_06_crack, chibi_07_open, chibi_08_celebrate [EXTRACTED 1.00]
+- **Top 5 God Nodes (most connected functions)** â€” audit_report_dbGetAll, audit_report_dbGet, audit_report_showToast, audit_report_dbPut, audit_report_dbAdd [EXTRACTED 1.00]
+- **Global Modals in index.html** â€” index_html_settings_modal, index_html_confirm_overlay, index_html_toast [EXTRACTED 1.00]
+- **Tournament Phase Type Ã¢â€ â€™ Config Schema Ã¢â€ â€™ Render Function Pipeline** â€” phase_type_liga, data_phase_config_liga, fn_renderligastandings [EXTRACTED 0.95]
+- **IndexedDB CRUD Layer: dbAdd/dbPut/dbGet/dbDelete** â€” fn_dbadd, fn_dbput, fn_dbget, fn_dbdelete, fn_dbgetall [EXTRACTED 1.00]
+- **App Initialization: initDB Ã¢â€ â€™ seedData Ã¢â€ â€™ loadSeasons Ã¢â€ â€™ setMode** â€” fn_initdb, fn_seedinitialdata, fn_loadseasons, fn_setmode [EXTRACTED 1.00]
+- **Gold-toned Trophy Group** â€” trophy_01_classica, trophy_02_imperial, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica [EXTRACTED 0.95]
+- **Silver/Chrome Trophy Group** â€” trophy_04_orejona, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula [EXTRACTED 0.95]
+- **Football Ball Design Trophy Group** â€” trophy_03_konami, trophy_09_geometrica [EXTRACTED 0.90]
+- **All Palmares Trophy Assets** â€” trophy_01_classica, trophy_02_imperial, trophy_03_konami, trophy_04_orejona, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula, concept_palmares_module [INFERRED 0.95]
 
 ## Communities
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
-Nodes (79): loop(), scaleBracket(), spawnRocket(), _pubHCount(), _palmOpenSala(), _cropClamp(), _cropZoomAt(), loadSound() (+71 more)
+Nodes (60): t(), computeBounds(), add(), an, applyMatrix4(), At(), clampPoint(), clone() (+52 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.02
-Nodes (267): authForgotPassword(), buildBracketRounds(), buildBracketSlots(), closeBracketMatchModal(), deleteBracketMatch(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase() (+259 more)
+Cohesion: 0.01
+Nodes (137): ac, _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), ao, as(), bind() (+129 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.01
-Nodes (117): destroy(), dynCall(), histShowPrev(), _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), as() (+109 more)
+Cohesion: 0.03
+Nodes (240): authForgotPassword(), buildBracketRounds(), buildBracketSlots(), closeBracketMatchModal(), deleteBracketMatch(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase() (+232 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.03
-Nodes (152): _authErrorMsg(), _authEsc(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit(), openAuthModal(), _renderAuthModalMode() (+144 more)
+Cohesion: 0.02
+Nodes (35): loop(), scaleBracket(), spawnRocket(), _pubHCount(), _palmOpenSala(), _palmSetSalaLoaderProgress(), _palmShowSalaLoader(), _cropClamp() (+27 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.02
-Nodes (21): GLTFCubicSplineQuaternionInterpolant, ac, ao, bl, el(), Ga, gc, ia (+13 more)
+Nodes (35): addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), createAttributesKey(), createDefaultMaterial(), createPrimitiveKey() (+27 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.02
-Nodes (36): DRACOLoader, addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), computeBounds(), createAttributesKey() (+28 more)
+Cohesion: 0.03
+Nodes (128): _cleanup(), resize(), _initChrome(), onScroll(), _play(), _initPubSidebarHover(), aggregatePalmaresByTeam(), buildCase() (+120 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.02
-Nodes (9): ea, ic, ne, qs, setDirection(), si, We, setTheme() (+1 more)
+Cohesion: 0.03
+Nodes (111): _authErrorMsg(), _authEsc(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit(), openAuthModal(), _renderAuthModalMode() (+103 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.04
-Nodes (67): A(), B(), C(), D(), e(), F(), G(), h() (+59 more)
+Nodes (56): A(), B(), C(), D(), e(), F(), G(), h() (+48 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.03
-Nodes (46): _getAudioCtx(), Particle, rgbStr(), Rocket, _soundExplosion(), _soundRocketLaunch(), liveRadarStart(), _palmApplyVol() (+38 more)
+Nodes (74): abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert(), AttributeOctahedronTransform() (+66 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.02
-Nodes (61): _calCommitStage(), _calCtaBtn(), _calFormatDay(), _calHeroHtml(), _calInitHeroCountdown(), calLblNavMonth(), _calLogo(), _calOffseasonHero() (+53 more)
+Cohesion: 0.03
+Nodes (18): cc, dispose(), ea, es, Gn, hn, je, jn() (+10 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.04
-Nodes (94): _cleanup(), resize(), _play(), aggregatePalmaresByTeam(), buildCase(), buildInfoPanel(), _esc(), _escAttr() (+86 more)
+Nodes (41): _getAudioCtx(), Particle, rgbStr(), Rocket, _soundExplosion(), _soundRocketLaunch(), liveRadarStart(), _palmApplyVol() (+33 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.03
-Nodes (71): abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert(), AttributeOctahedronTransform() (+63 more)
+Cohesion: 0.04
+Nodes (37): teamLogoHtml(), _cropApply(), cropZoomSlider(), _donutSVG(), _injectCropModal(), _injectProfileModal(), _loadTeamStats(), _onProfileClose() (+29 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.03
-Nodes (7): bt(), jt(), qt, ta, Ut(), wt(), zt()
+Cohesion: 0.06
+Nodes (66): _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc() (+58 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.04
-Nodes (32): teamLogoHtml(), confirmCrop(), _cropApply(), cropZoomSlider(), _donutSVG(), _injectCropModal(), _onProfileClose(), _onProfileOpen() (+24 more)
+Nodes (9): dh, ic, kl, _lendControlInterpolant(), rh, stopAllAction(), _takeBackControlInterpolant(), yl (+1 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.06
-Nodes (68): _calHeroGoH2H(), _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer() (+60 more)
+Cohesion: 0.08
+Nodes (61): hexToRgb(), lighten(), activeBombo(), addBombo(), _applySorteoStateRefreshNow(), _bindChibiRig(), broadcast(), clearLink() (+53 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.06
-Nodes (8): stopDrumroll(), dh, kl, _lendControlInterpolant(), stopAllAction(), _takeBackControlInterpolant(), yl, zl
+Cohesion: 0.04
+Nodes (6): ia, Na, Rt, setUsage(), _t(), yn()
 
 ### Community 16 - "Community 16"
 Cohesion: 0.08
-Nodes (3): bo, co, oo
+Nodes (32): frame(), getVariant(), init(), resize(), setVariant(), stop(), wake(), _bindPageReveals() (+24 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.09
-Nodes (2): bi, Et()
+Cohesion: 0.07
+Nodes (3): bi, Et(), ra
 
 ### Community 18 - "Community 18"
-Cohesion: 0.16
-Nodes (6): Gn, hn, jn(), qn(), Vn(), Wn()
+Cohesion: 0.12
+Nodes (2): co, oo
 
 ### Community 19 - "Community 19"
+Cohesion: 0.15
+Nodes (20): authSignOut(), _bindListeners(), _clearPendingTokenRemoval(), _clearToken(), clearUserToken(), _currentTimezone(), disable(), _disableLocalPushFlagAndToken() (+12 more)
+
+### Community 20 - "Community 20"
 Cohesion: 0.11
 Nodes (3): bc, In, on
 
-### Community 20 - "Community 20"
-Cohesion: 0.16
-Nodes (18): authSignOut(), _bindListeners(), _clearPendingTokenRemoval(), _clearToken(), clearUserToken(), _currentTimezone(), disable(), _disableLocalPushFlagAndToken() (+10 more)
-
 ### Community 21 - "Community 21"
-Cohesion: 0.23
-Nodes (18): _pbBracketCards(), _pbBracketMount(), _pbCrestMini(), _pbCrestTree(), _pbDesktopTreeHTML(), _pbEsc(), _pbFmtDate(), _pbMaybeFireworks() (+10 more)
+Cohesion: 0.22
+Nodes (19): _pbBracketCards(), _pbBracketMount(), _pbCrestMini(), _pbCrestTree(), _pbDesktopTreeHTML(), _pbEsc(), _pbFmtDate(), _pbMaybeFireworks() (+11 more)
 
 ### Community 22 - "Community 22"
 Cohesion: 0.16
@@ -308,7 +308,7 @@ Nodes (1): Drumroll Sound Effect
 
 ## Knowledge Gaps
 - **44 isolated node(s):** `tc`, `Graph Statistics (291 nodes, 727 edges, 28 communities)`, `dbGetAll (77 edges God Node)`, `dbGet (51 edges God Node)`, `showToast (34 edges God Node)` (+39 more)
-  These have ≤1 connection - possible missing edges or undocumented components.
+  These have â‰¤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 29`** (2 nodes): `PLAYOFF Phase Config Schema`, `PLAYOFF Phase Type (Aggregate Two-Leg)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 30`** (2 nodes): `LIGA Phase Config Schema`, `LIGA Phase Type (Group Stage)`
@@ -357,12 +357,12 @@ Nodes (1): Drumroll Sound Effect
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 16`, `Community 17`, `Community 18`?**
-  _High betweenness centrality (0.126) - this node is a cross-community bridge._
-- **Why does `copy()` connect `Community 0` to `Community 2`, `Community 4`, `Community 6`, `Community 7`, `Community 11`, `Community 12`, `Community 13`, `Community 15`, `Community 16`, `Community 17`, `Community 18`, `Community 19`?**
-  _High betweenness centrality (0.093) - this node is a cross-community bridge._
-- **Why does `add()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 5`, `Community 6`, `Community 7`, `Community 9`, `Community 14`, `Community 16`?**
-  _High betweenness centrality (0.062) - this node is a cross-community bridge._
+- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 14`, `Community 15`, `Community 16`, `Community 17`?**
+  _High betweenness centrality (0.170) - this node is a cross-community bridge._
+- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 3`, `Community 7`, `Community 8`, `Community 9`, `Community 11`, `Community 13`, `Community 15`, `Community 17`, `Community 18`, `Community 20`?**
+  _High betweenness centrality (0.095) - this node is a cross-community bridge._
+- **Why does `add()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 9`, `Community 12`, `Community 14`, `Community 16`, `Community 17`?**
+  _High betweenness centrality (0.072) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 27 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**

@@ -111,3 +111,39 @@ reglas sin motivo:
 - [ ] Sin frame blanco en cold start (splash nativo → WebView oscuro → overlay web → app)
 - [ ] Solo permiso `INTERNET` en el manifest, salvo que se agregue una razón real
 - [ ] `npm run build:www && npx cap copy android` corridos antes de buildear
+
+## Validar cambios visuales (ícono/splash/topbar) en el emulador
+
+Para cualquier cambio que se vea (ícono, splash, layout de topbar, etc.), reinstalar
+**siempre limpio** en vez de reinstalar encima:
+
+```bash
+npm run build:www
+npx cap sync android
+cd android
+./gradlew :app:assembleRelease
+cd ..
+
+adb uninstall web.teamsubscup.app
+adb install releases/android/v1.0.0/TEAM-SUBS-CUP-v1.0.0-release.apk
+adb shell monkey -p web.teamsubscup.app -c android.intent.category.LAUNCHER 1
+```
+
+**Por qué no `adb install -r`:** el launcher del emulador puede quedarse con
+recursos viejos cacheados (sobre todo íconos) aunque el APK instalado sí tenga
+el cambio — un ícono agrandado llegó a parecer "revertido" en pantalla cuando
+en realidad el APK ya lo traía bien. `uninstall` + `install` (sin `-r`) fuerza
+una relectura completa de recursos.
+
+Si hace falta confirmar qué hay REALMENTE empaquetado en un APK release (los
+nombres de recursos vienen ofuscados, `ic_launcher_foreground.png` no existe
+como tal dentro del zip): `aapt2 dump resources app-release.apk | grep -A6
+mipmap/ic_launcher_foreground` da la ruta comprimida real (algo como
+`res/as.png`) para extraerla con `unzip -p`.
+
+Después de instalar, checklist mínimo:
+- [ ] Ícono grande visible en el launcher (sin recorte, comparable a íconos de Google)
+- [ ] Sin sesión: topbar muestra texto "Teams Subs Cup" (mobile) / logo+texto (desktop)
+- [ ] Temporada vive dentro de Configuración, no en la topbar
+- [ ] Topbar no se parte en dos filas ni se superpone en ningún estado de sesión
+- [ ] Audio se corta al minimizar (Sorteo/Palmarés/Live) y no se reanuda solo al volver

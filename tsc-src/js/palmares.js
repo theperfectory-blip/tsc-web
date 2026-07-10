@@ -427,12 +427,15 @@ const TROPHY_GLB_MAP = {
   minimalista: 'copa_10.glb',
   nebula:      'copa_11.glb'
 };
+const LOCAL_TROPHY_GLB_STYLES = new Set(['classica', 'imperial', 'konami', 'orejona', 'sobria']);
 const _TROPHY_GLB_URL_CACHE = new Map();
 async function getTrophyGlbUrl(styleId){
   const file = TROPHY_GLB_MAP[styleId];
   if (!file) return null;
   if (_TROPHY_GLB_URL_CACHE.has(styleId)) return _TROPHY_GLB_URL_CACHE.get(styleId);
-  const url = `${_TROPHY_STORAGE_BASE}${file}?alt=media`;
+  const url = LOCAL_TROPHY_GLB_STYLES.has(styleId)
+    ? `assets/trophies/${file}`
+    : `${_TROPHY_STORAGE_BASE}${file}?alt=media`;
   _TROPHY_GLB_URL_CACHE.set(styleId, url);
   return url;
 }
@@ -1835,7 +1838,13 @@ const _PALM_PUB = {
   vitrineAbort: null,
   cupCtrl: null,
   smokeCtrl: null,
-  threePromise: null
+  threePromise: null,
+  // Gate de carga real de la sala fullscreen (ver _palmPrepareSala/_palmOpenSala):
+  // se incrementa en cada open/close/cambio de comp para poder cancelar un
+  // preload en curso que ya no corresponde mostrar.
+  salaLoadToken: 0,
+  roomImagesReady: false,
+  roomImagesPromise: null
 };
 
 const _PALM_SALA_IMG = {
@@ -2076,6 +2085,11 @@ function _palmVitrineShellHTML(){
       </div>
     </section>
     <div id="sala" role="dialog" aria-modal="true" aria-labelledby="sala-comp" aria-hidden="true" aria-describedby="sala-hint" hidden>
+      <div class="sala-loader" id="sala-loader" aria-hidden="true">
+        <img src="assets/tsc_sin_fondo.png" alt="">
+        <div class="sala-loader-text" id="sala-loader-text" aria-live="polite">Cargando sala de trofeos…</div>
+        <div class="sala-loader-bar"><div class="sala-loader-fill" id="sala-loader-fill"></div></div>
+      </div>
       <div class="sala-room"></div>
       <div class="sala-collage" id="sala-collage"></div>
       <div class="sala-wall-vignette" aria-hidden="true"></div>
@@ -2305,7 +2319,16 @@ function _palmCurrentSalaRecord(){
   return comp?.records?.[_PALM_PUB.salaChampIdx] || null;
 }
 
+function _palmIsNativeApk(){
+  try {
+    return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+  } catch (_) {
+    return false;
+  }
+}
+
 function _palmSalaShouldUseSvg(){
+  if (_palmIsNativeApk()) return false;
   return window.innerWidth <= 760 || matchMedia('(pointer: coarse)').matches;
 }
 
@@ -2394,15 +2417,27 @@ function _palmRenderSala(){
     if (useSvg) {
       _palmStopSalaSmoke();
       _palmCupCtrl().dispose();
+      cupHost.classList.remove('sala-cup-loading');
       cupHost.innerHTML = `<div class="palm-sala-svg">${svg}</div>`;
     } else {
       cupHost.innerHTML = `<div class="palm-sala-svg">${svg}</div>`;
+      // Loader LOCAL corto (pulso sobre el SVG placeholder) mientras se
+      // resuelve la copa 3D real — solo esta pieza, no toda la sala. Si ya
+      // estaba en modelCache (precargada), start()/loadCup() resuelven casi
+      // instantáneo y la clase se saca enseguida.
+      cupHost.classList.add('sala-cup-loading');
       _palmCupCtrl().start(cupHost, getTrophyGlbUrl(comp.comp.trophy), svg, lightColors).catch(err => {
         const activeComp = _palmCurrentSalaComp();
         const activeRecord = _palmCurrentSalaRecord();
         if (activeComp?.comp?.key !== comp.comp.key || String(activeRecord?.id) !== String(rec.id)) return;
         console.warn('Palmarés: no se pudo iniciar Three/Draco', err?.message || err);
         cupHost.innerHTML = `<div class="palm-sala-svg">${svg}</div>`;
+      }).finally(() => {
+        const activeComp = _palmCurrentSalaComp();
+        const activeRecord = _palmCurrentSalaRecord();
+        if (activeComp?.comp?.key === comp.comp.key && String(activeRecord?.id) === String(rec.id)) {
+          cupHost.classList.remove('sala-cup-loading');
+        }
       });
       _palmStartSalaSmoke();
     }
@@ -2497,6 +2532,112 @@ function _palmStopSalaCollage(){
   document.querySelectorAll('#sala-collage .sala-shot').forEach(shot => shot.remove());
 }
 
+/* ----------------------------------------------------------
+   PRECARGA DE LA SALA — gate real antes de revelar (ver _palmOpenSala)
+   ---------------------------------------------------------- */
+function _palmPreloadImage(url){
+  return new Promise(resolve => {
+    if (!url) { resolve(); return; }
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve(); // no crítico: se salta sin romper la sala
+    img.src = url;
+  });
+}
+
+/* Room/foco/placa son estáticos (no cambian por competición/campeón) — se
+   precargan UNA sola vez y quedan listos para siempre, incluso entre
+   aperturas distintas de la sala. */
+function _palmPreloadRoomImages(){
+  if (_PALM_PUB.roomImagesReady) return Promise.resolve();
+  if (_PALM_PUB.roomImagesPromise) return _PALM_PUB.roomImagesPromise;
+  _PALM_PUB.roomImagesPromise = Promise.all([
+    'assets/sin_fondo.png',
+    'assets/foco_izquierdo.png',
+    'assets/foco_derecho.png',
+    'assets/placa_dorada.png'
+  ].map(_palmPreloadImage)).then(() => { _PALM_PUB.roomImagesReady = true; });
+  return _PALM_PUB.roomImagesPromise;
+}
+
+/* Precarga solo las primeras `max` imágenes del collage del récord — el
+   resto se van pidiendo solas cuando _palmRenderSalaCollage() las use
+   (ya no bloquean el reveal). */
+function _palmPreloadCollageMedia(record, max = 3){
+  if (!record) return Promise.resolve();
+  const media = getPalmaresMedia(record.id);
+  const urls = (Array.isArray(media?.items) ? media.items : [])
+    .map(item => typeof item === 'string' ? item : (item?.url || item?.src || ''))
+    .filter(Boolean)
+    .slice(0, max);
+  return Promise.all(urls.map(_palmPreloadImage)).then(() => {});
+}
+
+function _palmSetSalaLoaderProgress(pct){
+  const fill = document.getElementById('sala-loader-fill');
+  if (fill) fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+}
+
+function _palmShowSalaLoader(){
+  document.getElementById('sala-loader')?.classList.remove('sala-loader-hide');
+  _palmSetSalaLoaderProgress(0);
+}
+
+function _palmHideSalaLoader(){
+  document.getElementById('sala-loader')?.classList.add('sala-loader-hide');
+}
+
+/* Prepara TODO lo crítico para la copa/récord actual antes de que
+   _palmOpenSala revele la sala: imágenes de sala, primeras fotos del
+   collage, y (solo desktop/pointer fino, sin motion reducido) Three/GLTF/
+   DRACO + el GLB de la copa actual. En mobile/tablet/reduced-motion no
+   bloquea por 3D — esas rutas ya caen a SVG en _palmRenderSala(). Cada
+   asset no crítico que falla se resuelve igual (ver _palmPreloadImage /
+   .catch vacíos) para no colgar la sala para siempre. */
+function _palmPrepareSala(compIdx, champIdx, token){
+  const comp = _PALM_PUB.compData[compIdx];
+  const rec = comp?.records?.[champIdx];
+  if (!comp || !rec) return Promise.resolve();
+
+  const useSvg = _palmSalaShouldUseSvg() || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const steps = [
+    _palmPreloadRoomImages().then(() => _palmSetSalaLoaderProgress(35)),
+    _palmPreloadCollageMedia(rec, 3).then(() => _palmSetSalaLoaderProgress(60))
+  ];
+
+  if (!useSvg) {
+    steps.push(
+      _palmLoadThreeLocal()
+        .then(() => getTrophyGlbUrl(comp.comp.trophy))
+        .then(url => _palmCupCtrl().preload(url))
+        .then(() => _palmSetSalaLoaderProgress(90))
+        .catch(() => {}) // best-effort: si Three/GLB falla acá, _palmRenderSala cae a SVG igual al revelar
+    );
+  }
+
+  return Promise.all(steps).then(() => {
+    if (token === _PALM_PUB.salaLoadToken) _palmSetSalaLoaderProgress(100);
+  });
+}
+
+/* Tras el primer reveal, precarga en background las copas de las OTRAS
+   competiciones con campeones (máximo las de PALMARES_COMPS, hoy 5) para
+   que cambiar de competición dentro de la sala sea instantáneo. Se detiene
+   sola si la sala se cierra mientras corre; el cache de modelos sobrevive
+   igual (ver _palmCupCtrl → modelCache). */
+async function _palmPreloadOtherTrophies(excludeCompIdx){
+  if (_palmSalaShouldUseSvg() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const targets = _PALM_PUB.compData.filter((entry, idx) => idx !== excludeCompIdx && entry.records.length);
+  for (const entry of targets) {
+    const sala = document.getElementById('sala');
+    if (!sala || sala.hidden) return;
+    try {
+      const url = await getTrophyGlbUrl(entry.comp.trophy);
+      await _palmCupCtrl().preload(url);
+    } catch (_) { /* best-effort */ }
+  }
+}
+
 function _palmOpenSala(compIdx, champIdx, trigger){
   const comp = _PALM_PUB.compData[compIdx];
   if (!comp || !comp.records.length) return;
@@ -2507,22 +2648,36 @@ function _palmOpenSala(compIdx, champIdx, trigger){
   _PALM_PUB.focusReturn = trigger || document.activeElement || null;
   _PALM_PUB.salaCompIdx = compIdx;
   _PALM_PUB.salaChampIdx = Math.max(0, Math.min(champIdx || 0, comp.records.length - 1));
+  const token = ++_PALM_PUB.salaLoadToken;
   sala.hidden = false;
   sala.setAttribute('aria-hidden', 'false');
   document.body.classList.add('sala-open');
-  _palmRenderSala();
+  sala.classList.add('loading');
+  _palmShowSalaLoader();
+  // Bindeado YA (no después del prepare): cerrar/Escape deben funcionar
+  // mientras el loader está visible, no recién cuando la sala termina de abrir.
   _palmBindSalaDialog();
-  requestAnimationFrame(() => sala.classList.add('open'));
   if (window.SFX && typeof window.SFX.unlock === 'function') window.SFX.unlock();
-  _palmTheme().enterSala();
-  playPalmZoom();
-  document.getElementById('sala-close')?.focus();
+
+  _palmPrepareSala(compIdx, champIdx, token).then(() => {
+    if (token !== _PALM_PUB.salaLoadToken) return; // se cerró o cambió mientras cargaba
+    _palmRenderSala();
+    sala.classList.remove('loading');
+    _palmHideSalaLoader();
+    requestAnimationFrame(() => sala.classList.add('open'));
+    _palmTheme().enterSala();
+    playPalmZoom();
+    document.getElementById('sala-close')?.focus();
+    _palmPreloadOtherTrophies(compIdx);
+  });
 }
 
 function _palmCloseSala(restoreFocus = true){
   const sala = document.getElementById('sala');
   if (!sala || sala.hidden) return;
-  sala.classList.remove('open');
+  _PALM_PUB.salaLoadToken++; // cancela cualquier _palmPrepareSala en curso (open a medias)
+  sala.classList.remove('open', 'loading');
+  _palmHideSalaLoader();
   sala.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('sala-open');
   _palmDisposeSala();
@@ -2789,6 +2944,11 @@ function _palmCupCtrl(){
   let pendingH = 0;
   let loadToken = 0;
   let sessionToken = 0;
+  // Cache de modelos GLB crudos (sin normalizar escala/centro) por URL — cada
+  // uso clona desde acá. Sobrevive a dispose()/reaperturas de la sala a
+  // propósito (requisito: no destruir el cache al cambiar de competición).
+  const modelCache = new Map();
+  const modelFetches = new Map(); // url -> fetch en curso, evita duplicar descarga si preload() y display piden lo mismo a la vez
   const reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 
   function disposeObject3D(root){
@@ -2810,7 +2970,10 @@ function _palmCupCtrl(){
   function clearCup(){
     if (!cup) return;
     scene?.remove(cup);
-    disposeObject3D(cup);
+    // A propósito SIN disposeObject3D(cup): `cup` viene de un .clone() de
+    // modelCache y comparte geometría/material con el original cacheado —
+    // liberarlos acá rompería el cache para la próxima vez que se muestre
+    // esta misma copa. El contexto WebGL completo se libera en dispose().
     cup = null;
     loadedUrl = null;
   }
@@ -2914,50 +3077,65 @@ function _palmCupCtrl(){
     }
   }
 
+  // Descarga+parsea el GLB de `url` (objeto CRUDO sin normalizar, se clona en
+  // cada uso real) y lo cachea. No toca la escena en vivo — seguro de llamar
+  // en background para precargar copas que todavía no se muestran.
+  function fetchModel(url){
+    if (modelCache.has(url)) return Promise.resolve(modelCache.get(url));
+    if (modelFetches.has(url)) return modelFetches.get(url);
+    const draco = new THREE.DRACOLoader();
+    draco.setDecoderPath('assets/vendor/three/draco/');
+    const loader = new THREE.GLTFLoader();
+    loader.setDRACOLoader(draco);
+    const promise = new Promise((resolve, reject) => {
+      loader.load(url, gltf => {
+        draco.dispose();
+        const obj = gltf.scene;
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = box.getSize(new THREE.Vector3());
+        if (!size.y) { reject(new Error('modelo sin tamaño válido')); return; }
+        modelCache.set(url, obj);
+        resolve(obj);
+      }, undefined, err => { draco.dispose(); reject(err); });
+    }).finally(() => modelFetches.delete(url));
+    modelFetches.set(url, promise);
+    return promise;
+  }
+
+  // Normaliza escala/centro de un CLON del modelo crudo y lo agrega a la
+  // escena viva. `token` descarta el resultado si el usuario ya cambió de
+  // copa o cerró la sala mientras esto corría.
+  function placeCup(rawObj, token){
+    if (token !== loadToken || !scene) return;
+    const obj = rawObj.clone(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    obj.scale.setScalar(1.7 / size.y);
+    const b2 = new THREE.Box3().setFromObject(obj);
+    const center = b2.getCenter(new THREE.Vector3());
+    obj.position.x -= center.x;
+    obj.position.z -= center.z;
+    obj.position.y -= b2.min.y;
+    cup = new THREE.Group();
+    cup.add(obj);
+    cup.position.y = _PALM_CUP_VIEW.baseY;
+    scene.add(cup);
+    host?.querySelector('.palm-sala-svg')?.remove();
+    if(reducedMotionQuery.matches) renderTick();
+  }
+
   function loadCup(url, svg){
     const token = ++loadToken;
-    if (url && loadedUrl === url && cup) return;
+    if (url && loadedUrl === url && cup) return Promise.resolve();
     clearCup();
     if (!url) {
       showSvg(svg);
-      return;
+      return Promise.resolve();
     }
     loadedUrl = url;
-    const loader = new THREE.GLTFLoader();
-    const draco = new THREE.DRACOLoader();
-    draco.setDecoderPath('assets/vendor/three/draco/');
-    loader.setDRACOLoader(draco);
-    loader.load(url, gltf => {
-      const obj = gltf.scene;
-      if (token !== loadToken || !scene) {
-        disposeObject3D(obj);
-        draco.dispose();
-        return;
-      }
-      const box = new THREE.Box3().setFromObject(obj);
-      const size = box.getSize(new THREE.Vector3());
-      if (!size.y) {
-        disposeObject3D(obj);
-        loadedUrl = null;
-        draco.dispose();
-        showSvg(svg);
-        return;
-      }
-      obj.scale.setScalar(1.7 / size.y);
-      const b2 = new THREE.Box3().setFromObject(obj);
-      const center = b2.getCenter(new THREE.Vector3());
-      obj.position.x -= center.x;
-      obj.position.z -= center.z;
-      obj.position.y -= b2.min.y;
-      cup = new THREE.Group();
-      cup.add(obj);
-      cup.position.y = _PALM_CUP_VIEW.baseY;
-      scene.add(cup);
-      host?.querySelector('.palm-sala-svg')?.remove();
-      if(reducedMotionQuery.matches) renderTick();
-      draco.dispose();
-    }, undefined, err => {
-      draco.dispose();
+    return fetchModel(url).then(rawObj => {
+      placeCup(rawObj, token);
+    }).catch(err => {
       if (token !== loadToken) return;
       loadedUrl = null;
       console.warn('Palmarés: la copa GLB no cargó', err?.message || err);
@@ -2984,13 +3162,27 @@ function _palmCupCtrl(){
       if (host !== nextHost || !renderer) init(nextHost);
       if (renderer.domElement.parentElement !== nextHost) nextHost.appendChild(renderer.domElement);
       setLights(colors);
-      loadCup(resolvedModelUrl, svg);
+      // start() no resuelve hasta que la copa esté realmente puesta (o el
+      // fallback SVG, si falló) — así quien llame puede usar esto como gate
+      // real de "listo para revelar", no solo "arrancó a cargar".
+      await loadCup(resolvedModelUrl, svg);
+      if (token !== sessionToken) return;
       if(reducedMotionQuery.matches){
         renderer.setAnimationLoop(null);
         renderTick();
       } else {
         renderer.setAnimationLoop(renderTick);
       }
+    },
+    // Precarga en background: descarga+cachea el modelo SIN tocar la escena
+    // viva ni requerir que la sala esté abierta con ESTA copa. Usado por
+    // _palmPreloadOtherTrophies para las copas que no son la actual.
+    async preload(modelUrl){
+      if (!modelUrl) return;
+      try {
+        await _palmLoadThreeLocal();
+        await fetchModel(modelUrl);
+      } catch (_) { /* best-effort: si falla, simplemente no queda cacheada */ }
     },
     resize(w, h){
       pendingW = w;

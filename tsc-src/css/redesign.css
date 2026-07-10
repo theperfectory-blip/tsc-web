@@ -296,7 +296,32 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
   transition:opacity 0.7s var(--ease-in-out),
     --beam-l 0.9s ease, --beam-r 0.9s ease, --beam-l-soft 0.9s ease, --beam-r-soft 0.9s ease;}
 #sala.open{opacity:1;pointer-events:auto;}
+/* .loading revela #sala (igual que .open) pero SIN disparar las transiciones
+   de reveal (#sala.open .foo) — la sala real queda montándose tapada por
+   .sala-loader hasta que _palmPrepareSala() confirma que lo crítico cargó;
+   recién ahí se saca .loading y se pone .open. */
+#sala.loading{opacity:1;pointer-events:auto;}
 body.sala-open{overflow:hidden;}
+/* Loader propio de la sala fullscreen — cubre TODA la sala (z por encima de
+   cualquier capa interna, incluida sala-top) para que nunca se vea la copa,
+   los focos o el collage a medio montar. pointer-events:none a propósito: así
+   el botón cerrar (z10, .sala-top) y Escape (documento) siguen funcionando
+   mientras carga — el usuario puede cancelar aunque el loader esté tapando
+   todo visualmente. */
+.sala-loader{position:absolute;inset:0;z-index:11;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:#030405;opacity:1;transition:opacity .4s var(--ease-in-out);}
+.sala-loader.sala-loader-hide{opacity:0;}
+.sala-loader img{width:20vw;max-width:110px;height:auto;opacity:.92;}
+.sala-loader-text{font-family:'Barlow Condensed',sans-serif;font-size:13px;
+  letter-spacing:.5px;color:#C9A84C;opacity:.85;text-align:center;padding:0 24px;}
+.sala-loader-bar{width:min(150px,38vw);height:2px;border-radius:2px;overflow:hidden;
+  background:rgba(255,255,255,.14);}
+.sala-loader-fill{height:100%;width:0%;background:#C9A84C;transition:width .35s var(--ease-out);}
+@media(prefers-reduced-motion:reduce){
+  .sala-loader{transition:none;}
+  .sala-loader-fill{transition:none;}
+}
 /* Pared del fondo = gradiente CSS puro (sin imagen): así NUNCA hay un segundo
    podio (el podio sale solo del foreground sin_fondo) ni franja negra lateral.
    Los dos halos superiores imitan la luz de los focos sobre la pared. */
@@ -407,6 +432,14 @@ body.sala-open{overflow:hidden;}
 }
 /* Copa 3D: canvas transparente sobre el pedestal de la foto */
 .sala-cup{position:absolute;z-index:8;transform:translateX(-50%);pointer-events:none;}
+/* Loader LOCAL corto al cambiar de competición/campeón dentro de una sala ya
+   abierta (copa todavía no cacheada) — pulso discreto sobre el SVG
+   placeholder, no un overlay nuevo ni spinner adicional. */
+.sala-cup.sala-cup-loading .palm-sala-svg{animation:sala-cup-pulse 1.1s ease-in-out infinite;}
+@keyframes sala-cup-pulse{0%,100%{opacity:.55;}50%{opacity:.95;}}
+@media(prefers-reduced-motion:reduce){
+  .sala-cup.sala-cup-loading .palm-sala-svg{animation:none;opacity:.75;}
+}
 .sala-cup canvas{display:block;width:100%;height:100%;}
 .sala-plate{position:absolute;z-index:9;transform:translate(-50%,-44%);opacity:0;
   filter:drop-shadow(0 12px 26px rgba(0,0,0,0.65));
