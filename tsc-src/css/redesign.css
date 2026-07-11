@@ -585,7 +585,9 @@ body.sala-open{overflow:hidden;}
 .comp-sticky{position:sticky;top:var(--chrome-h);z-index:30;background:var(--bg);padding:6px 0 18px;}
 .comp-title{display:flex;align-items:center;gap:10px;min-width:0;}
 .comp-title .pd-n{font-family:'Bebas Neue';font-size:15px;color:var(--gold-lo);letter-spacing:1px;flex:none;}
-.comp-title .cc-sep{font-family:'Bebas Neue';font-size:clamp(16px,4vw,30px);color:var(--txt3);flex:none;line-height:1;}
+.comp-title .cc-sep{font-family:'Bebas Neue';font-size:var(--fs-h2);color:var(--txt3);flex:none;line-height:1;}
+.comp-title .cc-item{font-size:var(--fs-h2);}
+.comp-title .pub-fase-single{font-size:var(--fs-h2);}
 .comp-title::after{content:'';flex:1;min-width:8px;height:1px;background:var(--brd);}
 .cc{position:relative;flex:none;}
 .cc-view{overflow:hidden;position:relative;}
@@ -604,8 +606,7 @@ body.sala-open{overflow:hidden;}
 .cc-view::before{left:0;background:linear-gradient(90deg,var(--bg) 12%,transparent);}
 .cc-view::after{right:0;background:linear-gradient(270deg,var(--bg) 12%,transparent);}
 @media(max-width:560px){
-  /* en móvil el número y la línea sobran: el título «comp — fase» debe caber */
-  .comp-title .pd-n,.comp-title::after{display:none;}
+  .comp-title::after{display:none;}
   .cc-view::before,.cc-view::after{width:20px;}
 }
 /* === INICIO: COMPETICIONES PUBLIC === */

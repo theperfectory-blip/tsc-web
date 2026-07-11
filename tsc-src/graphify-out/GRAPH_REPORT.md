@@ -1,7 +1,7 @@
-# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-10)
+# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-11)
 
 ## Corpus Check
-- 41 files · ~928,590 words
+- 41 files · ~911,831 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -223,19 +223,19 @@ Nodes (2): BRACKET Phase Config Schema, BRACKET Phase Type (Elimination)
 
 ### Community 31 - "Community 31"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 32 - "Community 32"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 33 - "Community 33"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 34 - "Community 34"
 Cohesion: 1.0
-Nodes (0):
+Nodes (0): 
 
 ### Community 35 - "Community 35"
 Cohesion: 1.0
@@ -325,11 +325,11 @@ Nodes (1): Drumroll Sound Effect
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 18`?**
-  _High betweenness centrality (0.134) - this node is a cross-community bridge._
-- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 4`, `Community 5`, `Community 6`, `Community 9`, `Community 10`, `Community 13`, `Community 16`, `Community 18`, `Community 19`?**
-  _High betweenness centrality (0.100) - this node is a cross-community bridge._
+  _High betweenness centrality (0.151) - this node is a cross-community bridge._
 - **Why does `add()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 12`, `Community 14`, `Community 15`, `Community 16`?**
-  _High betweenness centrality (0.090) - this node is a cross-community bridge._
+  _High betweenness centrality (0.078) - this node is a cross-community bridge._
+- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 4`, `Community 5`, `Community 6`, `Community 9`, `Community 10`, `Community 13`, `Community 16`, `Community 18`, `Community 19`?**
+  _High betweenness centrality (0.072) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 27 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**
