@@ -359,10 +359,36 @@ async function _subscribeFocusedPublicSection(page, forceRefresh){
       await sub('calendario', ['matches','phases','teams','calDayLabels','competitions'], ()=>renderPubCalendar());
       break;
     case 'historial':
-      await sub('historial', ['matches','teams','phases'], ()=>renderPubHistory());
+      // Respeta la sub-vista que el usuario tiene abierta (Partidos vs Tabla
+      // histórica) — antes forzaba siempre renderPubHistory() y un cambio en
+      // vivo llegando mientras se veía la Tabla histórica saltaba a Partidos
+      // sin que el usuario lo pidiera. La tabla histórica igual solo refleja
+      // temporadas finalizadas (_computeHistoricalStandings), así que este
+      // refresco no cambia sus datos mientras la temporada actual esté en
+      // curso — es a lo sumo trabajo recalculado, nunca un dato incorrecto.
+      await sub('historial', ['matches','teams','phases'], ()=>{
+        return (typeof _pubHistActiveView==='function' && _pubHistActiveView()===1)
+          ? renderPubHistoryStandings()
+          : renderPubHistory();
+      });
       break;
   }
 }
+
+/* Endurecimiento standby largo: no confiamos ciegamente en que onSnapshot
+   haya reconectado tras horas en background (posible en un WebView móvil
+   suspendido, no solo cerrado) — al volver a foreground, forzamos un
+   refresco de la sección pública enfocada. dbGetAll hace un fetch real
+   contra Firestore (no relee un caché local), así que esto sirve aunque
+   onSnapshot se haya quedado en un estado colgado. No crea una segunda
+   suscripción: liveSubscribe no-opea si la key no cambió. */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (STATE.mode !== 'public') return;
+  const page = _publicFocusedPage;
+  if (!page || !_isPublicScrollPage(page)) return;
+  _subscribeFocusedPublicSection(page, true).catch(()=>{});
+});
 
 async function ensurePublicSectionMounted(page, options){
   const opts = options || {};

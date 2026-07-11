@@ -349,6 +349,10 @@ function _pubBindHistCarouselResize(){
   _pubHistCarouselResizeBound = true;
   window.addEventListener('resize', ()=>{ _pubHistCarousel?.recenter?.(); });
 }
+/* Sub-vista activa de la sección 06 (0=Partidos, 1=Tabla histórica) — usada
+   por la suscripción en vivo (nav.js) para refrescar la vista que el usuario
+   tiene realmente abierta, en vez de forzar siempre "Partidos". */
+function _pubHistActiveView(){ return _pubHistCarousel?.idx ?? 0; }
 async function _pubSwitchHistoryView(idx){
   const anchor = typeof _pubCaptureVisualAnchor==='function'
     ? _pubCaptureVisualAnchor(document.getElementById('page-historial'))
