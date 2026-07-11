@@ -427,7 +427,10 @@ const TROPHY_GLB_MAP = {
   minimalista: 'copa_10.glb',
   nebula:      'copa_11.glb'
 };
-const LOCAL_TROPHY_GLB_STYLES = new Set(['classica', 'imperial', 'konami', 'orejona', 'sobria']);
+// Las 11 copas viven en assets/trophies/ (copiadas de tsc-src/palmares 3d/assets,
+// fuente canónica no versionada — ver .gitignore) — Object.keys evita que una
+// copa nueva quede desincronizada entre TROPHY_GLB_MAP y este set.
+const LOCAL_TROPHY_GLB_STYLES = new Set(Object.keys(TROPHY_GLB_MAP));
 const _TROPHY_GLB_URL_CACHE = new Map();
 async function getTrophyGlbUrl(styleId){
   const file = TROPHY_GLB_MAP[styleId];
