@@ -1329,6 +1329,26 @@ body.sala-open{overflow:hidden;}
 .ht-card[data-layout="detail"] .ht-rend,.ht-card[data-layout="detail"] .ht-col-hide-in-detail{display:none;}
 .ht-card[data-layout="detail"] .ht-detail{display:grid;}
 .ht-card:not([data-layout="detail"]) .ht-detail{display:none;}
+/* Rendimiento expandido (detail): nombre sticky + stats en una sola fila con
+   scroll horizontal, igual patrón que .stand-* (tabla de posiciones, sección 02). */
+.ht-scrollwrap{position:relative;}
+.ht-card[data-layout="detail"] .ht-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.ht-card[data-layout="detail"] .ht-scroll::-webkit-scrollbar{height:0;display:none;}
+.ht-card[data-layout="detail"] .ht-row{grid-template-columns:none;display:flex;align-items:center;width:max-content;min-width:100%;padding-left:0;padding-right:0;}
+/* el padding horizontal de .ht-row pasa a vivir DENTRO de .ht-fix/.ht-detail:
+   position:sticky mide su offset contra .ht-scroll, no contra el padding de
+   .ht-row — si el padding quedara en .ht-row, .ht-fix "saltaría" al engancharse. */
+.ht-fix{position:sticky;left:0;z-index:2;background:var(--card);display:flex;align-items:center;gap:6px;flex:none;width:150px;padding:9px 10px 9px 12px;}
+.ht-row.hdr .ht-fix{background:var(--bg-deep);}
+.ht-card[data-layout="detail"] .ht-fix .ht-pos{flex:none;width:20px;}
+.ht-card[data-layout="detail"] .ht-fix .ht-team{flex:1;min-width:0;}
+.ht-card[data-layout="detail"] .ht-detail{display:flex;flex-wrap:nowrap;gap:16px;flex:none;padding:9px 12px 9px 6px;}
+.ht-card[data-layout="detail"] .ht-detail-item{flex:none;min-width:50px;}
+.ht-fade{position:absolute;top:0;bottom:0;width:36px;pointer-events:none;z-index:3;opacity:0;transition:opacity .22s var(--ease-out);}
+.ht-fade.r{right:0;background:linear-gradient(90deg,transparent,var(--card));}
+.ht-fade.l{left:150px;background:linear-gradient(270deg,transparent,var(--card));}
+.ht-card.more-r .ht-fade.r{opacity:1;}
+.ht-card.more-l .ht-fade.l{opacity:1;}
 
 /* === INICIO: HISTORIAL PUBLIC === */
 /* Carrusel de vistas «Partidos | Tabla histórica» del historial público. */

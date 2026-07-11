@@ -1376,7 +1376,7 @@ function _htHeader(layout){
   const toggle = layout.canToggle
     ? `<button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="${layout.key==='detail'?'true':'false'}"><span>Rendimiento</span><span class="ht-head-ico">${layout.key==='detail'?_PB_X:_PB_PLUS}</span></button>`
     : 'Rendimiento';
-  if(layout.key==='detail') return `<span>#</span><span>Equipo</span><span><button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="true"><span>Estadísticas</span><span class="ht-head-ico">${_PB_X}</span></button></span>`;
+  if(layout.key==='detail') return `<div class="ht-fix"><span>#</span><span>Equipo</span></div><button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="true"><span>Estadísticas</span><span class="ht-head-ico">${_PB_X}</span></button>`;
   return `<span>#</span><span>Equipo</span>` + layout.cols.map(col=>{
     if(col==='rend') return `<span>${toggle}</span>`;
     return `<span class="ht-stat">${({pj:'PJ',pg:'PG',pe:'PE',pp:'PP',gf:'GF',gc:'GC',dif:'DIF',pts:'PTS'})[col]}</span>`;
@@ -1400,8 +1400,8 @@ function _htRow(r, layout){
     + _htStatCell('GF', r.gf) + _htStatCell('GC', r.gc) + _htStatCell('DIF', r.dif) + _htStatCell('PTS', r.pts)
     + `</div>`;
   if(layout.key==='detail'){
-    return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
-      <div class="ht-team">${_htCrest(r)}${_htNameHTML(r)}</div>${detail}</div>`;
+    return `<div class="ht-row"><div class="ht-fix"><span class="ht-pos">${r.pos}</span>
+      <div class="ht-team">${_htCrest(r)}${_htNameHTML(r)}</div></div>${detail}</div>`;
   }
   const cells = layout.cols.map(col=>{
     if(col==='rend'){
@@ -1428,6 +1428,9 @@ function _renderHtTable(el){
   rows.innerHTML = _htState.rows.map(r=>_htRow(r, layout)).join('');
   // Rellena las barras de rendimiento (transición CSS desde 0%).
   requestAnimationFrame(()=>{ rows.querySelectorAll('.ht-bar i').forEach(b=>{ b.style.width = (b.dataset.w||0)+'%'; }); });
+  // Re-evalúa el fade de bordes (scroll horizontal del detalle): el ancho de
+  // contenido pudo cambiar con el layout nuevo.
+  card.querySelector('.ht-scroll')?._htFadeUpdate?.();
 }
 
 let _htBound = false;
@@ -1441,6 +1444,13 @@ function _bindHtTable(el){
     _htState.expanded = !_htState.expanded;
     _renderHtTable(el);
   });
+  const scroll = card.querySelector('.ht-scroll');
+  if(scroll){
+    const updFade = ()=>{ card.classList.toggle('more-r', scroll.scrollLeft+scroll.clientWidth < scroll.scrollWidth-2); card.classList.toggle('more-l', scroll.scrollLeft>2); };
+    scroll._htFadeUpdate = updFade;
+    scroll.addEventListener('scroll', updFade, {passive:true});
+    updFade();
+  }
   if(!_htBound){
     _htBound = true;
     window.addEventListener('resize', ()=>{
@@ -1481,7 +1491,7 @@ async function _pubRenderHistoryStandings(el, renderToken){
       rend:(s.rendimiento||0)*100,
       previousNames:s.previousNames||[],
     }));
-    el.innerHTML = `<div class="ht-card"><div class="ht-row hdr"></div><div id="ht-rows"></div></div>`;
+    el.innerHTML = `<div class="ht-card"><div class="ht-scrollwrap"><div class="ht-scroll"><div class="ht-row hdr"></div><div id="ht-rows"></div></div><div class="ht-fade l"></div><div class="ht-fade r"></div></div></div>`;
     _renderHtTable(el);
     _bindHtTable(el);
   } catch(err){
