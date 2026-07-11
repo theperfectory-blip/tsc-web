@@ -2,6 +2,7 @@ package web.teamsubscup.app;
 
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.view.Window;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -46,6 +47,17 @@ public class SystemBarsPlugin extends Plugin {
             WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(window, window.getDecorView());
             controller.setAppearanceLightStatusBars(isLight);
             controller.setAppearanceLightNavigationBars(isLight);
+
+            // Android 15 (API 35) + edge-to-edge + nav de 3 botones: con
+            // navigationBarColor transparente el sistema dibuja un scrim de
+            // contraste oscuro detrás de la nav bar, ilegible en tema claro.
+            // Fijar el color real por tema y desactivar el scrim (API 29+).
+            window.setNavigationBarColor(bg);
+            window.setStatusBarColor(bg);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.setNavigationBarContrastEnforced(false);
+                window.setStatusBarContrastEnforced(false);
+            }
 
             window.setBackgroundDrawable(new ColorDrawable(bg));
             if (getBridge() != null && getBridge().getWebView() != null) {
