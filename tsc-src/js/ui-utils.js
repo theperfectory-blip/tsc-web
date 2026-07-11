@@ -63,6 +63,16 @@ function setTheme(theme){
   // Notifica a módulos que cachean colores derivados del tema en inline style
   // (p.ej. palmares.js → --metal-ink) para que se recalculen sin esperar un re-render.
   document.dispatchEvent(new CustomEvent('tsc:theme-changed', { detail: { theme } }));
+  // Iconos de status/navigation bar (plugin nativo propio, ver
+  // android/.../SystemBarsPlugin.java) — con targetSdk 36 el color de fondo
+  // de las barras lo ignora Android, el único control real es el color de
+  // los iconos. En web pura Capacitor.Plugins.SystemBars no existe: el
+  // try/catch deja esto inerte ahí, nunca rompe el cambio de tema web.
+  try {
+    if (window.Capacitor?.isNativePlatform?.()) {
+      window.Capacitor.Plugins.SystemBars?.setBarsTheme({ theme }).catch(()=>{});
+    }
+  } catch (_) {}
 }
 function toggleTheme(){
   setTheme(STATE.theme === 'light' ? 'dark' : 'light');
