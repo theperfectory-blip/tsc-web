@@ -1,9 +1,13 @@
 # Macro Slice — Fixes App (post v1.1.0) · 2026-07-11
 
 > Estado **verificado en código** por el supervisor (Claude Opus 4.8) el
-> 2026-07-11. Cuatro fixes pedidos por el usuario. Cada slice se ejecuta y
+> 2026-07-11. Fixes pedidos por el usuario. Cada slice se ejecuta y
 > cierra por separado (Sonnet implementa, el supervisor audita con evidencia
 > real antes del OK). No se avanza al siguiente sin cierre del anterior.
+>
+> **Estado actual:** A/B/C/D **cerrados y verificados** (release v1.2.0 probado
+> en teléfono físico). Slices **C2 y E** pendientes (segunda ronda de feedback
+> del usuario sobre la tabla de estadísticas y el linkeo de las tarjetas).
 
 ---
 
@@ -19,14 +23,19 @@
 
 ## 1. Orden y dependencias
 
-| # | Slice | Tamaño | Riesgo | Depende de |
+| # | Slice | Tamaño | Riesgo | Estado |
 |---|---|---|---|---|
-| **A** | Nav bar legible en tema claro (3 botones / Android 15) | chico | bajo | — (prompt ya entregado) |
-| **B** | Numeración/tamaño de secciones 02 y 06 | chico | bajo | — |
-| **C** | Tabla histórica "Rendimiento": sticky + scroll horizontal | medio | medio | — |
-| **D** | Tiempo real: verificar standby + endurecer + excepción tabla histórica | medio | medio-alto | conviene ir última |
+| **A** | Nav bar legible en tema claro (3 botones / Android 15) | chico | bajo | ✅ `45d6566` |
+| **B** | Numeración/tamaño de secciones 02 y 06 | chico | bajo | ✅ `c327230` |
+| **C** | Tabla histórica "Rendimiento": sticky + scroll horizontal | medio | medio | ✅ `a89670b` |
+| **D** | Tiempo real: verificar standby + endurecer + excepción tabla histórica | medio | medio-alto | ✅ `5216ca3` |
+| **C2** | Tabla estadísticas: encabezados de columna + sticky consistente + ✕ | medio | medio | ⬜ pendiente |
+| **E** | Vincular tarjetas de equipos (04) con la tabla histórica (06) | medio | medio-alto | ⬜ pendiente |
 
-A/B/C son independientes entre sí (se pueden hacer en cualquier orden o en paralelo). D va al final porque toca el flujo de datos y su verificación es la más larga.
+A/B/C/D cerrados (release v1.2.0). C2 y E son la segunda ronda: C2 refina la
+tabla de la sección 06 (Slice C dejó el sticky+scroll pero el header quedó mal),
+E linkea los datos de la 04 con la 06. C2 primero (visual, aislado), E después
+(datos). Independientes entre sí.
 
 ---
 
@@ -135,7 +144,60 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) { // 29
 
 ---
 
+## Slice C2 — Tabla de estadísticas (06): encabezados de columna + sticky consistente + ✕
+
+**Objetivo:** en la vista expandida "Estadísticas" de la tabla histórica, mostrar los nombres de stat **una sola vez como encabezado de columna** (no repetidos en cada fila), con el nombre de equipo sticky **también en el header**, y el ✕ de colapsar bien posicionado.
+
+**Estado actual (localizado — feedback del usuario con 2 screenshots):** Slice C dejó el sticky+scroll de los valores funcionando, pero el header y las filas tienen **estructura distinta** y no alinean:
+- `_htHeader` en detail ([history.js:1383](tsc-src/js/history.js:1383)) solo renderiza `<div class="ht-fix"># Equipo</div>` + un botón único "Estadísticas ✕". **No pone etiquetas de columna** (PJ PG PE…).
+- Cada fila (`_htStatCell`, [history.js:1366](tsc-src/js/history.js:1366)) mete `<div class="ht-detail-item"><span>PJ</span><b>179</b></div>` por stat → **la etiqueta se repite en cada equipo**.
+- Consecuencias (imágenes del usuario): (a) los nombres de stat acompañan a cada equipo en vez de ser encabezado; (b) el header (corto: sticky+1 botón) no comparte columnas con las filas (8 stats) → al scrollear queda desalineado/vacío y el "# Equipo" del header parece "no sticky"; (c) el ✕ mal posicionado.
+- Nota: Slice C cambió `.ht-detail` a `display:flex;flex-wrap:nowrap;gap:16px` con `.ht-detail-item{min-width:50px}` ([redesign.css:1318](tsc-src/css/redesign.css) aprox), así que el `detailCols` grid ya no se usa en detail — los 8 stats van en scroll horizontal.
+
+**Enfoque:** que el **header en detail espeje la estructura de la fila**:
+- Header detail = `.ht-fix` sticky (# Equipo) + un `.ht-detail` con las **8 etiquetas de columna** (PJ PG PE PP GF GC DIF PTS) en el mismo layout flex que las filas (mismos anchos, `min-width:50px`), + el ✕ de colapsar ubicado en la zona sticky del header (junto a "# Equipo") o como control claro, no como "columna extra".
+- Filas: `.ht-detail-item` muestra **solo el valor** (`<b>`), sin la etiqueta por celda. Ajustar `_htStatCell` (o separar en `_htStatHeadCell` para el header con label y `_htStatCell` para la fila con solo valor).
+- Verificar que el `.ht-fix` del header y el de las filas queden **alineados a la misma columna sticky** y con el mismo ancho (150px), para que "# Equipo" quede fijo tanto en header como en filas al scrollear.
+
+**Archivos:** `history.js` (`_htHeader`, `_htRow`, `_htStatCell`), `redesign.css` (`.ht-detail`/`.ht-detail-item` en header vs fila; alineación de anchos). **NO tocar** los layouts no-detail (compact/trim/mid/wide/full) ni el cálculo de stats.
+
+**Riesgos:** medio — header y filas deben quedar con exactamente las mismas columnas/anchos o el sticky y la alineación se rompen. Mitigación: compartir el mismo generador de columnas entre header y fila.
+
+**Verificación (gate):** móvil, sección 06 → "Tabla histórica" → expandir Estadísticas: etiquetas (PJ PG PE PP GF GC DIF PTS) **una sola vez como header**, valores en las filas sin etiqueta; al scrollear horizontal el "# Equipo" queda **fijo tanto en el header como en las filas** (leer `getBoundingClientRect().left` del `.ht-fix` del header y de una fila antes/después de `scrollLeft`, delta ≈ 0 en ambos); ✕ bien posicionado y colapsa a compact. Sin regresión en los layouts anchos de desktop.
+
+**Cierre:** commit `fix(historial): encabezados de columna + sticky del header en la tabla de estadísticas`.
+
+---
+
+## Slice E — Vincular tarjetas de equipos (04) con la tabla histórica (06)
+
+**Objetivo:** que los agregados de las tarjetas de equipos (PARTIDOS, VICTORIAS %, TÍTULOS) coincidan con la tabla histórica (solo temporadas finalizadas), y que la FORMA siga siendo el pulso reciente (últimos partidos reales, incluida la temporada en curso). Decidido con el usuario 2026-07-11.
+
+**Estado actual (confirmado en código):** las dos secciones cuentan de fuentes casi iguales con **filtro distinto**:
+- Tabla histórica (`_computeHistoricalStandings`, [history.js:1261](tsc-src/js/history.js:1261)): `livesEligible = ...filter(finishedSet.has(seasonRef))` → **solo temporadas finalizadas** (`finishedSet` = seasons con `status==='finished'`).
+- Tarjetas (`_computeTeamStats` → `_getResolvedRecords`, [history.js:416](tsc-src/js/history.js:416)): `all = [...staticRows, ...idbLive]` → **todas las lives, incl. temporada en curso**.
+- Por eso p.ej. Fenomenos = 156 (tarjeta) vs 154 (histórica): la diferencia son los partidos de la temporada en curso.
+- Dato clave del flujo: `appendOrUpdateHistory()` ([history.js:129](tsc-src/js/history.js:129)) escribe cada resultado a `matchHistory` (`source:'live'`, `seasonRef`) **apenas se carga** (no al cerrar temporada) → la temporada en curso ya está en `matchHistory` en tiempo real. Por eso la FORMA ya es "en vivo" = las competiciones de la sección 02, sin cablear nada nuevo.
+
+**Enfoque:** en `_computeTeamStats` (teams.js, [teams.js:704](tsc-src/js/teams.js:704)) separar el loop:
+- **Agregados** (pj/v/e/p → PARTIDOS/VICTORIAS): contar **solo** registros de temporada finalizada (`source==='static'` siempre cuenta; los `live` solo si `finishedSet.has(seasonRef)`) — mismo criterio que `_computeHistoricalStandings`.
+- **FORMA** (`recent`): construir de **todos** los registros (incl. temporada en curso), como ahora.
+- Para el filtro necesita `seasonRef` por registro + `finishedSet`: **extender `_getResolvedRecords` de forma aditiva** para que adjunte `seasonRef` a cada registro live (hoy no lo hace), y en `_computeTeamStats` cargar `seasons` para el `finishedSet`. **NO** filtrar dentro de `_getResolvedRecords` (es compartido con la vista "Partidos" y los hitos, que deben seguir mostrando TODO).
+
+**Archivos:** `teams.js` (`_computeTeamStats`), `history.js` (`_getResolvedRecords` — solo agregar `seasonRef` al objeto devuelto, aditivo). **NO tocar** la vista Partidos (06), los hitos, ni `_computeHistoricalStandings`.
+
+**Riesgos:** medio-alto (semántica de datos + helper compartido). Mitigación: el filtro vive solo en `_computeTeamStats`; `_getResolvedRecords` solo gana un campo, sus otros consumidores lo ignoran. Verificar que Partidos y hitos siguen contando todo.
+
+**Detalle UX (por ahora sin etiqueta):** un equipo puede mostrar "154 PARTIDOS" con FORMA de partidos 155/156 (temporada en curso, no contados aún). Es lo normal en perfiles deportivos. Si en la verificación se ve confuso, evaluar un indicador sutil de "temporada en curso" en la forma — pero por defecto **dejarlo limpio, sin etiqueta**.
+
+**Verificación (gate):** con datos del seed, comparar PARTIDOS de varios equipos en la sección 04 contra su PJ en la tabla histórica (06) — deben **coincidir** (p.ej. Fenomenos igual en ambas). Confirmar que la vista "Partidos" (06) y los hitos siguen contando la temporada en curso (no cambian). Confirmar que la FORMA sigue reflejando los últimos resultados reales.
+
+**Cierre:** commit `fix(equipos): agregados de las tarjetas alineados con la tabla histórica (forma sigue en vivo)`.
+
+---
+
 ## Notas de cierre del macro
 
 - Cada slice: pre (plan/archivos/riesgos/gates ya acá) → Sonnet implementa → post (diff/pruebas/evidencia real) → auditoría del supervisor → OK → commit sin push.
-- Al terminar los 4: regenerar APK release limpio (bump de versión), verificar hash de las 11 copas dentro del zip + firma, y recién ahí push/merge a `main`.
+- A/B/C/D ya cerraron en el release v1.2.0 (`b836f5c`). Al cerrar C2 + E: regenerar APK release limpio (bump a v1.3.0), verificar hash de las 11 copas dentro del zip + firma, y recién ahí push/merge a `main`.
+- C2 y E son web (solo `tsc-src/`): se verifican con `npx serve tsc-src` + CDP a ancho móvil; no requieren build Android hasta el release final.
