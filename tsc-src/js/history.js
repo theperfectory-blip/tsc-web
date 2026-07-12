@@ -421,6 +421,10 @@ async function _getResolvedRecords(){
     source: all[idx].source,
     createdAt: all[idx].createdAt,
     matchRef: all[idx].matchRef,
+    // Aditivo (no cambia consumidores existentes): permite que _computeTeamStats
+    // (teams.js) filtre agregados por temporada finalizada, igual criterio que
+    // _computeHistoricalStandings. undefined en los 'imported' (no aplica).
+    seasonRef: all[idx].seasonRef,
   }));
 }
 

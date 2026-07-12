@@ -704,6 +704,10 @@ async function _refreshPubTeams(){
 async function _computeTeamStats(){
   const records = await _getResolvedRecords();
   const teams   = await dbGetAll('teams');
+  const seasons = await dbGetAll('seasons');
+  // Mismo criterio que _computeHistoricalStandings: solo temporadas finalizadas
+  // cuentan para los agregados — los 'imported' (estáticos) siempre cuentan.
+  const finishedSet = new Set(seasons.filter(s=>s.status==='finished').map(s=>s.number));
   const norm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
   const byName = new Map();
   for(const t of teams){
@@ -721,8 +725,22 @@ async function _computeTeamStats(){
     const idB = byName.get(norm(r.equipoB));
     if(idA==null && idB==null) continue;
     const out = classify(r);
-    if(idA!=null){ const s=ensure(idA); s.pj++; if(out==='A'){s.v++;s.recent.push('w');} else if(out==='B'){s.p++;s.recent.push('l');} else {s.e++;s.recent.push('d');} }
-    if(idB!=null){ const s=ensure(idB); s.pj++; if(out==='B'){s.v++;s.recent.push('w');} else if(out==='A'){s.p++;s.recent.push('l');} else {s.e++;s.recent.push('d');} }
+    // Agregados (PJ/V/E/P → Partidos/Victorias de la tarjeta): solo temporada
+    // finalizada. FORMA sigue construyéndose de TODOS los registros (incl. la
+    // temporada en curso) — es el pulso reciente, no un acumulado histórico.
+    const countsForAggregate = r.source==='imported' || finishedSet.has(r.seasonRef);
+    if(idA!=null){
+      const s = ensure(idA);
+      const mark = out==='A' ? 'w' : (out==='B' ? 'l' : 'd');
+      if(countsForAggregate){ s.pj++; if(out==='A') s.v++; else if(out==='B') s.p++; else s.e++; }
+      s.recent.push(mark);
+    }
+    if(idB!=null){
+      const s = ensure(idB);
+      const mark = out==='B' ? 'w' : (out==='A' ? 'l' : 'd');
+      if(countsForAggregate){ s.pj++; if(out==='B') s.v++; else if(out==='A') s.p++; else s.e++; }
+      s.recent.push(mark);
+    }
   }
   return stats;
 }
