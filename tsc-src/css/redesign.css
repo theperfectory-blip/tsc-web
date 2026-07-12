@@ -1344,6 +1344,11 @@ body.sala-open{overflow:hidden;}
 .ht-card[data-layout="detail"] .ht-fix .ht-team{flex:1;min-width:0;}
 .ht-card[data-layout="detail"] .ht-detail{display:flex;flex-wrap:nowrap;gap:16px;flex:none;padding:9px 12px 9px 6px;}
 .ht-card[data-layout="detail"] .ht-detail-item{flex:none;min-width:50px;}
+/* header en detail: espeja la fila (mismo .ht-fix + .ht-detail con etiquetas
+   de columna en vez de valores) — el ✕ vive DENTRO de la zona sticky, junto a
+   "# Equipo", no como una columna aparte que se pierde en el scroll. */
+.ht-fix-close{margin-left:auto;flex:none;width:18px;height:18px;justify-content:center;color:var(--gold-lo);}
+.ht-row.hdr .ht-detail-item span{color:var(--txt3);}
 .ht-fade{position:absolute;top:0;bottom:0;width:36px;pointer-events:none;z-index:3;opacity:0;transition:opacity .22s var(--ease-out);}
 .ht-fade.r{right:0;background:linear-gradient(90deg,transparent,var(--card));}
 .ht-fade.l{left:150px;background:linear-gradient(270deg,transparent,var(--card));}

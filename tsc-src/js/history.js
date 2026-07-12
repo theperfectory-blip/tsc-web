@@ -1363,7 +1363,8 @@ async function renderPubHistoryStandings(){
 const _htState = { rows:[], expanded:false };
 function _htNum(v){ return Number.isFinite(Number(v)) ? String(Number(v)) : '—'; }
 function _htPct(v){ return Number.isFinite(Number(v)) ? `${Number(v).toFixed(1)}%` : '—'; }
-function _htStatCell(label, value){ return `<div class="ht-detail-item"><span>${_esc(label)}</span><b>${_esc(_htNum(value))}</b></div>`; }
+function _htStatCell(value){ return `<div class="ht-detail-item"><b>${_esc(_htNum(value))}</b></div>`; }
+function _htStatHeadCell(label){ return `<div class="ht-detail-item"><span>${_esc(label)}</span></div>`; }
 const _PB_X = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 const _PB_PLUS = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 
@@ -1380,7 +1381,8 @@ function _htHeader(layout){
   const toggle = layout.canToggle
     ? `<button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="${layout.key==='detail'?'true':'false'}"><span>Rendimiento</span><span class="ht-head-ico">${layout.key==='detail'?_PB_X:_PB_PLUS}</span></button>`
     : 'Rendimiento';
-  if(layout.key==='detail') return `<div class="ht-fix"><span>#</span><span>Equipo</span></div><button type="button" class="ht-head-btn" data-ht-toggle="rend" aria-pressed="true"><span>Estadísticas</span><span class="ht-head-ico">${_PB_X}</span></button>`;
+  if(layout.key==='detail') return `<div class="ht-fix"><span>#</span><span>Equipo</span><button type="button" class="ht-head-btn ht-fix-close" data-ht-toggle="rend" aria-pressed="true" aria-label="Colapsar estadísticas">${_PB_X}</button></div><div class="ht-detail">`
+    + ['PJ','PG','PE','PP','GF','GC','DIF','PTS'].map(_htStatHeadCell).join('') + `</div>`;
   return `<span>#</span><span>Equipo</span>` + layout.cols.map(col=>{
     if(col==='rend') return `<span>${toggle}</span>`;
     return `<span class="ht-stat">${({pj:'PJ',pg:'PG',pe:'PE',pp:'PP',gf:'GF',gc:'GC',dif:'DIF',pts:'PTS'})[col]}</span>`;
@@ -1400,8 +1402,8 @@ function _htNameHTML(r){
 }
 function _htRow(r, layout){
   const detail = `<div class="ht-detail">`
-    + _htStatCell('PJ', r.pj) + _htStatCell('PG', r.w) + _htStatCell('PE', r.d) + _htStatCell('PP', r.l)
-    + _htStatCell('GF', r.gf) + _htStatCell('GC', r.gc) + _htStatCell('DIF', r.dif) + _htStatCell('PTS', r.pts)
+    + _htStatCell(r.pj) + _htStatCell(r.w) + _htStatCell(r.d) + _htStatCell(r.l)
+    + _htStatCell(r.gf) + _htStatCell(r.gc) + _htStatCell(r.dif) + _htStatCell(r.pts)
     + `</div>`;
   if(layout.key==='detail'){
     return `<div class="ht-row"><div class="ht-fix"><span class="ht-pos">${r.pos}</span>
