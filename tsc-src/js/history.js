@@ -487,7 +487,7 @@ function _pubHistmList(matches, title, selectedId){
     <div class="hr-duel"><span class="hr-team">${rows.length} partido${rows.length===1?'':'s'}</span><span class="hr-score">${matches.length>rows.length?'+':''}</span><span class="hr-team away">${_esc(_pubHScopeLabel())}</span></div></div>`;
   const body = rows.map(m=>{
     const w = _pubHWinner(m), wa = w===1, wb = w===2;
-    const meta = [m.temporada, m.instancia].filter(Boolean).join(' · ');
+    const meta = [m.temporada, m.juego, m.instancia].filter(Boolean).join(' · ');
     return `<div class="histm-row ${String(m.id)===String(selectedId)?'selected':''}">
       <div class="hr-num">#${_esc(m.id||'')}<span style="display:block;font-size:10px;color:var(--txt3);letter-spacing:.5px;">${_esc(meta)}</span></div>
       <div class="hr-duel"><span class="hr-team ${wa?'win':''}">${_esc(m.equipoA)}</span><span class="hr-score">${_esc(_pubHScore(m))}</span><span class="hr-team away ${wb?'win':''}">${_esc(m.equipoB)}</span></div>
