@@ -70,14 +70,12 @@ async function _findOtherLiveMatch(exceptId){
   } catch(_){ return null; }
 }
 
-/* Avisa (toast) si ya hay otro partido en vivo. Devuelve true si está bloqueado. */
+/* Salvaguarda silenciosa: true si ya hay otro partido en vivo (bloquea sin
+   avisar — el botón "En vivo" ya no debería estar visible en ese caso; esto
+   solo cubre una carrera de dos clicks casi simultáneos). */
 async function _blockIfOtherLive(exceptId){
   const other = await _findOtherLiveMatch(exceptId);
-  if(other){
-    showToast('Ya hay un partido EN VIVO. Finalízalo antes de iniciar otro.', 'error');
-    return true;
-  }
-  return false;
+  return !!other;
 }
 
 /* Refresca la vista de admin de fondo (lista de fechas, bracket o playoff)

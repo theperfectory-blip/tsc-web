@@ -14,9 +14,10 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
   const allMatches=await dbGetAll('matches',m=>m.phaseId===phaseId);
   const matchMap={};
   allMatches.forEach(m=>{matchMap[m.slotId]=m;});
-  // ¿Hay algún partido EN VIVO en esta fase? Si lo hay, se ocultan los botones
+  // ¿Hay algún partido EN VIVO en TODA la temporada? (no solo esta fase —
+  // mismo alcance que Grupos en matches.js) Si lo hay, se ocultan los botones
   // "🔴 Vivo" de los demás cruces (solo puede haber uno en directo a la vez).
-  const anyLiveInPhase = allMatches.some(m=>m.live);
+  const anyLive = (await dbGetAll('matches', m=>!!m.live && (m.season===STATE.season||!m.season))).length>0;
 
   // Mapa de IDs a nombres para mostrar
   const allTeams = await dbGetAll('teams');
@@ -267,7 +268,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       const liveLegIdx = legData.findIndex(l=>l.live);
       const liveLegTag = legsCount>1 ? ` · ${liveLegIdx===0?'Ida':'Vuelta'}` : '';
       topSection = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 0;background:rgba(239,68,68,0.12);border-bottom:1px solid rgba(239,68,68,0.22);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo<span style="opacity:0.7;font-weight:400;">${liveLegTag}</span></div>`;
-    } else if(isAdmin && !anyLiveInPhase && bothTeamsExist && nextPlayableLegIdx>=0){
+    } else if(isAdmin && !anyLive && bothTeamsExist && nextPlayableLegIdx>=0){
       const _ld = legData[nextPlayableLegIdx];
       const _ll = legsCount>1 ? ` · ${nextPlayableLegIdx===0?'Ida':'Vuelta'}` : '';
       topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;">🔴 En vivo${_ll}</button></div>`;

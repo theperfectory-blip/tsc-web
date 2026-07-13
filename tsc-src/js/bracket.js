@@ -390,6 +390,11 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   // Cargar partidos del bracket
   const allMatches = await dbGetAll('matches', m=>m.phaseId===phaseId);
 
+  // ¿Hay algún partido EN VIVO en TODA la temporada? (no solo esta fase —
+  // mismo alcance que Grupos en matches.js) Si lo hay, se ocultan los
+  // botones "🔴 En vivo" de los demás cruces (solo uno en directo a la vez).
+  const anyLive = (await dbGetAll('matches', m=>!!m.live && (m.season===STATE.season||!m.season))).length>0;
+
   // Estructura de rondas
   const rounds = buildBracketRounds(totalTeams);
 
@@ -407,7 +412,7 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   window._bracketTeamById = teamById;
 
   // Render
-  el.innerHTML = renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle);
+  el.innerHTML = renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle, anyLive);
 
   // Escalar bracket para llenar ancho disponible sin scroll
   requestAnimationFrame(()=>{ scaleBracket(phase.id); setTimeout(()=>scaleBracket(phase.id),150); });
@@ -742,13 +747,9 @@ async function getClassifiedFromPhase(sourcePhaseId){
   return result;
 }
 
-function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle){
+function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle, anyLive){
   const nRounds = rounds.length;
   if(!nRounds) return '<div style="color:var(--txt3);">Sin rondas configuradas.</div>';
-
-  // ¿Hay algún partido EN VIVO en esta fase? Si lo hay, se ocultan los botones
-  // "🔴 En vivo" de los demás cruces (solo uno en directo a la vez).
-  const anyLiveInPhase = Object.values(matchMap).some(m=>m && m.live);
 
   const _bkCs = getComputedStyle(document.documentElement);
   const CARD_W = parseFloat(_bkCs.getPropertyValue('--bk-card-w')) || 220;
@@ -849,7 +850,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle)
     if(isLive){
       var _legTag=slot.twoLeg?(slot.leg1Live?' · Ida':slot.leg2Live?' · Vuelta':''):'';
       topSection='<div style="display:flex;align-items:center;justify-content:center;gap:5px;padding:5px 0;background:rgba(239,68,68,0.15);border-bottom:1px solid rgba(239,68,68,0.25);font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--red);text-transform:uppercase;"><span class="live-dot live-dot-red" style="width:6px;height:6px;"></span>En vivo<span style="opacity:0.7;font-weight:400;margin-left:2px;">'+_legTag+'</span></div>';
-    } else if(isAdmin&&!anyLiveInPhase&&!aTbd&&!bTbd&&!hasResult){
+    } else if(isAdmin&&!anyLive&&!aTbd&&!bTbd&&!hasResult){
       var _lbOnclick='', _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo';
       if(slot.twoLeg){
         if(!leg1Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',1,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Ida'; }
