@@ -271,7 +271,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     } else if(isAdmin && !anyLive && bothTeamsExist && nextPlayableLegIdx>=0){
       const _ld = legData[nextPlayableLegIdx];
       const _ll = legsCount>1 ? ` · ${nextPlayableLegIdx===0?'Ida':'Vuelta'}` : '';
-      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;">🔴 En vivo${_ll}</button></div>`;
+      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;"><span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo${_ll}</button></div>`;
     }
 
     html+=`

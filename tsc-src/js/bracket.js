@@ -1050,6 +1050,7 @@ function loadBracketLogos(slots){
 /* ----------------------------------------------------------
    MODAL ASIGNACIÓN DE REFERENCIA DE SLOT
    ---------------------------------------------------------- */
+const _BK_INFO_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
 async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
   phaseId = parseInt(phaseId);
   const phase = await dbGet('phases', phaseId);
@@ -1268,8 +1269,8 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
 
           <div style="padding:8px 12px;background:var(--card2);border-radius:var(--r);font-size:13px;color:var(--txt2);">
             ${isGroupTarget
-              ? '💡 El equipo se resuelve en vivo desde la tabla origen y se fija al grupo al crear su primera fecha.'
-              : '💡 El slot se actualizará automáticamente al cambiar la tabla de posiciones.'}
+              ? _BK_INFO_SVG + 'El equipo se resuelve en vivo desde la tabla origen y se fija al grupo al crear su primera fecha.'
+              : _BK_INFO_SVG + 'El slot se actualizará automáticamente al cambiar la tabla de posiciones.'}
           </div>
         </div>
         <div class="modal-footer" style="justify-content:space-between;">

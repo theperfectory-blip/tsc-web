@@ -94,7 +94,7 @@ async function renderPhasesList(){
     const isDraft = p.status==='draft';
     const isDone  = p.status==='done';
     const statusCls = isDraft?'badge-warn':isDone?'badge-gold':'badge-green';
-    const statusLbl = isDraft?'⚠ Borrador (oculto al público)':isDone?'Finalizada':'Activa';
+    const statusLbl = isDraft?_UI_ALERT_SVG+'Borrador (oculto al público)':isDone?'Finalizada':'Activa';
     const typeColor = p.type==='groups'?'#3B82F6':p.type==='bracket'?'#8B5CF6':p.type==='playoff'?'#C9A84C':p.type==='single'?'#F59E0B':'#888';
 
     // Meta info

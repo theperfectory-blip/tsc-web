@@ -789,10 +789,10 @@ function renderRondaModalContent(){
     const ignoreIds = new Set();
     if(slot.matchId) ignoreIds.add(slot.matchId);
     const pairReason = (slot.a!=null && slot.b!=null) ? st.pairingBlockReason(slot.a, slot.b, ignoreIds) : null;
-    const pairWarn = pairReason ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">⚠ ${pairReason}</div>` : '';
+    const pairWarn = pairReason ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">${_UI_ALERT_SVG}${pairReason}</div>` : '';
 
     const sameTeamWarn = (slot.a!=null && slot.a===slot.b)
-      ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">⚠ Local y visita no pueden ser el mismo</div>`
+      ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">${_UI_ALERT_SVG}Local y visita no pueden ser el mismo</div>`
       : '';
 
     const resultBadge = (slot.matchId && slot.goalsA!=null && slot.goalsB!=null)
@@ -844,7 +844,7 @@ function renderRondaModalContent(){
         ${optsLibre.join('')}
       </select>
       ${mustPickLibreFirst?`<div style="margin-top:8px;padding:8px 10px;background:rgba(201,168,76,0.12);border:1px solid var(--gold-b);border-radius:var(--r);font-size:12px;color:var(--gold);font-weight:600;">Paso 1: selecciona el equipo libre para habilitar los cruces de la fecha.</div>`:''}
-      ${byeWarn?`<div style="font-size:11px;color:var(--red);margin-top:6px;">⚠ ${byeWarn}</div>`:''}
+      ${byeWarn?`<div style="font-size:11px;color:var(--red);margin-top:6px;">${_UI_ALERT_SVG}${byeWarn}</div>`:''}
     </div>`;
   }
 

@@ -1,3 +1,7 @@
+/* SVG Lucide compartido para advertencias inline (reemplaza el glifo ⚠ —
+   regla del repo: nunca emoji en UI). Reusado en matches.js/phases.js. */
+const _UI_ALERT_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+
 function openModal(id){ document.getElementById(id)?.classList.add('open'); }
 function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
 
@@ -374,7 +378,7 @@ function settingsUpdateTzPreview(){
     }).format(new Date());
     el.style.color = 'var(--txt3)';
   } catch(e){
-    el.textContent = '⚠ Zona horaria no válida';
+    el.innerHTML = _UI_ALERT_SVG + 'Zona horaria no válida';
     el.style.color = '#e74c3c';
   }
 }
