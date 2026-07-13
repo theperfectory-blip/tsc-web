@@ -16,6 +16,12 @@ const PALMARES_COMPS_DEFAULT = [
   { key:'TSC 2DA DIVISION',              label:'TSC 2da División',     short:'2da',   trophy:'sobria',   color:'#CD7F32' },
 ];
 
+/* Orden de IMPORTANCIA de copa (mayor→menor) — distinto del orden de columnas
+   de PALMARES_COMPS_DEFAULT (que es 1ra/Emperador/Super/Liga/2da). Solo se usa
+   para desempatar la tabla "Clubes campeones" cuando el total de títulos es
+   igual; no reordena columnas ni nada público. */
+const PALM_IMPORTANCE = ['LIGA DE CAMPEONES','TSC 1RA DIVISION','COPA DEL EMPERADOR DE LA TSC','SUPER COPA DE LA TSC','TSC 2DA DIVISION'];
+
 let PALMARES_COMPS = [...PALMARES_COMPS_DEFAULT];
 
 async function loadPalmaresComps(){
@@ -962,10 +968,22 @@ async function renderAdmPalmares(){
   ]);
   const teamById = {}; allTeams.forEach(t => teamById[t.id] = t);
   const agg = await aggregatePalmaresByTeam();
+  // Copas custom (agregadas por el usuario, van después de las 5 default en
+  // PALMARES_COMPS) rankean después de las 5 default en importancia, en su
+  // propio orden — no están en PALM_IMPORTANCE porque no existen a priori.
+  const customCompKeys = PALMARES_COMPS.map(c => c.key).filter(k => !PALM_IMPORTANCE.includes(k));
+  const importanceOrder = [...PALM_IMPORTANCE, ...customCompKeys];
   const teamsWithTitles = [...agg.entries()]
     .map(([tid, counts]) => ({ team: teamById[tid], counts }))
     .filter(x => x.team)
-    .sort((a, b) => (b.counts._total - a.counts._total) || a.team.name.localeCompare(b.team.name, 'es'));
+    .sort((a, b) => {
+      if (b.counts._total !== a.counts._total) return b.counts._total - a.counts._total; // 1º: total desc
+      for (const key of importanceOrder) {                                                // 2º: por importancia
+        const d = (b.counts[key]||0) - (a.counts[key]||0);
+        if (d) return d;
+      }
+      return a.team.name.localeCompare(b.team.name, 'es');                                // 3º: alfabético (último recurso)
+    });
 
   // Para cada competición, lista de registros + el override actual
   const compSections = PALMARES_COMPS.map(c => {
