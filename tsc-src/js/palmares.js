@@ -1076,43 +1076,145 @@ async function openPalmaresReorder(compKey){
         <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
       </div>
       <div class="modal-body">
-        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Usa ▲▼ para ordenar. <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Arrastrá las tarjetas para ordenar (o flechas ↑↓ con foco en una fila). <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
         <div id="palm-reorder-list">${_palmReorderListHTML(list, teamById)}</div>
       </div>
     </div>
   </div>`;
 }
 
+const _PALM_DRAG_HANDLE_SVG = '<svg viewBox="0 0 16 10" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="1" y1="2" x2="15" y2="2"/><line x1="1" y1="5" x2="15" y2="5"/><line x1="1" y1="8" x2="15" y2="8"/></svg>';
+
 function _palmReorderListHTML(list, teamById){
   return list.map((r, i) => {
     const t = teamById[r.teamId];
     const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
     const isVig = i === 0;
-    const vigBadge = isVig ? `<span style="background:var(--gold);color:#000;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px;margin-left:6px;letter-spacing:0.5px;">VIGENTE</span>` : '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border:1px solid ${isVig?'var(--gold)':'var(--brd)'};border-radius:6px;margin-bottom:6px;background:${isVig?'rgba(212,175,55,0.08)':'transparent'};">
-      <span style="width:18px;text-align:right;color:${isVig?'var(--gold)':'var(--txt3)'};font-size:12px;font-weight:${isVig?'700':'400'};">${i+1}</span>
-      <span style="width:26px;height:26px;border-radius:6px;background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none;">${_esc((t?.ini || t?.name || '?').slice(0,3))}</span>
-      <span style="flex:1;font-size:13px;min-width:0;">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span style="color:var(--txt3);font-size:11px;"> · ${_esc(extras)}</span>`:''}${vigBadge}</span>
-      <button class="btn btn-xs" ${i===0?'disabled':''} onclick="palmaresMove('${_escAttr(r.competition)}',${r.id},-1)">▲</button>
-      <button class="btn btn-xs" ${i===list.length-1?'disabled':''} onclick="palmaresMove('${_escAttr(r.competition)}',${r.id},1)">▼</button>
+    return `<div class="palm-reorder-row${isVig?' is-vigente':''}" data-id="${r.id}" tabindex="0"
+        onkeydown="_palmReorderKeydown(event,'${_escAttr(r.competition)}',${r.id})">
+      <span class="palm-reorder-handle" aria-hidden="true"
+        onpointerdown="_palmReorderPointerDown(event,'${_escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
+      <span class="palm-reorder-pos">${i+1}</span>
+      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${_esc((t?.ini || t?.name || '?').slice(0,3))}</span>
+      <span class="palm-reorder-name">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
     </div>`;
   }).join('');
 }
 
-async function palmaresMove(compKey, recId, dir){
-  const recs = await getAllPalmaresRecords();
-  const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
-  const idx = list.findIndex(r => r.id === recId);
-  const ni = idx + dir;
-  if(idx < 0 || ni < 0 || ni >= list.length) return;
-  [list[idx], list[ni]] = [list[ni], list[idx]];
-  // Reasignar order secuencial 1..n y guardar los que cambian
+/* Reasigna order secuencial 1..n a `list` (ya en el orden final deseado) y
+   persiste solo los registros cuyo order cambió. Reusado por el drag&drop y
+   por el fallback de teclado. */
+async function _palmPersistOrder(list){
   for(let i=0; i<list.length; i++){
     if(list[i].order !== i+1){
       await dbPut('palmares', {...list[i], order: i+1});
       list[i].order = i+1;
     }
   }
+}
+
+/* Fallback de teclado (foco en una fila, ↑/↓): mismo swap adyacente que el
+   viejo botón ▲▼, ahora disparado por teclado en vez de un control visible. */
+async function _palmReorderKeydown(e, compKey, recId){
+  if(e.key!=='ArrowUp' && e.key!=='ArrowDown') return;
+  e.preventDefault();
+  const dir = e.key==='ArrowUp' ? -1 : 1;
+  const recs = await getAllPalmaresRecords();
+  const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+  const idx = list.findIndex(r => r.id === recId);
+  const ni = idx + dir;
+  if(idx < 0 || ni < 0 || ni >= list.length) return;
+  [list[idx], list[ni]] = [list[ni], list[idx]];
+  await _palmPersistOrder(list);
+  const cont = document.getElementById('palm-reorder-list');
+  if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+  cont?.querySelectorAll('.palm-reorder-row')[ni]?.focus();
+}
+
+/* ---- Drag & drop (pointer events — funciona con mouse y táctil) ---- */
+let _palmDrag = null;
+
+function _palmReorderComputeOrder(d){
+  const ids = d.rows.map(r=>r.dataset.id);
+  const draggedId = ids[d.startIndex];
+  ids.splice(d.startIndex, 1);
+  ids.splice(d.currentSlot, 0, draggedId);
+  return ids;
+}
+
+function _palmReorderUpdateLive(d){
+  const order = _palmReorderComputeOrder(d);
+  const vigenteId = order[0];
+  d.rows.forEach(r=>{
+    const pos = order.indexOf(r.dataset.id);
+    const posEl = r.querySelector('.palm-reorder-pos');
+    if(posEl) posEl.textContent = String(pos+1);
+    r.classList.toggle('is-vigente', r.dataset.id === vigenteId);
+  });
+}
+
+function _palmReorderPointerDown(e, compKey){
+  if(e.pointerType==='mouse' && e.button!==0) return;
+  const row = e.currentTarget.closest('.palm-reorder-row');
+  const list = document.getElementById('palm-reorder-list');
+  if(!row || !list) return;
+  const rows = [...list.querySelectorAll('.palm-reorder-row')];
+  const startIndex = rows.indexOf(row);
+  if(startIndex<0) return;
+  e.preventDefault();
+  // Alto de "slot" real (incl. margen) tomado de la separación entre dos filas
+  // consecutivas — evita asumir un margin-bottom fijo.
+  const rowH = rows.length>1
+    ? Math.abs(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top)
+    : row.getBoundingClientRect().height;
+  _palmDrag = { compKey, rows, row, startIndex, currentSlot: startIndex, rowH, startY: e.clientY };
+  row.classList.add('is-dragging');
+  document.addEventListener('pointermove', _palmReorderPointerMove);
+  document.addEventListener('pointerup', _palmReorderPointerUp, {once:true});
+  document.addEventListener('pointercancel', _palmReorderPointerCancel, {once:true});
+}
+
+function _palmReorderPointerMove(e){
+  const d = _palmDrag;
+  if(!d) return;
+  const dy = e.clientY - d.startY;
+  d.row.style.transform = `translateY(${dy}px)`;
+  const rawSlot = d.startIndex + Math.round(dy / d.rowH);
+  const targetSlot = Math.max(0, Math.min(d.rows.length-1, rawSlot));
+  if(targetSlot === d.currentSlot) return;
+  d.currentSlot = targetSlot;
+  d.rows.forEach((r,i)=>{
+    if(r===d.row) return;
+    let shift = 0;
+    if(d.startIndex < d.currentSlot){
+      if(i > d.startIndex && i <= d.currentSlot) shift = -1;
+    } else if(d.startIndex > d.currentSlot){
+      if(i >= d.currentSlot && i < d.startIndex) shift = 1;
+    }
+    r.style.transform = shift ? `translateY(${shift*d.rowH}px)` : '';
+  });
+  _palmReorderUpdateLive(d);
+}
+
+function _palmReorderFinish(commit){
+  const d = _palmDrag;
+  if(!d) return;
+  document.removeEventListener('pointermove', _palmReorderPointerMove);
+  d.rows.forEach(r=>{ r.style.transform=''; r.classList.remove('is-dragging'); });
+  _palmDrag = null;
+  if(commit && d.currentSlot!==d.startIndex){
+    const order = _palmReorderComputeOrder(d).map(id=>parseInt(id));
+    _palmReorderCommit(d.compKey, order);
+  }
+}
+function _palmReorderPointerUp(){ _palmReorderFinish(true); }
+function _palmReorderPointerCancel(){ _palmReorderFinish(false); }
+
+async function _palmReorderCommit(compKey, orderedIds){
+  const recs = await getAllPalmaresRecords();
+  const byId = new Map(recs.filter(r=>r.competition===compKey).map(r=>[r.id, r]));
+  const list = orderedIds.map(id=>byId.get(id)).filter(Boolean);
+  await _palmPersistOrder(list);
   const cont = document.getElementById('palm-reorder-list');
   if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
 }
