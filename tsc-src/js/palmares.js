@@ -450,6 +450,18 @@ async function getTrophyGlbUrl(styleId){
   return url;
 }
 
+/* Override de escala/posición por estilo de copa 3D en la Sala — todas se
+   normalizan a la misma altura (1.7) en placeCup(), lo cual deja a las copas
+   redondas/anchas (p.ej. konami) saliéndose del podio. Vive en código (no en
+   DB): es un ajuste visual del modelo, no una preferencia de usuario, y se
+   aplica igual en público y admin. Estilos sin entrada acá quedan idénticos
+   a como estaban (scaleMul 1, offset 0). Tunable en vivo desde la consola:
+   `CUP_TRANSFORMS.konami.scaleMul = 0.7; __retuneSalaCup()`. */
+const CUP_TRANSFORMS = {
+  konami: { scaleMul: 0.75, offsetY: 0.02 }, // valor inicial de arranque, afinar en vivo
+};
+window.CUP_TRANSFORMS = CUP_TRANSFORMS;
+
 /* ---------------- Helpers de datos ---------------- */
 async function getAllPalmaresRecords(){ return dbGetAll('palmares'); }
 
@@ -2553,7 +2565,7 @@ function _palmRenderSala(){
       // estaba en modelCache (precargada), start()/loadCup() resuelven casi
       // instantáneo y la clase se saca enseguida.
       cupHost.classList.add('sala-cup-loading');
-      _palmCupCtrl().start(cupHost, getTrophyGlbUrl(comp.comp.trophy), svg, lightColors).catch(err => {
+      _palmCupCtrl().start(cupHost, getTrophyGlbUrl(comp.comp.trophy), svg, lightColors, comp.comp.trophy).catch(err => {
         const activeComp = _palmCurrentSalaComp();
         const activeRecord = _palmCurrentSalaRecord();
         if (activeComp?.comp?.key !== comp.comp.key || String(activeRecord?.id) !== String(rec.id)) return;
@@ -3140,6 +3152,7 @@ function _palmCupCtrl(){
   let targetRight = null;
   let environmentMap = null;
   let loadedUrl = null;
+  let currentStyleId = null;
   let pendingW = 0;
   let pendingH = 0;
   let loadToken = 0;
@@ -3305,28 +3318,37 @@ function _palmCupCtrl(){
   // Normaliza escala/centro de un CLON del modelo crudo y lo agrega a la
   // escena viva. `token` descarta el resultado si el usuario ya cambió de
   // copa o cerró la sala mientras esto corría.
-  function placeCup(rawObj, token){
+  function placeCup(rawObj, token, styleId){
     if (token !== loadToken || !scene) return;
     const obj = rawObj.clone(true);
     const box = new THREE.Box3().setFromObject(obj);
     const size = box.getSize(new THREE.Vector3());
-    obj.scale.setScalar(1.7 / size.y);
+    const t = (window.CUP_TRANSFORMS && window.CUP_TRANSFORMS[styleId]) || {};
+    const mul = t.scaleMul || 1;
+    obj.scale.setScalar((1.7 / size.y) * mul);
     const b2 = new THREE.Box3().setFromObject(obj);
     const center = b2.getCenter(new THREE.Vector3());
     obj.position.x -= center.x;
     obj.position.z -= center.z;
     obj.position.y -= b2.min.y;
+    // Sin disposeObject3D acá: el clon comparte geometría/material con el
+    // cacheado en modelCache (mismo motivo que clearCup) — solo sacar de
+    // escena. Permite retune() en vivo (reemplaza la copa puesta sin romper
+    // el cache ni pasar por clearCup/fetchModel de nuevo).
+    if (cup) { scene.remove(cup); cup = null; }
     cup = new THREE.Group();
     cup.add(obj);
-    cup.position.y = _PALM_CUP_VIEW.baseY;
+    cup.position.y = _PALM_CUP_VIEW.baseY + (t.offsetY || 0);
+    cup.position.x = (t.offsetX || 0);
     scene.add(cup);
+    currentStyleId = styleId;
     // querySelectorAll, no querySelector: si hubo renders rápidos seguidos
     // (cambio de campeón repetido) puede quedar más de un placeholder viejo.
     host?.querySelectorAll('.palm-sala-svg').forEach(el => el.remove());
     if(reducedMotionQuery.matches) renderTick();
   }
 
-  function loadCup(url, svg){
+  function loadCup(url, svg, styleId){
     const token = ++loadToken;
     if (url && loadedUrl === url && cup) {
       // Reutiliza la copa ya puesta (mismo modelo) — este camino NO pasa por
@@ -3344,7 +3366,7 @@ function _palmCupCtrl(){
     }
     loadedUrl = url;
     return fetchModel(url).then(rawObj => {
-      placeCup(rawObj, token);
+      placeCup(rawObj, token, styleId);
     }).catch(err => {
       if (token !== loadToken) return;
       loadedUrl = null;
@@ -3354,7 +3376,7 @@ function _palmCupCtrl(){
   }
 
   _PALM_PUB.cupCtrl = {
-    async start(nextHost, modelUrl, svg, colors){
+    async start(nextHost, modelUrl, svg, colors, styleId){
       const token = ++sessionToken;
       let resolvedModelUrl = null;
       try {
@@ -3375,7 +3397,7 @@ function _palmCupCtrl(){
       // start() no resuelve hasta que la copa esté realmente puesta (o el
       // fallback SVG, si falló) — así quien llame puede usar esto como gate
       // real de "listo para revelar", no solo "arrancó a cargar".
-      await loadCup(resolvedModelUrl, svg);
+      await loadCup(resolvedModelUrl, svg, styleId);
       if (token !== sessionToken) return;
       if(reducedMotionQuery.matches){
         renderer.setAnimationLoop(null);
@@ -3402,6 +3424,15 @@ function _palmCupCtrl(){
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       if(reducedMotionQuery.matches) renderTick();
+    },
+    // Re-coloca la copa actualmente puesta leyendo CUP_TRANSFORMS fresco —
+    // para tunear escala/offset en vivo desde la consola sin recargar la
+    // página ni volver a descargar el GLB (usa modelCache). No-op si no hay
+    // copa cargada (Sala cerrada / mostrando el SVG fallback).
+    retune(){
+      if (!loadedUrl || !modelCache.has(loadedUrl) || !currentStyleId) return false;
+      placeCup(modelCache.get(loadedUrl), loadToken, currentStyleId);
+      return true;
     },
     stop(){
       sessionToken++;
@@ -3433,6 +3464,14 @@ function _palmCupCtrl(){
   };
   return _PALM_PUB.cupCtrl;
 }
+
+/* Consola: `CUP_TRANSFORMS.konami.scaleMul = 0.7; __retuneSalaCup();` para
+   iterar escala/offset de una copa 3D en vivo, sin recargar la página. */
+window.__retuneSalaCup = function(){
+  const ok = _palmCupCtrl().retune();
+  if (!ok) console.warn('__retuneSalaCup: no hay copa 3D cargada ahora mismo (abrí la Sala primero).');
+  return ok;
+};
 
 class _PalmSmoke {
   constructor(ctx, color){
