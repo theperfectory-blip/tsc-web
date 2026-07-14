@@ -458,7 +458,17 @@ async function getTrophyGlbUrl(styleId){
    a como estaban (scaleMul 1, offset 0). Tunable en vivo desde la consola:
    `CUP_TRANSFORMS.konami.scaleMul = 0.7; __retuneSalaCup()`. */
 const CUP_TRANSFORMS = {
-  konami: { scaleMul: 0.75, offsetY: 0.02 }, // valor inicial de arranque, afinar en vivo
+  classica:    { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  imperial:    { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  konami:      { scaleMul: 0.75, offsetY: 0, offsetX: 0 },  // única con ajuste de arranque (balón se desbordaba)
+  orejona:     { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  sobria:      { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  moderno:     { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  celtica:     { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  barroca:     { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  geometrica:  { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  minimalista: { scaleMul: 1,    offsetY: 0, offsetX: 0 },
+  nebula:      { scaleMul: 1,    offsetY: 0, offsetX: 0 },
 };
 window.CUP_TRANSFORMS = CUP_TRANSFORMS;
 
