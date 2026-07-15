@@ -6,6 +6,21 @@
     "rules": "firebase/firestore.rules",
     "indexes": "firebase/firestore.indexes.json"
   },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git"
+      ]
+    }
+  ],
+  "emulators": {
+    "firestore": { "port": 8080 },
+    "functions": { "port": 5001 },
+    "ui": { "enabled": false }
+  },
   "hosting": {
     "site": "teamsubscup",
     "public": "tsc-src",

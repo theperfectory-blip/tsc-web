@@ -24,6 +24,13 @@
    ADMIN
    ================================================================ */
 
+.cal-adm-toolbar{
+  display:flex;justify-content:flex-end;margin-bottom:14px;
+}
+.cal-adm-toolbar .btn[disabled]{
+  opacity:0.5;cursor:not-allowed;
+}
+
 .cal-adm-section{
   margin-bottom:28px;
 }

@@ -126,6 +126,51 @@ async function calClearSchedule(matchId, phaseId, slotId){
 }
 
 /* ================================================================
+   TOOLBAR ADMIN — "Notificar stream de hoy"
+   ================================================================ */
+
+/* Callable de Cloud Functions (Fase 8, backend FCM) — región no-default,
+   por eso firebase.app().functions(region) en vez de firebase.functions().
+   Ver functions/lib/config.js para la región y por qué. */
+function _notifyStreamTodayCallable(){
+  return firebase.app().functions('southamerica-east1').httpsCallable('notifyStreamToday');
+}
+
+async function notifyStreamTodayClick(){
+  const btn = document.getElementById('btn-notify-stream-today');
+  const run = async ()=>{
+    if(btn){ btn.disabled = true; }
+    try {
+      const date = _calTodayStr();
+      const res  = await _notifyStreamTodayCallable()({ date, season: STATE.season });
+      const d = res.data || {};
+      if(!d.matchesToday){
+        showToast('No hay partidos programados hoy');
+      } else {
+        const parts = [`${d.notifiedUsers||0} presidente(s) notificados`];
+        if(d.skippedDedup)          parts.push(`${d.skippedDedup} ya avisados`);
+        if(d.invalidTokensRemoved)  parts.push(`${d.invalidTokensRemoved} token(s) vencidos limpiados`);
+        showToast(parts.join(' · '));
+      }
+    } catch(e){
+      console.error('[notifyStreamToday]', e);
+      showToast(e?.message || 'No se pudo enviar la notificación', 'error');
+    } finally {
+      if(btn){ btn.disabled = false; }
+    }
+  };
+  if(typeof showConfirm==='function'){
+    showConfirm(
+      '¿Notificar stream de hoy?',
+      'Se enviará un aviso push a todos los presidentes que juegan hoy. Esta acción no se puede deshacer.',
+      run
+    );
+  } else {
+    await run();
+  }
+}
+
+/* ================================================================
    VISTA ADMIN — renderAdmCalendar
    ================================================================ */
 async function renderAdmCalendar(){

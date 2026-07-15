@@ -75,5 +75,19 @@ service cloud.firestore {
       allow read:  if true;
       allow write: if isAdmin();
     }
+
+    // --- Notificaciones push (Fase 8, backend FCM) ---
+    // Solo el Admin SDK (Cloud Functions) escribe acá — las reglas de
+    // cliente no importan para esas escrituras, pero se dejan explícitas
+    // en "solo admin lee, nadie escribe desde cliente" por las dudas.
+    // Ver functions/lib/notify.js y docs/android-push-notifications.md.
+    match /notificationRuns/{id} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+    match /notificationEvents/{id} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
   }
 }
