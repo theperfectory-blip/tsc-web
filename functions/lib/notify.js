@@ -2,14 +2,16 @@
 
 const { FieldValue } = require('firebase-admin/firestore');
 
-/* Zona horaria "de torneo": el admin ingresa scheduledTime como una hora de
-   pared sin zona explícita en el dato (ver Match Data Schema). Se asume que
-   la ingresa en la zona del stream (Chile). Esto NO está verificado con el
-   usuario/supervisor — es una decisión de implementación necesaria para que
-   "formatear en la zona del destinatario" tenga un punto de partida. Si el
-   torneo alguna vez ingresa horarios en otra zona, cambiar solo esta
-   constante. */
-const TOURNAMENT_TZ = 'America/Santiago';
+/* Zona horaria "de torneo": scheduledTime se carga con un <input type="time">
+   en el Calendario admin (tsc-src/js/calendar.js) — un 'HH:MM' de reloj de
+   pared sin zona en el dato, literalmente lo que el admin teclea en SU
+   propia zona. El admin principal de la TSC (Luis Yuna) es peruano, así que
+   esa zona es America/Lima — verificado con el usuario. Los presidentes de
+   otros países de LATAM NO se resuelven acá: cada uno tiene su propio
+   users/{uid}.timezone, y formatKickoffForRecipient() convierte desde
+   TOURNAMENT_TZ hacia esa zona por destinatario. Si algún día otro admin, en
+   otro país, pasa a cargar los horarios, esta constante deja de valer. */
+const TOURNAMENT_TZ = 'America/Lima';
 
 /* Convierte una hora de pared 'YYYY-MM-DD' + 'HH:MM' interpretada en
    `timeZone` a un instante absoluto. Sin dependencias externas (no hay

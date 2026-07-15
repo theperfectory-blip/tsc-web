@@ -77,7 +77,7 @@ messaging.sendEachForMulticast = async (message) => {
 const { notifyStreamToday } = require('../lib/notifyStreamToday');
 const { notifyStartupContinuation } = require('../lib/notifyStartupContinuation');
 const { onMatchWentLive } = require('../lib/onMatchWentLive');
-const { notifyRecipients } = require('../lib/notify');
+const { notifyRecipients, formatKickoffForRecipient, TOURNAMENT_TZ } = require('../lib/notify');
 
 const DATE = '2026-07-15';
 const SEASON = 1;
@@ -252,7 +252,31 @@ async function run() {
 
   messaging.sendEachForMulticast = originalSend;
 
-  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-6) ===');
+  // ---- Escenario 7: formatKickoffForRecipient — la hora que el usuario
+  // realmente lee. Sin cobertura hasta ahora, y es justo la pieza que
+  // estaba mal (TOURNAMENT_TZ asumía Santiago; el admin que carga
+  // scheduledTime es peruano → America/Lima). Lima y Buenos Aires NO
+  // comparten offset (UTC-5 vs UTC-3, ninguna de las dos con horario de
+  // verano hoy) — si alguien revierte TOURNAMENT_TZ a Santiago (UTC-3/-4),
+  // este escenario tiene que fallar. ----
+  assert.strictEqual(TOURNAMENT_TZ, 'America/Lima', 'TOURNAMENT_TZ debe ser la zona del admin que carga scheduledTime (Perú), no la del stream');
+
+  const kickoffLima = formatKickoffForRecipient('2026-07-15', '15:00', 'America/Lima');
+  assert.strictEqual(kickoffLima, '15:00', 'destinatario en la MISMA zona que el torneo ve la hora tal cual se cargó');
+
+  const kickoffBA = formatKickoffForRecipient('2026-07-15', '15:00', 'America/Argentina/Buenos_Aires');
+  assert.strictEqual(kickoffBA, '17:00', 'Buenos Aires (UTC-3) está 2h adelante de Lima (UTC-5): 15:00 cargado → 17:00 para ese destinatario');
+
+  const kickoffInvalidTz = formatKickoffForRecipient('2026-07-15', '15:00', 'Not/AZone');
+  assert.strictEqual(kickoffInvalidTz, '15:00', 'timezone inválido/legacy no debe romper el envío: cae a TOURNAMENT_TZ');
+
+  const kickoffNoTz = formatKickoffForRecipient('2026-07-15', '15:00', null);
+  assert.strictEqual(kickoffNoTz, '15:00', 'sin timezone guardado (users/{uid}.timezone ausente) también cae a TOURNAMENT_TZ');
+
+  console.log('[7] formatKickoffForRecipient: Lima=' + kickoffLima + ' BuenosAires=' + kickoffBA + ' tzInválido=' + kickoffInvalidTz + ' sinTz=' + kickoffNoTz);
+  console.log('  ✓ TOURNAMENT_TZ=America/Lima, offset correcto para un destinatario en otra zona, y fallback sin romper el envío ante timezone inválido/ausente');
+
+  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-7) ===');
 }
 
 run().then(() => process.exit(0)).catch(e => { console.error('FALLÓ:', e); process.exit(1); });
