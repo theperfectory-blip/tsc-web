@@ -341,10 +341,15 @@ async function showMatchGroupTable(phaseId, groupIdx){
 
   const listEl = document.getElementById('matches-list-container');
   if(listEl){
+    const genLock = isFinalized ? 'Esta temporada está finalizada' : await fxGroupLockReason(phaseId, groupIdx);
+    const genIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>`;
     listEl.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:10px;">
         <div class="section-lbl" style="margin:0;">Fechas</div>
-        <button class="btn btn-sm btn-primary" onclick="openRondaModal(${phaseId},${groupIdx})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Crear fecha</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" onclick="openFixtureGenModal(${phaseId},${groupIdx})" ${genLock?`disabled style="opacity:0.5;cursor:not-allowed;" title="${_esc(genLock)}"`:`title="Genera todas las fechas del grupo de una vez (todos contra todos, sin repetir rival)"`}>${genIcon} Generar fechas</button>
+          <button class="btn btn-sm btn-primary" onclick="openRondaModal(${phaseId},${groupIdx})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Crear fecha</button>
+        </div>
       </div>
       ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
       <div id="rondas-admin-${phaseId}-${groupIdx}"></div>`;
