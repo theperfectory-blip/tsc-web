@@ -3,6 +3,7 @@
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const { FIRESTORE_REGION } = require('./config');
 const { getOrderedMatchesForDate } = require('./matchOrder');
 const { notifyContinuationTargets } = require('./continuation');
 
@@ -12,8 +13,12 @@ const { notifyContinuationTargets } = require('./continuation');
    en vivo) — nunca al que ya está en vivo. Reacciona SOLO al flanco
    false → true: cualquier otro update de un partido ya en vivo (gol,
    penales, etc. — ver tsc-src/js/livematch.js) no debe volver a disparar
-   esto, o cada gol spamearía "juega a continuación" al siguiente equipo. */
-exports.onMatchWentLive = onDocumentUpdated('matches/{matchId}', async (event) => {
+   esto, o cada gol spamearía "juega a continuación" al siguiente equipo.
+
+   Región: FIRESTORE_REGION (southamerica-west1), no la TASKS_REGION global
+   del resto de functions/ — pisa el default de setGlobalOptions en index.js.
+   Ver functions/lib/config.js. */
+exports.onMatchWentLive = onDocumentUpdated({ document: 'matches/{matchId}', region: FIRESTORE_REGION }, async (event) => {
   if (!event.data) return;
   const before = event.data.before.data();
   const after = event.data.after.data();

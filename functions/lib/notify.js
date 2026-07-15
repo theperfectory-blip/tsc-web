@@ -103,7 +103,10 @@ async function loadTeamNames(db, teamIds) {
 /* Núcleo de envío compartido por los dos flujos de notificación (Partes 3 y 4).
    - Dedup: una lectura por candidato contra `notificationRuns` ANTES de
      enviar; las claves cubiertas se registran DESPUÉS, en el mismo batch que
-     la auditoría. El botón admin se deshabilita mientras corre (Parte 3) y
+     la auditoría — y SOLO si el envío tuvo al menos un token exitoso (ver
+     nota junto al `if (anySuccess)` más abajo: un error transitorio de FCM
+     no debe dejar a nadie marcado como "ya avisado" sin haber recibido nada).
+     El botón admin se deshabilita mientras corre (Parte 3) y
      el trigger de vivo solo reacciona al flanco false→true (Parte 4b), así
      que el doble-disparo real (click doble, o dos writes de `live` seguidos)
      ya queda cortado antes de llegar acá. Este read-then-write no es
@@ -173,14 +176,21 @@ async function notifyRecipients(db, messaging, { type, recipients, dedupKeyFor, 
         invalidTokensRemoved++;
       }
     });
-    if (anySuccess) notifiedUsers++;
-
-    batch.set(db.collection('notificationRuns').doc(dedupKeyFor(r)), {
-      type,
-      uid: r.uid,
-      teamId: r.teamId,
-      coveredAt: FieldValue.serverTimestamp(),
-    });
+    if (anySuccess) {
+      notifiedUsers++;
+      // Dedup solo si AL MENOS un token tuvo éxito. Si todos fallaron (p.ej.
+      // messaging/internal-error, messaging/server-unavailable — errores
+      // transitorios, no tokens muertos), no se registra: que la próxima
+      // corrida lo reintente. Un destinatario con todos los tokens muertos
+      // no necesita este reintento — arrayRemove ya los limpió arriba y
+      // resolvePresidentRecipients lo excluye solo en la corrida siguiente.
+      batch.set(db.collection('notificationRuns').doc(dedupKeyFor(r)), {
+        type,
+        uid: r.uid,
+        teamId: r.teamId,
+        coveredAt: FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   await batch.commit();

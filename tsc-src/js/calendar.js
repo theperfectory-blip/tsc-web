@@ -131,7 +131,9 @@ async function calClearSchedule(matchId, phaseId, slotId){
 
 /* Callable de Cloud Functions (Fase 8, backend FCM) — región no-default,
    por eso firebase.app().functions(region) en vez de firebase.functions().
-   Ver functions/lib/config.js para la región y por qué. */
+   Es TASKS_REGION (no la región del Firestore del proyecto): la callable
+   encola una Cloud Task, y Cloud Tasks no está disponible en la región
+   donde vive el Firestore. Ver functions/lib/config.js para el detalle. */
 function _notifyStreamTodayCallable(){
   return firebase.app().functions('southamerica-east1').httpsCallable('notifyStreamToday');
 }

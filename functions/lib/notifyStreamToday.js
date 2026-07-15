@@ -4,12 +4,12 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { getFunctions } = require('firebase-admin/functions');
-const { REGION } = require('./config');
+const { TASKS_REGION } = require('./config');
 const { getOrderedMatchesForDate } = require('./matchOrder');
 const { resolvePresidentRecipients, notifyRecipients, loadTeamNames, formatKickoffForRecipient } = require('./notify');
 
 const CONTINUATION_DELAY_SECONDS = 60;
-const CONTINUATION_QUEUE = `locations/${REGION}/functions/notifyStartupContinuation`;
+const CONTINUATION_QUEUE = `locations/${TASKS_REGION}/functions/notifyStartupContinuation`;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /* "Tu equipo juega HOY" — disparo MANUAL del admin al iniciar el stream
