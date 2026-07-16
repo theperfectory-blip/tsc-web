@@ -141,8 +141,7 @@ async function saveTeam(team) {
 
 ## Branches
 
-- `main` — producción (protegida)
-- `firebase-migration` — desarrollo principal
+- `main` — producción, se despliega automáticamente en cada push
 - `feature/*` — nuevas features
 - `fix/*` — bug fixes
 - `docs/*` — cambios de documentación
@@ -150,9 +149,14 @@ async function saveTeam(team) {
 ## CI/CD
 
 GitHub Actions automáticamente:
-1. **Despliega a Firebase Hosting** en cada push a `firebase-migration`
+1. **Despliega a Firebase Hosting** en cada push a `main`
 2. URL: https://teamsubscup.web.app
 3. Si hay deploy error, revisa `.github/workflows/firebase-hosting.yml`
+
+El workflow **solo despliega Hosting**. Las reglas de Firestore/Storage (`firebase/*.rules`) y
+las Cloud Functions (`functions/`) se despliegan a mano — ver `DEPLOY.md`. Si cambiaste una
+regla o una function y no la desplegaste, el código en `main` puede fallar en producción con
+`permission-denied` aunque el deploy de Hosting haya sido exitoso.
 
 ## Preguntas frecuentes
 
@@ -216,6 +220,13 @@ ipconfig
 ### ¿Cómo público a producción?
 
 Solo en `main` branch. Merge con PR y GitHub Actions despliega automáticamente a https://teamsubscup.web.app.
+
+### ¿Cómo contribuyo a la app Android?
+
+Es un wrapper Capacitor de esta misma web (`android/`) — no hay UI nativa separada, así que la
+mayoría de los cambios visuales/funcionales se hacen en `tsc-src/` como siempre. Para el ciclo
+de build/release específico (debug vs release, firma, cómo regenerar el APK), ver
+`docs/android-build.md`.
 
 ---
 
