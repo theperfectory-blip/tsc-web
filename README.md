@@ -1,6 +1,6 @@
 # TSC Web — Copa Suscriptores
 
-Plataforma web modular para gestión y seguimiento de torneos de fútbol. Diseñada para **YunaCoins**, una economía virtual creada por el youtuber Luis Yuna para [PES 5](https://www.konami.com/games/pes/). 
+Plataforma web modular para gestión y seguimiento de torneos de fútbol. Diseñada para **YunaCoins**, una economía virtual creada por TheRationalUser para el youtuber Luis Yuna para [PES 5](https://www.konami.com/games/pes/). 
 
 Con esta app, presidentes de equipos pueden:
 - Ver sus equipos, jugadores y palmarés en tiempo real
@@ -188,7 +188,7 @@ Privado por ahora. Contacta con el propietario para términos de distribución.
 
 ## 👤 Autor
 
-Luis Yuna (youtuber) — creador de YunaCoins y la Copa Suscriptores.
+Jimbo (Rational User) — creador de YunaCoins y la Copa Suscriptores.
 
 ---
 
