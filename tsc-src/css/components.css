@@ -464,3 +464,31 @@
   .apk-hit-dl{left:10.09%;top:84.10%;width:79.71%;height:8.83%;}
   .apk-hit-x{left:84.75%;top:1.02%;width:11.89%;height:8.54%;}
 }
+
+/* ---- Footer público (todas las páginas, dentro de #main) ---- */
+.site-footer{
+  margin-top:40px;padding:20px 0 8px;border-top:1px solid var(--brd);
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  text-align:center;
+}
+.site-footer-links{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:22px;
+}
+.site-footer-link{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 2px;
+  color:var(--txt2);text-decoration:none;
+  font-family:'Barlow Condensed';font-weight:600;font-size:13px;
+  letter-spacing:0.4px;text-transform:uppercase;
+  transition:color 0.15s;
+}
+.site-footer-link:hover{color:var(--gold);}
+.site-footer-copy{
+  display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;
+  font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);
+}
+.site-footer-author{
+  display:inline-flex;align-items:center;gap:4px;padding:2px;
+  color:var(--txt3);text-decoration:none;transition:color 0.15s;
+}
+.site-footer-author:hover{color:var(--txt2);}
+.site-footer-sep{opacity:0.5;}

@@ -1,6 +1,8 @@
 # TSC Web — Copa Suscriptores
 
-Plataforma web modular para gestión y seguimiento de torneos de fútbol. Diseñada para **YunaCoins**, una economía virtual creada por el youtuber Jimbo ([@TheRationalUser](https://www.youtube.com/@TheRationalUser)) para PES 4 y PES 5.
+Plataforma web modular para gestionar y seguir torneos de fútbol (PES 4 y PES 5) de la comunidad de **Luis Yuna** ([@LuisYuNa3210](https://www.youtube.com/@LuisYuNa3210)), dueño de la Copa Suscriptores (TSC). Desarrollada por Jimbo ([@TheRationalUser](https://www.youtube.com/@TheRationalUser)).
+
+**YunaCoins** es la moneda del canal de Luis Yuna (vía Streamlabs): el chat acumula puntos viendo el stream y los gasta en mejorar a los jugadores de su equipo (subir stats). Todavía no está integrada a esta web — es una pieza sin terminar, planeada para la 2.0 (ver "Backlog" más abajo).
 
 Con esta app, presidentes de equipos pueden:
 - Ver sus equipos, jugadores y palmarés en tiempo real
@@ -206,7 +208,8 @@ Privado por ahora. Contacta con el propietario para términos de distribución.
 
 ## 👤 Autor
 
-Jimbo ([@TheRationalUser](https://www.youtube.com/@TheRationalUser) en YouTube) — creador de YunaCoins y la Copa Suscriptores.
+**Desarrollo:** Jimbo ([@TheRationalUser](https://www.youtube.com/@TheRationalUser) en YouTube).
+**Producto/dueño de la TSC:** Luis Yuna ([@LuisYuNa3210](https://www.youtube.com/@LuisYuNa3210) en YouTube), creador de YunaCoins y la Copa Suscriptores.
 
 ---
 

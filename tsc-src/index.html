@@ -383,6 +383,36 @@
     <div id="adm-calendar-labels"></div>
   </div>
 
+  <!-- Footer público — el link de APK sale de TSC_APK_URL (apk-promo.js),
+       nunca hardcodear la URL acá. Se oculta solo ese link dentro de la
+       app empaquetada (guard _apkShouldOffer en apk-promo.js); el resto
+       del footer se muestra siempre, adentro y afuera de la app. -->
+  <footer class="site-footer">
+    <div class="site-footer-links">
+      <a class="site-footer-link" id="footer-apk-link" href="" target="_blank" rel="noopener" onclick="tscApkDownloadClick()" style="display:none;">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Descargar APK
+      </a>
+      <a class="site-footer-link" href="https://www.youtube.com/@LuisYuNa3210" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+        Luis Yuna
+      </a>
+      <a class="site-footer-link" href="https://github.com/theperfectory-blip/tsc-web" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        GitHub
+      </a>
+    </div>
+    <div class="site-footer-copy">
+      <span>© 2026</span>
+      <a class="site-footer-author" href="https://www.youtube.com/@TheRationalUser" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+        Jimbo (@TheRationalUser)
+      </a>
+      <span class="site-footer-sep">·</span>
+      <span class="site-footer-claude">Posible gracias a Claude</span>
+    </div>
+  </footer>
+
 </div>
 
 <!-- ============================================================
@@ -495,16 +525,6 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"/></svg>
           </button>
         </div>
-      </div>
-
-      <div class="form-group" id="settings-apk-group" style="margin-top:18px;margin-bottom:0;display:none;">
-        <label style="display:flex;align-items:center;justify-content:space-between;">
-          <span>App Android</span>
-          <a class="btn btn-xs" id="settings-apk-download" href="" target="_blank" rel="noopener" onclick="tscApkDownloadClick()">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Descargar APK
-          </a>
-        </label>
       </div>
     </div>
     <div class="modal-footer">
