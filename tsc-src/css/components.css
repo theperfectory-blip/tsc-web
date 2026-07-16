@@ -438,3 +438,29 @@
 
 /* ---- Topbar condensada al hacer scroll ---- */
 #topbar.condensed{box-shadow:0 6px 24px rgba(0,0,0,0.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);background:var(--nav-glass);}
+
+/* ---- Popup promocional APK Android (apk-promo.js) ---- */
+.apk-promo-overlay{
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,0.75);
+  align-items:center;justify-content:center;padding:16px;
+}
+.apk-promo-overlay.open{display:flex;}
+.apk-promo-box{position:relative;display:inline-block;line-height:0;}
+.apk-promo-img{
+  display:block;max-width:92vw;max-height:88vh;width:auto;height:auto;
+  border-radius:var(--rl);
+}
+.apk-hit{position:absolute;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.apk-hit-x{background:none;border:none;padding:0;margin:0;}
+/* Coordenadas medidas y verificadas dibujándolas sobre TSC-apk.png
+   (ancho/desktop) — no re-medir sin motivo, ver NEXT_SESSION.md §2. */
+.apk-hit-dl{left:11.48%;top:80.04%;width:76.89%;height:14.35%;}
+.apk-hit-x{left:88.44%;top:1.83%;width:9.35%;height:10.69%;}
+/* Mismas coordenadas para TSC-apk2.png (móvil/vertical) — el <source
+   media> del <picture> ya cambió la imagen, acá solo se sobreescriben
+   los % de los mismos dos anchors. */
+@media (max-width:700px){
+  .apk-hit-dl{left:10.09%;top:84.10%;width:79.71%;height:8.83%;}
+  .apk-hit-x{left:84.75%;top:1.02%;width:11.89%;height:8.54%;}
+}
