@@ -109,6 +109,71 @@ async function dbAdd(store, data){
   });
 }
 
+/* Reserva n IDs consecutivos en UNA sola transacción (bloque para dbAddMany) */
+function _fsReserveIds(store, n){
+  const ref = db.collection('_counters').doc(store);
+  return db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const base = ((snap.exists ? snap.data().value : 0) || 0);
+    tx.set(ref, { value: base + n }, { merge: true });
+    return Array.from({length:n}, (_,i)=>base+1+i);
+  });
+}
+
+/* Inserta N registros de una vez. Misma semántica que dbAdd, pero en lote:
+   - Firestore: 1 transacción reserva el bloque de IDs + writeBatch (límite 500 ops).
+   - IndexedDB: una sola transacción readwrite.
+   Devuelve los IDs asignados en el mismo orden que `items`. */
+async function dbAddMany(store, items){
+  if(!Array.isArray(items) || !items.length) return [];
+  if (_isFS()) {
+    const ids = await _fsReserveIds(store, items.length);
+    for(let i=0;i<items.length;i+=450){
+      const chunk = items.slice(i, i+450);
+      const batch = db.batch();
+      chunk.forEach((data,j)=>{
+        const id = ids[i+j];
+        batch.set(db.collection(store).doc(String(id)), {...data, id});
+      });
+      await batch.commit();
+    }
+    return ids;
+  }
+  return new Promise((res,rej)=>{
+    const tx  = db.transaction(store,'readwrite');
+    const os  = tx.objectStore(store);
+    const ids = [];
+    items.forEach(data=>{
+      const req = os.add({...data});
+      req.onsuccess = ()=>ids.push(req.result);
+    });
+    tx.oncomplete = ()=>res(ids);
+    tx.onerror    = ()=>rej(tx.error);
+    tx.onabort    = ()=>rej(new Error('Transaction aborted'));
+  });
+}
+
+/* Borra N registros de una vez (mismo criterio de lote que dbAddMany). */
+async function dbDeleteMany(store, ids){
+  if(!Array.isArray(ids) || !ids.length) return;
+  if (_isFS()) {
+    for(let i=0;i<ids.length;i+=450){
+      const batch = db.batch();
+      ids.slice(i, i+450).forEach(id=>batch.delete(db.collection(store).doc(String(id))));
+      await batch.commit();
+    }
+    return;
+  }
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(store,'readwrite');
+    const os = tx.objectStore(store);
+    ids.forEach(id=>os.delete(id));
+    tx.oncomplete = ()=>res();
+    tx.onerror    = ()=>rej(tx.error);
+    tx.onabort    = ()=>rej(new Error('Transaction aborted'));
+  });
+}
+
 async function dbPut(store, data){
   if (_isFS()) {
     let id = data.id;
