@@ -2,7 +2,13 @@
 /* ============================================================
    POPUP PROMOCIONAL DE LA APK — apk-promo.js
    ------------------------------------------------------------
-   Popup + ítem fijo de menú que ofrecen descargar la APK Android.
+   Popup + fila fija en Configuración (⚙, siempre accesible sin
+   depender de qué página esté abierta) que ofrecen descargar la APK
+   Android. La fila vive en Configuración y no en #pub-sidebar a
+   propósito: ese sidebar quedó permanentemente oculto
+   (display:none!important en redesign.css) desde la migración al
+   topnav — cualquier cosa agregada ahí no es alcanzable por un
+   usuario real, aunque pase checks de DOM que no revisen el padre.
    Las dos imágenes (tsc-src/assets/TSC-apk.webp desktop/ancho,
    TSC-apk2.webp móvil/vertical) son diseño final: la X de cerrar y
    el botón "DESCARGAR APP APK" son píxeles pintados adentro, no UI
@@ -71,16 +77,15 @@ function tscApkDownloadClick() {
 }
 
 function _apkInit() {
-  const navItem = document.getElementById('pub-nav-apk-download');
+  const settingsGroup = document.getElementById('settings-apk-group');
+  const settingsLink = document.getElementById('settings-apk-download');
   const overlay = document.getElementById('apk-promo-overlay');
   const dlLink = overlay?.querySelector('.apk-hit-dl');
 
   if (!_apkShouldOffer()) return; // TSC_APK_URL vacía o dentro de la app nativa: nada se muestra
 
-  if (navItem) {
-    navItem.href = TSC_APK_URL;
-    navItem.style.display = '';
-  }
+  if (settingsLink) settingsLink.href = TSC_APK_URL;
+  if (settingsGroup) settingsGroup.style.display = '';
 
   if (dlLink) dlLink.href = TSC_APK_URL;
 
