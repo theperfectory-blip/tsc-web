@@ -441,10 +441,16 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
           } else {
             centerCell = `<span style="font-size:11px;color:var(--txt3);">vs</span>`;
           }
+          // luisTeam (generado por "Generar fechas" en fixture-gen.js): marca de qué lado
+          // juega Luis en este partido puntual. Campo aditivo — la mayoría de los partidos
+          // no lo tiene.
+          const luisBadge = m.luisTeam!=null ? `<span title="Partido de Luis" style="display:inline-flex;align-items:center;color:var(--gold);">${typeof _FX_GAMEPAD_ICON!=='undefined'?_FX_GAMEPAD_ICON:''}</span>` : '';
+          const luisA = m.luisTeam===m.teamA ? luisBadge : '';
+          const luisB = m.luisTeam===m.teamB ? luisBadge : '';
           return `<tr>
-            <td style="text-align:right;padding:7px 10px;${fA}">${teamAName}</td>
+            <td style="text-align:right;padding:7px 10px;${fA}">${luisA?`<span style="display:inline-flex;align-items:center;gap:5px;justify-content:flex-end;">${luisA}${teamAName}</span>`:teamAName}</td>
             <td style="text-align:center;width:120px;">${centerCell}</td>
-            <td style="padding:7px 10px;${fB}">${teamBName}</td>
+            <td style="padding:7px 10px;${fB}">${luisB?`<span style="display:inline-flex;align-items:center;gap:5px;">${luisB}${teamBName}</span>`:teamBName}</td>
             <td style="font-size:11px;color:var(--txt3);white-space:nowrap;padding-right:6px;">${diaCorto}</td>
             <td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✕</button></td>
           </tr>`;
