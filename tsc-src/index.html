@@ -207,6 +207,10 @@
       <span class="pub-nav-label">Historial</span>
     </div>
     <div id="pub-sidebar-historial" class="pub-sidebar-sub"></div>
+    <a class="pub-nav-item" id="pub-nav-apk-download" href="" target="_blank" rel="noopener" onclick="tscApkDownloadClick()" title="Descargar App" style="display:none;">
+      <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+      <span class="pub-nav-label">Descargar App</span>
+    </a>
   </nav>
 </div>
 
@@ -503,6 +507,20 @@
   </div>
 </div>
 
+<!-- Popup promocional de la APK Android — ver tsc-src/js/apk-promo.js.
+     La X y el botón "DESCARGAR APP APK" son píxeles de la imagen; los
+     <a>/<button> de abajo son anchors invisibles superpuestos en %. -->
+<div class="apk-promo-overlay" id="apk-promo-overlay">
+  <div class="apk-promo-box">
+    <picture>
+      <source media="(max-width:700px)" srcset="assets/TSC-apk2.webp">
+      <img class="apk-promo-img" src="assets/TSC-apk.webp" alt="Descargá la app de Team Subs Cup">
+    </picture>
+    <a class="apk-hit apk-hit-dl" href="" target="_blank" rel="noopener" onclick="tscApkDownloadClick()" aria-label="Descargar APK"></a>
+    <button type="button" class="apk-hit apk-hit-x" onclick="closeApkPromo()" aria-label="Cerrar"></button>
+  </div>
+</div>
+
 <!-- Confirm -->
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-box">
@@ -560,6 +578,7 @@
 <script src="js/palmares.js"></script>
 <script src="js/calendar.js"></script>
 <script src="js/livematch.js"></script>
+<script src="js/apk-promo.js"></script>
 
 
 </body>
