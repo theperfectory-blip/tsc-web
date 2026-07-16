@@ -127,35 +127,46 @@ Resultado:
 
 ## Deploy automático (GitHub Actions)
 
-Para que cada push a GitHub desplegue automáticamente:
+Para que cada push a `main` despliegue automáticamente (así funciona ya este repo en
+producción):
 
-### 1. Generar clave de servicio
+### 1. Generar el service account de deploy
+
+El workflow actual (`FirebaseExtended/action-hosting-deploy@v0`) necesita la **clave JSON de
+un service account de Google Cloud**, no un token de `firebase login:ci` (mecanismo viejo,
+deprecado). La forma más simple es dejar que el propio CLI lo arme:
 
 ```bash
-# En la terminal
-firebase login:ci
+firebase init hosting:github
 ```
 
-Te dará un token. Cópialo.
+Esto crea el service account con los permisos correctos, lo agrega como secret en tu repo de
+GitHub automáticamente, y puede generar el workflow por vos (si ya tenés uno como
+`.github/workflows/firebase-hosting.yml`, decile que no lo sobreescriba).
 
-### 2. Agregar secret en GitHub
+### 2. Secret en GitHub (si lo hacés a mano)
 
-1. Ve a tu repo GitHub → **Settings** → **Secrets and variables** → **Actions**
-2. **New repository secret**:
-   - Nombre: `FIREBASE_SERVICE_ACCOUNT_TSC_WEB`
-   - Valor: el token que copiaste
-3. **Add secret**
+1. Google Cloud Console → **IAM & Admin** → **Service Accounts** → creá uno con rol de deploy
+   de Hosting (o usá el que crea el paso 1) → **Keys** → **Add key** → JSON → descargalo
+2. Repo de GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository
+   secret**
+   - Nombre: el que use tu `firebase-hosting.yml` en `firebaseServiceAccount:` (en este repo:
+     `FIREBASE_SERVICE_ACCOUNT_TSC_WEB_YUNA`)
+   - Valor: el contenido completo del JSON descargado
 
 ### 3. Workflow de GitHub Actions
 
-El archivo `.github/workflows/firebase-hosting.yml` ya está configurado. Edita:
-
+`.github/workflows/firebase-hosting.yml` ya dispara solo con push a `main`:
 ```yaml
-# Línea ~20: cambia "firebase-migration" a "main" si despliegas desde main
-if: github.ref == 'refs/heads/main'
+on:
+  push:
+    branches:
+      - main
 ```
-
-Luego cada push a `main` desplegará automáticamente.
+No hace falta editar nada más — solo actualizar `projectId` si es otro proyecto Firebase.
+**Ojo:** este workflow **solo despliega Hosting**. Las reglas de Firestore/Storage
+(`firebase/*.rules`) y las Cloud Functions (`functions/`) se despliegan a mano — ver "Reglas
+de Firestore" arriba y `functions/README.md` si existe.
 
 ## Verificación
 

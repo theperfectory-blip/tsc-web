@@ -59,3 +59,7 @@ desktop.ini
 # ─── Locales / no van a main (sacados del control de versión, se conservan en disco) ───
 tsc-src/prototype.html
 HISTORIAL ENCUENTROS TSC FINAL.ods
+
+# ─── Notas de sesión (handoff entre sesiones de trabajo, no documentación
+#     del proyecto — puede contener uids/datos reales de pruebas en prod) ───
+NEXT_SESSION.md

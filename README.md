@@ -1,6 +1,6 @@
 # TSC Web — Copa Suscriptores
 
-Plataforma web modular para gestión y seguimiento de torneos de fútbol. Diseñada para **YunaCoins**, una economía virtual creada por TheRationalUser para el youtuber Luis Yuna para [PES 5](https://www.konami.com/games/pes/). 
+Plataforma web modular para gestión y seguimiento de torneos de fútbol. Diseñada para **YunaCoins**, una economía virtual creada por el youtuber Jimbo ([@TheRationalUser](https://www.youtube.com/@TheRationalUser)) para PES 4 y PES 5.
 
 Con esta app, presidentes de equipos pueden:
 - Ver sus equipos, jugadores y palmarés en tiempo real
@@ -19,18 +19,22 @@ Y los administradores pueden:
 - **Multi-rol**: público (anónimo) · presidente (su equipo) · admin (total)
 - **Tiempo real**: onSnapshot en Firestore para panel público y partidos live
 - **Gestión completa**: competiciones, fases, grupos, brackets, playoffs, supercopa, historial
-- **Palmarés**: reordenar campeones, copa fullscreen, animaciones
-- **Soporte móvil**: responsive design, notificaciones push (FCM) en móviles
+- **Generador de fechas**: calendario round-robin automático por grupo, respetando reglas de rotación del torneo
+- **Palmarés**: sala de trofeos 3D (Three.js + GLB), reordenar campeones, copa fullscreen, animaciones
+- **App Android nativa** (Capacitor): APK firmada, distribución directa fuera de Play Store — ver `docs/android-build.md`
+- **Notificaciones push (FCM)**: aviso manual "tu equipo juega hoy" + aviso automático de "próximo partido" al marcar un partido en vivo — backend en Cloud Functions (`functions/`)
+- **Soporte móvil**: responsive design de punta a punta
 - **Audio**: sonido en vivo (radar ping), efectos UI, configuración volumen
 - **Logos**: subida a Cloudinary, optimización de almacenamiento
 - **Temas**: dark/light mode persistido en localStorage
 
 ## 🛠️ Stack
 
-- **Frontend**: HTML5 / CSS3 (custom properties, Grid, Flexbox) / JavaScript vanilla (async/await, ES2020+)
-- **Backend**: Firebase (Firestore + Auth + FCM + Hosting)
+- **Frontend**: HTML5 / CSS3 (custom properties, Grid, Flexbox) / JavaScript vanilla (async/await, ES2020+), sin bundler
+- **Backend**: Firebase (Firestore + Auth + FCM + Hosting) + Cloud Functions (Node, `functions/`) para el envío de push
+- **App nativa**: Capacitor (Android), `android/` — misma web empaquetada, sin UI nativa separada
 - **CDN**: Firebase SDK v12.14.0 (compat), Cloudinary (logos)
-- **Dev**: `npx serve` para local, GitHub Actions CI/CD, graphify (code analysis)
+- **Dev**: `npx serve` para local, GitHub Actions CI/CD (deploy de Hosting), graphify (code analysis)
 
 ## 📁 Estructura
 
@@ -77,7 +81,23 @@ tsc-src/                      # ⭐ App principal (modular)
       ├── chibi/              # Sprites sorteo (8 frames)
       └── sounds/             # drumroll.mp3
 
+functions/                    # Cloud Functions (backend de notificaciones push)
+  └── lib/                    # notifyStreamToday, notifyStartupContinuation, onMatchWentLive
+
+android/                      # App nativa Capacitor (misma web, empaquetada)
+  └── app/src/main/           # Manifest, recursos nativos (ícono, splash, notificación)
+
+firebase/                     # Reglas de seguridad (Firestore + Storage)
+  ├── firestore.rules
+  └── storage.rules
+
+scripts/                      # Utilidades de build (build-www.mjs, conversión de imágenes)
+
+releases/android/             # APKs firmadas + RELEASE_NOTES.md por versión
+
 docs/                         # Documentación
+  ├── android-build.md        # Ciclo debug/release de la app Android
+  ├── android-push-notifications.md
   ├── FIREBASE_MIGRATION_PLAN.md
   └── firebase-setup-steps.md
 ```
@@ -99,20 +119,20 @@ Requiere cuenta Firebase en [console.firebase.google.com](https://console.fireba
 
 1. Crea proyecto Firebase (plan Spark es gratuito)
 2. Habilita **Firestore**, **Authentication** (email + Google), **Hosting**, **Cloud Messaging**
-3. Copia credenciales a `tsc-src/js/firebase-config.js`:
-   ```javascript
-   const FIREBASE_CONFIG = {
-     apiKey: "...",
-     authDomain: "...",
-     projectId: "...",
-     // ... más campos
-   };
+3. Copia las plantillas y completa tus valores reales (ambas están gitignored — nunca se
+   pisan las de otro dev/fork, y **no son secretas**: ver `SECURITY.md`):
+   ```bash
+   cp tsc-src/js/firebase-config.example.js tsc-src/js/firebase-config.js
+   cp tsc-src/js/cloudinary.example.js tsc-src/js/cloudinary.js
    ```
-4. Despliega reglas Firestore desde `firebase/firestore.rules` (consola web)
+   Completa `firebase-config.js` con los datos de **Project settings → Tus apps → SDK setup**
+   de tu proyecto Firebase.
+4. Despliega reglas Firestore/Storage: `firebase deploy --only firestore:rules,storage:rules`
+   (ver `DEPLOY.md`)
 5. Configura **Cloudinary** (gratis) para logos:
    - Crea cuenta en cloudinary.com
-   - Crea unsigned upload preset
-   - Actualiza `js/cloudinary.js` con tus credenciales
+   - Crea un *unsigned upload preset*
+   - Completa `cloudName`/`uploadPreset` en `js/cloudinary.js`
 
 ### Deploy a Firebase Hosting
 
@@ -126,27 +146,26 @@ O automático con GitHub Actions (ver `.github/workflows/firebase-hosting.yml`).
 
 ## 📊 Estado actual
 
-✅ **Completado (Fases 0–7 base)**
+✅ **Completado**
 - Backend Firestore con IDs enteros autoincrementales
-- Auth multi-rol (público/president/admin)
-- Reglas de seguridad por rol
+- Auth multi-rol (público/president/admin), reglas de seguridad por rol
 - Partidos en vivo con actualizaciones tiempo real
+- Generador de calendario round-robin por grupo (botón "Generar fechas")
 - Calendario público con partido en vivo del momento y siguiente partido
-- UI responsive móvil (375px+)
-- Audio: radar ping, sonidos UI, configuración volumen
-- Logos vía Cloudinary
-- Palmarés completo con reordenamiento manual
+- UI responsive móvil (375px+), audio (radar ping, sonidos UI)
+- Logos vía Cloudinary, palmarés con sala de trofeos 3D
 - Rediseño visual "motion site" desplegado en producción
+- **App Android (Capacitor)**: APK firmada, distribución directa — ver `releases/android/`
+- **Notificaciones push (FCM)**: backend en Cloud Functions, probado de punta a punta en
+  producción (envío manual + trigger automático al marcar un partido en vivo)
 
-⏳ **En desarrollo (Fase 7 hardening)**
-- Pulido de modo claro: contraste, focus ring y superficies del Sorteo
-- Fondo global dinámico / mouse tracker
-- QA visual final dark/light + reduced motion
+⏳ **En desarrollo**
+- Popup promocional de descarga de la APK (web pública)
+- Merge del backend de push a `main` (vive en `feature/capacitor-android`)
 
-⏭️ **Siguiente (Fase 8)**
-- APK Android (Capacitor)
-- Notificaciones nativas FCM para presidentes
-- Correo SMTP personalizado queda como backlog opcional, no bloqueante
+⏭️ **Backlog / no bloqueante**
+- Correo SMTP personalizado para los correos automáticos de Firebase (verificación, reset)
+- YunaCoins en tiempo real + flujo de solicitudes presidente→admin (integración Streamlabs)
 
 ## 🔧 Arquitectura
 
@@ -169,10 +188,9 @@ Ver [CLAUDE.md](./CLAUDE.md) para documentación completa de módulos.
 
 ### Tests
 
-No hay suite automatizada (es una SPA sin test runner). Prueba manualmente:
-- Localmente con `serve` y DevTools
-- En preview: `cd tsc-src && serve .`
-- En prod: https://teamsubscup.web.app
+El frontend es una SPA sin test runner — pruébalo manualmente con `serve` + DevTools, o en
+prod (https://teamsubscup.web.app). El backend de notificaciones (`functions/`) sí tiene un
+harness reproducible contra el emulador: `cd functions && npm run test:emulator`.
 
 ### Linting
 
@@ -188,7 +206,7 @@ Privado por ahora. Contacta con el propietario para términos de distribución.
 
 ## 👤 Autor
 
-Jimbo (Rational User) — creador de YunaCoins y la Copa Suscriptores.
+Jimbo ([@TheRationalUser](https://www.youtube.com/@TheRationalUser) en YouTube) — creador de YunaCoins y la Copa Suscriptores.
 
 ---
 
