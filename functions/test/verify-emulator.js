@@ -77,7 +77,7 @@ messaging.sendEachForMulticast = async (message) => {
 const { notifyStreamToday } = require('../lib/notifyStreamToday');
 const { notifyStartupContinuation } = require('../lib/notifyStartupContinuation');
 const { onMatchWentLive } = require('../lib/onMatchWentLive');
-const { notifyRecipients, formatKickoffForRecipient, TOURNAMENT_TZ } = require('../lib/notify');
+const { notifyRecipients, resolvePresidentRecipients, formatKickoffForRecipient, TOURNAMENT_TZ } = require('../lib/notify');
 
 const DATE = '2026-07-15';
 const SEASON = 1;
@@ -276,7 +276,40 @@ async function run() {
   console.log('[7] formatKickoffForRecipient: Lima=' + kickoffLima + ' BuenosAires=' + kickoffBA + ' tzInválido=' + kickoffInvalidTz + ' sinTz=' + kickoffNoTz);
   console.log('  ✓ TOURNAMENT_TZ=America/Lima, offset correcto para un destinatario en otra zona, y fallback sin romper el envío ante timezone inválido/ausente');
 
-  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-7) ===');
+  // ---- Escenario 8: quién es destinatario lo decide `teamId`, no `role`.
+  // Luis y el dueño del torneo son admin Y presidentes de su club a la vez:
+  // filtrar por role==='president' los dejaba sin los avisos de su propio
+  // equipo — los dos usuarios más importantes del sistema, en silencio.
+  // Ids 88x aparte para no tocar los conteos exactos del escenario 1. ----
+  await db.collection('users').doc('adminPres').set({
+    role: 'admin', teamId: 888, pushEnabled: true, fcmTokens: ['tokAdminPres'], timezone: 'America/Lima',
+  });
+  await db.collection('users').doc('adminSinClub').set({
+    role: 'admin', teamId: null, pushEnabled: true, fcmTokens: ['tokAdminSinClub'], timezone: 'America/Lima',
+  });
+
+  const r8 = await resolvePresidentRecipients(db, [888]);
+  console.log('[8] resolvePresidentRecipients([888]) →', r8.map(r => r.uid));
+  assert.strictEqual(r8.length, 1, 'REGRESIÓN: un admin que además preside un club DEBE recibir los avisos de su equipo');
+  assert.strictEqual(r8[0].uid, 'adminPres', 'el destinatario resuelto debe ser el admin-presidente del equipo 888');
+  assert.deepStrictEqual(r8[0].tokens, ['tokAdminPres'], 'debe resolver sus tokens');
+  console.log('  ✓ admin con teamId recibe (el predicado es teamId, no role)');
+
+  // Un admin SIN club no representa a nadie: sigue afuera, y no por el rol
+  // sino porque su teamId es null.
+  const r8b = await resolvePresidentRecipients(db, [888, 1, 2]);
+  assert.ok(!r8b.some(r => r.uid === 'adminSinClub'), 'un admin sin club (teamId null) no debe ser destinatario de nada');
+  console.log('  ✓ admin sin club (teamId null) sigue excluido');
+
+  // Las 3 condiciones que NO son el rol siguen filtrando igual que antes.
+  await db.collection('users').doc('adminPresSinPush').set({
+    role: 'admin', teamId: 889, pushEnabled: false, fcmTokens: ['tokX'], timezone: 'America/Lima',
+  });
+  const r8c = await resolvePresidentRecipients(db, [889]);
+  assert.strictEqual(r8c.length, 0, 'pushEnabled=false sigue excluyendo, sea admin o presidente');
+  console.log('  ✓ pushEnabled=false sigue excluyendo también para un admin-presidente');
+
+  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-8) ===');
 }
 
 run().then(() => process.exit(0)).catch(e => { console.error('FALLÓ:', e); process.exit(1); });

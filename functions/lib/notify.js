@@ -68,10 +68,18 @@ function tokenHint(token) {
   return `${s.slice(0, 8)}...${s.slice(-6)}`;
 }
 
-/* Presidentes con push activado de los equipos en `teamIds`. Lee toda la
-   colección `users` y filtra en memoria (misma razón que getOrderedMatchesForDate:
-   sin índice compuesto role+teamId(in)+pushEnabled desplegado, y la colección
-   es chica). */
+/* Usuarios con push activado que representan a alguno de los equipos en
+   `teamIds`. El predicado es `teamId`, NO `role`: un admin puede además ser
+   presidente de un club (Luis y el dueño del torneo lo son), y filtrar por rol
+   lo dejaría sin los avisos de su propio equipo. `role` es autorización —
+   quién puede ENVIAR, ver notifyStreamToday.js; `teamId` es identidad — a quién
+   representa, que es lo único que importa acá. Un usuario no puede
+   auto-asignarse `teamId` (la allowlist de update en firestore.rules no lo
+   incluye, solo un admin lo escribe), así que tenerlo ya significa representar
+   a ese equipo. Un admin sin club queda fuera por el chequeo de abajo.
+   Lee toda la colección `users` y filtra en memoria (misma razón que
+   getOrderedMatchesForDate: sin índice compuesto teamId(in)+pushEnabled
+   desplegado, y la colección es chica). */
 async function resolvePresidentRecipients(db, teamIds) {
   const wanted = new Set(teamIds.filter(id => id != null));
   if (!wanted.size) return [];
@@ -79,7 +87,6 @@ async function resolvePresidentRecipients(db, teamIds) {
   const recipients = [];
   for (const doc of snap.docs) {
     const u = doc.data();
-    if (u.role !== 'president') continue;
     if (u.teamId == null || !wanted.has(u.teamId)) continue;
     if (u.pushEnabled !== true) continue;
     const tokens = Array.isArray(u.fcmTokens) ? u.fcmTokens.filter(Boolean) : [];
