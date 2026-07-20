@@ -38,6 +38,13 @@
              evitarlo). Decisión del usuario: los grupos de 8 se quedan
              con esa fecha doble.
 
+   legs=2 (ida y vuelta) → MODO ESPEJO: el σ de arriba se busca solo para
+   la ida; la vuelta usa σ⁻¹ (ver _fxBuildLuisRouteForLegs), así que el
+   equipo que Luis maneja en la fecha N de la ida es el que ENFRENTA en su
+   fecha espejo N+mitad de la vuelta (mismo cruce, control invertido). Si
+   n es par, la fecha doble de la ida tiene su espejo en N+mitad de la
+   vuelta (también doble, misma pareja de equipos).
+
    n=4 y n=6 son IMPOSIBLES — verificado por enumeración exhaustiva (no
    muestreo), 0 recorridos en ambos. No es un bug ni depende del
    calendario particular: K4 y K6 tienen 1-factorización única salvo
@@ -241,22 +248,39 @@ function fxBuildLuisRoute(rounds, teamIds, nodeBudget=FX_ROUTE_NODE_BUDGET){
   return { route, exhausted:false };
 }
 
-/* legs=2: un recorrido INDEPENDIENTE por vuelta (σ distinto en ida y en
-   vuelta) — decisión del usuario: así Luis maneja y enfrenta a todos DOS
-   veces en la temporada completa (una por vuelta), no una sola vez total.
-   `rounds` acá SÍ es la temporada completa (ida+vuelta concatenada, como
-   la devuelve fxBuildRoundRobin con legs=2). Mismo contrato {route,exhausted}
-   que fxBuildLuisRoute: si CUALQUIERA de las dos vueltas queda inconclusa
-   por presupuesto, el combinado también cuenta como inconcluso (no imposible). */
+/* legs=2: MODO ESPEJO — el equipo que Luis maneja en la ronda N de la ida
+   es el equipo al que ENFRENTA en su ronda espejo N+mitad de la vuelta
+   (decisión del usuario, reemplaza la versión anterior de recorridos
+   independientes). `rounds` acá es la temporada completa (ida+vuelta
+   concatenada, como la devuelve fxBuildRoundRobin con legs=2).
+
+   Demostración: sea σ la ida (Luis maneja x, enfrenta σ(x)). Pedir "lo que
+   manejó en la ida lo enfrenta en la vuelta" es pedir que la vuelta use
+   σ⁻¹: si σ(x)=y, σ⁻¹(y)=x — Luis maneja y en la vuelta y enfrenta x. La
+   inversa de una permutación sin puntos fijos y sin 2-ciclos sigue siendo
+   sin puntos fijos y sin 2-ciclos (las mismas 3 condiciones que ya exige
+   fxBuildLuisRoute para σ), así que σ⁻¹ es automáticamente válida — no
+   hace falta una segunda búsqueda por backtracking. Y como
+   fxBuildRoundRobin garantiza que la ronda N+mitad es EXACTAMENTE el
+   mismo par de equipos que la ronda N (solo invierte local/visita), los
+   n cruces de σ⁻¹ cubren automáticamente las `mitad` rondas de la vuelta.
+
+   Efecto colateral: si la ida encuentra recorrido, la vuelta SIEMPRE lo
+   tiene (ya no hay caso "ida encontró, vuelta se quedó sin presupuesto"). */
 function _fxBuildLuisRouteForLegs(rounds, teamIds, legs, nodeBudget=FX_ROUTE_NODE_BUDGET){
   if(parseInt(legs,10) !== 2) return fxBuildLuisRoute(rounds, teamIds, nodeBudget);
   const half = rounds.length/2;
   const ida = fxBuildLuisRoute(rounds.slice(0, half), teamIds, nodeBudget);
   if(!ida.route) return { route:null, exhausted: ida.exhausted };
-  const vuelta = fxBuildLuisRoute(rounds.slice(half), teamIds, nodeBudget);
-  if(!vuelta.route) return { route:null, exhausted: vuelta.exhausted };
-  vuelta.route.forEach(r=>{ r.ronda += half; }); // remapear a numeración GLOBAL de fecha
-  return { route: ida.route.concat(vuelta.route), exhausted:false };
+
+  // Espejo: mismo cruce {teamA,teamB} en la ronda N+half, pero maneja el
+  // que NO manejaba en la ida (así lo enfrenta).
+  const vuelta = ida.route.map(r => ({
+    ronda: r.ronda + half,
+    teamA: r.teamA, teamB: r.teamB,
+    maneja: (r.maneja === r.teamA) ? r.teamB : r.teamA,
+  }));
+  return { route: ida.route.concat(vuelta), exhausted:false };
 }
 
 const FX_ROUTE_MAX_ATTEMPTS = 20;

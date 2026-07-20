@@ -16,12 +16,20 @@ const PHASE_TYPES = [
 
 
 
+/* Orden de listado: campo `order` explícito (editable por drag&drop) con
+   fallback a `id` para competiciones que todavía no lo tienen — así no se
+   reordenan solas al desplegar. Usado por el grid admin y el listado público. */
+function _sortComps(comps){
+  const key = c => c.order ?? c.id;
+  return comps.slice().sort((a,b)=>key(a)-key(b));
+}
+
 /* ----------------------------------------------------------
    RENDER ADMIN — COMPETICIONES
    ---------------------------------------------------------- */
 async function renderAdmComps(){
   const el = document.getElementById('adm-comps-content');
-  const comps = await getForSeason('competitions');
+  const comps = _sortComps(await getForSeason('competitions'));
   const currentSeason = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
   const seasonName = getSeasonName(currentSeason);
   const isFinalized = currentSeason?.status==='finished';
@@ -29,11 +37,18 @@ async function renderAdmComps(){
   el.innerHTML = `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:14px;color:var(--txt2);">${comps.length} competición(es) en ${seasonName}</div>
-    <button class="btn btn-primary" onclick="openCompModal()" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Nueva competición</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" onclick="openCompReorderModal()" ${isFinalized||comps.length<2?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>
+        <svg style="display:inline;vertical-align:-3px;margin-right:4px;" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        Reordenar
+      </button>
+      <button class="btn btn-primary" onclick="openCompModal()" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Nueva competición</button>
+    </div>
   </div>
   ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
   <div id="comps-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;"></div>
-  <div id="comp-modal-wrap"></div>`;
+  <div id="comp-modal-wrap"></div>
+  <div id="comp-reorder-wrap"></div>`;
 
   window._seasonFinalized = isFinalized;
   await renderCompsGrid(comps);
@@ -222,4 +237,139 @@ async function deleteComp(id){
       }
     }
   );
+}
+
+/* ----------------------------------------------------------
+   ORDEN DE COMPETICIONES — lista 1D con drag & drop (mismo
+   patrón que openCriteriaModal en standings.js: variables de
+   arrastre propias, re-render solo de la lista al soltar).
+   ---------------------------------------------------------- */
+let _compDragId = null, _compDragOverId = null;
+
+async function openCompReorderModal(){
+  const comps = _sortComps(await getForSeason('competitions'));
+  window._compOrderDraft = comps.map(c=>String(c.id));
+  window._compOrderMap   = Object.fromEntries(comps.map(c=>[String(c.id), c]));
+
+  const wrap = document.getElementById('comp-reorder-wrap');
+  if(!wrap) return;
+
+  wrap.innerHTML = `
+  <div class="modal-overlay open" id="comp-reorder-modal">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-hdr">
+        <div class="modal-title">Reordenar competiciones</div>
+        <button class="modal-close" onclick="closeCompReorderModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:13px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">
+          Arrastra para cambiar el orden en que aparecen (admin y público).
+        </div>
+        <div id="comp-reorder-list"
+          style="display:flex;flex-direction:column;gap:5px;min-height:44px;padding:6px;background:var(--card2);border-radius:var(--r);border:1px solid var(--brd);"
+          ondragover="event.preventDefault()" ondrop="compReorderDropOnContainer(event)"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="saveCompOrder()">Guardar orden</button>
+        <button class="btn" onclick="closeCompReorderModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+  _renderCompReorderList();
+}
+
+function _renderCompReorderList(){
+  const el = document.getElementById('comp-reorder-list');
+  if(!el) return;
+  const order = window._compOrderDraft || [];
+  const map   = window._compOrderMap || {};
+  el.innerHTML = order.map((id,i)=>{
+    const c = map[id];
+    if(!c) return '';
+    return `
+    <div draggable="true" data-id="${id}"
+      ondragstart="compReorderDragStart(event)"
+      ondragover="compReorderDragOver(event)"
+      ondragleave="compReorderDragLeave(event)"
+      ondrop="compReorderDrop(event)"
+      ondragend="compReorderDragEnd()"
+      style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--r);cursor:grab;transition:background 0.15s,border-color 0.15s;">
+      <span style="color:var(--txt3);display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+        <svg viewBox="0 0 16 10" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <line x1="1" y1="2" x2="15" y2="2"/><line x1="1" y1="5" x2="15" y2="5"/><line x1="1" y1="8" x2="15" y2="8"/>
+        </svg>
+      </span>
+      <span style="font-size:12px;font-weight:700;color:var(--txt3);min-width:16px;">${i+1}.</span>
+      <div style="width:10px;height:10px;border-radius:50%;background:${c.color||'var(--gold)'};flex-shrink:0;"></div>
+      <span style="font-size:14px;flex:1;">${_esc(c.name)}</span>
+    </div>`;
+  }).join('');
+}
+
+function compReorderDragStart(e){
+  _compDragId = e.currentTarget.dataset.id;
+  e.currentTarget.style.opacity='0.45';
+  e.dataTransfer.effectAllowed='move';
+}
+function compReorderDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  const el = e.currentTarget;
+  const id = el.dataset?.id;
+  if(id && id!==_compDragId && id!==_compDragOverId){
+    _compDragOverId=id;
+    document.querySelectorAll('#comp-reorder-list [data-id]').forEach(x=>{ x.style.borderColor=''; x.style.background=''; });
+    el.style.borderColor='var(--gold)';
+    el.style.background='rgba(201,168,76,0.08)';
+  }
+}
+function compReorderDragLeave(e){
+  e.currentTarget.style.borderColor='';
+  e.currentTarget.style.background='';
+}
+function compReorderDragEnd(){
+  document.querySelectorAll('#comp-reorder-list [data-id]').forEach(x=>{ x.style.opacity=''; x.style.borderColor=''; x.style.background=''; });
+  _compDragId=null; _compDragOverId=null;
+}
+function compReorderDrop(e){
+  e.preventDefault(); e.stopPropagation();
+  if(!_compDragId) return;
+  const targetId = e.currentTarget.dataset?.id;
+  if(!targetId || targetId===_compDragId){ compReorderDragEnd(); return; }
+  const ord = [...(window._compOrderDraft||[])];
+  const from = ord.indexOf(_compDragId), to = ord.indexOf(targetId);
+  if(from===-1||to===-1){ compReorderDragEnd(); return; }
+  ord.splice(from,1); ord.splice(to,0,_compDragId);
+  window._compOrderDraft = ord;
+  _renderCompReorderList();
+}
+function compReorderDropOnContainer(e){
+  e.preventDefault();
+  if(!_compDragId) return;
+  const ord = [...(window._compOrderDraft||[])];
+  const from = ord.indexOf(_compDragId);
+  if(from===-1) return;
+  ord.splice(from,1); ord.push(_compDragId);
+  window._compOrderDraft = ord;
+  _renderCompReorderList();
+}
+
+function closeCompReorderModal(){
+  const el = document.getElementById('comp-reorder-wrap');
+  if(el) el.innerHTML='';
+  window._compOrderDraft = null;
+  window._compOrderMap = null;
+}
+
+async function saveCompOrder(){
+  const order = window._compOrderDraft || [];
+  const map   = window._compOrderMap || {};
+  for(let i=0;i<order.length;i++){
+    const c = map[order[i]];
+    if(!c || c.order===i) continue; // sin cambio
+    await dbPut('competitions', {...c, order:i});
+  }
+  closeCompReorderModal();
+  showToast('Orden guardado');
+  renderAdmComps();
 }

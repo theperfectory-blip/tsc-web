@@ -36,7 +36,7 @@ async function renderAdmFases(){
   const el = document.getElementById('adm-fases-content');
 
   // Si no hay competición seleccionada, mostrar selector
-  const comps = await getForSeason('competitions');
+  const comps = _sortComps(await getForSeason('competitions'));
   const currentSeason = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
   const isFinalized = currentSeason?.status==='finished';
 
@@ -804,7 +804,7 @@ async function deletePhase(id){
    ---------------------------------------------------------- */
 async function renderPubComps(){
   const el = document.getElementById('pub-comps-content');
-  const comps = await getForSeason('competitions');
+  const comps = _sortComps(await getForSeason('competitions'));
   // v1.7: filtro tolerante (igual criterio que renderPubPanel)
   const isActiveStatus = s => {
     if(s==null) return true;

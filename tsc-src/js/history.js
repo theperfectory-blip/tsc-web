@@ -157,7 +157,7 @@ async function appendOrUpdateHistory(matchId){
     const maxStatic = staticRows.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
     const maxIdb    = idbAll.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
     const nextId    = Math.max(maxStatic, maxIdb) + 1;
-    await dbAdd('matchHistory', {id:nextId, ...data, createdAt: new Date().toISOString()});
+    await dbPut('matchHistory', {id:nextId, ...data, createdAt: new Date().toISOString()});
   }
 }
 

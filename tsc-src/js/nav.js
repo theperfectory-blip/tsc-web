@@ -562,7 +562,7 @@ async function renderPubSidebarComps(){
     return;
   }
   window._pubState = window._pubState || {};
-  const comps = await getForSeason('competitions').catch(()=>[]);
+  const comps = _sortComps(await getForSeason('competitions').catch(()=>[]));
   const isActiveSt = s => {
     if(s==null) return true;
     const n = String(s).trim().toLowerCase();

@@ -156,7 +156,7 @@ async function renderPubPanel(){
   _pubFaseCarousel?.dispose?.();
   _pubCompCarousel = null;
   _pubFaseCarousel = null;
-  const comps = await getForSeason('competitions');
+  const comps = _sortComps(await getForSeason('competitions'));
 
   // filtro tolerante — acepta 'active', mayúsculas, espacios, y comps sin status
   const isActiveStatus = s => {
@@ -345,9 +345,22 @@ function _pubScoresPagerHtml(groupKey, matches, scoreRow, rondaMeta, gi){
   const keys = [...byRonda.keys()].sort((a,b)=> a==='∅'?1 : b==='∅'?-1 : a-b);
   // Dentro de cada jornada: orden por id (orden en que el admin cargó los partidos).
   byRonda.forEach(arr=>arr.sort((x,y)=>(x.id||0)-(y.id||0)));
-  // Índice activo: el guardado (clamp) o, por defecto, la última jornada (como en admin).
+  // Índice activo: el guardado (clamp, preserva navegación manual) o, por defecto,
+  // la primera jornada PENDIENTE entre las que ya tienen fecha/hora asignada en el
+  // calendario (rondaMeta) — si todas esas están completas, la última con fecha; si
+  // ninguna jornada tiene fecha asignada todavía, la última creada (fallback previo).
   let idx = _pubScoreDateIdx[groupKey];
-  if(idx==null) idx = keys.length-1;
+  if(idx==null){
+    const isComplete = k => (byRonda.get(k)||[]).every(m=>m.goalsA!=null && m.goalsB!=null && !m.live);
+    const withDate = keys.filter(k=>k!=='∅' && rondaMeta && rondaMeta[`${gi}_${k}_date`]);
+    if(withDate.length){
+      const pending = withDate.find(k=>!isComplete(k));
+      const target  = pending!=null ? pending : withDate[withDate.length-1];
+      idx = keys.indexOf(target);
+    } else {
+      idx = keys.length-1;
+    }
+  }
   idx = Math.max(0, Math.min(keys.length-1, idx));
   _pubScoreDateIdx[groupKey] = idx;
 
@@ -433,9 +446,10 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
     if(!hasPos){ let acc=0; for(const z of zones){ acc+=z.count||0; if(pos<acc) return z; } }
     return null;
   };
-  // Acento verde (clasifica) para zonas no-últimas; rojo (cae) para la última de 2+.
-  const zoneCls = z => { if(!z) return ''; const idx=zones.indexOf(z); return (zones.length>1 && idx===zones.length-1) ? 'zone-down' : 'zone-up'; };
   const colorOf = c => /^#[0-9A-Fa-f]{3,8}$/.test(String(c||'')) ? c : 'var(--gold)';
+  // Color real de la zona (mismo criterio que el posStyle de renderGroupTable admin,
+  // standings.js:261-263) — nunca fijo verde/rojo, sigue lo que configuró el admin.
+  const posStyle = z => z ? `background:${colorOf(z.color)}22;color:${colorOf(z.color)};` : '';
 
   let html = '';
   for(let gi=0; gi<ngroups; gi++){
@@ -454,9 +468,9 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       const name = td.name||'';
       const ini = (td.ini||name||'').substring(0,3).toUpperCase();
       const col = colorOf(td.color);
-      return `<div class="stand-row ${zoneCls(zone)}" style="--team-color:${col};">
+      return `<div class="stand-row" style="--team-color:${col};">
         <span class="st-fix">
-          <span class="st-pos">${i+1}</span>
+          <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
           <span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>
           <span class="st-name">${_tkEsc(name)}</span>
         </span>
@@ -493,7 +507,12 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
     html += `
     <div class="comps-duo" style="margin-bottom:22px;">
       <div class="stand-card">
-        <div class="stand-hdr"><span class="stand-title">${_tkEsc(groupName)}</span></div>
+        <div class="stand-hdr">
+          <span class="stand-title">${_tkEsc(groupName)}</span>
+          <button type="button" class="stand-criteria-btn" onclick="openCriteriaModal(${phaseId}, '${containerId}', false)" title="Criterios de clasificación" aria-label="Ver criterios de clasificación">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </button>
+        </div>
         <div class="stand-scrollwrap">
           <div class="stand-scroll">
             <div class="stand-grid">
