@@ -31,6 +31,16 @@
   opacity:0.5;cursor:not-allowed;
 }
 
+/* #main tiene max-width:1400px (layout.css) para el resto de las páginas
+   admin — acá se pierde ~25% de ancho a la derecha en pantallas grandes
+   porque las dos columnas del split ya son anchas de por sí y quieren usar
+   toda la pantalla. Se libera el cap SOLO mientras esta página está activa
+   (no afecta Dashboard/Equipos/etc.). Calibrado por defecto para 1920px
+   (1080p): sidebar 200px + padding 36px ≈ 1684px de contenido; el grid de
+   abajo reparte ese ancho de forma fluida (fr-based), así que escala solo
+   para cualquier resolución mayor o menor sin necesitar otro breakpoint. */
+#main:has(#page-calendario-admin.active){max-width:none;}
+
 /* Calendario de partidos (izq, más ancha) + Cronograma (der) lado a lado
    en desktop. Breakpoint calibrado al ANCHO REAL DISPONIBLE en admin (con
    sidebar de 200px + padding de #main), no al de .comps-duo (esa vista es
