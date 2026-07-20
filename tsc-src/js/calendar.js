@@ -485,30 +485,47 @@ async function renderAdmCalendar(){
    CRONOGRAMA ADMIN — labels de días
    ================================================================ */
 
-/* Guarda (debounced) texto Y tipo de un día — lee ambos desde el DOM */
+/* Guarda (debounced) texto Y tipo de un día — lee ambos desde el DOM.
+   El debounce por sí solo NO alcanza: solo cancela un setTimeout pendiente,
+   no un guardado que ya está en vuelo (dbGetAll+dbAdd/dbPut viajando a
+   Firestore). Dos ediciones separadas por >400ms pero cercanas entre sí
+   podían ambas ver "no existe" y ambas crear un doc → duplicados para el
+   mismo día. _calLblInFlight encadena los guardados de una misma fecha:
+   el N+1 espera a que el N haya terminado antes de preguntar "¿existe?". */
 const _calLblTimer = {};
-async function _calSaveDayLabel(dateStr){
+const _calLblInFlight = {};
+function _calSaveDayLabel(dateStr){
   clearTimeout(_calLblTimer[dateStr]);
-  _calLblTimer[dateStr] = setTimeout(async ()=>{
-    try {
-      const inp  = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
-      const sel  = document.querySelector(`.cal-lbl-type[data-date="${CSS.escape(dateStr)}"]`);
-      const text = inp ? (inp.value || '') : '';
-      const type = sel ? (sel.value || '') : '';
-      const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
-      const payload = { season: STATE.season, date: dateStr, text, type };
-      if(existing.length){
-        await dbPut('calDayLabels', {...existing[0], ...payload});
-      } else if(text.trim() || type){
-        await dbAdd('calDayLabels', payload);
-      }
-      /* feedback visual en el input */
-      if(inp){ inp.classList.add('cal-lbl-inp--saved'); setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900); }
-    } catch(e){
-      console.warn('[calDayLabels] Error al guardar:', e.code || e.message);
-      showToast('Error al guardar. Verifica permisos de Firestore.');
-    }
+  _calLblTimer[dateStr] = setTimeout(()=>{
+    const prev = _calLblInFlight[dateStr] || Promise.resolve();
+    _calLblInFlight[dateStr] = prev.then(()=>_calDoSaveDayLabel(dateStr)).catch(()=>{});
   }, 400);
+}
+
+async function _calDoSaveDayLabel(dateStr){
+  try {
+    const inp  = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
+    const sel  = document.querySelector(`.cal-lbl-type[data-date="${CSS.escape(dateStr)}"]`);
+    const text = inp ? (inp.value || '') : '';
+    const type = sel ? (sel.value || '') : '';
+    const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
+    const payload = { season: STATE.season, date: dateStr, text, type };
+    if(existing.length){
+      /* Auto-reparación: si quedaron duplicados de una carrera vieja, esta
+         edición los consolida — el primero se actualiza con el valor actual
+         del DOM (da igual cuál sea "el primero", Firestore no garantiza
+         orden) y el resto se borra por id. */
+      await dbPut('calDayLabels', {...existing[0], ...payload});
+      for(const dup of existing.slice(1)) await dbDelete('calDayLabels', dup.id);
+    } else if(text.trim() || type){
+      await dbAdd('calDayLabels', payload);
+    }
+    /* feedback visual en el input */
+    if(inp){ inp.classList.add('cal-lbl-inp--saved'); setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900); }
+  } catch(e){
+    console.warn('[calDayLabels] Error al guardar:', e.code || e.message);
+    showToast('Error al guardar. Verifica permisos de Firestore.');
+  }
 }
 
 /* Offset de mes mostrado en el cronograma admin (0 = mes actual) */

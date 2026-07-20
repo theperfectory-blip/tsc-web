@@ -31,6 +31,22 @@
   opacity:0.5;cursor:not-allowed;
 }
 
+/* Calendario de partidos (izq, más ancha) + Cronograma (der) lado a lado
+   en desktop. Breakpoint calibrado al ANCHO REAL DISPONIBLE en admin (con
+   sidebar de 200px + padding de #main), no al de .comps-duo (esa vista es
+   full-width, sin sidebar) — a 1200px de viewport quedan ~950px de
+   contenido, suficientes para que .cal-adm-row no se apriete. */
+.cal-adm-split{
+  display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;
+}
+@media(min-width:1200px){
+  .cal-adm-split{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);}
+  /* En columna lado a lado el margen superior del Cronograma (pensado para
+     cuando iba apilado debajo del Calendario) desalinea el arranque de las
+     dos columnas — se quita solo en este breakpoint. */
+  .cal-adm-split .cal-lbl-section{margin-top:0;}
+}
+
 .cal-adm-section{
   margin-bottom:28px;
 }

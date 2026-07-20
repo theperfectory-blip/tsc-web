@@ -396,7 +396,13 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
       .filter(m=>m.goalsA!=null && m.goalsB!=null)
       .map(m=>(m.playedAt||m.date||'').substring(0,10))
       .filter(Boolean);
-    const fechaDisplay = formatJornadaDateRange(fechasJugadas, defaultDate);
+    // Fechas programadas por partido individual (página Calendario) de los
+    // pendientes — cubre el caso en que se programó desde ahí y no desde
+    // "Fecha" de la jornada (rondaMeta puede no tener nada).
+    const fechasProgramadas = ms
+      .filter(m=>m.goalsA==null && m.scheduledDate)
+      .map(m=>m.scheduledDate);
+    const fechaDisplay = formatJornadaDateRange(fechasJugadas, defaultDate, fechasProgramadas);
 
     const pendientes=ms.filter(m=>m.goalsA==null).length;
     return `<div class="card" style="margin-bottom:10px;overflow:hidden;">
@@ -463,17 +469,12 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
 /* ----------------------------------------------------------
    v1.7: Helpers de fechas para jornadas
    ---------------------------------------------------------- */
-function formatJornadaDateRange(fechasISO, defaultDate){
-  // Si no hay fechas reales jugadas, usar la fecha por defecto si existe
-  if(!fechasISO.length){
-    if(defaultDate){
-      const d = new Date(defaultDate+'T12:00:00');
-      return d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'}).replace(/\./g,'') + ' (programada)';
-    }
-    return null;
-  }
-  // Deduplicar y ordenar
-  const unique = [...new Set(fechasISO)].sort();
+/* Núcleo de formateo: fecha única o rango (sin sufijo), a partir de un
+   array de fechas ISO (YYYY-MM-DD). Reusado tanto por partidos ya jugados
+   como por partidos programados pendientes. */
+function _fmtJornadaDateCore(datesISO){
+  const unique = [...new Set(datesISO)].sort();
+  if(!unique.length) return null;
   if(unique.length===1){
     const d = new Date(unique[0]+'T12:00:00');
     return d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'}).replace(/\./g,'');
@@ -498,6 +499,27 @@ function formatJornadaDateRange(fechasISO, defaultDate){
   const fStr = first.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'}).replace(/\./g,'');
   const lStr = last.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'}).replace(/\./g,'');
   return `${fStr} – ${lStr}`;
+}
+
+/* Precedencia: (1) partidos ya jugados → rango real, sin sufijo. (2) fecha
+   sugerida de la jornada (rondaMeta, "Fecha" en Partidos) → fecha única
+   "(programada)". (3) fechas por partido individual de los pendientes
+   (página Calendario) → rango "(programada)" — cubre el caso de programar
+   desde Calendario sin haber tocado "Fecha" de la jornada. (4) nada. */
+function formatJornadaDateRange(fechasISO, defaultDate, fechasProgramadas){
+  if(fechasISO.length) return _fmtJornadaDateCore(fechasISO);
+
+  if(defaultDate){
+    const d = new Date(defaultDate+'T12:00:00');
+    return d.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'}).replace(/\./g,'') + ' (programada)';
+  }
+
+  if(fechasProgramadas && fechasProgramadas.length){
+    const rango = _fmtJornadaDateCore(fechasProgramadas);
+    return rango ? `${rango} (programada)` : null;
+  }
+
+  return null;
 }
 
 /* ----------------------------------------------------------
@@ -549,14 +571,24 @@ async function saveJornadaDate(phaseId, groupIdx, ronda, applyAll){
   meta[`${groupIdx}_${ronda}_date`] = dateStr;
   await dbPut('phases', {...phase, rondaMeta:meta});
 
+  // Cascada a los partidos: así "Calendario" (que solo mira m.scheduledDate,
+  // calendar.js:271) refleja la fecha apenas se guarda desde acá. rondaMeta
+  // no tiene hora, así que scheduledTime existente se preserva siempre
+  // (spread de ...m antes de pisar scheduledDate).
+  const matches = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
   if(applyAll){
     const playedAtISO = new Date(dateStr+'T12:00:00').toISOString();
-    const matches = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
     for(const m of matches){
-      await dbPut('matches', {...m, playedAt:playedAtISO});
+      await dbPut('matches', {...m, playedAt:playedAtISO, scheduledDate:dateStr});
     }
     showToast(`Fecha aplicada a ${matches.length} partido(s) de la Jornada ${ronda}`);
   } else {
+    // Solo los que todavía no tienen fecha propia — no pisar lo ya
+    // programado a mano en la página Calendario.
+    const sinFecha = matches.filter(m=>!m.scheduledDate);
+    for(const m of sinFecha){
+      await dbPut('matches', {...m, scheduledDate:dateStr});
+    }
     showToast(`Fecha programada para Jornada ${ronda}`);
   }
 
