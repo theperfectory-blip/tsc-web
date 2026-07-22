@@ -16,6 +16,18 @@
 
 function _isFS(){ return typeof USE_FIRESTORE !== 'undefined' && USE_FIRESTORE; }
 
+/* Guard de verificación: localhost apunta a la base real de producción —
+   no hay sandbox. Con window.__TSC_READONLY__ activo, toda escritura lanza
+   en vez de tocar la base, para que una verificación automatizada no pueda
+   escribir ni por accidente. Sin el flag, el comportamiento es idéntico
+   al de siempre. Se activa DESPUÉS de window.onload — nunca antes, o
+   seedInitialData() revienta al arrancar una base vacía. */
+function _assertWritable(op, store){
+  if (typeof window !== 'undefined' && window.__TSC_READONLY__){
+    throw new Error(`[TSC readonly] Escritura bloqueada: ${op} en "${store}".`);
+  }
+}
+
 function initDB(){
   if (_isFS()) {
     db = firebase.firestore();
@@ -51,6 +63,7 @@ function _fsNextId(store){
 /* Mantiene el contador Firestore por encima de IDs restaurados explícitamente.
    IndexedDB ajusta su key generator automáticamente al hacer put(id). */
 function dbEnsureCounterAtLeast(store, value){
+  _assertWritable('dbEnsureCounterAtLeast', store);
   if (!_isFS()) return Promise.resolve();
   const target = Number(value);
   if (!Number.isSafeInteger(target) || target < 1) return Promise.resolve();
@@ -96,6 +109,7 @@ function dbGet(store, id){
 }
 
 async function dbAdd(store, data){
+  _assertWritable('dbAdd', store);
   if (_isFS()) {
     const id = await _fsNextId(store);
     await db.collection(store).doc(String(id)).set({ ...data, id });
@@ -125,6 +139,7 @@ function _fsReserveIds(store, n){
    - IndexedDB: una sola transacción readwrite.
    Devuelve los IDs asignados en el mismo orden que `items`. */
 async function dbAddMany(store, items){
+  _assertWritable('dbAddMany', store);
   if(!Array.isArray(items) || !items.length) return [];
   if (_isFS()) {
     const ids = await _fsReserveIds(store, items.length);
@@ -155,6 +170,7 @@ async function dbAddMany(store, items){
 
 /* Borra N registros de una vez (mismo criterio de lote que dbAddMany). */
 async function dbDeleteMany(store, ids){
+  _assertWritable('dbDeleteMany', store);
   if(!Array.isArray(ids) || !ids.length) return;
   if (_isFS()) {
     for(let i=0;i<ids.length;i+=450){
@@ -175,6 +191,7 @@ async function dbDeleteMany(store, ids){
 }
 
 async function dbPut(store, data){
+  _assertWritable('dbPut', store);
   if (_isFS()) {
     let id = data.id;
     if (id == null) id = await _fsNextId(store); // por si llaman put sin id
@@ -190,6 +207,7 @@ async function dbPut(store, data){
 }
 
 function dbDelete(store, id){
+  _assertWritable('dbDelete', store);
   if (_isFS()) {
     return db.collection(store).doc(String(id)).delete();
   }
