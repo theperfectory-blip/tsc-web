@@ -999,6 +999,8 @@ async function renderPubCalendar(){
     const iniA = (mmTa?.ini || mmTaN).substring(0,3).toUpperCase();
     const iniB = (mmTb?.ini || mmTbN).substring(0,3).toUpperCase();
     const colA = mmTa?.color || '#333', colB = mmTb?.color || '#333';
+    const crestA = mmTa?.logo ? `<img src="${_esc(mmTa.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
+    const crestB = mmTb?.logo ? `<img src="${_esc(mmTb.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
     const time = m.scheduledTime ? m.scheduledTime.substring(0,5) : null;
     const played = m.goalsA!=null && m.goalsB!=null;
     /* en vuelta el marcador también se invierte visualmente */
@@ -1015,13 +1017,13 @@ async function renderPubCalendar(){
       ${lead}
       <span class="mm-fixture">
         <span class="mm-side mm-side-a">
-          <span class="mm-crest" style="--tc:${_esc(colA)};">${_esc(iniA)}</span>
+          <span class="mm-crest" style="--tc:${_esc(colA)};">${crestA}</span>
           <span class="mm-name">${_esc(mmTaN)}</span>
         </span>
         <span class="mm-sep">–</span>
         <span class="mm-side mm-side-b">
           <span class="mm-name">${_esc(mmTbN)}</span>
-          <span class="mm-crest" style="--tc:${_esc(colB)};">${_esc(iniB)}</span>
+          <span class="mm-crest" style="--tc:${_esc(colB)};">${crestB}</span>
         </span>
       </span>
       ${legBadge}

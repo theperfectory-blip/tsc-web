@@ -620,7 +620,14 @@ body.sala-open{overflow:hidden;}
 @media(min-width:1000px){
   .comps-duo{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px;}
 }
-.stand-card{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
+/* --stand-fix = ancho de la columna fija (posición+escudo+nombre). Única
+   fuente de verdad: .stand-fade.l vive en una rama del DOM distinta de
+   .stand-row (ver .stand-scrollwrap más abajo), así que declararla en
+   .stand-grid no la sincroniza con el fade — tiene que vivir en el
+   ancestro común. 236px cubre el nombre más largo medido ("HALCONES
+   SOLARES FC", 129px de texto) con holgura + deja ~101px de stats
+   visibles a 375px — medido, no estimado (ver REPORTE_FIX_LOGOS_NOMBRES.md). */
+.stand-card{--stand-fix:236px;background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
 .stand-hdr{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;border-bottom:1px solid var(--brd);
@@ -636,9 +643,9 @@ body.sala-open{overflow:hidden;}
 .stand-scrollwrap{position:relative;}
 .stand-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 .stand-scroll::-webkit-scrollbar{height:0;display:none;}
-.stand-grid{min-width:496px;}
+.stand-grid{min-width:calc(var(--stand-fix) + 294px);}
 .stand-colhead,.stand-row{
-  display:grid;grid-template-columns:164px repeat(7,minmax(42px,1fr));
+  display:grid;grid-template-columns:var(--stand-fix) repeat(7,minmax(42px,1fr));
   align-items:center;
 }
 .stand-row{font-family:'Barlow Condensed';font-size:15px;font-weight:600;
@@ -652,7 +659,7 @@ body.sala-open{overflow:hidden;}
   padding:9px 8px 9px 14px;}
 .stand-row:hover .st-fix{background:color-mix(in srgb, var(--team-color) 13%, var(--card));}
 .st-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;border-radius:4px;}
-.st-crest{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+.st-crest{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;overflow:hidden;
   background:var(--team-color);color:#fff;font-family:'Bebas Neue';font-size:10px;
   transition:transform var(--dur-fast) var(--ease-out-soft),box-shadow var(--dur-fast);}
 .st-name{padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;}
@@ -669,7 +676,7 @@ body.sala-open{overflow:hidden;}
 .stand-fade{position:absolute;top:0;bottom:0;width:46px;pointer-events:none;z-index:3;
   opacity:0;transition:opacity .22s var(--ease-out);}
 .stand-fade.r{right:0;background:linear-gradient(90deg,transparent,var(--card));}
-.stand-fade.l{left:164px;background:linear-gradient(270deg,transparent,var(--card));}
+.stand-fade.l{left:var(--stand-fix);background:linear-gradient(270deg,transparent,var(--card));}
 .stand-card.more-r .stand-fade.r{opacity:1;}
 .stand-card.more-l .stand-fade.l{opacity:1;}
 .stand-legend{display:flex;gap:18px;padding:10px 18px;border-top:1px solid var(--brd);
@@ -948,7 +955,7 @@ body.sala-open{overflow:hidden;}
 .metro-match:hover{transform:translateX(4px);border-color:var(--gold-b);background:var(--card2);}
 .metro-match .mm-time{font-family:'Bebas Neue';font-size:15px;color:var(--gold-ink);min-width:44px;}
 .metro-match .mm-comp{font-size:10px;letter-spacing:1px;color:var(--txt3);text-transform:uppercase;margin-left:auto;white-space:nowrap;}
-.metro-match .mm-crest{width:20px;height:20px;border-radius:5px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--tc,#333);color:#fff;font-family:'Bebas Neue';font-size:8px;}
+.metro-match .mm-crest{width:20px;height:20px;border-radius:5px;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--tc,#333);color:#fff;font-family:'Bebas Neue';font-size:8px;}
 .metro-match .mm-fixture{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
 .metro-match .mm-side{display:flex;align-items:center;gap:7px;min-width:0;flex:1;}
 .metro-match .mm-side-b{justify-content:flex-end;text-align:right;}

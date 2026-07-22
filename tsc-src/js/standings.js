@@ -282,8 +282,8 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
         </td>
         <td style="padding:7px 8px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <div style="width:24px;height:24px;border-radius:50%;background:${displayColor};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;overflow:hidden;" id="tlogo-${phaseId}-${gi}-${i}">
-              ${displayIni.substring(0,3).toUpperCase()}
+            <div style="width:24px;height:24px;border-radius:50%;background:${displayColor};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;overflow:hidden;">
+              ${teamData.logo ? `<img src="${_esc(teamData.logo)}" style="width:100%;height:100%;object-fit:cover;">` : displayIni.substring(0,3).toUpperCase()}
             </div>
             <span style="font-size:14px;font-weight:500;">${displayName}</span>${confBadge}${refBadge}
           </div>
@@ -372,17 +372,6 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
         <div style="margin-left:auto;font-size:12px;color:var(--txt3);">✓ Clasificado matemáticamente</div>
       </div>
     </div>`;
-
-    // Cargar logos async
-    setTimeout(async()=>{
-      for(let si=0;si<standings.length;si++){
-        const team = await dbGet('teams', standings[si].id);
-        if(team && team.logo){
-          const lel = document.getElementById(`tlogo-${phaseId}-${gi}-${si}`);
-          if(lel) lel.innerHTML=`<img src="${team.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-        }
-      }
-    },100);
   }
 
   el.innerHTML = html || `<div style="color:var(--txt3);font-size:16px;padding:16px;">Sin grupos con equipos asignados.</div>`;
@@ -1028,7 +1017,7 @@ async function resolveTeamData(teamIdOrName){
 
   if(!team) {
     // Si no existe, devolver como desconocido
-    return {name: `${teamIdOrName}`, color: '#888', ini: '?'};
+    return {name: `${teamIdOrName}`, color: '#888', ini: '?', logo: null};
   }
 
   // Devolver datos actuales del equipo (dinámicos)
@@ -1036,7 +1025,8 @@ async function resolveTeamData(teamIdOrName){
     name: team.name,
     color: team.color || '#888',
     color2: team.color2 || team.color || '#888',
-    ini: team.ini || '?'
+    ini: team.ini || '?',
+    logo: team.logo || null
   };
 }
 

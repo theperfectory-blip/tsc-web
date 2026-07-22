@@ -468,10 +468,13 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       const name = td.name||'';
       const ini = (td.ini||name||'').substring(0,3).toUpperCase();
       const col = colorOf(td.color);
+      const crest = td.logo
+        ? `<span class="st-crest"><img src="${_tkEsc(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
+        : `<span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>`;
       return `<div class="stand-row" style="--team-color:${col};">
         <span class="st-fix">
           <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
-          <span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>
+          ${crest}
           <span class="st-name">${_tkEsc(name)}</span>
         </span>
         <span class="st-c">${s.pj}</span><span class="st-c">${s.v}</span><span class="st-c">${s.e}</span>

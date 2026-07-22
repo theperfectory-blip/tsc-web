@@ -658,11 +658,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   font-size: 11px;
   font-weight: 700;
   color: #fff;
   flex: none;
 }
+.mv-badge img { width: 100%; height: 100%; object-fit: cover; }
 
 .mv-vig-name {
   font-size: 14px;
@@ -815,8 +817,9 @@ button.sala-dot {
 .palm-reorder-row.is-vigente .palm-reorder-pos{ color:var(--gold); font-weight:700; }
 .palm-reorder-crest{
   width:26px; height:26px; border-radius:6px; display:inline-flex; align-items:center;
-  justify-content:center; color:#fff; font-size:10px; font-weight:700; flex:none;
+  justify-content:center; overflow:hidden; color:#fff; font-size:10px; font-weight:700; flex:none;
 }
+.palm-reorder-crest img{ width:100%; height:100%; object-fit:cover; }
 .palm-reorder-name{ flex:1; font-size:13px; min-width:0; }
 .palm-reorder-extra{ color:var(--txt3); font-size:11px; }
 .palm-reorder-vig{
