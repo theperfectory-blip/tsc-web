@@ -163,6 +163,18 @@ function _pfVitrinaChips(teamTitles){
     .sort((a, b) => _pfCompImportanceIdx(a.key) - _pfCompImportanceIdx(b.key));
 }
 
+/* Gating del botón de fotos, reusado por la tarjeta de perfil y la ficha
+   de club: admin ve el botón aunque no haya fotos todavía (es quien las
+   carga, no solo quien las mira — A.4), el resto solo si ya hay alguna. */
+function _pfPhotosButtonState(teamTitles){
+  const hasChampionPhotos = teamTitles.some(r => _palmGallerySafeItems(r.gallery).length > 0);
+  return {
+    hasChampionPhotos,
+    show: hasChampionPhotos || AUTH.role === 'admin',
+    label: hasChampionPhotos ? 'Fotos de campeón' : 'Agregar fotos'
+  };
+}
+
 async function renderProfileBody(){
   const body = document.getElementById('profile-body');
   if (!body) return;
@@ -206,12 +218,13 @@ async function renderProfileBody(){
   // Palmarés del club: títulos ganados, para el contador del header y la vitrina
   const teamTitles = team ? await _pfTeamTitles(team.id).catch(()=>[]) : [];
   const titlesTotal = teamTitles.length;
+  // PALMARES_COMPS es un global mutable de palmares.js que puede quedar
+  // stale (override viejo en memoria de una sesión anterior en esta misma
+  // pestaña) — refrescarlo antes de resolver trofeos/colores, mismo guard
+  // que ya usa bracket.js:421 (profile.js carga antes que palmares.js).
+  if (typeof loadPalmaresComps === 'function') await loadPalmaresComps();
   const vitrinaChips = _pfVitrinaChips(teamTitles);
-  const hasChampionPhotos = teamTitles.some(r => _palmGallerySafeItems(r.gallery).length > 0);
-  // Admin ve el botón aunque no haya fotos todavía: es quien las carga, no
-  // solo quien las mira (A.4 escondía el único camino para subir la primera).
-  const showPhotosBtn = hasChampionPhotos || AUTH.role === 'admin';
-  const photosBtnLabel = hasChampionPhotos ? 'Fotos de campeón' : 'Agregar fotos';
+  const { show: showPhotosBtn, label: photosBtnLabel } = _pfPhotosButtonState(teamTitles);
 
   // ── Crest para el header ─────────────────────────────────────
   const crestContent = currentLogo
@@ -280,8 +293,8 @@ async function renderProfileBody(){
   }
 
   if(team){
-    bd += `<button type="button" class="pp-sec" onclick="profileViewMyMatches()">
-      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver el historial de mi club</span>
+    bd += `<button type="button" class="pp-sec" onclick="openClubDossier(${team.id},this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver ficha de mi club</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>`;
   }
@@ -357,8 +370,15 @@ async function renderProfileBody(){
     </div>`;
 }
 
-/* ── Estadísticas del club ──────────────────────────────────── */
-
+/* ── Estadísticas del club (+ rivalidades, misma pasada) ────────
+   Riesgo #5 del macro: las rivalidades NO abren un segundo escaneo del
+   histórico — salen del mismo loop sobre _getResolvedRecords() que ya
+   arma W/D/L/GF/GA. El rival de cada fila es el lado que NO es el club
+   (isA ? equipoB : equipoA); se agrupa por el mismo _norm que ya usa la
+   función para reconocerse a sí misma (soporta renames del club, no del
+   rival — no se pidió eso). Cambio aditivo al retorno: el único caller
+   existente (renderProfileBody) desestructura W/D/L/GF/GA/P y no rompe
+   por el campo `rivals` de más. */
 async function _loadTeamStats(teamId, team){
   const _norm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
   const allNames = new Set([
@@ -369,6 +389,7 @@ async function _loadTeamStats(teamId, team){
   const rows = await _getResolvedRecords();
 
   let W=0, D=0, L=0, GF=0, GA=0;
+  const rivalTally = new Map(); // _norm(rival) -> {name, W, D, L, P}
   for (const r of rows){
     if (r.golesA == null || r.golesB == null) continue;
     const isA = allNames.has(_norm(r.equipoA));
@@ -377,9 +398,23 @@ async function _loadTeamStats(teamId, team){
     const gf = isA ? r.golesA : r.golesB;
     const ga = isA ? r.golesB : r.golesA;
     GF += gf; GA += ga;
-    if (gf > ga) W++; else if (gf < ga) L++; else D++;
+    let outcome;
+    if (gf > ga){ W++; outcome = 'W'; }
+    else if (gf < ga){ L++; outcome = 'L'; }
+    else { D++; outcome = 'D'; }
+
+    const rivalName = isA ? r.equipoB : r.equipoA;
+    const rivalKey = _norm(rivalName);
+    if (!rivalKey) continue;
+    if (!rivalTally.has(rivalKey)) rivalTally.set(rivalKey, { name: rivalName, W:0, D:0, L:0, P:0 });
+    const rv = rivalTally.get(rivalKey);
+    rv.P++;
+    if (outcome==='W') rv.W++; else if (outcome==='L') rv.L++; else rv.D++;
   }
-  return { W, D, L, GF, GA, P: W+D+L };
+
+  const rivals = [...rivalTally.values()].sort((a,b) => b.P - a.P).slice(0, 5);
+
+  return { W, D, L, GF, GA, P: W+D+L, rivals };
 }
 
 function _donutSVG(segs, size=72){
@@ -763,15 +798,6 @@ async function profileChangePassword(){
   }
 }
 
-function profileViewMyMatches(){
-  const team = window._profileTeam;
-  if (!team) return;
-  closeModal('profile-modal');
-  if (typeof _histState !== 'undefined'){ _histState.qA = team.name; _histState.qB = ''; _histState.page = 1; }
-  setMode('public');
-  goPublicPage('historial');
-}
-
 /* Helper global — formatea una fecha en la zona horaria del usuario (DST automático) */
 function formatInUserTZ(date, opts = {}){
   const tz = (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
@@ -1089,4 +1115,265 @@ function _photoViewerTrapKeydown(e){
   } else {
     if (active===last || !el.contains(active)){ e.preventDefault(); first.focus(); }
   }
+}
+
+/* ── Ficha de club ───────────────────────────────────────────── */
+/* openClubDossier(teamId) — SIEMPRE parametrizada por equipo, nunca por
+   "mi club": no lee window._profileTeam ni AUTH.teamId para decidir qué
+   mostrar. La tarjeta de perfil (este archivo) es una de sus dos entradas
+   posibles; la grilla pública de equipos (Slice C, no construido acá) va
+   a ser la otra, pasando su propio teamId. Lo único que cambia entre
+   ambas es de dónde sale ese argumento. */
+
+let _clubDossierTeam = null; // equipo de la ficha ACTUALMENTE abierta — solo para wirear el botón de salida, no para decidir qué renderizar
+
+function _clubDossierClose(){ closeModal('club-dossier-modal'); }
+
+function _injectClubDossier(){
+  if (document.getElementById('club-dossier-modal')) return;
+  const el = document.createElement('div');
+  el.className = 'modal-overlay';
+  el.id = 'club-dossier-modal';
+  el.setAttribute('role','dialog');
+  el.setAttribute('aria-modal','true');
+  el.setAttribute('aria-labelledby','club-dossier-title');
+  el.innerHTML = `
+    <div class="modal club-dossier-modal-inner">
+      <div class="modal-hdr">
+        <div class="modal-title" id="club-dossier-title">Ficha del club</div>
+        <button type="button" class="modal-close" aria-label="Cerrar" onclick="closeModal('club-dossier-modal')">×</button>
+      </div>
+      <div class="modal-body" id="club-dossier-body"></div>
+    </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('mousedown', e => { if (e.target === el) closeModal('club-dossier-modal'); });
+
+  // Puede quedar anidada sobre el drawer de perfil (.profile-backdrop.open) —
+  // misma pila que el drawer, el modal de fotos y el visor (_pfEscStack):
+  // Escape cierra solo esta capa, nunca el drawer que pueda quedar debajo.
+  let wasOpen = false;
+  new MutationObserver(()=>{
+    const open = el.classList.contains('open');
+    if (open && !wasOpen){
+      wasOpen = true;
+      _pfPushEscLayer(_clubDossierClose);
+    } else if (!open && wasOpen){
+      wasOpen = false;
+      _pfPopEscLayer(_clubDossierClose);
+    }
+  }).observe(el, { attributes:true, attributeFilter:['class'] });
+}
+
+async function openClubDossier(teamId, triggerEl){
+  const team = await dbGet('teams', teamId).catch(()=>null);
+  if (!team) return;
+  _injectClubDossier();
+  document.getElementById('club-dossier-title').textContent = team.name || 'Ficha del club';
+  document.getElementById('club-dossier-body').innerHTML = `<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
+  openModal('club-dossier-modal');
+  await _renderClubDossierBody(team);
+}
+
+/* Formatea una fecha-sola YYYY-MM-DD (scheduledDate) en local, sin pasar
+   por ninguna zona horaria: `new Date('2026-07-24')` la parsea como
+   medianoche UTC, y formatInUserTZ (pensada para timestamps reales) la
+   corre un día atrás para cualquier usuario al oeste de UTC. Acá no hay
+   hora real que preservar — es un día de calendario, se arma la fecha con
+   año/mes/día locales directamente para que ese componente nunca cambie. */
+function _pfFormatScheduledDate(dateStr){
+  const [y, mo, d] = String(dateStr).split('-').map(Number);
+  return new Intl.DateTimeFormat('es', { day:'2-digit', month:'short' }).format(new Date(y, mo-1, d));
+}
+
+/* ── Temporada actual: posiciones de grupo + próximo partido ────
+   Un club puede estar en varias fases de tipo 'groups' A LA VEZ (dato
+   real verificado: equipo 61 en 2da División y Copa del Emperador
+   simultáneamente). Decisión explícita del usuario: se listan TODAS, sin
+   elegir una — y sin filtrar por `published` (hoy las 4 fases de grupos
+   de la temporada no están publicadas; filtrar las dejaría vacías para
+   todos). Límite conocido que esto deja para el Slice C: ver reporte.
+
+   Corrección de spec, verificada leyendo el código: se pidió matchear la
+   posición del club por NOMBRE contra el array de getStandingsForPhase,
+   asumiendo que sus entradas tienen `.name`. No es así —
+   calcGroupStandings (standings.js:45-50) devuelve {id,pts,pj,...} por
+   equipo, sin `.name`; phase.groups[gi] también son teamIds, no nombres
+   (confirmado en _pubRenderGroupsBroadcast, public.js, que llama a esos
+   mismos arrays "teamIds"). Matchear por `.id` es más simple y evita
+   cualquier ambigüedad de rename — acá hay una referencia numérica real,
+   a diferencia de Rivalidades, donde la fuente es texto libre del
+   histórico y sí hace falta _norm. */
+async function _pfCurrentSeasonSpots(team){
+  const phases = (await getForSeason('phases')).filter(p => p.type === 'groups' && p.groups);
+  if (!phases.length) return { spots: [], nextMatch: null };
+
+  const comps = await getForSeason('competitions');
+  const compById = new Map(comps.map(c => [c.id, c]));
+
+  const spots = [];
+  for (const phase of phases){
+    let groupIdx = null;
+    for (const [gi, ids] of Object.entries(phase.groups)){
+      if ((ids||[]).some(id => id === team.id)){ groupIdx = parseInt(gi); break; }
+    }
+    if (groupIdx === null) continue;
+    const standingsByGroup = await getStandingsForPhase(phase.id).catch(()=>({}));
+    const groupStandings = standingsByGroup[groupIdx] || [];
+    const idx = groupStandings.findIndex(s => s.id === team.id);
+    if (idx === -1) continue;
+    spots.push({
+      phaseId: phase.id,
+      compName: compById.get(phase.compId)?.name || '',
+      groupLabel: `Grupo ${String.fromCharCode(65 + groupIdx)}`,
+      pos: idx + 1,
+      total: groupStandings.length,
+      pj: groupStandings[idx].pj,
+      pts: groupStandings[idx].pts
+    });
+  }
+
+  let nextMatch = null;
+  if (spots.length){
+    // Única parte de la ficha donde scheduledDate manda el orden temporal
+    // (en el resto del proyecto "fecha" = m.ronda/jornada — ver memoria del
+    // slice Calendario). Acá la pregunta es literalmente "cuándo", no "qué
+    // jornada", así que scheduledDate es la fuente correcta.
+    const phaseIds = new Set(spots.map(s => s.phaseId));
+    const today = _calTodayStr();
+    const upcoming = (await dbGetAll('matches', m =>
+      phaseIds.has(m.phaseId) &&
+      (m.teamA === team.id || m.teamB === team.id) &&
+      !!m.scheduledDate && m.scheduledDate >= today
+    )).sort((a,b) => a.scheduledDate < b.scheduledDate ? -1 : a.scheduledDate > b.scheduledDate ? 1 : 0);
+    if (upcoming.length){
+      const m = upcoming[0];
+      const oppId = m.teamA === team.id ? m.teamB : m.teamA;
+      const opp = await dbGet('teams', oppId).catch(()=>null);
+      nextMatch = { date: m.scheduledDate, oppName: opp?.name || '—', isHome: m.teamA === team.id };
+    }
+  }
+
+  return { spots, nextMatch };
+}
+
+async function _renderClubDossierBody(team){
+  const body = document.getElementById('club-dossier-body');
+  if (!body) return;
+  _clubDossierTeam = team;
+
+  const tc  = _palmIsHex(team.color)  ? team.color  : '#1a1a2e';
+  const tc2 = _palmIsHex(team.color2) ? team.color2 : tc;
+  const crestContent = team.logo
+    ? `<img src="${_pfEsc(team.logo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
+    : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3).toUpperCase())}</span>`;
+
+  const [stats, teamTitles, seasonSpots] = await Promise.all([
+    // Se sigue llamando: Rivalidades sale de stats.rivals (misma pasada,
+    // riesgo #5). El bloque de récord/winPct ya no se renderiza acá —
+    // redundante con la tarjeta de perfil (instrucción del usuario).
+    _loadTeamStats(team.id, team).catch(()=>({ W:0, D:0, L:0, GF:0, GA:0, P:0, rivals:[] })),
+    _pfTeamTitles(team.id).catch(()=>[]),
+    _pfCurrentSeasonSpots(team).catch(()=>({ spots:[], nextMatch:null }))
+  ]);
+  // PALMARES_COMPS es un global mutable de palmares.js que puede quedar
+  // stale (override viejo en memoria) — refrescarlo antes de resolver
+  // trofeos/colores, mismo guard que ya usa bracket.js:421.
+  if (typeof loadPalmaresComps === 'function') await loadPalmaresComps();
+  const vitrinaChips = _pfVitrinaChips(teamTitles);
+  const { show: showPhotosBtn, label: photosBtnLabel } = _pfPhotosButtonState(teamTitles);
+
+  const hdrHtml = `<div class="dossier-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
+    <div class="dossier-crest" style="background:${_pfEsc(tc)};">${crestContent}</div>
+    <div class="dossier-club-name">${_pfEsc(team.name||'')}</div>
+  </div>`;
+
+  let bd = '';
+
+  // Palmarés — misma agregación que la vitrina de la tarjeta (_pfVitrinaChips, sin reimplementar)
+  if (vitrinaChips.length){
+    bd += `<div class="dossier-section dossier-section-card">
+      <span class="pp-line-label">Palmarés</span>
+      <div class="pp-vitrina-chips">
+        ${vitrinaChips.map(c => `
+          <div class="pp-vitrina-chip" style="--chip-color:${_pfEsc(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
+            <span class="pp-vitrina-chip-trophy">${renderTrophy(c.key, 22)}</span>
+            <span class="pp-vitrina-chip-label">${_pfEsc(c.comp.label||c.key)}</span>
+            <span class="pp-vitrina-chip-n">×${c.n}</span>
+          </div>`).join('')}
+      </div>
+      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" onclick="openChampionPhotosModal(${team.id},this)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
+        ${photosBtnLabel}
+      </button>` : ''}
+    </div>`;
+  } else {
+    bd += `<div class="dossier-section"><span class="pp-line-label">Palmarés</span><div class="pp-empty">Este club todavía no tiene títulos.</div></div>`;
+  }
+
+  // Rivalidades — top 5 por partidos jugados, de la misma pasada que el récord (stats.rivals)
+  if (stats.rivals && stats.rivals.length){
+    bd += `<div class="dossier-section dossier-section-card">
+      <span class="pp-line-label">Rivalidades</span>
+      <div class="dossier-rivals">
+        ${stats.rivals.map(r => `
+          <div class="dossier-rival-row">
+            <span class="dossier-rival-name">${_pfEsc(r.name)}</span>
+            <span class="dossier-rival-record">
+              <b class="w" title="Victorias">${r.W}</b><b class="d" title="Empates">${r.D}</b><b class="l" title="Derrotas">${r.L}</b>
+              <span class="dossier-rival-p">${r.P} PJ</span>
+            </span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Temporada actual — TODAS las posiciones de grupo activas, sin elegir
+  // una y sin filtrar por published (decisión explícita, ver comentario
+  // de _pfCurrentSeasonSpots). Si el club no está en ningún grupo de la
+  // temporada, la sección entera no se renderiza (nada de placeholder).
+  if (seasonSpots.spots.length){
+    // PJ/pts se omite: medido a 375×812 con datos reales, con esa línea
+    // extra el modal pasa de no necesitar scroll interno a necesitarlo
+    // para un club representativo (#61) — el propio pedido lo condicionaba
+    // a "si entra sin romper el no-scroll". Compactado también el próximo
+    // partido a una sola fila (ver reporte para las medidas exactas).
+    bd += `<div class="dossier-section dossier-section-card">
+      <span class="pp-line-label">Temporada actual</span>
+      <div class="dossier-spots">
+        ${seasonSpots.spots.map(s => `
+          <div class="dossier-spot-row">
+            <span class="dossier-spot-comp">${_pfEsc(s.compName)} · ${_pfEsc(s.groupLabel)}</span>
+            <span class="dossier-spot-pos">${s.pos}<span class="dossier-spot-total">/${s.total}</span></span>
+          </div>`).join('')}
+      </div>
+      ${seasonSpots.nextMatch ? `<div class="dossier-next-match-row">
+        <span class="dossier-next-match-label">Próximo</span>
+        <span class="dossier-next-match-opp">${seasonSpots.nextMatch.isHome ? 'vs' : '@'} ${_pfEsc(seasonSpots.nextMatch.oppName)}</span>
+        <span class="dossier-next-match-date">${_pfEsc(_pfFormatScheduledDate(seasonSpots.nextMatch.date))}</span>
+      </div>` : ''}
+    </div>`;
+  }
+
+  // Salida — el ÚNICO lugar de la ficha que toca _histState y navega
+  // (parametrizado por el equipo de ESTA ficha, vía _clubDossierTeam).
+  bd += `<button type="button" class="pp-sec" onclick="_clubDossierViewAllMatches()">
+    <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver todos sus partidos</span>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>`;
+
+  body.innerHTML = `${hdrHtml}<div class="dossier-body">${bd}</div>`;
+}
+
+/* Única acción de la ficha que setea _histState.qA y navega — puerta de
+   salida, no destino (ver §3 del macro). Al cerrar la ficha por cualquier
+   otra vía (X, Escape, backdrop) _histState no se toca, así que nunca
+   queda pegado un filtro de una ficha que solo se miró y se cerró. */
+function _clubDossierViewAllMatches(){
+  const team = _clubDossierTeam;
+  if (!team) return;
+  if (typeof _histState !== 'undefined'){ _histState.qA = team.name; _histState.qB = ''; _histState.page = 1; }
+  closeModal('club-dossier-modal');
+  closeModal('profile-modal'); // no-op seguro si la ficha se abrió sin drawer detrás (p.ej. desde la grilla pública del Slice C)
+  setMode('public');
+  goPublicPage('historial');
 }

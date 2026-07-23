@@ -1499,6 +1499,45 @@ body.photo-viewer-open{overflow:hidden;}
 }
 
 /* ============================================================
+   FICHA DE CLUB — openClubDossier (profile.js)
+   ============================================================ */
+.club-dossier-modal-inner{max-width:680px;}
+.dossier-hdr{display:flex;align-items:center;gap:14px;padding:18px;border-radius:var(--rl);position:relative;overflow:hidden;
+  background:linear-gradient(135deg,var(--team-color),var(--team-color-2));}
+.dossier-hdr::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.32));pointer-events:none;}
+.dossier-hdr > *{position:relative;z-index:1;}
+.dossier-crest{width:64px;height:64px;border-radius:14px;flex:none;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.3);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.dossier-club-name{font-family:'Bebas Neue';font-size:26px;color:#fff;line-height:1;text-shadow:0 1px 4px rgba(0,0,0,0.5);}
+.dossier-body{display:flex;flex-direction:column;gap:14px;margin-top:14px;}
+.dossier-section{display:flex;flex-direction:column;gap:8px;}
+.dossier-section-card{padding:10px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
+.dossier-winpct{font-size:12px;color:var(--txt3);}
+.dossier-winpct b{color:var(--txt);font-family:'Bebas Neue';font-size:14px;font-weight:400;}
+.dossier-rivals{display:flex;flex-direction:column;gap:6px;}
+.dossier-rival-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.dossier-rival-name{font-family:'Barlow Condensed';font-weight:600;font-size:13px;color:var(--txt);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dossier-rival-record{display:flex;align-items:center;gap:4px;flex:none;}
+.dossier-rival-record b{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;
+  font-size:10px;font-family:'Bebas Neue';font-weight:400;color:#fff;}
+.dossier-rival-record b.w{background:#2ecc71;}
+.dossier-rival-record b.d{background:#95a5a6;}
+.dossier-rival-record b.l{background:#e74c3c;}
+.dossier-rival-p{margin-left:4px;color:var(--txt3);font-size:11px;}
+.dossier-spots{display:flex;flex-direction:column;gap:4px;}
+.dossier-spot-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.dossier-spot-comp{font-family:'Barlow Condensed';font-weight:600;font-size:12px;color:var(--txt);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dossier-spot-pos{flex:none;font-family:'Bebas Neue';font-size:16px;font-weight:400;color:var(--gold-ink);}
+.dossier-spot-total{font-size:10px;color:var(--txt3);font-family:'Barlow Condensed';}
+.dossier-next-match-row{display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;
+  border-top:1px solid var(--brd);font-size:11px;color:var(--txt);font-family:'Barlow Condensed';}
+.dossier-next-match-label{flex:none;color:var(--txt3);text-transform:uppercase;letter-spacing:0.5px;font-size:10px;}
+.dossier-next-match-opp{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dossier-next-match-date{flex:none;color:var(--gold-ink);font-weight:600;}
+
+/* ============================================================
    ESTELA DE CURSOR — cursor-fx.js
    Canvas fijo por encima de todo el contenido (ver Configuración
    general → "Estela de cursor" para elegir variante).
