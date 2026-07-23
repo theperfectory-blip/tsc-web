@@ -1354,26 +1354,34 @@ async function _renderClubDossierBody(team){
     </div>`;
   }
 
-  // Salida — el ÚNICO lugar de la ficha que toca _histState y navega
+  // Salida — el ÚNICO lugar de la ficha que dispara el H2H y navega
   // (parametrizado por el equipo de ESTA ficha, vía _clubDossierTeam).
+  // Label cambiado de "Ver todos sus partidos" a "Ver mano a mano": ya no
+  // aterriza en una lista de todos los partidos del club, aterriza en el
+  // comparador H2H con este club en la casilla A — el texto viejo hubiera
+  // sido engañoso sobre el destino real (pedido del usuario).
   bd += `<button type="button" class="pp-sec" onclick="_clubDossierViewAllMatches()">
-    <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver todos sus partidos</span>
+    <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver mano a mano</span>
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
   </button>`;
 
   body.innerHTML = `${hdrHtml}<div class="dossier-body">${bd}</div>`;
 }
 
-/* Única acción de la ficha que setea _histState.qA y navega — puerta de
-   salida, no destino (ver §3 del macro). Al cerrar la ficha por cualquier
-   otra vía (X, Escape, backdrop) _histState no se toca, así que nunca
-   queda pegado un filtro de una ficha que solo se miró y se cerró. */
-function _clubDossierViewAllMatches(){
+/* Única acción de la ficha que dispara el H2H (_pubH.pickA) y navega —
+   puerta de salida, no destino (ver §3 del macro). Cae en el comparador
+   con el club de la ficha en la casilla A y B vacía/en foco para que el
+   usuario tipee el rival (pedido del usuario — antes prellenaba la LISTA
+   general vía _histState.qA, ya no se toca ese filtro desde acá). Cerrar
+   la ficha por cualquier otra vía (X, Escape, backdrop) no llama a esta
+   función, así que _pubH.pickA nunca queda pegado de una ficha que solo
+   se miró y se cerró. */
+async function _clubDossierViewAllMatches(){
   const team = _clubDossierTeam;
   if (!team) return;
-  if (typeof _histState !== 'undefined'){ _histState.qA = team.name; _histState.qB = ''; _histState.page = 1; }
   closeModal('club-dossier-modal');
   closeModal('profile-modal'); // no-op seguro si la ficha se abrió sin drawer detrás (p.ej. desde la grilla pública del Slice C)
   setMode('public');
   goPublicPage('historial');
+  if (typeof histH2HShow === 'function') await histH2HShow(team.name);
 }
