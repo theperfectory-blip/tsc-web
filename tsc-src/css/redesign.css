@@ -1385,6 +1385,9 @@ body.sala-open{overflow:hidden;}
 .pp-id{display:flex;align-items:center;gap:12px;}
 .pp-crest{width:54px;height:54px;border-radius:12px;flex:none;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.3);
   display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:17px;color:#fff;}
+.pp-titles-badge{position:absolute;right:-6px;bottom:-6px;min-width:20px;height:18px;padding:0 5px;border-radius:999px;
+  background:var(--gold);color:#000;font-family:'Bebas Neue';font-size:11px;line-height:17px;text-align:center;
+  border:2px solid rgba(255,255,255,0.35);pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,0.4);}
 .pp-club{font-family:'Bebas Neue';font-size:24px;color:#fff;line-height:0.95;text-shadow:0 1px 4px rgba(0,0,0,0.5);}
 .pp-user{font-family:'Barlow Condensed';font-size:13px;color:rgba(255,255,255,0.85);display:flex;align-items:center;gap:8px;margin-top:3px;}
 .pp-role{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.3);border-radius:999px;padding:2px 8px;color:#fff;}
@@ -1404,6 +1407,17 @@ body.sala-open{overflow:hidden;}
 .pp-bars .pb-track i{display:block;height:100%;border-radius:3px;}
 .pp-line{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .pp-line-label{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+.pp-vitrina{display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
+.pp-vitrina-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.pp-vitrina-chip{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 4px;border-radius:999px;
+  background:color-mix(in srgb, var(--chip-color) 16%, var(--card));border:1px solid color-mix(in srgb, var(--chip-color) 45%, var(--brd));
+  font-family:'Barlow Condensed';font-size:12px;color:var(--txt);}
+.pp-vitrina-chip-trophy{display:flex;flex:none;line-height:0;}
+.pp-vitrina-chip-n{font-weight:700;color:var(--chip-color);}
+.pp-vitrina-photos-btn{display:flex;align-items:center;gap:6px;align-self:flex-start;border:1px solid var(--brd);border-radius:999px;
+  padding:6px 12px;background:var(--card);color:var(--txt3);font-family:'Barlow Condensed';font-size:12px;font-weight:600;cursor:pointer;}
+.pp-vitrina-photos-btn:hover{border-color:var(--gold-b);color:var(--gold-ink);}
+.pp-vitrina-photos-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .pp-sec{border:1px solid var(--brd);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;
   font-family:'Barlow Condensed';font-weight:600;font-size:14px;color:var(--txt2);cursor:pointer;
   width:100%;min-height:44px;background:transparent;text-align:left;gap:10px;}
@@ -1432,6 +1446,57 @@ body.sala-open{overflow:hidden;}
 .pp-unverified{color:#FFC107;font-size:11px;font-weight:600;}
 .pp-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
 .pp-foot{padding:14px 18px;border-top:1px solid var(--brd);display:flex;justify-content:space-between;gap:10px;flex:none;background:var(--card);}
+
+/* ============================================================
+   FOTOS DE CAMPEÓN — modal (profile.js) + visor ampliado
+   ============================================================ */
+.champ-photos-modal-inner{max-width:640px;}
+.champ-photos-group{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
+.champ-photos-group:last-child{margin-bottom:0;}
+.champ-photos-group-hdr{display:flex;align-items:center;gap:8px;font-family:'Barlow Condensed';font-size:13px;color:var(--txt3);}
+.champ-photos-group-trophy{display:flex;flex:none;line-height:0;}
+.champ-photos-group-label{flex:1;font-weight:600;color:var(--txt);}
+.champ-photos-edit-btn{display:flex;align-items:center;gap:5px;flex:none;border:1px solid var(--brd);border-radius:999px;
+  padding:4px 10px;background:none;color:var(--txt3);font-size:11px;cursor:pointer;}
+.champ-photos-edit-btn:hover{border-color:var(--gold-b);color:var(--gold-ink);}
+.champ-photos-edit-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
+.champ-photos-empty-group{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;border:1px dashed var(--brd);border-radius:8px;background:var(--bg-deep);
+  font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);}
+.champ-photos-add-btn{display:flex;align-items:center;gap:5px;flex:none;border:1px solid var(--gold-b);border-radius:999px;
+  padding:5px 12px;background:none;color:var(--gold-ink);font-size:11px;font-weight:600;cursor:pointer;}
+.champ-photos-add-btn:hover{background:var(--gold-l);}
+.champ-photos-add-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
+.champ-photos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;}
+.champ-thumb{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--brd);
+  padding:0;background:var(--bg-deep);cursor:zoom-in;}
+.champ-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.champ-thumb:hover{border-color:var(--gold-b);}
+.champ-thumb:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
+
+body.photo-viewer-open{overflow:hidden;}
+.photo-viewer-backdrop{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.92);
+  display:none;align-items:center;justify-content:center;}
+.photo-viewer-backdrop.open{display:flex;}
+.pv-stage{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:min(92vw,900px);max-height:88vh;}
+.pv-stage img{max-width:100%;max-height:78vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.5);}
+.pv-caption{color:rgba(255,255,255,0.75);font-size:13px;font-family:'Barlow Condensed';text-align:center;min-height:1em;}
+.pv-close{position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;
+  background:rgba(255,255,255,0.1);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.pv-close:hover{background:rgba(255,255,255,0.2);}
+.pv-close:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+.pv-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;
+  background:rgba(255,255,255,0.1);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.pv-nav:hover{background:rgba(255,255,255,0.2);}
+.pv-nav:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+.pv-nav:disabled{display:none;}
+.pv-prev{left:16px;}
+.pv-next{right:16px;}
+@media (max-width:640px){
+  .pv-nav{width:38px;height:38px;}
+  .pv-prev{left:6px;}
+  .pv-next{right:6px;}
+}
 
 /* ============================================================
    ESTELA DE CURSOR — cursor-fx.js

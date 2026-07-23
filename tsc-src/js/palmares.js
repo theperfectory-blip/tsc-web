@@ -1675,6 +1675,11 @@ async function savePalmaresGallery(){
     closePalmaresModals(true);
     await renderAdmPalmares();
     if(document.getElementById('pub-palmares-content')) await renderPubPalmares();
+    // Anuncia el guardado por evento (no llama a nada de profile.js
+    // directo): este módulo no necesita saber si existe un drawer de
+    // perfil, ni cómo se llama su función de render. Quien esté
+    // interesado en "se guardó la galería de este registro" escucha.
+    document.dispatchEvent(new CustomEvent('palmares:gallery-saved', { detail:{ recordId: rec.id, teamId: rec.teamId } }));
   } catch(error) {
     _PALM_GALLERY.saving = false;
     _palmGalleryRender();
