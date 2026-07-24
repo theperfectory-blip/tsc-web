@@ -675,11 +675,11 @@ async function openRondaModal(phaseId, groupIdx, editRonda=null){
   if(editRonda!=null){
     const existing = allMatches.filter(m=>m.ronda===targetR);
     existing.slice(0, slotsCount).forEach(m=>{
-      slots.push({a:m.teamA, b:m.teamB, matchId:m.id, goalsA:m.goalsA, goalsB:m.goalsB});
+      slots.push({a:m.teamA, b:m.teamB, matchId:m.id, goalsA:m.goalsA, goalsB:m.goalsB, luis:m.luisTeam ?? null});
     });
     libreInicial = currentLibre;
   }
-  while(slots.length<slotsCount) slots.push({a:null, b:null, matchId:null});
+  while(slots.length<slotsCount) slots.push({a:null, b:null, matchId:null, luis:null});
 
   // Reglas de emparejamiento por formato:
   // legs=1 (media temporada): un cruce solo puede existir una vez.
@@ -842,6 +842,20 @@ function renderRondaModalContent(){
       ? `<span style="font-size:10px;color:var(--gold);margin-left:6px;">${slot.goalsA}-${slot.goalsB}</span>`
       : '';
 
+    // Quién controla Luis en este partido puntual (campo aditivo, sin validar
+    // el recorrido — solo registrarlo). Opciones dependen de slot.a/slot.b
+    // actuales: como el modal re-renderiza en cada updateRondaSlot, si el par
+    // cambia las opciones quedan al día solas.
+    const luisOptA = slot.a!=null ? `<option value="a" ${slot.luis===slot.a?'selected':''}>Local</option>` : '';
+    const luisOptB = slot.b!=null ? `<option value="b" ${slot.luis===slot.b?'selected':''}>Visita</option>` : '';
+    const luisCtrl = `
+      <span title="¿Quién controla Luis en este partido?" style="display:inline-flex;align-items:center;color:var(--gold);flex:none;">${typeof _FX_GAMEPAD_ICON!=='undefined'?_FX_GAMEPAD_ICON:''}</span>
+      <select onchange="updateRondaLuis(${idx},this.value)" title="¿Quién controla Luis en este partido?"
+        style="flex:none;width:64px;padding:6px 2px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:11px;">
+        <option value="">—</option>
+        ${luisOptA}${luisOptB}
+      </select>`;
+
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);">
       <div style="font-size:11px;color:var(--txt3);font-weight:600;min-width:60px;">P${idx+1}${resultBadge}</div>
@@ -856,6 +870,7 @@ function renderRondaModalContent(){
         style="flex:1;padding:6px 8px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;">
         ${optsB.join('')}
       </select>
+      ${luisCtrl}
     </div>
     ${pairWarn}${sameTeamWarn}`;
   }).join('');
@@ -953,6 +968,23 @@ function updateRondaSlot(slotIdx, side, value){
   }
   // Si el equipo seleccionado está siendo usado como libre, lo liberamos
   if(slot[side]!=null && st.libre===slot[side]) st.libre = null;
+  // Coherencia: si el par cambió y el equipo de Luis ya no es ni a ni b,
+  // no puede seguir apuntando a un equipo que salió de este partido.
+  if(slot.luis!=null && slot.luis!==slot.a && slot.luis!==slot.b) slot.luis = null;
+  renderRondaModalContent();
+}
+
+// Setea quién controla Luis en un slot puntual: value es 'a'/'b'/'' (ninguno)
+// — se resuelve al ID real de slot.a/slot.b, nunca se guarda el string crudo.
+// Sistema simple, sin validación del recorrido (a diferencia de
+// pairingBlockReason/byeBlockReason): solo registra lo que el admin ya
+// verificó a mano.
+function updateRondaLuis(slotIdx, value){
+  const st = window._rondaModalState;
+  if(!st) return;
+  const slot = st.slots[slotIdx];
+  if(!slot) return;
+  slot.luis = value==='a' ? slot.a : value==='b' ? slot.b : null;
   renderRondaModalContent();
 }
 
@@ -1002,10 +1034,14 @@ async function saveRonda(){
 
   // Crear/actualizar partidos según slots (IDs directos, sin name mapping)
   for(const s of st.slots){
+    const sLuis = s.luis ?? null;
     if(s.matchId){
       const m = await dbGet('matches', s.matchId);
-      if(m && (m.teamA!==s.a || m.teamB!==s.b)){
-        await dbPut('matches', {...m, teamA:s.a, teamB:s.b, ronda:targetR});
+      // OJO: antes este dbPut solo corría si cambió el par (teamA/teamB) — un
+      // cambio de SOLO luis no se guardaba. mLuis!==sLuis lo cubre.
+      const mLuis = m?.luisTeam ?? null;
+      if(m && (m.teamA!==s.a || m.teamB!==s.b || mLuis!==sLuis)){
+        await dbPut('matches', {...m, teamA:s.a, teamB:s.b, ronda:targetR, luisTeam:sLuis});
         await appendOrUpdateHistory(s.matchId);
       }
     } else {
@@ -1016,6 +1052,7 @@ async function saveRonda(){
         ronda:targetR,
         season:STATE.season,
         date:null,
+        luisTeam:sLuis,
       });
     }
   }
