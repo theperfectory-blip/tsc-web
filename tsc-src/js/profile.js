@@ -1172,14 +1172,14 @@ function _injectClubDossier(){
   }).observe(el, { attributes:true, attributeFilter:['class'] });
 }
 
-async function openClubDossier(teamId, triggerEl){
+async function openClubDossier(teamId, triggerEl, opts={}){
   const team = await dbGet('teams', teamId).catch(()=>null);
   if (!team) return;
   _injectClubDossier();
   document.getElementById('club-dossier-title').textContent = team.name || 'Ficha del club';
   document.getElementById('club-dossier-body').innerHTML = `<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
   openModal('club-dossier-modal');
-  await _renderClubDossierBody(team);
+  await _renderClubDossierBody(team, !!opts.publicView);
 }
 
 /* Formatea una fecha-sola YYYY-MM-DD (scheduledDate) en local, sin pasar
@@ -1197,9 +1197,29 @@ function _pfFormatScheduledDate(dateStr){
    Un club puede estar en varias fases de tipo 'groups' A LA VEZ (dato
    real verificado: equipo 61 en 2da División y Copa del Emperador
    simultáneamente). Decisión explícita del usuario: se listan TODAS, sin
-   elegir una — y sin filtrar por `published` (hoy las 4 fases de grupos
-   de la temporada no están publicadas; filtrar las dejaría vacías para
-   todos). Límite conocido que esto deja para el Slice C: ver reporte.
+   elegir una.
+
+   `publicView` (Slice C, Parte 2) — por SUPERFICIE, no por rol: la grilla
+   pública es la superficie pública, así que ahí se filtra a solo fases
+   publicadas, para cualquiera (incluido un admin navegándola — para ver lo
+   no publicado tiene el panel admin). El perfil propio (entrada sin este
+   argumento, `publicView` default false) sigue mostrando TODAS, publicadas
+   o no — igual que antes del Slice C. Con las 4 fases de grupos de la
+   temporada hoy sin publicar, esto deja el bloque vacío en la grilla
+   pública para todos los equipos — correcto, no es un bug.
+
+   Corrección de spec #2, verificada leyendo el código: no existe un campo
+   `phase.published` en todo el proyecto (grep de "published" en tsc-src/js
+   sin resultados sobre `phases`). El gate real es `phase.status` — un
+   borrador nunca tiene `status:'draft'` visible al público
+   (`isDraft = p.status==='draft'`, phases.js:94; `togglePhasePublish`,
+   phases.js:145, alterna 'draft'/'active'). El resto de la app ya filtra
+   así, con el mismo criterio TOLERANTE (public.js:186-190, misma función):
+   `status==null` o `'active'`/`'activa'`/`''` = publicada, cualquier otro
+   valor (draft, etc.) = oculta. `_pfIsPublishedPhase` de acá abajo replica
+   ese criterio exacto — usar `p.published` a secas habría dejado el bloque
+   permanentemente vacío en público incluso DESPUÉS de publicar una fase de
+   verdad, porque ese campo no lo escribe ningún flujo real.
 
    Corrección de spec, verificada leyendo el código: se pidió matchear la
    posición del club por NOMBRE contra el array de getStandingsForPhase,
@@ -1211,8 +1231,17 @@ function _pfFormatScheduledDate(dateStr){
    cualquier ambigüedad de rename — acá hay una referencia numérica real,
    a diferencia de Rivalidades, donde la fuente es texto libre del
    histórico y sí hace falta _norm. */
-async function _pfCurrentSeasonSpots(team){
-  const phases = (await getForSeason('phases')).filter(p => p.type === 'groups' && p.groups);
+// Mismo criterio tolerante que public.js:186-190 (renderPubComps) — status
+// null/'active'/'activa'/'' = publicada; cualquier otro valor (típicamente
+// 'draft') = oculta al público.
+function _pfIsPublishedPhase(p){
+  if (p.status == null) return true;
+  const norm = String(p.status).trim().toLowerCase();
+  return norm === 'active' || norm === 'activa' || norm === '';
+}
+
+async function _pfCurrentSeasonSpots(team, publicView=false){
+  const phases = (await getForSeason('phases')).filter(p => p.type === 'groups' && p.groups && (!publicView || _pfIsPublishedPhase(p)));
   if (!phases.length) return { spots: [], nextMatch: null };
 
   const comps = await getForSeason('competitions');
@@ -1264,7 +1293,7 @@ async function _pfCurrentSeasonSpots(team){
   return { spots, nextMatch };
 }
 
-async function _renderClubDossierBody(team){
+async function _renderClubDossierBody(team, publicView=false){
   const body = document.getElementById('club-dossier-body');
   if (!body) return;
   _clubDossierTeam = team;
@@ -1281,7 +1310,7 @@ async function _renderClubDossierBody(team){
     // redundante con la tarjeta de perfil (instrucción del usuario).
     _loadTeamStats(team.id, team).catch(()=>({ W:0, D:0, L:0, GF:0, GA:0, P:0, rivals:[] })),
     _pfTeamTitles(team.id).catch(()=>[]),
-    _pfCurrentSeasonSpots(team).catch(()=>({ spots:[], nextMatch:null }))
+    _pfCurrentSeasonSpots(team, publicView).catch(()=>({ spots:[], nextMatch:null }))
   ]);
   // PALMARES_COMPS es un global mutable de palmares.js que puede quedar
   // stale (override viejo en memoria) — refrescarlo antes de resolver
@@ -1335,10 +1364,12 @@ async function _renderClubDossierBody(team){
     </div>`;
   }
 
-  // Temporada actual — TODAS las posiciones de grupo activas, sin elegir
-  // una y sin filtrar por published (decisión explícita, ver comentario
-  // de _pfCurrentSeasonSpots). Si el club no está en ningún grupo de la
-  // temporada, la sección entera no se renderiza (nada de placeholder).
+  // Temporada actual — TODAS las posiciones de grupo activas que apliquen
+  // según `publicView` (filtro published-only solo en la superficie
+  // pública, ver comentario de _pfCurrentSeasonSpots), sin elegir una. Si
+  // el club no queda con ningún spot, la sección entera no se renderiza
+  // (nada de placeholder) — hoy eso pasa en la grilla pública para TODOS
+  // los equipos porque las 4 fases de grupos no están publicadas.
   if (seasonSpots.spots.length){
     // PJ/pts se omite: medido a 375×812 con datos reales, con esa línea
     // extra el modal pasa de no necesitar scroll interno a necesitarlo

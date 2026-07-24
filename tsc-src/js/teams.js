@@ -505,6 +505,25 @@ function _shuffle(arr){
   return a;
 }
 
+/* La tarjeta pública abre la ficha del club — parametrizada por t.id, nunca
+   por "mi club" (openClubDossier, profile.js, ya está pensada para esto:
+   ver su comentario). publicView:true porque esta es la superficie pública
+   — oculta fases sin publicar (Slice C, Parte 2), a diferencia del perfil
+   propio (Slice B), que sigue mostrando todo. typeof guard: profile.js
+   carga antes que teams.js (orden de script en index.html), pero el guard
+   documenta la dependencia sin asumir el orden. */
+function _pubTeamCardOpen(teamId, el){
+  if(typeof openClubDossier==='function') openClubDossier(teamId, el, { publicView:true });
+}
+/* Enter/Espacio activan la tarjeta igual que un click — Espacio con
+   preventDefault para no scrollear la página (comportamiento nativo de
+   Espacio sobre un elemento no interactivo de por sí). */
+function _pubTeamCardKeydown(e, teamId){
+  if(e.key!=='Enter' && e.key!==' ') return;
+  if(e.key===' ') e.preventDefault();
+  _pubTeamCardOpen(teamId, e.currentTarget);
+}
+
 /* Construye el HTML de una tarjeta (sin animaciones, solo markup) */
 function _pubTeamCardHtml(t){
   const _col = v => /^#[0-9A-Fa-f]{3,8}$/.test(String(v||'')) ? v : '#333';
@@ -523,7 +542,11 @@ function _pubTeamCardHtml(t){
     : `<span style="font-size:11px;color:var(--txt3);">Sin datos</span>`;
   return `
     <div class="club-stage">
-      <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};">
+      <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};"
+        role="button" tabindex="0"
+        onclick="_pubTeamCardOpen(${t.id}, this)"
+        onkeydown="_pubTeamCardKeydown(event, ${t.id})"
+        aria-label="Ver ficha de ${_esc(t.name)}">
         <div class="club-band">
           <div class="club-crest">${crest}</div>
           <div class="club-name">${_esc(t.name)}</div>
