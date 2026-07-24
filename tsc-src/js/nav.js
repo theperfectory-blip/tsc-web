@@ -464,6 +464,14 @@ async function _focusPublicSectionInner(page, options){
     // única suscripción live (sin crear una segunda).
     await _subscribeFocusedPublicSection(page, wasAlreadyMounted);
     if(token !== _publicFocusToken || STATE.mode !== 'public' || _publicFocusedPage !== page) return false;
+    // Centrado del metro (#5): el ancla (vivo/hoy) se centra en el scroll
+    // interno del .metro UNA vez, acá, al MOSTRAR la sección — el render de
+    // arriba (mount o forceRefresh) ya terminó y asentó un rAF, así que el
+    // layout es real. Ver _calCenterAnchorScroll (calendar.js) para el
+    // porqué de NO repetirlo en cada re-render con la sección ya enfocada.
+    if(page === 'calendario' && typeof _calCenterAnchorScroll === 'function'){
+      _calCenterAnchorScroll();
+    }
     // El radar en vivo vive SOLO en el Calendario (junto al hero del partido).
     // Al enfocar la sección con un partido en vivo ya montado, arranca (con fade-in).
     if(page === 'calendario' && window._calHeroLive && typeof liveRadarStart === 'function'){

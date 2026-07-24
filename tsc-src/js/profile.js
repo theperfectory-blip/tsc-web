@@ -15,6 +15,30 @@ function _pfEsc(v){
   return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+/* ── Pila de capas cerrables con Escape ─────────────────────────
+   El drawer de perfil, el modal de fotos y el visor ampliado pueden quedar
+   anidados (visor > fotos > perfil). El handler global de ui-utils.js
+   cierra TODOS los .modal-overlay.open/.profile-backdrop.open de un tirón
+   con un solo Escape — correcto para el resto de la app (un modal a la
+   vez), pero rompe acá: un Escape debe cerrar solo la capa de más arriba.
+   Este handler intercepta en capture ANTES que el global (bubble) y cierra
+   únicamente el tope de la pila; con la pila vacía no hace nada y el
+   handler global sigue funcionando sin cambios para el resto de la app. */
+const _pfEscStack = [];
+function _pfPushEscLayer(closeFn){ _pfEscStack.push(closeFn); }
+function _pfPopEscLayer(closeFn){
+  const i = _pfEscStack.lastIndexOf(closeFn);
+  if (i !== -1) _pfEscStack.splice(i, 1);
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !_pfEscStack.length) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _pfEscStack[_pfEscStack.length - 1]();
+}, true);
+
+function _pfCloseProfileModal(){ closeModal('profile-modal'); }
+
 function _injectProfileModal(){
   if (document.getElementById('profile-modal')) return;
   // Drawer anclado arriba-derecha (desktop) · full-height (móvil), no un modal centrado.
@@ -69,6 +93,7 @@ function _onProfileOpen(){
   const btn = document.getElementById('profile-btn');
   _profileReturnFocus = btn || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
   if(btn) btn.setAttribute('aria-expanded','true');
+  _pfPushEscLayer(_pfCloseProfileModal);
   if(!drawer) return;
   const f = _profileFocusables(drawer);
   (f[0] || drawer).focus({ preventScroll:true });
@@ -78,6 +103,7 @@ function _onProfileOpen(){
 function _onProfileClose(){
   const btn = document.getElementById('profile-btn');
   if(btn) btn.setAttribute('aria-expanded','false');
+  _pfPopEscLayer(_pfCloseProfileModal);
   const ret = _profileReturnFocus;
   _profileReturnFocus = null;
   if(ret && document.contains(ret)){ try{ ret.focus({ preventScroll:true }); }catch(e){} }
@@ -110,6 +136,43 @@ async function openProfile(){
   openModal('profile-modal');
   document.getElementById('profile-body').innerHTML = `<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
   await renderProfileBody();
+}
+
+/* ── Vitrina de títulos (palmarés) ──────────────────────────── */
+
+async function _pfTeamTitles(teamId){
+  if (teamId == null) return [];
+  const all = await getAllPalmaresRecords();
+  return all.filter(r => r.teamId === teamId);
+}
+
+function _pfCompImportanceIdx(key){
+  const i = PALM_IMPORTANCE.indexOf(key);
+  return i === -1 ? PALM_IMPORTANCE.length : i;
+}
+
+/* Un chip por competición ganada, ordenado por PALM_IMPORTANCE (no por el
+   orden de columnas de PALMARES_COMPS). Descarta títulos de una copa que ya
+   no existe en PALMARES_COMPS en vez de romper el render con datos a medias. */
+function _pfVitrinaChips(teamTitles){
+  const byComp = new Map();
+  teamTitles.forEach(r => byComp.set(r.competition, (byComp.get(r.competition)||0) + 1));
+  return [...byComp.entries()]
+    .map(([key, n]) => ({ key, n, comp: palmaresCompByKey(key) }))
+    .filter(c => c.comp)
+    .sort((a, b) => _pfCompImportanceIdx(a.key) - _pfCompImportanceIdx(b.key));
+}
+
+/* Gating del botón de fotos, reusado por la tarjeta de perfil y la ficha
+   de club: admin ve el botón aunque no haya fotos todavía (es quien las
+   carga, no solo quien las mira — A.4), el resto solo si ya hay alguna. */
+function _pfPhotosButtonState(teamTitles){
+  const hasChampionPhotos = teamTitles.some(r => _palmGallerySafeItems(r.gallery).length > 0);
+  return {
+    hasChampionPhotos,
+    show: hasChampionPhotos || AUTH.role === 'admin',
+    label: hasChampionPhotos ? 'Fotos de campeón' : 'Agregar fotos'
+  };
 }
 
 async function renderProfileBody(){
@@ -152,18 +215,33 @@ async function renderProfileBody(){
 
   const stats = team ? await _loadTeamStats(AUTH.teamId, team).catch(()=>null) : null;
 
+  // Palmarés del club: títulos ganados, para el contador del header y la vitrina
+  const teamTitles = team ? await _pfTeamTitles(team.id).catch(()=>[]) : [];
+  const titlesTotal = teamTitles.length;
+  // PALMARES_COMPS es un global mutable de palmares.js que puede quedar
+  // stale (override viejo en memoria de una sesión anterior en esta misma
+  // pestaña) — refrescarlo antes de resolver trofeos/colores, mismo guard
+  // que ya usa bracket.js:421 (profile.js carga antes que palmares.js).
+  if (typeof loadPalmaresComps === 'function') await loadPalmaresComps();
+  const vitrinaChips = _pfVitrinaChips(teamTitles);
+  const { show: showPhotosBtn, label: photosBtnLabel } = _pfPhotosButtonState(teamTitles);
+
   // ── Crest para el header ─────────────────────────────────────
   const crestContent = currentLogo
     ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
     : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${_pfEsc((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
+  const titlesBadge = titlesTotal > 0
+    ? `<span class="pp-titles-badge" title="${titlesTotal} título${titlesTotal===1?'':'s'} en el club">×${titlesTotal}</span>`
+    : '';
 
   // ── Header con gradiente del club ────────────────────────────
   const _pipLetter = { w:'V', d:'E', l:'D' };
   const hdrHtml = `<div class="pp-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
     <div class="pp-id">
       ${team ? `
-        <label for="profile-logo-file" style="${locked?'':'cursor:pointer;'}" title="${locked?'Bloqueado':'Cambiar escudo'}">
+        <label for="profile-logo-file" style="position:relative;display:block;${locked?'':'cursor:pointer;'}" title="${locked?'Bloqueado':'Cambiar escudo'}">
           <div class="pp-crest" id="profile-logo-preview" style="background:${_pfEsc(tc)};">${crestContent}</div>
+          ${titlesBadge}
         </label>
         <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
       ` : `
@@ -196,9 +274,27 @@ async function renderProfileBody(){
     </div>`;
   }
 
+  if(vitrinaChips.length){
+    bd += `<div class="pp-vitrina">
+      <span class="pp-line-label">Vitrina</span>
+      <div class="pp-vitrina-chips">
+        ${vitrinaChips.map(c => `
+          <div class="pp-vitrina-chip" style="--chip-color:${_pfEsc(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
+            <span class="pp-vitrina-chip-trophy">${renderTrophy(c.key, 22)}</span>
+            <span class="pp-vitrina-chip-label">${_pfEsc(c.comp.label||c.key)}</span>
+            <span class="pp-vitrina-chip-n">×${c.n}</span>
+          </div>`).join('')}
+      </div>
+      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" onclick="openChampionPhotosModal(${team.id},this)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
+        ${photosBtnLabel}
+      </button>` : ''}
+    </div>`;
+  }
+
   if(team){
-    bd += `<button type="button" class="pp-sec" onclick="profileViewMyMatches()">
-      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver el historial de mi club</span>
+    bd += `<button type="button" class="pp-sec" onclick="openClubDossier(${team.id},this)">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver ficha de mi club</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>`;
   }
@@ -274,8 +370,15 @@ async function renderProfileBody(){
     </div>`;
 }
 
-/* ── Estadísticas del club ──────────────────────────────────── */
-
+/* ── Estadísticas del club (+ rivalidades, misma pasada) ────────
+   Riesgo #5 del macro: las rivalidades NO abren un segundo escaneo del
+   histórico — salen del mismo loop sobre _getResolvedRecords() que ya
+   arma W/D/L/GF/GA. El rival de cada fila es el lado que NO es el club
+   (isA ? equipoB : equipoA); se agrupa por el mismo _norm que ya usa la
+   función para reconocerse a sí misma (soporta renames del club, no del
+   rival — no se pidió eso). Cambio aditivo al retorno: el único caller
+   existente (renderProfileBody) desestructura W/D/L/GF/GA/P y no rompe
+   por el campo `rivals` de más. */
 async function _loadTeamStats(teamId, team){
   const _norm = s => String(s||'').toUpperCase().replace(/[.,]/g,'').replace(/\s+/g,' ').trim();
   const allNames = new Set([
@@ -286,6 +389,7 @@ async function _loadTeamStats(teamId, team){
   const rows = await _getResolvedRecords();
 
   let W=0, D=0, L=0, GF=0, GA=0;
+  const rivalTally = new Map(); // _norm(rival) -> {name, W, D, L, P}
   for (const r of rows){
     if (r.golesA == null || r.golesB == null) continue;
     const isA = allNames.has(_norm(r.equipoA));
@@ -294,9 +398,23 @@ async function _loadTeamStats(teamId, team){
     const gf = isA ? r.golesA : r.golesB;
     const ga = isA ? r.golesB : r.golesA;
     GF += gf; GA += ga;
-    if (gf > ga) W++; else if (gf < ga) L++; else D++;
+    let outcome;
+    if (gf > ga){ W++; outcome = 'W'; }
+    else if (gf < ga){ L++; outcome = 'L'; }
+    else { D++; outcome = 'D'; }
+
+    const rivalName = isA ? r.equipoB : r.equipoA;
+    const rivalKey = _norm(rivalName);
+    if (!rivalKey) continue;
+    if (!rivalTally.has(rivalKey)) rivalTally.set(rivalKey, { name: rivalName, W:0, D:0, L:0, P:0 });
+    const rv = rivalTally.get(rivalKey);
+    rv.P++;
+    if (outcome==='W') rv.W++; else if (outcome==='L') rv.L++; else rv.D++;
   }
-  return { W, D, L, GF, GA, P: W+D+L };
+
+  const rivals = [...rivalTally.values()].sort((a,b) => b.P - a.P).slice(0, 5);
+
+  return { W, D, L, GF, GA, P: W+D+L, rivals };
 }
 
 function _donutSVG(segs, size=72){
@@ -680,21 +798,20 @@ async function profileChangePassword(){
   }
 }
 
-function profileViewMyMatches(){
-  const team = window._profileTeam;
-  if (!team) return;
-  closeModal('profile-modal');
-  if (typeof _histState !== 'undefined'){ _histState.qA = team.name; _histState.qB = ''; _histState.page = 1; }
-  setMode('public');
-  goPublicPage('historial');
-}
-
 /* Helper global — formatea una fecha en la zona horaria del usuario (DST automático) */
-function formatInUserTZ(date, opts = {}){
-  const tz = (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
+/* Resuelve la zona horaria del que mira (perfil > localStorage > Intl del
+   navegador). Único punto de resolución — formatInUserTZ parte de acá, y
+   cualquier otro código que necesite la misma zona (p.ej. calendar.js, vía
+   typeof guard porque profile.js carga antes) también, en vez de
+   reimplementar la cadena de fallback por su cuenta. */
+function _pfViewerTimezone(){
+  return (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
     || localStorage.getItem('tsc_timezone')
     || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return new Intl.DateTimeFormat('es', { timeZone: tz, ...opts }).format(new Date(date));
+}
+
+function formatInUserTZ(date, opts = {}){
+  return new Intl.DateTimeFormat('es', { timeZone: _pfViewerTimezone(), ...opts }).format(new Date(date));
 }
 
 /* ── Guardar todo ───────────────────────────────────────────── */
@@ -766,4 +883,544 @@ async function saveProfile(){
   } catch(e){
     showToast('Error al guardar: '+(e.code||e.message), 'error');
   }
+}
+
+/* ── Modal "Fotos de campeón" ───────────────────────────────── */
+/* Miniaturas de las galerías de palmarés de un club, agrupadas por título
+   (cada foto pertenece a un palmares.{id}, no al club suelto). Compartido
+   por la tarjeta de perfil (Slice A) y la futura ficha de club (Slice B). */
+
+let _champPhotosGroups = [];
+
+function _champPhotosModalClose(){ closeModal('champ-photos-modal'); }
+
+function _injectChampionPhotosModal(){
+  if (document.getElementById('champ-photos-modal')) return;
+  const el = document.createElement('div');
+  el.className = 'modal-overlay';
+  el.id = 'champ-photos-modal';
+  el.setAttribute('role','dialog');
+  el.setAttribute('aria-modal','true');
+  el.setAttribute('aria-labelledby','champ-photos-title');
+  el.innerHTML = `
+    <div class="modal champ-photos-modal-inner">
+      <div class="modal-hdr">
+        <div class="modal-title" id="champ-photos-title">Fotos de campeón</div>
+        <button type="button" class="modal-close" aria-label="Cerrar" onclick="closeModal('champ-photos-modal')">×</button>
+      </div>
+      <div class="modal-body" id="champ-photos-body"></div>
+    </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('mousedown', e => { if (e.target === el) closeModal('champ-photos-modal'); });
+
+  // Puede quedar anidado sobre el drawer de perfil (.profile-backdrop.open) —
+  // se registra en la misma pila que el drawer y el visor (ver _pfEscStack
+  // arriba) para que Escape cierre solo esta capa, no las de abajo.
+  let wasOpen = false;
+  new MutationObserver(()=>{
+    const open = el.classList.contains('open');
+    if (open && !wasOpen){
+      wasOpen = true;
+      _pfPushEscLayer(_champPhotosModalClose);
+    } else if (!open && wasOpen){
+      wasOpen = false;
+      _pfPopEscLayer(_champPhotosModalClose);
+    }
+  }).observe(el, { attributes:true, attributeFilter:['class'] });
+}
+
+function _champPhotosBodyHTML(groups, isAdmin = AUTH.role === 'admin'){
+  if (!groups.length) return `<div class="pp-empty">Todavía no hay fotos cargadas.</div>`;
+  return groups.map((g, gi) => {
+    const when = g.rec.season || g.rec.year || '';
+    const empty = g.items.length === 0;
+    // Grupo con fotos: header con "Editar imágenes" + grilla. Grupo vacío:
+    // sin grilla vacía — un estado propio que deja claro que el botón es
+    // para cargar la primera foto, no para editar algo que no existe.
+    // Los dos botones de escritura (editar/agregar) se guardan con isAdmin
+    // ACÁ, no solo en el llamador: openChampionPhotosModal hoy filtra los
+    // grupos vacíos para no-admin, pero esta función también la reusa el
+    // Slice B (ficha pública de club) — no puede depender de que quien la
+    // llame siempre filtre bien.
+    const editBtn = !empty && isAdmin ? `<button type="button" class="champ-photos-edit-btn" onclick="closeModal('champ-photos-modal');openPalmaresGallery(${g.rec.id});">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          Editar imágenes
+        </button>` : '';
+    const body = empty
+      ? `<div class="champ-photos-empty-group">
+          <span>Este título todavía no tiene fotos.</span>
+          ${isAdmin ? `<button type="button" class="champ-photos-add-btn" onclick="closeModal('champ-photos-modal');openPalmaresGallery(${g.rec.id});">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Agregar fotos
+          </button>` : ''}
+        </div>`
+      : `<div class="champ-photos-grid">
+        ${g.items.map((it, ii) => `
+          <button type="button" class="champ-thumb" onclick="openPhotoViewer(${gi},${ii},this)" aria-label="Ampliar foto${it.alt ? ': '+_pfEsc(it.alt) : ''}">
+            <img src="${_pfEsc(it.url)}" alt="${_pfEsc(it.alt)}" loading="lazy">
+          </button>`).join('')}
+      </div>`;
+    return `<div class="champ-photos-group">
+      <div class="champ-photos-group-hdr">
+        <span class="champ-photos-group-trophy">${renderTrophy(g.rec.competition, 20)}</span>
+        <span class="champ-photos-group-label">${_pfEsc(g.comp.label || g.rec.competition)}${when ? ` · ${_pfEsc(when)}` : ''}</span>
+        ${editBtn}
+      </div>
+      ${body}
+    </div>`;
+  }).join('');
+}
+
+async function openChampionPhotosModal(teamId, triggerEl){
+  const team = await dbGet('teams', teamId).catch(()=>null);
+  if (!team) return;
+  const isAdmin = AUTH.role === 'admin';
+  const teamTitles = await _pfTeamTitles(teamId).catch(()=>[]);
+  // No-admin: solo títulos con fotos (como antes). Admin: TODOS los
+  // títulos del club, incluidos los de galería vacía — si no, quien tiene
+  // que cargar la primera foto de un título no ve dónde hacerlo.
+  const groups = teamTitles
+    .map(rec => ({ rec, comp: palmaresCompByKey(rec.competition), items: _palmGallerySafeItems(rec.gallery) }))
+    .filter(g => g.comp && (isAdmin || g.items.length > 0))
+    .sort((a, b) => _pfCompImportanceIdx(a.rec.competition) - _pfCompImportanceIdx(b.rec.competition));
+
+  _champPhotosGroups = groups;
+  _injectChampionPhotosModal();
+  document.getElementById('champ-photos-title').textContent = `Fotos de campeón · ${team.name || ''}`;
+  document.getElementById('champ-photos-body').innerHTML = _champPhotosBodyHTML(groups, isAdmin);
+  openModal('champ-photos-modal');
+}
+
+/* Si el drawer de perfil sigue abierto cuando se guarda una galería desde
+   "Editar/Agregar fotos" (evento disparado por savePalmaresGallery en
+   palmares.js), refresca la tarjeta para que el admin vea las fotos
+   nuevas — y el botón "Agregar fotos" pase a "Fotos de campeón" — sin
+   cerrar y reabrir el perfil. Evento en vez de llamada directa: palmares.js
+   no necesita importar ni conocer ninguna función de este archivo, solo
+   anuncia el hecho ("se guardó la galería de este registro"); si mañana
+   `renderProfileBody` cambia de nombre, este archivo es el único que hay
+   que tocar. La única vía hoy para llegar a openPalmaresGallery con el
+   drawer abierto es este propio botón (el backdrop del drawer bloquea el
+   resto de la UI mientras está abierto), así que el teamId del evento
+   siempre coincide con window._profileTeam — se valida igual, para no
+   depender de esa coincidencia de la UI actual. */
+document.addEventListener('palmares:gallery-saved', async e => {
+  if (!document.getElementById('profile-modal')?.classList.contains('open')) return;
+  const team = window._profileTeam;
+  if (!team || (e.detail && e.detail.teamId != null && e.detail.teamId !== team.id)) return;
+  await renderProfileBody();
+});
+
+/* ── Visor ampliado de foto ──────────────────────────────────── */
+/* No existía ningún visor en la app. Sigue el mismo patrón de ciclo de vida
+   que el drawer de perfil (_injectProfileModal/_profileTrapKeydown, arriba):
+   MutationObserver sobre la clase .open hace el setup/teardown (listener de
+   teclado, bloqueo de scroll, devolución de foco) sin importar por qué vía
+   se cerró. Puede abrirse ANIDADO sobre el modal de fotos (que a su vez
+   puede estar anidado sobre el drawer de perfil) — el cierre con Escape se
+   coordina con la pila compartida (_pfEscStack, arriba), no acá: este
+   visor solo hace push/pop, igual que las otras dos capas. */
+let _champViewerPos = null;         // {g: índice de grupo, i: índice de foto}
+let _champViewerReturnFocus = null;
+
+function _injectPhotoViewer(){
+  if (document.getElementById('photo-viewer')) return;
+  const el = document.createElement('div');
+  el.className = 'photo-viewer-backdrop';
+  el.id = 'photo-viewer';
+  el.setAttribute('role','dialog');
+  el.setAttribute('aria-modal','true');
+  el.setAttribute('aria-label','Foto ampliada');
+  el.innerHTML = `
+    <button type="button" class="pv-close" aria-label="Cerrar visor" onclick="closePhotoViewer()">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <button type="button" class="pv-nav pv-prev" aria-label="Foto anterior" onclick="photoViewerStep(-1)">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="pv-stage">
+      <img id="photo-viewer-img" src="" alt="">
+      <div class="pv-caption" id="photo-viewer-caption"></div>
+    </div>
+    <button type="button" class="pv-nav pv-next" aria-label="Foto siguiente" onclick="photoViewerStep(1)">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>`;
+  document.body.appendChild(el);
+  el.addEventListener('mousedown', e => { if (e.target === el) closePhotoViewer(); });
+
+  let wasOpen = false;
+  new MutationObserver(()=>{
+    const open = el.classList.contains('open');
+    if (open && !wasOpen){
+      wasOpen = true;
+      document.addEventListener('keydown', _photoViewerTrapKeydown, true);
+      document.body.classList.add('photo-viewer-open');
+      _pfPushEscLayer(closePhotoViewer);
+      el.querySelector('.pv-close')?.focus({ preventScroll:true });
+    } else if (!open && wasOpen){
+      wasOpen = false;
+      document.removeEventListener('keydown', _photoViewerTrapKeydown, true);
+      document.body.classList.remove('photo-viewer-open');
+      _pfPopEscLayer(closePhotoViewer);
+      _champViewerPos = null;
+      const ret = _champViewerReturnFocus;
+      _champViewerReturnFocus = null;
+      if (ret && document.contains(ret)){ try{ ret.focus({ preventScroll:true }); }catch(e){} }
+    }
+  }).observe(el, { attributes:true, attributeFilter:['class'] });
+}
+
+function _renderPhotoViewer(){
+  const { g, i } = _champViewerPos;
+  const group = _champPhotosGroups[g];
+  const item = group.items[i];
+  const img = document.getElementById('photo-viewer-img');
+  const cap = document.getElementById('photo-viewer-caption');
+  if (img){ img.src = item.url; img.alt = item.alt || ''; }
+  if (cap) cap.textContent = item.alt || '';
+  const multi = group.items.length > 1;
+  const prev = document.querySelector('#photo-viewer .pv-prev');
+  const next = document.querySelector('#photo-viewer .pv-next');
+  if (prev) prev.disabled = !multi;
+  if (next) next.disabled = !multi;
+}
+
+function openPhotoViewer(groupIndex, itemIndex, triggerEl){
+  const group = _champPhotosGroups[groupIndex];
+  if (!group || !group.items[itemIndex]) return;
+  _injectPhotoViewer();
+  _champViewerPos = { g: groupIndex, i: itemIndex };
+  _champViewerReturnFocus = triggerEl instanceof HTMLElement ? triggerEl
+    : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  _renderPhotoViewer();
+  document.getElementById('photo-viewer')?.classList.add('open');
+}
+
+function closePhotoViewer(){
+  document.getElementById('photo-viewer')?.classList.remove('open');
+}
+
+function photoViewerStep(dir){
+  if (!_champViewerPos) return;
+  const group = _champPhotosGroups[_champViewerPos.g];
+  if (!group || group.items.length < 2) return;
+  _champViewerPos.i = (_champViewerPos.i + dir + group.items.length) % group.items.length;
+  _renderPhotoViewer();
+}
+
+/* Atrapa Tab (ciclo first↔last, precedente: _profileTrapKeydown) + flechas
+   navegan. Escape se maneja en la pila compartida (_pfEscStack), no acá. */
+function _photoViewerTrapKeydown(e){
+  if (e.key === 'ArrowLeft'){ photoViewerStep(-1); return; }
+  if (e.key === 'ArrowRight'){ photoViewerStep(1); return; }
+  if (e.key !== 'Tab') return;
+  const el = document.getElementById('photo-viewer');
+  if (!el) return;
+  const f = [...el.querySelectorAll('button:not([disabled])')];
+  const first = f[0], last = f[f.length-1], active = document.activeElement;
+  if (e.shiftKey){
+    if (active===first || !el.contains(active)){ e.preventDefault(); last.focus(); }
+  } else {
+    if (active===last || !el.contains(active)){ e.preventDefault(); first.focus(); }
+  }
+}
+
+/* ── Ficha de club ───────────────────────────────────────────── */
+/* openClubDossier(teamId) — SIEMPRE parametrizada por equipo, nunca por
+   "mi club": no lee window._profileTeam ni AUTH.teamId para decidir qué
+   mostrar. La tarjeta de perfil (este archivo) es una de sus dos entradas
+   posibles; la grilla pública de equipos (Slice C, no construido acá) va
+   a ser la otra, pasando su propio teamId. Lo único que cambia entre
+   ambas es de dónde sale ese argumento. */
+
+let _clubDossierTeam = null; // equipo de la ficha ACTUALMENTE abierta — solo para wirear el botón de salida, no para decidir qué renderizar
+
+function _clubDossierClose(){ closeModal('club-dossier-modal'); }
+
+function _injectClubDossier(){
+  if (document.getElementById('club-dossier-modal')) return;
+  const el = document.createElement('div');
+  el.className = 'modal-overlay';
+  el.id = 'club-dossier-modal';
+  el.setAttribute('role','dialog');
+  el.setAttribute('aria-modal','true');
+  el.setAttribute('aria-labelledby','club-dossier-title');
+  el.innerHTML = `
+    <div class="modal club-dossier-modal-inner">
+      <div class="modal-hdr">
+        <div class="modal-title" id="club-dossier-title">Ficha del club</div>
+        <button type="button" class="modal-close" aria-label="Cerrar" onclick="closeModal('club-dossier-modal')">×</button>
+      </div>
+      <div class="modal-body" id="club-dossier-body"></div>
+    </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('mousedown', e => { if (e.target === el) closeModal('club-dossier-modal'); });
+
+  // Puede quedar anidada sobre el drawer de perfil (.profile-backdrop.open) —
+  // misma pila que el drawer, el modal de fotos y el visor (_pfEscStack):
+  // Escape cierra solo esta capa, nunca el drawer que pueda quedar debajo.
+  let wasOpen = false;
+  new MutationObserver(()=>{
+    const open = el.classList.contains('open');
+    if (open && !wasOpen){
+      wasOpen = true;
+      _pfPushEscLayer(_clubDossierClose);
+    } else if (!open && wasOpen){
+      wasOpen = false;
+      _pfPopEscLayer(_clubDossierClose);
+    }
+  }).observe(el, { attributes:true, attributeFilter:['class'] });
+}
+
+async function openClubDossier(teamId, triggerEl, opts={}){
+  const team = await dbGet('teams', teamId).catch(()=>null);
+  if (!team) return;
+  _injectClubDossier();
+  document.getElementById('club-dossier-title').textContent = team.name || 'Ficha del club';
+  document.getElementById('club-dossier-body').innerHTML = `<div style="color:var(--txt3);padding:14px;">Cargando...</div>`;
+  openModal('club-dossier-modal');
+  await _renderClubDossierBody(team, !!opts.publicView);
+}
+
+/* Formatea una fecha-sola YYYY-MM-DD (scheduledDate) en local, sin pasar
+   por ninguna zona horaria: `new Date('2026-07-24')` la parsea como
+   medianoche UTC, y formatInUserTZ (pensada para timestamps reales) la
+   corre un día atrás para cualquier usuario al oeste de UTC. Acá no hay
+   hora real que preservar — es un día de calendario, se arma la fecha con
+   año/mes/día locales directamente para que ese componente nunca cambie. */
+function _pfFormatScheduledDate(dateStr){
+  const [y, mo, d] = String(dateStr).split('-').map(Number);
+  return new Intl.DateTimeFormat('es', { day:'2-digit', month:'short' }).format(new Date(y, mo-1, d));
+}
+
+/* ── Temporada actual: posiciones de grupo + próximo partido ────
+   Un club puede estar en varias fases de tipo 'groups' A LA VEZ (dato
+   real verificado: equipo 61 en 2da División y Copa del Emperador
+   simultáneamente). Decisión explícita del usuario: se listan TODAS, sin
+   elegir una.
+
+   `publicView` (Slice C, Parte 2) — por SUPERFICIE, no por rol: la grilla
+   pública es la superficie pública, así que ahí se filtra a solo fases
+   publicadas, para cualquiera (incluido un admin navegándola — para ver lo
+   no publicado tiene el panel admin). El perfil propio (entrada sin este
+   argumento, `publicView` default false) sigue mostrando TODAS, publicadas
+   o no — igual que antes del Slice C. Con las 4 fases de grupos de la
+   temporada hoy sin publicar, esto deja el bloque vacío en la grilla
+   pública para todos los equipos — correcto, no es un bug.
+
+   Corrección de spec #2, verificada leyendo el código: no existe un campo
+   `phase.published` en todo el proyecto (grep de "published" en tsc-src/js
+   sin resultados sobre `phases`). El gate real es `phase.status` — un
+   borrador nunca tiene `status:'draft'` visible al público
+   (`isDraft = p.status==='draft'`, phases.js:94; `togglePhasePublish`,
+   phases.js:145, alterna 'draft'/'active'). El resto de la app ya filtra
+   así, con el mismo criterio TOLERANTE (public.js:186-190, misma función):
+   `status==null` o `'active'`/`'activa'`/`''` = publicada, cualquier otro
+   valor (draft, etc.) = oculta. `_pfIsPublishedPhase` de acá abajo replica
+   ese criterio exacto — usar `p.published` a secas habría dejado el bloque
+   permanentemente vacío en público incluso DESPUÉS de publicar una fase de
+   verdad, porque ese campo no lo escribe ningún flujo real.
+
+   Corrección de spec, verificada leyendo el código: se pidió matchear la
+   posición del club por NOMBRE contra el array de getStandingsForPhase,
+   asumiendo que sus entradas tienen `.name`. No es así —
+   calcGroupStandings (standings.js:45-50) devuelve {id,pts,pj,...} por
+   equipo, sin `.name`; phase.groups[gi] también son teamIds, no nombres
+   (confirmado en _pubRenderGroupsBroadcast, public.js, que llama a esos
+   mismos arrays "teamIds"). Matchear por `.id` es más simple y evita
+   cualquier ambigüedad de rename — acá hay una referencia numérica real,
+   a diferencia de Rivalidades, donde la fuente es texto libre del
+   histórico y sí hace falta _norm. */
+// Mismo criterio tolerante que public.js:186-190 (renderPubComps) — status
+// null/'active'/'activa'/'' = publicada; cualquier otro valor (típicamente
+// 'draft') = oculta al público.
+function _pfIsPublishedPhase(p){
+  if (p.status == null) return true;
+  const norm = String(p.status).trim().toLowerCase();
+  return norm === 'active' || norm === 'activa' || norm === '';
+}
+
+async function _pfCurrentSeasonSpots(team, publicView=false){
+  const phases = (await getForSeason('phases')).filter(p => p.type === 'groups' && p.groups && (!publicView || _pfIsPublishedPhase(p)));
+  if (!phases.length) return { spots: [], nextMatch: null };
+
+  const comps = await getForSeason('competitions');
+  const compById = new Map(comps.map(c => [c.id, c]));
+
+  const spots = [];
+  for (const phase of phases){
+    let groupIdx = null;
+    for (const [gi, ids] of Object.entries(phase.groups)){
+      if ((ids||[]).some(id => id === team.id)){ groupIdx = parseInt(gi); break; }
+    }
+    if (groupIdx === null) continue;
+    const standingsByGroup = await getStandingsForPhase(phase.id).catch(()=>({}));
+    const groupStandings = standingsByGroup[groupIdx] || [];
+    const idx = groupStandings.findIndex(s => s.id === team.id);
+    if (idx === -1) continue;
+    spots.push({
+      phaseId: phase.id,
+      compName: compById.get(phase.compId)?.name || '',
+      groupLabel: `Grupo ${String.fromCharCode(65 + groupIdx)}`,
+      pos: idx + 1,
+      total: groupStandings.length,
+      pj: groupStandings[idx].pj,
+      pts: groupStandings[idx].pts
+    });
+  }
+
+  let nextMatch = null;
+  if (spots.length){
+    // Única parte de la ficha donde scheduledDate manda el orden temporal
+    // (en el resto del proyecto "fecha" = m.ronda/jornada — ver memoria del
+    // slice Calendario). Acá la pregunta es literalmente "cuándo", no "qué
+    // jornada", así que scheduledDate es la fuente correcta.
+    const phaseIds = new Set(spots.map(s => s.phaseId));
+    const today = _calTodayStr();
+    const upcoming = (await dbGetAll('matches', m =>
+      phaseIds.has(m.phaseId) &&
+      (m.teamA === team.id || m.teamB === team.id) &&
+      !!m.scheduledDate && m.scheduledDate >= today
+    )).sort((a,b) => a.scheduledDate < b.scheduledDate ? -1 : a.scheduledDate > b.scheduledDate ? 1 : 0);
+    if (upcoming.length){
+      const m = upcoming[0];
+      const oppId = m.teamA === team.id ? m.teamB : m.teamA;
+      const opp = await dbGet('teams', oppId).catch(()=>null);
+      nextMatch = { date: m.scheduledDate, oppName: opp?.name || '—', isHome: m.teamA === team.id };
+    }
+  }
+
+  return { spots, nextMatch };
+}
+
+async function _renderClubDossierBody(team, publicView=false){
+  const body = document.getElementById('club-dossier-body');
+  if (!body) return;
+  _clubDossierTeam = team;
+
+  const tc  = _palmIsHex(team.color)  ? team.color  : '#1a1a2e';
+  const tc2 = _palmIsHex(team.color2) ? team.color2 : tc;
+  const crestContent = team.logo
+    ? `<img src="${_pfEsc(team.logo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
+    : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3).toUpperCase())}</span>`;
+
+  const [stats, teamTitles, seasonSpots] = await Promise.all([
+    // Se sigue llamando: Rivalidades sale de stats.rivals (misma pasada,
+    // riesgo #5). El bloque de récord/winPct ya no se renderiza acá —
+    // redundante con la tarjeta de perfil (instrucción del usuario).
+    _loadTeamStats(team.id, team).catch(()=>({ W:0, D:0, L:0, GF:0, GA:0, P:0, rivals:[] })),
+    _pfTeamTitles(team.id).catch(()=>[]),
+    _pfCurrentSeasonSpots(team, publicView).catch(()=>({ spots:[], nextMatch:null }))
+  ]);
+  // PALMARES_COMPS es un global mutable de palmares.js que puede quedar
+  // stale (override viejo en memoria) — refrescarlo antes de resolver
+  // trofeos/colores, mismo guard que ya usa bracket.js:421.
+  if (typeof loadPalmaresComps === 'function') await loadPalmaresComps();
+  const vitrinaChips = _pfVitrinaChips(teamTitles);
+  const { show: showPhotosBtn, label: photosBtnLabel } = _pfPhotosButtonState(teamTitles);
+
+  const hdrHtml = `<div class="dossier-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
+    <div class="dossier-crest" style="background:${_pfEsc(tc)};">${crestContent}</div>
+    <div class="dossier-club-name">${_pfEsc(team.name||'')}</div>
+  </div>`;
+
+  let bd = '';
+
+  // Palmarés — misma agregación que la vitrina de la tarjeta (_pfVitrinaChips, sin reimplementar)
+  if (vitrinaChips.length){
+    bd += `<div class="dossier-section dossier-section-card">
+      <span class="pp-line-label">Palmarés</span>
+      <div class="pp-vitrina-chips">
+        ${vitrinaChips.map(c => `
+          <div class="pp-vitrina-chip" style="--chip-color:${_pfEsc(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
+            <span class="pp-vitrina-chip-trophy">${renderTrophy(c.key, 22)}</span>
+            <span class="pp-vitrina-chip-label">${_pfEsc(c.comp.label||c.key)}</span>
+            <span class="pp-vitrina-chip-n">×${c.n}</span>
+          </div>`).join('')}
+      </div>
+      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" onclick="openChampionPhotosModal(${team.id},this)">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
+        ${photosBtnLabel}
+      </button>` : ''}
+    </div>`;
+  } else {
+    bd += `<div class="dossier-section"><span class="pp-line-label">Palmarés</span><div class="pp-empty">Este club todavía no tiene títulos.</div></div>`;
+  }
+
+  // Rivalidades — top 5 por partidos jugados, de la misma pasada que el récord (stats.rivals)
+  if (stats.rivals && stats.rivals.length){
+    bd += `<div class="dossier-section dossier-section-card">
+      <span class="pp-line-label">Rivalidades</span>
+      <div class="dossier-rivals">
+        ${stats.rivals.map(r => `
+          <div class="dossier-rival-row">
+            <span class="dossier-rival-name">${_pfEsc(r.name)}</span>
+            <span class="dossier-rival-record">
+              <b class="w" title="Victorias">${r.W}</b><b class="d" title="Empates">${r.D}</b><b class="l" title="Derrotas">${r.L}</b>
+              <span class="dossier-rival-p">${r.P} PJ</span>
+            </span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Temporada actual — TODAS las posiciones de grupo activas que apliquen
+  // según `publicView` (filtro published-only solo en la superficie
+  // pública, ver comentario de _pfCurrentSeasonSpots), sin elegir una. Si
+  // el club no queda con ningún spot, la sección entera no se renderiza
+  // (nada de placeholder) — hoy eso pasa en la grilla pública para TODOS
+  // los equipos porque las 4 fases de grupos no están publicadas.
+  if (seasonSpots.spots.length){
+    // PJ/pts se omite: medido a 375×812 con datos reales, con esa línea
+    // extra el modal pasa de no necesitar scroll interno a necesitarlo
+    // para un club representativo (#61) — el propio pedido lo condicionaba
+    // a "si entra sin romper el no-scroll". Compactado también el próximo
+    // partido a una sola fila (ver reporte para las medidas exactas).
+    bd += `<div class="dossier-section dossier-section-card">
+      <span class="pp-line-label">Temporada actual</span>
+      <div class="dossier-spots">
+        ${seasonSpots.spots.map(s => `
+          <div class="dossier-spot-row">
+            <span class="dossier-spot-comp">${_pfEsc(s.compName)} · ${_pfEsc(s.groupLabel)}</span>
+            <span class="dossier-spot-pos">${s.pos}<span class="dossier-spot-total">/${s.total}</span></span>
+          </div>`).join('')}
+      </div>
+      ${seasonSpots.nextMatch ? `<div class="dossier-next-match-row">
+        <span class="dossier-next-match-label">Próximo</span>
+        <span class="dossier-next-match-opp">${seasonSpots.nextMatch.isHome ? 'vs' : '@'} ${_pfEsc(seasonSpots.nextMatch.oppName)}</span>
+        <span class="dossier-next-match-date">${_pfEsc(_pfFormatScheduledDate(seasonSpots.nextMatch.date))}</span>
+      </div>` : ''}
+    </div>`;
+  }
+
+  // Salida — el ÚNICO lugar de la ficha que dispara el H2H y navega
+  // (parametrizado por el equipo de ESTA ficha, vía _clubDossierTeam).
+  // Label cambiado de "Ver todos sus partidos" a "Ver mano a mano": ya no
+  // aterriza en una lista de todos los partidos del club, aterriza en el
+  // comparador H2H con este club en la casilla A — el texto viejo hubiera
+  // sido engañoso sobre el destino real (pedido del usuario).
+  bd += `<button type="button" class="pp-sec" onclick="_clubDossierViewAllMatches()">
+    <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver mano a mano</span>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>`;
+
+  body.innerHTML = `${hdrHtml}<div class="dossier-body">${bd}</div>`;
+}
+
+/* Única acción de la ficha que dispara el H2H (_pubH.pickA) y navega —
+   puerta de salida, no destino (ver §3 del macro). Cae en el comparador
+   con el club de la ficha en la casilla A y B vacía/en foco para que el
+   usuario tipee el rival (pedido del usuario — antes prellenaba la LISTA
+   general vía _histState.qA, ya no se toca ese filtro desde acá). Cerrar
+   la ficha por cualquier otra vía (X, Escape, backdrop) no llama a esta
+   función, así que _pubH.pickA nunca queda pegado de una ficha que solo
+   se miró y se cerró. */
+async function _clubDossierViewAllMatches(){
+  const team = _clubDossierTeam;
+  if (!team) return;
+  closeModal('club-dossier-modal');
+  closeModal('profile-modal'); // no-op seguro si la ficha se abrió sin drawer detrás (p.ej. desde la grilla pública del Slice C)
+  setMode('public');
+  goPublicPage('historial');
+  if (typeof histH2HShow === 'function') await histH2HShow(team.name);
 }

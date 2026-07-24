@@ -468,20 +468,31 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       const name = td.name||'';
       const ini = (td.ini||name||'').substring(0,3).toUpperCase();
       const col = colorOf(td.color);
+      const crest = td.logo
+        ? `<span class="st-crest"><img src="${_tkEsc(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
+        : `<span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>`;
       return `<div class="stand-row" style="--team-color:${col};">
         <span class="st-fix">
           <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
-          <span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>
+          ${crest}
           <span class="st-name">${_tkEsc(name)}</span>
         </span>
+        <span class="st-pts">${s.pts}</span>
         <span class="st-c">${s.pj}</span><span class="st-c">${s.v}</span><span class="st-c">${s.e}</span>
         <span class="st-c">${s.p}</span><span class="st-c">${s.gf}</span><span class="st-c">${s.gc}</span>
-        <span class="st-pts">${s.pts}</span>
       </div>`;
     }));
 
     // Calendario completo del grupo. Pendientes y en vivo permanecen como VS; la
     // suscripción en tiempo real publica el marcador solo cuando live pasa a false.
+    // luisTeam (generado por "Generar fechas" en fixture-gen.js, o seteado a
+    // mano en el modal de fecha): marca qué lado controla Luis en este
+    // partido puntual. Se muestra SOLO del lado controlado (no en el rival,
+    // a diferencia de una versión anterior de este fix) — junto al marcador,
+    // a la izquierda si controla al local (teamA) o a la derecha si controla
+    // a la visita (teamB). Mismo criterio que el admin (matches.js), que ya
+    // marca solo el lado controlado.
+    const luisIcon = title => `<span title="${_tkEsc(title)}" style="display:inline-flex;align-items:center;color:var(--gold);">${typeof _FX_GAMEPAD_ICON!=='undefined'?_FX_GAMEPAD_ICON:''}</span>`;
     const scoreRow = m => {
       const ta=teamById[m.teamA], tb=teamById[m.teamB];
       const an=m.goalsA||0, bn=m.goalsB||0;
@@ -491,11 +502,14 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
             <span class="chip chip-final">Final</span>
             <span class="score-n ${bn<an?'lose':''}">${bn}</span>`
         : '<span class="chip chip-vs">VS</span>';
+      const luisMark = m.luisTeam!=null ? luisIcon('Luis controla este equipo') : '';
+      const luisLeft  = (luisMark && m.luisTeam===m.teamA) ? luisMark : '';
+      const luisRight = (luisMark && m.luisTeam===m.teamB) ? luisMark : '';
       return `<div class="score-row" style="--team-color:${colorOf(ta?.color)};">
         <div class="score-edge"></div>
         <div class="score-body">
           <span class="score-team">${_tkEsc(ta?.name||('#'+m.teamA))}</span>
-          <div class="score-nums">${center}</div>
+          <div class="score-nums">${luisLeft}${center}${luisRight}</div>
           <span class="score-team away">${_tkEsc(tb?.name||('#'+m.teamB))}</span>
         </div>
         <div class="score-edge" style="--team-color:${colorOf(tb?.color)};"></div>
@@ -518,7 +532,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
             <div class="stand-grid">
               <div class="stand-colhead" aria-hidden="true">
                 <span class="st-fix">Club</span>
-                <span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span><span class="st-ph">PTS</span>
+                <span class="st-ph">PTS</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span>
               </div>
               <div>${rows.join('')}</div>
             </div>

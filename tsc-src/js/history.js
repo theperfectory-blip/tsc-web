@@ -642,10 +642,16 @@ function _pubDrawH2H(title){
     if(w===1) wa++; else if(w===2) wb++; else dr++;
   });
   const iniA = pickA.ini||_pubHIni(pickA.name), iniB = pickB.ini||_pubHIni(pickB.name);
+  // Escudo real si el equipo lo tiene (pickA/pickB salen de _pubH.teamList,
+  // spread de _histTeams, así que .logo viaja igual que color/ini) — cae a
+  // iniciales para los equipos sintéticos de _pubHTeamMeta (nombres del
+  // histórico sin equipo real asociado), que nunca traen .logo.
+  const crestA = pickA.logo ? `<img src="${_esc(pickA.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
+  const crestB = pickB.logo ? `<img src="${_esc(pickB.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
   result.innerHTML = `<div class="h2h-face">
-    <div class="h2h-side" style="--team-color:${_esc(pickA.color||'#5f6368')};--team-color-2:${_esc(pickA.color2||pickA.color||'#3c4043')};"><div class="h2h-crest">${_esc(iniA)}</div><div class="h2h-name">${_esc(pickA.name)}</div></div>
+    <div class="h2h-side" style="--team-color:${_esc(pickA.color||'#5f6368')};--team-color-2:${_esc(pickA.color2||pickA.color||'#3c4043')};"><div class="h2h-crest">${crestA}</div><div class="h2h-name">${_esc(pickA.name)}</div></div>
     <div class="h2h-vs">VS</div>
-    <div class="h2h-side" style="--team-color:${_esc(pickB.color||'#5f6368')};--team-color-2:${_esc(pickB.color2||pickB.color||'#3c4043')};"><div class="h2h-crest">${_esc(iniB)}</div><div class="h2h-name">${_esc(pickB.name)}</div></div>
+    <div class="h2h-side" style="--team-color:${_esc(pickB.color||'#5f6368')};--team-color-2:${_esc(pickB.color2||pickB.color||'#3c4043')};"><div class="h2h-crest">${crestB}</div><div class="h2h-name">${_esc(pickB.name)}</div></div>
   </div><div class="h2h-record">${direct.length} duelo${direct.length===1?'':'s'} · <b>${wa}</b> ${_esc(iniA)} · <b>${dr}</b> empate${dr===1?'':'s'} · <b>${wb}</b> ${_esc(iniB)} · GF ${gfA}-${gfB}</div>`;
   result.classList.add('show'); hint.style.display='none';
   if(histm) histm.innerHTML = _pubHistmList(direct.slice().sort((a,b)=>(b.id||0)-(a.id||0)), title||'Mano a mano', _pubH.selectedId);
@@ -700,7 +706,10 @@ function _pubSetupH2H(){
       if(isA) _pubH.pickA=null; else _pubH.pickB=null;
       const q = _histNorm(input.value);
       items = q ? _pubH.teamList.filter(t=>t.search.includes(q)).slice(0,7) : [];
-      ac.innerHTML = items.map((t,i)=>`<div class="h2h-ac-item" id="${ac.id}-opt-${i}" role="option" aria-selected="false" style="--team-color:${_esc(t.color||'#5f6368')};" data-id="${_esc(t.id)}"><span class="h2h-ac-crest">${_esc(t.ini||_pubHIni(t.name))}</span>${_esc(t.name)}</div>`).join('');
+      ac.innerHTML = items.map((t,i)=>{
+        const crest = t.logo ? `<img src="${_esc(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(t.ini||_pubHIni(t.name));
+        return `<div class="h2h-ac-item" id="${ac.id}-opt-${i}" role="option" aria-selected="false" style="--team-color:${_esc(t.color||'#5f6368')};" data-id="${_esc(t.id)}"><span class="h2h-ac-crest">${crest}</span>${_esc(t.name)}</div>`;
+      }).join('');
       const open = !!items.length;
       ac.classList.toggle('show', open);
       input.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -1512,21 +1521,26 @@ async function _pubRenderHistoryStandings(el, renderToken){
 }
 
 /* Activa el mano a mano público entre dos equipos (por inicial o nombre).
-   Si la vista «Partidos» del Historial no está montada, la renderiza primero. */
+   Si la vista «Partidos» del Historial no está montada, la renderiza primero.
+   `qB` es opcional: si no viene, deja el lado B vacío y en foco para que el
+   usuario tipee el rival (entrada desde la ficha de club — un solo equipo
+   conocido de antemano). _pubDrawH2H ya sabe mostrar el estado "falta B"
+   (hint visible, sin cuadro de resultado) — no hizo falta tocarlo. */
 async function histH2HShow(qA, qB){
   if(!document.getElementById('h2h-a')) await renderPubHistory();
-  const resolve = q => _pubH.teamList.find(t=>(t.ini||'').toUpperCase()===String(q).toUpperCase())
+  const resolve = q => q ? (_pubH.teamList.find(t=>(t.ini||'').toUpperCase()===String(q).toUpperCase())
     || _histResolveTeam(q, _pubH.teamList)
-    || _pubHTeamMeta(q);
+    || _pubHTeamMeta(q)) : null;
   const ta = resolve(qA), tb = resolve(qB);
-  if(!ta || !tb) return;
+  if(!ta) return;
   _pubH.pickA = ta; _pubH.pickB = tb; _pubH.selectedId = null;
   const inA = document.getElementById('h2h-a'), inB = document.getElementById('h2h-b');
   if(inA) inA.value = ta.name;
-  if(inB) inB.value = tb.name;
+  if(inB) inB.value = tb ? tb.name : '';
   _pubDrawH2H('Mano a mano');
   const _h2hReduced = window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
   document.querySelector('.h2h-frame')?.scrollIntoView({behavior:_h2hReduced?'auto':'smooth', block:'center'});
+  if(!tb && inB) inB.focus();
 }
 
 async function _renderHistoryStandingsInto(el, isAdmin){

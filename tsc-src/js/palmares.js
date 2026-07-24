@@ -1135,7 +1135,7 @@ function _palmReorderListHTML(list, teamById){
       <span class="palm-reorder-handle" aria-hidden="true"
         onpointerdown="_palmReorderPointerDown(event,'${_escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
       <span class="palm-reorder-pos">${i+1}</span>
-      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${_esc((t?.ini || t?.name || '?').slice(0,3))}</span>
+      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${t?.logo ? `<img src="${_escAttr(t.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3))}</span>
       <span class="palm-reorder-name">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
     </div>`;
   }).join('');
@@ -1675,6 +1675,11 @@ async function savePalmaresGallery(){
     closePalmaresModals(true);
     await renderAdmPalmares();
     if(document.getElementById('pub-palmares-content')) await renderPubPalmares();
+    // Anuncia el guardado por evento (no llama a nada de profile.js
+    // directo): este módulo no necesita saber si existe un drawer de
+    // perfil, ni cómo se llama su función de render. Quien esté
+    // interesado en "se guardó la galería de este registro" escucha.
+    document.dispatchEvent(new CustomEvent('palmares:gallery-saved', { detail:{ recordId: rec.id, teamId: rec.teamId } }));
   } catch(error) {
     _PALM_GALLERY.saving = false;
     _palmGalleryRender();
@@ -2324,9 +2329,12 @@ function _palmVitrineDataHTML(entry){
   if (!entry) return '';
   const team = entry.champTeam;
   const colors = entry.colors;
+  const badgeContent = team?.logo
+    ? `<img src="${_escAttr(team.logo)}" alt="">`
+    : _esc(_palmTeamIni(team));
   const championHtml = team ? `
     <div class="mv-vig-row">
-      <span class="mv-badge" style="background:${_escAttr(colors.c1)}">${_esc(_palmTeamIni(team))}</span>
+      <span class="mv-badge" style="background:${_escAttr(colors.c1)}">${badgeContent}</span>
       <span class="mv-vig-name">${_esc(team.name || '—')}</span>
     </div>
   ` : `<div class="mv-vig-row"><span class="mv-vig-name">Sin campeón registrado</span></div>`;

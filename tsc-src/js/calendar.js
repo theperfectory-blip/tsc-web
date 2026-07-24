@@ -14,6 +14,58 @@ function _calTodayStr(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+/* ── Zona horaria de los partidos ─────────────────────────────
+   scheduledDate/scheduledTime se guardan en hora de Lima (Luis teclea su
+   propia hora ahí — el input y el guardado NO cambian, esto es solo
+   visualización). Lima no tiene horario de verano: offset fijo, así que
+   construir el instante con ese offset explícito da el instante absoluto
+   real sin ambigüedad, sin importar la zona del que mira. Todo lo que se
+   MUESTRA (hora, fecha del encabezado, pasado/hoy/futuro, countdown) se
+   deriva de ese instante y se convierte con la zona CON NOMBRE del que
+   mira (_pfViewerTimezone/formatInUserTZ, profile.js) — nunca con un
+   offset fijo del lado del viewer, para que Intl maneje solo el DST de
+   zonas que sí lo tienen (Chile, etc.). */
+const _CAL_LIMA_OFFSET = '-05:00'; // Lima/UTC-5, sin DST
+
+function _calMatchInstant(m){
+  if(!m?.scheduledDate) return null;
+  const inst = new Date(`${m.scheduledDate}T${(m.scheduledTime||'00:00')}:00${_CAL_LIMA_OFFSET}`);
+  return isNaN(inst.getTime()) ? null : inst;
+}
+
+/* Hora de un partido en la zona del que mira. Degrada a la hora de Lima
+   cruda solo si no hay instante real que convertir, o si formatInUserTZ no
+   está disponible (no debería pasar: profile.js carga antes que
+   calendar.js, script 586 vs 608 en index.html). */
+function _calMatchTimeLocal(m){
+  const inst = _calMatchInstant(m);
+  if(inst && typeof formatInUserTZ === 'function'){
+    return formatInUserTZ(inst, { hour:'2-digit', minute:'2-digit', hour12:false });
+  }
+  return m?.scheduledTime ? m.scheduledTime.substring(0,5) : null;
+}
+
+/* YYYY-MM-DD local del que mira para un instante — misma resolución de tz
+   que formatInUserTZ (_pfViewerTimezone, profile.js), formateada en-CA
+   para el orden año-mes-día que ya usa el resto del calendario. */
+function _calLocalDateStr(inst){
+  if(!inst) return null;
+  const tz = typeof _pfViewerTimezone === 'function' ? _pfViewerTimezone() : undefined;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit' }).format(inst);
+}
+
+/* Fecha LOCAL DEL VIEWER de una jornada completa (`dateStr` = fecha de
+   Lima, clave de byDateAll — la jornada NO se reagrupa, sigue entera bajo
+   un solo encabezado): sale del instante del PRIMER partido del día (`ms`
+   ya viene ordenado por scheduledTime). Un día sin partidos con hora real
+   (solo label, ej. "Libre") no tiene instante que convertir — se muestra
+   la fecha de Lima tal cual. */
+function _calJornadaViewerDate(dateStr, ms){
+  const first = ms && ms[0];
+  const inst = first ? _calMatchInstant(first) : null;
+  return _calLocalDateStr(inst) || dateStr;
+}
+
 /* ─ logo helper ──────────────────────────────────────────── */
 function _calLogo(team, size, fallbackLabel){
   const s = size||36;
@@ -622,6 +674,13 @@ let _calHeroCleanup = null;
 /* Contexto del hero (para los CTA reales sin escapar nombres en onclick) */
 let _calHeroCtx = null;
 
+/* Ancla (vivo/hoy) calculada por el render más reciente de renderPubCalendar
+   — leída por _calCenterAnchorScroll (llamada desde nav.js al ENFOCAR la
+   sección, no en cada re-render) para centrar el scroll interno del .metro.
+   null si no hay ancla, o si el render no llegó a montar un .metro (rama sin
+   visibleDates). */
+let _calAnchorDateStr = null;
+
 /* Botón CTA del hero. El rótulo va en un <span class="hm-btn-label"> separado del
    icono: es lo único que escribe la máquina de escribir, así el SVG nunca se borra.
    El aria-label fija el nombre accesible aunque el rótulo se vacíe durante la animación. */
@@ -637,8 +696,9 @@ function _calHeroHtml(m, isLive, ctx){
   const taN = ta?.name || m.labelA || 'Por definir';
   const tbN = tb?.name || m.labelB || 'Por definir';
   const label = [comp?.name||'', phase?.name||''].filter(Boolean).join(' · ');
-  const time  = m.scheduledTime ? m.scheduledTime.substring(0,5) : null;
-  const when  = m.scheduledDate ? `${_calFormatDay(m.scheduledDate)}${time?` · ${time}`:''}` : (time||'');
+  const time  = _calMatchTimeLocal(m);
+  const heroInst = _calMatchInstant(m);
+  const when  = m.scheduledDate ? `${_calFormatDay(_calLocalDateStr(heroInst) || m.scheduledDate)}${time?` · ${time}`:''}` : (time||'');
   const eyebrowChip = isLive
     ? `<span class="chip chip-live"><span class="chip-dot"></span><span class="hm-chip-label">En vivo</span></span>`
     : (label ? `<span class="chip"><span class="hm-chip-label">${_esc(label)}</span></span>` : '');
@@ -710,8 +770,18 @@ function _calOffseasonHero(){
   </div>`;
 }
 
-/* Cablea el toggle (click + teclado), CTAs y máquina de escribir del hero. */
-function _calWireHero(scope){
+/* Cablea el toggle (click + teclado), CTAs y máquina de escribir del hero.
+   `anchorDateStr` (opcional): fecha de Lima (data-cal-date) del ancla del
+   metro (vivo/hoy) para centrar el scroll del CTA "ir al calendario" sobre
+   ESE día en vez del tope del metro. `container` (opcional): el nodo
+   ESTABLE que nunca se reemplaza (#pub-calendar-content) — hace falta
+   porque el CTA resuelve su destino recién al hacer click, no al cablear:
+   si `scope` fue un staging wrapper (actualización atómica, no el primer
+   montaje), para ese momento ya quedó vacío — el commit atómico mueve sus
+   hijos a `container` y lo deja sin nada que buscar. El resto de los CTAs
+   (H2H, competición) no sufre esto porque resuelven su elemento UNA vez acá
+   mismo, al cablear, antes de que exista ese vaciado. */
+function _calWireHero(scope, anchorDateStr, container){
   _calHeroCleanup?.();
   _calHeroCleanup = null;
   const hero = scope.querySelector('.hm-collapsible');
@@ -802,7 +872,14 @@ function _calWireHero(scope){
   if(comp) comp.addEventListener('click', (e)=>{ e.stopPropagation(); _calHeroGoComp(); }, listen);
   const cal = scope.querySelector('.hm-cta-cal');
   if(cal) cal.addEventListener('click', (e)=>{ e.stopPropagation();
-    scope.querySelector('.metro')?.scrollIntoView({behavior:_reduced()?'auto':'smooth', block:'start'}); }, listen);
+    // root = container si está disponible (siempre resuelve sobre el nodo
+    // vivo actual), scope como respaldo (primer montaje: son el mismo nodo).
+    const root = container || scope;
+    // Centrar el ancla (vivo/hoy) si existe; si no, comportamiento de
+    // siempre (tope del metro).
+    const anchorEl = anchorDateStr ? root.querySelector(`[data-cal-date="${anchorDateStr}"]`) : null;
+    const target = anchorEl || root.querySelector('.metro');
+    target?.scrollIntoView({behavior:_reduced()?'auto':'smooth', block: anchorEl ? 'center' : 'start'}); }, listen);
 
   /* ── Proximidad del radar en vivo ─────────────────────────────────────────
      Si el hero está en vivo, el cursor sobre la tarjeta acerca el sonido (limpio
@@ -823,6 +900,32 @@ function _calWireHero(scope){
     if(typeof liveRadarProximity==='function') liveRadarProximity(false);
     _calHeroCleanup = null;
   };
+}
+
+/* Centra el ancla (vivo/hoy) DENTRO del scroll interno del .metro
+   (max-height:520px; overflow-y:auto — redesign.css) — nunca el de la
+   página: en el sitio público el scroll es continuo/de una sola pieza, así
+   que scrollIntoView burbujearía hasta ahí y arrastraría toda la página a
+   la sección. scrollTop calculado a mano en su lugar, robusto frente a
+   offsetParent (el .metro puede estar dentro de un stack con position
+   relative/absolute del staging atómico).
+
+   Se llama UNA vez, al MOSTRAR la sección (focusPublicSection, nav.js — el
+   mismo momento en que hoy arranca el radar en vivo), nunca en cada
+   re-render con la sección YA enfocada: la suscripción en vivo
+   (_subscribeFocusedPublicSection) puede refrescar el calendario por
+   cambios ajenos al ancla (otro partido cambia de fecha, etc.) mientras el
+   usuario navega el metro a mano — recentrar en cada uno de esos refrescos
+   pelearía contra ese scroll manual. Lee `_calAnchorDateStr`, fijado por el
+   render más reciente de renderPubCalendar. */
+function _calCenterAnchorScroll(){
+  if(!_calAnchorDateStr) return;
+  const container = document.getElementById('pub-calendar-content');
+  const scroller  = container?.querySelector('.metro');
+  const aEl       = scroller?.querySelector(`[data-cal-date="${_calAnchorDateStr}"]`);
+  if(!scroller || !aEl) return;
+  const delta = aEl.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  scroller.scrollTop = Math.max(0, scroller.scrollTop + delta - (scroller.clientHeight - aEl.clientHeight)/2);
 }
 
 /* CTA: ver enfrentamientos (H2H) en el Historial entre los dos equipos del hero. */
@@ -861,11 +964,15 @@ function _calInitHeroCountdown(m, scope){
   const cEl = (scope || document).querySelector('#hm-countdown');
   if(!cEl) return;
   if(!m.scheduledDate){ cEl.textContent = m.scheduledTime ? m.scheduledTime.substring(0,5) : '—'; return; }
-  const target = new Date(`${m.scheduledDate}T${(m.scheduledTime||'00:00')}:00`);
-  if(window.MOTION && typeof MOTION.countdown==='function' && !isNaN(target.getTime())){
+  // Instante real (Lima, −05:00) — no un Date sin offset, que el navegador
+  // interpretaría en SU propia zona (el bug original: la cuenta atrás no
+  // se movía al cambiar de zona porque nunca miraba una zona real).
+  const target = _calMatchInstant(m);
+  if(window.MOTION && typeof MOTION.countdown==='function' && target && !isNaN(target.getTime())){
     _calCountdownStop = MOTION.countdown(cEl, target, { doneText:'¡En juego!' });
   } else {
-    cEl.textContent = m.scheduledTime ? m.scheduledTime.substring(0,5) : _calFormatDay(m.scheduledDate);
+    const localTime = _calMatchTimeLocal(m);
+    cEl.textContent = localTime || _calFormatDay(_calLocalDateStr(target) || m.scheduledDate);
   }
 }
 
@@ -959,15 +1066,58 @@ async function renderPubCalendar(){
     .map(l => l.date);
   const allDatesFull = [...new Set([...Object.keys(byDateAll), ...labelDatesAll])].sort();
 
-  /* Visibles: el día pasado MÁS RECIENTE (en gris) + hoy + todos los futuros.
-     A medida que pasan los días, los pasados se ocultan dejando solo el último,
-     con la dinámica del metro (punto gris). */
-  const pastDates   = allDatesFull.filter(d => d < today);
-  const futureDates = allDatesFull.filter(d => d >= today);
+  /* Fecha LOCAL DEL VIEWER de cada jornada (clave = fecha de Lima, sin
+     reagrupar — ver _calJornadaViewerDate). Se usa para clasificar
+     pasado/hoy/futuro y para el encabezado del día (metroDay más abajo):
+     antes ambos comparaban la fecha de Lima cruda contra el "hoy" del
+     viewer, una comparación Lima-vs-viewer inconsistente. */
+  const jornadaViewerDate = {};
+  for(const d of allDatesFull) jornadaViewerDate[d] = _calJornadaViewerDate(d, byDateAll[d]);
+
+  /* Visibles: normalmente el día pasado MÁS RECIENTE (en gris) + hoy + todos
+     los futuros. A medida que pasan los días, los pasados se ocultan
+     dejando solo el último, con la dinámica del metro (punto gris). */
+  const pastDates   = allDatesFull.filter(d => jornadaViewerDate[d] < today);
+  const futureDates = allDatesFull.filter(d => jornadaViewerDate[d] >= today);
   const mostRecentPast = pastDates.length ? pastDates[pastDates.length-1] : null;
-  const visibleDates = (mostRecentPast ? [mostRecentPast] : []).concat(futureDates);
+
+  /* Ancla para centrar el metro (#5): el partido EN VIVO (si tiene fecha
+     propia, o sea si aparece en byDateAll) > el día de HOY si tiene algo
+     que mostrar (partidos o label) > ninguna — en ese caso, el
+     comportamiento de siempre (arriba). */
+  let anchorDateStr = null;
+  if(liveMatch && liveMatch.scheduledDate && byDateAll[liveMatch.scheduledDate]){
+    anchorDateStr = liveMatch.scheduledDate;
+  } else {
+    anchorDateStr = allDatesFull.find(d => jornadaViewerDate[d] === today) || null;
+  }
+  _calAnchorDateStr = anchorDateStr;
+
+  const HORIZON_ROWS = 10; // filas de partido en el horizonte inicial (también el presupuesto para centrar el ancla)
+  let visibleDates;
+  if(anchorDateStr){
+    // Ventana de días pasados alrededor del ancla (no solo el último pasado)
+    // para que pueda quedar centrada: retrocede acumulando ~mitad del
+    // presupuesto de filas, mismo patrón que el recorte del horizonte de
+    // abajo. Desde ahí hasta el final de allDatesFull ya incluye el ancla
+    // y todo lo futuro — funciona aunque el ancla (un vivo tardío) caiga
+    // técnicamente del lado "pasado" de la clasificación.
+    const anchorIdx = allDatesFull.indexOf(anchorDateStr);
+    const HALF = Math.ceil(HORIZON_ROWS / 2);
+    let pastRows = 0, pastStart = anchorIdx;
+    for(let i = anchorIdx - 1; i >= 0; i--){
+      const rows = byDateAll[allDatesFull[i]]?.length || 0;
+      if(pastRows + rows > HALF && pastRows > 0) break;
+      pastRows += rows;
+      pastStart = i;
+    }
+    visibleDates = allDatesFull.slice(pastStart);
+  } else {
+    visibleDates = (mostRecentPast ? [mostRecentPast] : []).concat(futureDates);
+  }
 
   if(!visibleDates.length){
+    _calAnchorDateStr = null; // no hay .metro que montar en esta rama
     stage.innerHTML = heroMatch
       ? `${heroHtml}
         <div class="cal-pub-empty">
@@ -976,7 +1126,7 @@ async function renderPubCalendar(){
         </div>`
       : heroHtml;
     stageReady = true;
-    _calWireHero(stage);
+    _calWireHero(stage, null, el);
     if(heroMatch && !heroIsLive) _calInitHeroCountdown(heroMatch, stage);
     return;
   }
@@ -999,7 +1149,9 @@ async function renderPubCalendar(){
     const iniA = (mmTa?.ini || mmTaN).substring(0,3).toUpperCase();
     const iniB = (mmTb?.ini || mmTbN).substring(0,3).toUpperCase();
     const colA = mmTa?.color || '#333', colB = mmTb?.color || '#333';
-    const time = m.scheduledTime ? m.scheduledTime.substring(0,5) : null;
+    const crestA = mmTa?.logo ? `<img src="${_esc(mmTa.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
+    const crestB = mmTb?.logo ? `<img src="${_esc(mmTb.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
+    const time = _calMatchTimeLocal(m);
     const played = m.goalsA!=null && m.goalsB!=null;
     /* en vuelta el marcador también se invierte visualmente */
     const scoreA = isVueltaMm ? m.goalsB : m.goalsA;
@@ -1015,13 +1167,13 @@ async function renderPubCalendar(){
       ${lead}
       <span class="mm-fixture">
         <span class="mm-side mm-side-a">
-          <span class="mm-crest" style="--tc:${_esc(colA)};">${_esc(iniA)}</span>
+          <span class="mm-crest" style="--tc:${_esc(colA)};">${crestA}</span>
           <span class="mm-name">${_esc(mmTaN)}</span>
         </span>
         <span class="mm-sep">–</span>
         <span class="mm-side mm-side-b">
           <span class="mm-name">${_esc(mmTbN)}</span>
-          <span class="mm-crest" style="--tc:${_esc(colB)};">${_esc(iniB)}</span>
+          <span class="mm-crest" style="--tc:${_esc(colB)};">${crestB}</span>
         </span>
       </span>
       ${legBadge}
@@ -1032,27 +1184,40 @@ async function renderPubCalendar(){
   /* Un día del metro: dot + fecha (+ tag Libre/Sorteo/texto) + partidos. */
   const metroDay = (dateStr)=>{
     const ms = byDateAll[dateStr] || [];
-    const isPast = dateStr < today, isToday = dateStr === today;
+    // Fecha mostrada y clasificación: la del viewer para esta jornada (ya
+    // precalculada arriba), no la de Lima cruda — data-cal-date sigue
+    // siendo la clave de Lima (es lo que usa el ancla para encontrar el
+    // elemento a scrollear, y las búsquedas por fecha en byDateAll/etc.).
+    const viewerDateStr = jornadaViewerDate[dateStr] || dateStr;
+    const isPast = viewerDateStr < today, isToday = viewerDateStr === today;
     const has = ms.length>0;
     const lbl = labelByDate[dateStr] || {text:'', type:''};
     const tagText = lbl.type==='libre' ? 'Libre' : lbl.type==='sorteo' ? 'Sorteo' : (lbl.text||'');
     const cls = ['metro-day', has?'has':'empty', isToday?'today':'', isPast?'past':''].filter(Boolean).join(' ');
     return `<div class="${cls}" data-cal-date="${dateStr}">
       <div class="metro-dot"></div>
-      <div class="metro-date">${_esc(_calFormatDay(dateStr))}${tagText?`<span class="mm-tag">${_esc(tagText)}</span>`:''}</div>
+      <div class="metro-date">${_esc(_calFormatDay(viewerDateStr))}${tagText?`<span class="mm-tag">${_esc(tagText)}</span>`:''}</div>
       ${has ? ms.map(metroMatch).join('') : (tagText ? '' : '<div class="metro-empty">Sin partidos</div>')}
     </div>`;
   };
 
   /* Horizonte inicial: 10 filas de partido. El resto se carga de 10 en 10
-     dentro del mismo contenedor scrolleable. */
-  const HORIZON_ROWS = 10;
+     dentro del mismo contenedor scrolleable. (HORIZON_ROWS ya está
+     declarado arriba, donde también se usa para armar la ventana de
+     pasado alrededor del ancla.) */
   let seenRows = 0, cutoff = visibleDates.length - 1;
   for(let i=0;i<visibleDates.length;i++){
     const dStr = visibleDates[i];
     const dayRows = byDateAll[dStr]?.length || 0;
     if(seenRows + dayRows > HORIZON_ROWS && seenRows > 0){ cutoff = i - 1; break; }
     seenRows += dayRows;
+  }
+  // Garantía dura: el ancla (vivo/hoy) SIEMPRE entra en el horizonte
+  // inicial, aunque su propia jornada por sí sola exceda el presupuesto de
+  // filas — no puede quedar detrás de "Cargar más".
+  if(anchorDateStr){
+    const anchorPos = visibleDates.indexOf(anchorDateStr);
+    if(anchorPos > cutoff) cutoff = anchorPos;
   }
   const horizonDates = visibleDates.slice(0, cutoff+1);
   const pendingDates = visibleDates.slice(cutoff+1);
@@ -1076,7 +1241,7 @@ async function renderPubCalendar(){
   stageReady = true;
 
   /* Toggle colapsable del hero (click + teclado) + CTAs reales */
-  _calWireHero(stage);
+  _calWireHero(stage, anchorDateStr, el);
 
   /* «Cargar más»: añade las siguientes 10 filas in situ (scroll interno). */
   const _pending = [...pendingDates];
