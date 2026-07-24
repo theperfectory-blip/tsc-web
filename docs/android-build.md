@@ -152,7 +152,14 @@ reglas sin motivo:
 
 - [ ] `applicationId`/`namespace` = `web.teamsubscup.app` (`android/app/build.gradle`)
 - [ ] `appName` = `TEAM SUBS CUP` (`capacitor.config.json`, `strings.xml`)
-- [ ] `versionCode`/`versionName` actualizados (`android/app/build.gradle`)
+- [ ] `versionCode`/`versionName` actualizados **y commiteados** (`android/app/build.gradle`)
+      — el bump va en un commit del repo, nunca como edición local que se
+      revierte. v1.3.0/v1.3.1/v1.4.0 salieron con codes 5/6/7 que nunca
+      llegaron a git: `build.gradle` quedó en 3 y buildear desde HEAD producía
+      un APK que Android rechaza instalar encima del que ya tiene la gente.
+- [ ] `versionCode` del build coincide con el publicado — verificar sobre el
+      APK ya generado, no sobre el fuente:
+      `aapt2 dump badging app-release.apk | head -1`
 - [ ] Portrait fijo (`AndroidManifest.xml` → `android:screenOrientation="portrait"`)
 - [ ] Ícono launcher = mascota YuNa, splash = escudo TSC sobre `#0C0F14`
 - [ ] Sin frame blanco en cold start (splash nativo → WebView oscuro → overlay web → app)

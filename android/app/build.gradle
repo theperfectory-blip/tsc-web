@@ -28,8 +28,14 @@ android {
         applicationId "web.teamsubscup.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.2.0"
+        // Fuente de verdad del versionado — el bump se commitea SIEMPRE junto
+        // al release, nunca como edición local suelta: v1.3.0/v1.3.1/v1.4.0 se
+        // publicaron con codes 5/6/7 que nunca llegaron al repo, y buildear
+        // desde HEAD daba un code viejo que Android rechaza instalar encima
+        // del instalado (INSTALL_FAILED_VERSION_DOWNGRADE). El auto-actualizador
+        // compara justamente este número. Ver docs/android-build.md.
+        versionCode 8
+        versionName "1.5.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
