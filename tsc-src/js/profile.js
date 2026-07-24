@@ -799,11 +799,19 @@ async function profileChangePassword(){
 }
 
 /* Helper global — formatea una fecha en la zona horaria del usuario (DST automático) */
-function formatInUserTZ(date, opts = {}){
-  const tz = (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
+/* Resuelve la zona horaria del que mira (perfil > localStorage > Intl del
+   navegador). Único punto de resolución — formatInUserTZ parte de acá, y
+   cualquier otro código que necesite la misma zona (p.ej. calendar.js, vía
+   typeof guard porque profile.js carga antes) también, en vez de
+   reimplementar la cadena de fallback por su cuenta. */
+function _pfViewerTimezone(){
+  return (typeof AUTH !== 'undefined' && AUTH.profile?.timezone)
     || localStorage.getItem('tsc_timezone')
     || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return new Intl.DateTimeFormat('es', { timeZone: tz, ...opts }).format(new Date(date));
+}
+
+function formatInUserTZ(date, opts = {}){
+  return new Intl.DateTimeFormat('es', { timeZone: _pfViewerTimezone(), ...opts }).format(new Date(date));
 }
 
 /* ── Guardar todo ───────────────────────────────────────────── */
