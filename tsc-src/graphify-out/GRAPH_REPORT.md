@@ -1,12 +1,12 @@
 # Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-07-25)
 
 ## Corpus Check
-- 44 files · ~1,309,397 words
+- 44 files · ~1,310,156 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2794 nodes · 7156 edges · 47 communities detected
-- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 1282 edges (avg confidence: 0.8)
+- 2797 nodes · 7165 edges · 47 communities detected
+- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 1285 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -63,7 +63,7 @@
 2. `set()` - 134 edges
 3. `dbGetAll()` - 122 edges
 4. `dbGet()` - 87 edges
-5. `add()` - 84 edges
+5. `add()` - 85 edges
 6. `re` - 75 edges
 7. `showToast()` - 75 edges
 8. `qt` - 70 edges
@@ -71,6 +71,8 @@
 10. `dbPut()` - 60 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `add()` --calls--> `_calRowOk()`  [INFERRED]
+  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\calendar.js
 - `add()` --calls--> `_fxHideLoader()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\fixture-gen.js
 - `remove()` --calls--> `_fxShowLoader()`  [INFERRED]
@@ -78,8 +80,6 @@
 - `remove()` --calls--> `closePhotoViewer()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\profile.js
 - `copy()` --calls--> `ensureInt8()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
-- `set()` --calls--> `_emscripten_memcpy_big()`  [INFERRED]
   C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
 
 ## Hyperedges (group relationships)
@@ -100,87 +100,87 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
-Nodes (55): rgbStr(), _a, ao, At(), bo, Bs, cc, clone() (+47 more)
+Nodes (52): _a, an, At(), bc, bo, cc, clone(), closestPointToPoint() (+44 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.01
-Nodes (123): histShowPrev(), confirmCrop(), ac, _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), as() (+115 more)
+Nodes (120): ac, _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), as(), _bindAction(), bl (+112 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.01
-Nodes (39): scaleBracket(), _fxSetLoaderProgress(), _pubHCount(), _palmReorderPointerMove(), _palmSetSalaLoaderProgress(), _cropClamp(), _cropZoomAt(), loadSound() (+31 more)
+Cohesion: 0.02
+Nodes (245): buildBracketRounds(), buildBracketSlots(), closeBracketMatchModal(), deleteBracketMatch(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase(), getTeamLogo() (+237 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.02
-Nodes (259): buildBracketRounds(), buildBracketSlots(), _cleanup(), closeBracketMatchModal(), deleteBracketMatch(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase() (+251 more)
+Nodes (48): loop(), scaleBracket(), spawnRocket(), _fxSetLoaderProgress(), histShowPrev(), _pubHCount(), _palmOpenSala(), _palmReorderPointerMove() (+40 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.02
-Nodes (22): O(), an, bc, cn, ea, ec, In, La (+14 more)
+Nodes (39): addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), computeBounds(), createAttributesKey(), createDefaultMaterial() (+31 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.02
-Nodes (54): N(), DRACOLoader, addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), computeBounds() (+46 more)
+Cohesion: 0.03
+Nodes (134): _cleanup(), resize(), openColorPicker(), _initChrome(), onScroll(), _play(), _initPubSidebarHover(), aggregatePalmaresByTeam() (+126 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.03
-Nodes (111): resize(), resize(), _play(), _esc(), _escAttr(), getPalmaresMedia(), getTrophyGlbUrl(), getTrophyStyles() (+103 more)
+Cohesion: 0.04
+Nodes (130): renderTopbarBrand(), hexToRgb(), lighten(), _calHeroGoComp(), liveRadarStart(), liveRadarStop(), liveStop(), liveSubscribe() (+122 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.04
-Nodes (112): renderTopbarBrand(), _calCenterAnchorScroll(), _calCommitStage(), _calCtaBtn(), _calFormatDay(), _calHeroGoComp(), _calHeroGoH2H(), _calHeroHtml() (+104 more)
+Cohesion: 0.03
+Nodes (66): A(), B(), C(), D(), e(), F(), G(), h() (+58 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.03
-Nodes (77): notifyStreamTodayClick(), abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert() (+69 more)
+Cohesion: 0.02
+Nodes (20): _pbBracketCards(), _pbBracketMount(), _pbCrestMini(), _pbCrestTree(), _pbDesktopTreeHTML(), _pbEsc(), _pbFmtDate(), _pbMaybeFireworks() (+12 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.04
-Nodes (52): Particle, teamLogoHtml(), A(), B(), C(), D(), e(), F() (+44 more)
+Cohesion: 0.03
+Nodes (61): teamLogoHtml(), _champPhotosBodyHTML(), _champPhotosModalClose(), closeCropModal(), closePhotoViewer(), _clubDossierClose(), confirmCrop(), _cropApply() (+53 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.06
-Nodes (88): openColorPicker(), frame(), getVariant(), init(), setVariant(), stop(), wake(), _bindPageReveals() (+80 more)
+Cohesion: 0.03
+Nodes (74): notifyStreamTodayClick(), abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert() (+66 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.04
-Nodes (48): _getAudioCtx(), Rocket, _soundExplosion(), _soundRocketLaunch(), closeFixtureGenModal(), fxBuildLuisRoute(), _fxBuildLuisRouteForLegs(), fxBuildRoundRobin() (+40 more)
+Nodes (52): _getAudioCtx(), Rocket, _soundExplosion(), _soundRocketLaunch(), closeFixtureGenModal(), fxBuildLuisRoute(), _fxBuildLuisRouteForLegs(), fxBuildRoundRobin() (+44 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.04
-Nodes (84): _authErrorMsg(), _authEsc(), authForgotPassword(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit(), openAuthModal() (+76 more)
+Cohesion: 0.05
+Nodes (78): _calHeroGoH2H(), _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer() (+70 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.06
-Nodes (69): _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc() (+61 more)
+Cohesion: 0.03
+Nodes (7): bt(), gc, jt(), qt, ta, Ut(), zt()
 
 ### Community 14 - "Community 14"
 Cohesion: 0.04
-Nodes (11): bl, Ga, gc, gl(), hl(), _l, nc, Oa (+3 more)
+Nodes (8): dh, ic, kl, _lendControlInterpolant(), rh, _takeBackControlInterpolant(), yl, zl
 
 ### Community 15 - "Community 15"
-Cohesion: 0.07
-Nodes (5): dh, _lendControlInterpolant(), _takeBackControlInterpolant(), yl, zl
+Cohesion: 0.04
+Nodes (10): Particle, rgbStr(), ao, co, equals(), lineTo(), moveTo(), oo (+2 more)
 
 ### Community 16 - "Community 16"
-Cohesion: 0.09
-Nodes (1): uh
+Cohesion: 0.07
+Nodes (47): authSignOut(), _bindListeners(), _clearPendingTokenRemoval(), _clearToken(), clearUserToken(), _currentTimezone(), disable(), _disableLocalPushFlagAndToken() (+39 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.15
-Nodes (20): authSignOut(), _bindListeners(), _clearPendingTokenRemoval(), _clearToken(), clearUserToken(), _currentTimezone(), disable(), _disableLocalPushFlagAndToken() (+12 more)
+Cohesion: 0.07
+Nodes (36): frame(), getVariant(), init(), resize(), setVariant(), stop(), wake(), _bindPageReveals() (+28 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 0.12
-Nodes (19): stagger(), _appendPubTeams(), closeTeamModal(), _clubBatch(), _clubCols(), _computeTeamStats(), _esc(), filterTeamsTable() (+11 more)
+Cohesion: 0.09
+Nodes (37): _authErrorMsg(), _authEsc(), authForgotPassword(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit(), openAuthModal() (+29 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.17
-Nodes (6): Gn, hn, jn(), qn(), Vn(), Wn()
+Cohesion: 0.07
+Nodes (7): destroy(), es, je, setValue(), ss, ts, xi
 
 ### Community 20 - "Community 20"
-Cohesion: 0.22
-Nodes (19): _pbBracketCards(), _pbBracketMount(), _pbCrestMini(), _pbCrestTree(), _pbDesktopTreeHTML(), _pbEsc(), _pbFmtDate(), _pbMaybeFireworks() (+11 more)
+Cohesion: 0.17
+Nodes (6): Gn, hn, jn(), qn(), Vn(), Wn()
 
 ### Community 21 - "Community 21"
 Cohesion: 0.16
@@ -216,15 +216,15 @@ Nodes (3): TSC Admin Code Map v1.9, Rationale: Single-File Monolithic Architectu
 
 ### Community 29 - "Community 29"
 Cohesion: 1.0
-Nodes (2): PLAYOFF Phase Config Schema, PLAYOFF Phase Type (Aggregate Two-Leg)
+Nodes (2): LIGA Phase Config Schema, LIGA Phase Type (Group Stage)
 
 ### Community 30 - "Community 30"
 Cohesion: 1.0
-Nodes (2): LIGA Phase Config Schema, LIGA Phase Type (Group Stage)
+Nodes (2): BRACKET Phase Config Schema, BRACKET Phase Type (Elimination)
 
 ### Community 31 - "Community 31"
 Cohesion: 1.0
-Nodes (2): BRACKET Phase Config Schema, BRACKET Phase Type (Elimination)
+Nodes (2): PLAYOFF Phase Config Schema, PLAYOFF Phase Type (Aggregate Two-Leg)
 
 ### Community 32 - "Community 32"
 Cohesion: 1.0
@@ -289,11 +289,11 @@ Nodes (1): Drumroll Sound Effect
 ## Knowledge Gaps
 - **44 isolated node(s):** `tc`, `Graph Statistics (291 nodes, 727 edges, 28 communities)`, `dbGetAll (77 edges God Node)`, `dbGet (51 edges God Node)`, `showToast (34 edges God Node)` (+39 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 29`** (2 nodes): `PLAYOFF Phase Config Schema`, `PLAYOFF Phase Type (Aggregate Two-Leg)`
+- **Thin community `Community 29`** (2 nodes): `LIGA Phase Config Schema`, `LIGA Phase Type (Group Stage)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (2 nodes): `LIGA Phase Config Schema`, `LIGA Phase Type (Group Stage)`
+- **Thin community `Community 30`** (2 nodes): `BRACKET Phase Config Schema`, `BRACKET Phase Type (Elimination)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 31`** (2 nodes): `BRACKET Phase Config Schema`, `BRACKET Phase Type (Elimination)`
+- **Thin community `Community 31`** (2 nodes): `PLAYOFF Phase Config Schema`, `PLAYOFF Phase Type (Aggregate Two-Leg)`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 32`** (1 nodes): `firebase-config.example.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -329,12 +329,12 @@ Nodes (1): Drumroll Sound Effect
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 18`, `Community 19`?**
-  _High betweenness centrality (0.136) - this node is a cross-community bridge._
-- **Why does `add()` connect `Community 7` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 18`, `Community 25`?**
-  _High betweenness centrality (0.111) - this node is a cross-community bridge._
-- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 2`, `Community 4`, `Community 5`, `Community 8`, `Community 9`, `Community 14`, `Community 15`, `Community 19`?**
-  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 13`, `Community 15`, `Community 17`, `Community 18`, `Community 19`, `Community 20`?**
+  _High betweenness centrality (0.133) - this node is a cross-community bridge._
+- **Why does `add()` connect `Community 6` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 7`, `Community 9`, `Community 11`, `Community 12`, `Community 16`, `Community 17`, `Community 18`, `Community 19`, `Community 25`?**
+  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 3`, `Community 4`, `Community 7`, `Community 9`, `Community 10`, `Community 13`, `Community 14`, `Community 15`, `Community 19`, `Community 20`?**
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
 - **Are the 4 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 28 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**

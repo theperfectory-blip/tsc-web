@@ -181,8 +181,25 @@
 
     pn.addListener('pushNotificationActionPerformed', (action) => {
       console.log('[push] acción sobre notificación:', action);
-      // TODO (futuro): deep-link a la sección relevante según action.notification.data
+      _handleNotificationData(action && action.notification && action.notification.data);
     });
+  }
+
+  /* Deep-link al tocar una notificación (Slice C2 del macro auto-actualizador,
+     ver tsc-src/MACRO_SLICE_UPDATER.md). Extraída del callback de arriba a
+     propósito para poder invocarla a mano sin un push real — probarlo con un
+     push de verdad requiere backend + token FCM y está fuera de alcance acá:
+       window.PUSH.handleNotificationData({section:'updates'})
+     Despacho por data.section, extensible a futuro — hoy solo implementa
+     'updates' porque no hay más casos todavía; no es un router completo.
+     OJO: esto solo sirve para pushes armados desde v1.5.0 en adelante — una
+     APK v1.4.0 instalada ya tiene el listener viejo (solo console.log)
+     congelado adentro, no hay forma de parchear eso a distancia. */
+  function _handleNotificationData(data) {
+    if (!data || typeof data !== 'object') return;
+    if (data.section === 'updates') {
+      if (typeof openSettings === 'function') openSettings();
+    }
   }
 
   /* `askIfNeeded=true` (toggle del usuario, único caller real hoy) puede
@@ -274,6 +291,7 @@
     getToken,
     syncUser,
     clearUserToken,
+    handleNotificationData: _handleNotificationData,
   };
 
   // Si ya estaba activado en una sesión anterior, re-registrar al abrir SIN

@@ -104,11 +104,33 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
 .mode-btn.active{background:var(--gold);color:#000;border-color:var(--gold);}
 .mode-btn:hover:not(.active){border-color:var(--txt2);color:var(--txt);}
 .icon-btn{
+  position:relative;
   background:var(--card2);border:1px solid var(--brd);color:var(--txt);
   padding:5px 9px;border-radius:var(--r);cursor:pointer;font-size:18px;
   transition:border-color 0.15s;line-height:1;
 }
 .icon-btn:hover{border-color:var(--gold);}
+/* Aviso de actualización disponible (Slice C2 del auto-actualizador): dot
+   discreto sobre el engranaje de Configuración, visible desde cualquier
+   pantalla sin abrir nada. Oculto por defecto — solo se muestra (clase
+   .show) cuando checkForUpdatesSilently() en ui-utils.js encuentra versión
+   nueva al arrancar (dentro de la APK). El borde usa --card2 (el mismo
+   fondo del botón) para que el punto se lea "recortado" del ícono, en
+   ambos temas.
+
+   Usa --gold-ink y NO --gold: con --gold el punto daba 1.97:1 contra el
+   fondo del botón en tema claro (medido), por debajo del 3:1 que pide WCAG
+   para elementos de UI — se distinguía si uno lo buscaba, justo lo contrario
+   de lo que tiene que hacer un aviso. --gold-ink es el token que el proyecto
+   ya tiene para eso (es --gold en dark y #7A5F1E en light); mismo criterio
+   que --focus-ring, que tampoco es texto y lo usa por la misma razón. */
+.settings-update-dot{
+  display:none;position:absolute;top:3px;right:3px;
+  width:8px;height:8px;border-radius:50%;
+  background:var(--gold-ink);border:1.5px solid var(--card2);
+  pointer-events:none;
+}
+.settings-update-dot.show{display:block;}
 /* Avatar de perfil en la topbar (solo imagen / SVG genérico) */
 .auth-avatar{
   width:30px;height:30px;border-radius:50%;flex:none;padding:0;

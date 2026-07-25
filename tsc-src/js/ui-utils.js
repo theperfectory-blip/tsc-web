@@ -130,7 +130,16 @@ function openSettings(){
   if (updateGroup){
     const supported = !!(window.UPDATER && window.UPDATER.isSupported());
     updateGroup.style.display = supported ? '' : 'none';
-    if (supported) checkForUpdates();
+    if (supported){
+      // Si el aviso automático al arrancar (checkForUpdatesSilently, Slice
+      // C2) ya encontró versión nueva, reusa ese resultado en vez de volver
+      // a pedir el manifiesto — mismo criterio que installUpdate(). Para
+      // cualquier otro caso (todavía no corrió, no encontró nada, o falló)
+      // se comporta exactamente como antes: chequeo fresco cada vez que se
+      // abre Configuración.
+      if (_updLastResult && _updLastResult.ok && _updLastResult.hasUpdate) _updRenderCheckResult(_updLastResult);
+      else checkForUpdates();
+    }
   }
   // Zona horaria — poblar datalist una sola vez y restaurar valor guardado
   const tzInput = document.getElementById('settings-timezone');
@@ -203,17 +212,12 @@ function _updSetCheckBtnDisabled(disabled){
   if (btn) btn.disabled = !!disabled;
 }
 
-/* Dispara al abrir Configuración y desde el botón "Buscar" (también sirve
-   de "Reintentar" en el estado de error — mismo flujo). */
-async function checkForUpdates(){
-  if (!window.UPDATER || !window.UPDATER.isSupported()) return;
-  _updSetCheckBtnDisabled(true);
-  _updSetStatus('Buscando actualizaciones…');
-
-  const res = await window.UPDATER.check();
-  _updLastResult = res;
-  _updSetCheckBtnDisabled(false);
-
+/* Render de un resultado de UPDATER.check() en #update-status — extraído de
+   checkForUpdates() (Slice C2) para poder reusarlo desde otros llamadores
+   que ya tienen un resultado a mano (openSettings() con el cache del aviso
+   automático, checkForUpdatesSilently()) sin volver a pedir el manifiesto.
+   Mismo render de siempre, sin cambios de comportamiento. */
+function _updRenderCheckResult(res){
   if (!res.ok){
     // 404 (update.json todavía no publicado — Slice B) cae acá como
     // 'network-error' igual que un problema de red real: es el estado de
@@ -240,6 +244,37 @@ async function checkForUpdates(){
       Descargar e instalar
     </button>
   `);
+}
+
+/* Dispara al abrir Configuración y desde el botón "Buscar" (también sirve
+   de "Reintentar" en el estado de error — mismo flujo). */
+async function checkForUpdates(){
+  if (!window.UPDATER || !window.UPDATER.isSupported()) return;
+  _updSetCheckBtnDisabled(true);
+  _updSetStatus('Buscando actualizaciones…');
+
+  const res = await window.UPDATER.check();
+  _updLastResult = res;
+  _updSetCheckBtnDisabled(false);
+  _updRenderCheckResult(res);
+}
+
+/* Aviso automático al arrancar (Slice C2) — corre una sola vez por sesión,
+   diferido desde window.onload (ver más abajo), fuera del camino crítico.
+   Silencio total si no hay novedad o algo falla: sin toast, sin error
+   visible, sin log ruidoso — alguien sin señal no tiene que ver un cartel
+   al abrir la app. Si hay versión nueva, guarda el resultado en
+   _updLastResult (mismo cache que usa installUpdate()) para que
+   openSettings() lo reuse sin volver a pedir el manifiesto, y prende el
+   dot sobre el engranaje de Configuración (#settings-update-dot). */
+async function checkForUpdatesSilently(){
+  if (!window.UPDATER || !window.UPDATER.isSupported()) return;
+  let res;
+  try { res = await window.UPDATER.check(); }
+  catch (_) { return; }
+  if (!res || !res.ok || !res.hasUpdate) return;
+  _updLastResult = res;
+  document.getElementById('settings-update-dot')?.classList.add('show');
 }
 
 /* Botón "Descargar e instalar". Chequea permiso primero (el plugin nunca
@@ -806,6 +841,16 @@ window.addEventListener('load', async ()=>{
       if(AUTH.role==='admin') setMode('admin');
     });
   }
+
+  // Aviso automático de actualización (Slice C2) — la app ya está usable acá
+  // (initDB/migraciones/seeds/loadSeasons ya terminaron arriba). setTimeout
+  // lo saca del stack de este handler para que no le agregue ni un ms al
+  // arranque; UPDATER.check() en sí mismo es una llamada de red que puede
+  // tardar, así que además de diferido tiene que quedar sin await acá.
+  // checkForUpdatesSilently() ya es no-op fuera de la APK y nunca muestra
+  // nada si no hay novedad o algo falla — no hace falta guardarlo detrás de
+  // ningún chequeo extra.
+  setTimeout(() => { checkForUpdatesSilently(); }, 0);
 });
 
 /* ----------------------------------------------------------
