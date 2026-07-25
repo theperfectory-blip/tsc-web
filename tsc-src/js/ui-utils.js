@@ -123,6 +123,15 @@ function openSettings(){
     pushGroup.style.display = supported ? '' : 'none';
     if (supported && pushOn) pushOn.checked = window.PUSH.isEnabled();
   }
+  // Actualizaciones (auto-updater) — mismo criterio: fuera de la APK
+  // Android empaquetada, window.UPDATER.isSupported() da false y la
+  // sección entera queda oculta (no tiene sentido en navegador/PWA).
+  const updateGroup = document.getElementById('settings-update-group');
+  if (updateGroup){
+    const supported = !!(window.UPDATER && window.UPDATER.isSupported());
+    updateGroup.style.display = supported ? '' : 'none';
+    if (supported) checkForUpdates();
+  }
   // Zona horaria — poblar datalist una sola vez y restaurar valor guardado
   const tzInput = document.getElementById('settings-timezone');
   const tzList  = document.getElementById('settings-tz-list');
@@ -168,6 +177,120 @@ async function setPushOn(b){
       : 'No se pudo activar. Intenta de nuevo.';
     showToast('No se pudieron activar las notificaciones','error');
   }
+}
+
+/* ----------------------------------------------------------
+   ACTUALIZACIONES (auto-updater, solo Android empaquetado)
+   ------------------------------------------------------------
+   Motor puro (fetch + comparación de versionCode) vive en updater.js
+   (window.UPDATER) — acá solo el render de #settings-update-group y
+   la orquestación de los distintos estados. `notes` del manifiesto
+   viene de la red (GitHub Releases): es dato externo aunque lo
+   escriba el propio dev, así que se escapa con _updEsc() antes de
+   entrar por innerHTML (regla de CLAUDE.md).
+   ---------------------------------------------------------- */
+function _updEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let _updLastResult = null;  // último UPDATER.check() — lo reusa installUpdate() sin re-pedir el manifiesto
+let _updInstalling = false; // guarda de UI aparte del flag interno de updater.js — evita el doble-tap desde el primer click, antes de que exista una descarga real que bloquear
+
+function _updSetStatus(html){
+  const el = document.getElementById('update-status');
+  if (el) el.innerHTML = html;
+}
+function _updSetCheckBtnDisabled(disabled){
+  const btn = document.getElementById('update-check-btn');
+  if (btn) btn.disabled = !!disabled;
+}
+
+/* Dispara al abrir Configuración y desde el botón "Buscar" (también sirve
+   de "Reintentar" en el estado de error — mismo flujo). */
+async function checkForUpdates(){
+  if (!window.UPDATER || !window.UPDATER.isSupported()) return;
+  _updSetCheckBtnDisabled(true);
+  _updSetStatus('Buscando actualizaciones…');
+
+  const res = await window.UPDATER.check();
+  _updLastResult = res;
+  _updSetCheckBtnDisabled(false);
+
+  if (!res.ok){
+    // 404 (update.json todavía no publicado — Slice B) cae acá como
+    // 'network-error' igual que un problema de red real: es el estado de
+    // hoy, no debe leerse como una falla del feature.
+    let msg = 'No se pudo comprobar si hay actualizaciones.';
+    if (res.reason === 'network-error') msg = 'No se pudo comprobar si hay actualizaciones — revisa tu conexión.';
+    else if (res.reason === 'bad-manifest') msg = 'El servidor devolvió un formato inesperado.';
+    else if (res.reason === 'app-info-error') msg = 'No se pudo leer la versión instalada.';
+    _updSetStatus(`${msg} <button type="button" class="btn btn-xs" style="margin-top:4px;" onclick="checkForUpdates()">Reintentar</button>`);
+    return;
+  }
+
+  if (!res.hasUpdate){
+    _updSetStatus(`Ya tienes la última versión (v${_updEsc(res.currentName || res.currentCode)}).`);
+    return;
+  }
+
+  const notes = res.notes ? `<div style="margin-top:2px;">${_updEsc(res.notes)}</div>` : '';
+  _updSetStatus(`
+    <div>Hay una versión nueva: v${_updEsc(res.remoteName || res.remoteCode)}</div>
+    ${notes}
+    <button type="button" class="btn btn-xs" id="update-install-btn" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;" onclick="installUpdate()">
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Descargar e instalar
+    </button>
+  `);
+}
+
+/* Botón "Descargar e instalar". Chequea permiso primero (el plugin nunca
+   pide con diálogo estándar — es "acceso especial", solo se puede abrir la
+   pantalla de Ajustes) y recién después dispara la descarga real, que puede
+   tardar minutos (~85MB) — el botón queda deshabilitado todo ese tiempo
+   para que un segundo tap no choque con el "Ya hay una descarga en curso"
+   del plugin nativo. */
+async function installUpdate(){
+  if (_updInstalling) return;
+  if (!window.UPDATER || !_updLastResult || !_updLastResult.ok || !_updLastResult.hasUpdate) return;
+
+  const apkUrl = _updLastResult.apkUrl;
+  if (!apkUrl){ _updSetStatus('El manifiesto no trae la URL del APK.'); return; }
+
+  _updInstalling = true;
+  try {
+    const perm = await window.UPDATER.canInstall();
+    if (!perm.granted){
+      _updSetStatus(`
+        ${_UI_ALERT_SVG}No puedes instalar actualizaciones todavía — activa el permiso en Ajustes.
+        <div style="margin-top:6px;display:flex;gap:6px;">
+          <button type="button" class="btn btn-xs" onclick="openUpdatePermission()">Habilitar</button>
+          <button type="button" class="btn btn-xs" onclick="installUpdate()">Ya lo activé — reintentar</button>
+        </div>
+      `);
+      return;
+    }
+
+    const btn = document.getElementById('update-install-btn');
+    if (btn){ btn.disabled = true; btn.textContent = 'Descargando…'; }
+    _updSetStatus('Descargando… puede tardar varios minutos, puedes cerrar esta ventana.');
+
+    const res = await window.UPDATER.downloadAndInstall(apkUrl);
+    if (res.ok){
+      _updSetStatus('Instalador abierto — sigue los pasos en pantalla.');
+      return;
+    }
+
+    const detail = (res.error && (res.error.message || String(res.error))) || 'Error desconocido.';
+    _updSetStatus(`
+      ${_UI_ALERT_SVG}Falló la descarga: ${_updEsc(detail)}
+      <div style="margin-top:6px;"><button type="button" class="btn btn-xs" onclick="installUpdate()">Reintentar</button></div>
+    `);
+  } finally {
+    _updInstalling = false;
+  }
+}
+
+function openUpdatePermission(){
+  window.UPDATER && window.UPDATER.openInstallPermissionSettings();
 }
 
 /* Control de sonido GLOBAL (afecta SFX y el palmarés, que lee SFX). */
