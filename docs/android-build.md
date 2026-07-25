@@ -163,8 +163,112 @@ reglas sin motivo:
 - [ ] Portrait fijo (`AndroidManifest.xml` → `android:screenOrientation="portrait"`)
 - [ ] Ícono launcher = mascota YuNa, splash = escudo TSC sobre `#0C0F14`
 - [ ] Sin frame blanco en cold start (splash nativo → WebView oscuro → overlay web → app)
-- [ ] Solo permiso `INTERNET` en el manifest, salvo que se agregue una razón real
+- [ ] Permisos en el manifest: `INTERNET`, `POST_NOTIFICATIONS` (push FCM) y
+      `REQUEST_INSTALL_PACKAGES` (auto-actualizador) — ningún otro sin una
+      razón real. Los que agrega el merge de plugins (`ACCESS_NETWORK_STATE`,
+      `WAKE_LOCK`, `c2dm.RECEIVE`) vienen de `@capacitor/push-notifications`
+      y no se declaran a mano.
 - [ ] `npm run build:www && npx cap copy android` corridos antes de buildear
+- [ ] **El bundle web dentro del APK coincide con `tsc-src/`** — no alcanza con
+      haber corrido `cap copy`: Gradle puede empaquetar assets viejos si
+      `mergeAssets` queda `UP-TO-DATE`. Comparar hashes de lo que quedó
+      adentro contra el fuente (`assets/public/js/*.js` del zip vs
+      `tsc-src/js/*.js`). La v1.4.0 salió con el bundle de un commit de 8 días
+      antes y nadie lo notó hasta que se auditó.
+
+## Publicar un release (GitHub Releases)
+
+El canal de distribución es **GitHub Releases** en el mismo repo, público. No
+se usa Firebase Storage (cobraba tráfico) ni Drive (bloquea el archivo cuando
+se descarga mucho).
+
+Cada release lleva **tres assets**:
+
+| Asset | Para qué |
+|---|---|
+| `TEAM-SUBS-CUP-vX.Y.Z-release.apk` | copia versionada, para el registro |
+| `TEAM-SUBS-CUP.apk` | **nombre fijo** — hace estable la URL `releases/latest/download/TEAM-SUBS-CUP.apk`, que es la que consume `TSC_APK_URL` en `tsc-src/js/apk-promo.js` y el footer del sitio |
+| `update.json` | **nombre fijo** — lo lee el auto-actualizador dentro de la app |
+
+El nombre fijo es lo que hace que, apenas se publique el release, la web
+empiece a servir la versión nueva sin tocar una línea de código.
+
+### 1. Verificar la firma — gate obligatorio, antes de publicar
+
+```bash
+apksigner verify --print-certs TEAM-SUBS-CUP-vX.Y.Z-release.apk
+```
+
+El SHA-256 del certificado tiene que ser exactamente:
+
+```text
+7727c9a7677861396e9fddeceeabfc323386f276c96251b03ca99072ef802a72
+```
+
+Y el DN, completo:
+
+```text
+CN=TEAM SUBS CUP, OU=TSC, O=TSC, L=Unknown, ST=Unknown, C=AR
+```
+
+(Ambos valores comprobados contra el APK de la v1.4.0 ya publicada.)
+
+**Por qué es un gate y no una buena práctica.** Si la clave cambia, Android
+rechaza la actualización y la única salida es desinstalar — perdiendo sesión y
+datos locales, justo lo que las notas de release le dicen a la gente que NO
+haga. Antes esto se detectaba solo: alguien instalaba a mano, fallaba y
+avisaba. Con el auto-actualizador la falla pasa a ocurrir **en silencio,
+dentro del instalador del sistema y para todos a la vez** — nadie sabe por qué
+"no anda actualizar".
+
+### 2. Publicar `update.json` junto al APK
+
+Mismo release, nombre fijo:
+
+```json
+{
+  "versionCode": 8,
+  "versionName": "1.5.0",
+  "apkUrl": "https://github.com/theperfectory-blip/tsc-web/releases/latest/download/TEAM-SUBS-CUP.apk",
+  "notes": "Qué cambió, en una línea, en tuteo"
+}
+```
+
+`versionCode` es lo **único** que compara la app para decidir si hay versión
+nueva (`versionName` es solo para mostrar: comparar "1.10.0" contra "1.9.0"
+como texto da el resultado equivocado). Tiene que coincidir con el
+`versionCode` real del APK del mismo release — verificarlo sobre el binario,
+no sobre `build.gradle`:
+
+```bash
+aapt2 dump badging TEAM-SUBS-CUP.apk | head -1
+```
+
+Va en el mismo release a propósito: así nunca existe una ventana donde el
+manifiesto anuncie una versión cuyo APK todavía no está subido.
+
+### 3. Comprobar que quedó servible
+
+```bash
+curl -sL -o /dev/null -w "%{http_code}\n" https://github.com/theperfectory-blip/tsc-web/releases/latest/download/update.json
+```
+
+Tiene que dar `200` (`-L` es obligatorio: la URL de nombre fijo pasa por dos
+redirects antes de llegar a los bytes).
+
+Ojo: dentro de la app ese archivo **no** se pide con `fetch()` sino con
+`CapacitorHttp` (ver `tsc-src/js/updater.js`) — los release assets de GitHub no
+mandan `Access-Control-Allow-Origin` y el WebView sirve la app desde
+`https://localhost`, así que un `fetch()` normal muere por CORS sin llegar
+siquiera a ver la respuesta. No cambiar eso por `fetch()` "porque es más
+simple".
+
+### 4. Avisar
+
+Recién ahí avisar que hay versión nueva. Desde la v1.5.0 la gente se entera
+sola desde Configuración → Actualizaciones; los que estén en una versión
+anterior al auto-actualizador hay que avisarles por fuera (directos, grupo),
+por única vez.
 
 ## Validar cambios visuales (ícono/splash/topbar) en el emulador
 
