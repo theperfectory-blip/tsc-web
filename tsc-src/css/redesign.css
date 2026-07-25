@@ -1033,6 +1033,7 @@ body.sala-open{overflow:hidden;}
     color-mix(in srgb,var(--team-color) 24%,transparent),transparent 60%);
 }
 .club-stage:hover .club-card::before{opacity:1;}
+.club-card:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .club-card .form-pip{transition:transform var(--dur-mid) var(--ease-out-soft);}
 .club-stage:hover .form-pip{transform:translateY(-3px);}
 .club-stage:hover .form-pip:nth-child(2){transition-delay:.04s;}
