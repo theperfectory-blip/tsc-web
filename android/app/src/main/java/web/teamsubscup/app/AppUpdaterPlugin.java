@@ -288,7 +288,7 @@ public class AppUpdaterPlugin extends Plugin {
 
         if (SystemClock.elapsedRealtime() - pollStartedAt >= MAX_WAIT_MS) {
             dm.remove(id); // corta la descarga colgada, libera el espacio parcial
-            finishWithError(ctx, "Tiempo de espera agotado descargando la actualización — probá con mejor señal o wifi");
+            finishWithError(ctx, "Tiempo de espera agotado descargando la actualización — prueba con mejor señal o wifi");
         }
     }
 
