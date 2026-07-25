@@ -14,6 +14,9 @@ public class MainActivity extends BridgeActivity {
         // Debe registrarse antes de super.onCreate() (bridge de Capacitor) —
         // ver SystemBarsPlugin.java: iconos de status/nav bar según tema.
         registerPlugin(SystemBarsPlugin.class);
+        // Auto-actualizador de la app (descarga + instala el APK) — ver
+        // AppUpdaterPlugin.java.
+        registerPlugin(AppUpdaterPlugin.class);
         SplashScreen.installSplashScreen(this);
         // Fondo de la ventana oscuro ANTES de que el tema/contenido se
         // asiente — evita cualquier resquicio blanco entre el splash nativo

@@ -42,4 +42,8 @@
     <!-- Android 13+ (API 33): notificaciones requieren permiso runtime explícito
          (ver tsc-src/js/push.js → PushNotifications.requestPermissions()). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 8+ (API 26): "acceso especial" para instalar APKs fuera de
+         Play Store — sin esto canRequestPackageInstalls() nunca puede dar
+         true (ver AppUpdaterPlugin.java, auto-actualizador de la app). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>
