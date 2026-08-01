@@ -1,0 +1,6 @@
+{
+  "versionCode": 10,
+  "versionName": "1.5.3",
+  "apkUrl": "https://github.com/theperfectory-blip/tsc-web/releases/latest/download/TEAM-SUBS-CUP.apk",
+  "notes": "Las notificaciones ahora suenan con un audio propio en vez del sonido generico del sistema."
+}
