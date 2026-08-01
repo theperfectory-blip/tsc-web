@@ -270,9 +270,7 @@
 /* ============================================================
    Corte de audio al pasar a background (minimizar APK, cambiar de
    pestaña, perder foco de ventana) — NO es el toggle de preferencia de
-   sonido: es runtime-only, no persiste nada, y no auto-reanuda al volver
-   (el uso normal de cada pantalla vuelve a arrancar su propio audio si
-   corresponde cuando el usuario realmente interactúa de nuevo).
+   sonido: es runtime-only, no persiste nada.
    ============================================================ */
 function pauseAllAppAudio(reason){
   window.SFX?.pauseForBackground?.(reason);
@@ -285,3 +283,24 @@ function pauseAllAppAudio(reason){
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseAllAppAudio('hidden'); });
 window.addEventListener('pagehide', () => pauseAllAppAudio('pagehide'));
 window.addEventListener('blur', () => pauseAllAppAudio('blur'));
+
+/* Contraparte SIMÉTRICA de lo de arriba — bug confirmado: en el WebView
+   nativo de la APK, un `blur` (más propenso a dispararse ahí que en una
+   pestaña de navegador — cambios de foco del sistema, IME, etc.) deja
+   backgroundPaused en true PARA SIEMPRE, silenciando SFX.playTada()/radar/
+   etc. sin ningún error — el `<audio>` del redoble del sorteo sigue
+   sonando porque ese no pasa por SFX, así que el síntoma es "el redoble
+   suena pero el tada no". Antes, solo un gesto explícito del usuario
+   (SFX.unlock(), atado a botones puntuales) podía destrabarlo — si el
+   blur pasó lejos de cualquiera de esos botones (p.ej. a mitad de la
+   animación del sorteo, varios setTimeout después del click), quedaba
+   mudo indefinidamente. Acá se libera automáticamente al volver la app a
+   PRIMER PLANO DE VERDAD (visibilitychange→visible o focus, con
+   document.hidden ya en false) — nunca mientras sigue oculta/minimizada,
+   así que un timer de fondo (el motivo original de exigir un gesto
+   explícito) sigue sin poder reactivar nada por sí solo. */
+function resumeAudioOnForeground(){
+  if (!document.hidden) window.SFX?.unlock?.();
+}
+document.addEventListener('visibilitychange', resumeAudioOnForeground);
+window.addEventListener('focus', resumeAudioOnForeground);

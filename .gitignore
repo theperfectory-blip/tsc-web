@@ -63,3 +63,8 @@ HISTORIAL ENCUENTROS TSC FINAL.ods
 # ─── Notas de sesión (handoff entre sesiones de trabajo, no documentación
 #     del proyecto — puede contener uids/datos reales de pruebas en prod) ───
 NEXT_SESSION.md
+
+# ─── Memory cards de PS2 (datos de prueba del editor PES4) ───
+# Cada tarjeta de 64 MB pesa 69 MB; son regenerables desde el emulador y no
+# tienen por qué vivir en git. Se conservan en disco en tsc-src/prototipo_yunas/
+*.ps2

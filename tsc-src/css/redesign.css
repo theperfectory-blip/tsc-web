@@ -620,14 +620,18 @@ body.sala-open{overflow:hidden;}
 @media(min-width:1000px){
   .comps-duo{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px;}
 }
-/* --stand-fix = ancho de la columna fija (posición+escudo+nombre). Única
-   fuente de verdad: .stand-fade.l vive en una rama del DOM distinta de
-   .stand-row (ver .stand-scrollwrap más abajo), así que declararla en
-   .stand-grid no la sincroniza con el fade — tiene que vivir en el
-   ancestro común. 236px cubre el nombre más largo medido ("HALCONES
-   SOLARES FC", 129px de texto) con holgura + deja ~101px de stats
-   visibles a 375px — medido, no estimado (ver REPORTE_FIX_LOGOS_NOMBRES.md). */
-.stand-card{--stand-fix:236px;background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
+/* --stand-fix = ancho de la columna sticky, que ahora es SOLO el nombre del
+   club — posición y escudo dejaron de ser sticky (antes las 3 cosas
+   formaban un solo bloque fijo de 236px, ver historial). En pantallas
+   angostas ese bloque dejaba muy poca franja visible de stats y casi nada
+   de margen para agarrar el gesto de swipe. Ahora posición+escudo viajan
+   con el resto del contenido: al deslizar apenas un poco desaparecen (se
+   "van" con el swipe) y el nombre pasa a ocupar el borde — recién ahí se
+   libera el ancho real para las stats. En reposo (scrollLeft=0) se ve
+   exactamente igual que antes (mismo orden visual: pos, escudo, nombre).
+   .stand-fade.l usa el mismo cálculo de ancho total — única fuente de
+   verdad, ver comentario en .stand-scrollwrap más abajo. */
+.stand-card{--stand-fix:150px;background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;}
 .stand-hdr{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;border-bottom:1px solid var(--brd);
@@ -638,14 +642,15 @@ body.sala-open{overflow:hidden;}
   color:var(--txt2);cursor:pointer;padding:4px 6px;display:flex;align-items:center;
   flex-shrink:0;transition:border-color var(--dur-fast),color var(--dur-fast);}
 .stand-criteria-btn:hover{border-color:var(--gold-b);color:var(--gold);}
-/* Tabla estilo Google: club fijo a la izquierda, stats con scroll
+/* Tabla estilo Google: nombre fijo a la izquierda, stats con scroll
    horizontal y difuminado en los bordes que se puede seguir scrolleando */
 .stand-scrollwrap{position:relative;}
 .stand-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 .stand-scroll::-webkit-scrollbar{height:0;display:none;}
-.stand-grid{min-width:calc(var(--stand-fix) + 294px);}
+/* 38px pos + 32px escudo + var(--stand-fix) nombre + 294px (7×42px stats) */
+.stand-grid{min-width:calc(38px + 32px + var(--stand-fix) + 294px);}
 .stand-colhead,.stand-row{
-  display:grid;grid-template-columns:var(--stand-fix) repeat(7,minmax(42px,1fr));
+  display:grid;grid-template-columns:38px 32px var(--stand-fix) repeat(7,minmax(42px,1fr));
   align-items:center;
 }
 .stand-row{font-family:'Barlow Condensed';font-size:15px;font-weight:600;
@@ -653,26 +658,46 @@ body.sala-open{overflow:hidden;}
 .stand-row:hover{background:color-mix(in srgb, var(--team-color) 13%, transparent);}
 .stand-row:hover .st-pts{color:var(--gold-ink);text-shadow:0 0 14px var(--gold-glow);}
 .stand-row:hover .st-crest{transform:scale(1.1);box-shadow:0 0 12px color-mix(in srgb,var(--team-color) 60%,transparent);}
-/* bloque fijo: posición + escudo + nombre, pegado al borde izquierdo */
-.st-fix{position:sticky;left:0;z-index:2;background:var(--card);
-  display:grid;grid-template-columns:24px 28px minmax(0,1fr);align-items:center;gap:4px;
-  padding:9px 8px 9px 14px;}
-.stand-row:hover .st-fix{background:color-mix(in srgb, var(--team-color) 13%, var(--card));}
-.st-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;border-radius:4px;}
+/* posición: YA NO es sticky — viaja con el resto del contenido al scrollear */
+.st-pos{font-family:'Bebas Neue';font-size:17px;color:var(--txt3);text-align:center;border-radius:4px;
+  padding-left:14px;}
+/* escudo: tampoco es sticky */
 .st-crest{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;overflow:hidden;
   background:var(--team-color);color:#fff;font-family:'Bebas Neue';font-size:10px;
+  margin-left:4px;
   transition:transform var(--dur-fast) var(--ease-out-soft),box-shadow var(--dur-fast);}
-.st-name{padding-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;}
+/* bloque fijo: SOLO el nombre, pegado al borde izquierdo del scroll */
+.st-fix{position:sticky;left:0;z-index:2;background:var(--card);
+  display:flex;align-items:center;padding:9px 8px 9px 4px;}
+.stand-row:hover .st-fix{background:color-mix(in srgb, var(--team-color) 13%, var(--card));}
+.st-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:16px;}
 .st-c{text-align:center;color:var(--txt2);font-variant-numeric:tabular-nums;}
 .st-pts{font-family:'Bebas Neue';font-size:20px;text-align:center;color:var(--txt);
   transition:color var(--dur-fast),text-shadow var(--dur-fast);}
 .stand-colhead{font-family:'Barlow Condensed';font-size:10px;font-weight:700;letter-spacing:1px;
   color:var(--txt3);text-transform:uppercase;border-bottom:1px solid var(--brd);}
 .stand-colhead span{text-align:center;padding:8px 0;}
-.stand-colhead .st-fix{background:var(--card);padding:8px 8px 8px 14px;
-  grid-template-columns:none;display:flex;align-items:center;}
+/* header: 2 celdas vacías (mismos tracks 1-2 que pos+escudo de la fila,
+   sin contenido) + "Club" en el track 3 — MISMA estructura que la fila
+   (2 celdas sueltas + .st-fix), a propósito: si "Club" ocupara los 3
+   tracks de una sola vez quedaría sticky desde scrollLeft=0 (su posición
+   natural ya sería x=0), mientras que el nombre de la fila recién se pega
+   pasados 38+32=70px — ese desfasaje hacía que el header, opaco y con
+   z-index, tapara PTS/PJ mientras la fila todavía no había llegado a
+   esconder posición+escudo (bug reportado: "los títulos de stat
+   desaparecen antes de tiempo"). Con la misma estructura, header y fila
+   se pegan en el mismo scrollLeft, sin desfasaje. */
+.stand-colhead .st-fix{background:var(--card);padding:8px 8px 8px 14px;}
 .stand-colhead .st-ph{color:var(--gold-ink);}
-/* difuminado de bordes (aparece según haya más para scrollear) */
+/* difuminado de bordes (aparece según haya más para scrollear). El
+   izquierdo va pegado al borde de lo que REALMENTE es sticky ahora — solo
+   el nombre (var(--stand-fix)), no el viejo bloque combinado de
+   38+32+nombre: eso era el ancho TOTAL a scrollLeft=0 (pos+escudo+nombre),
+   pero pos+escudo dejaron de ser sticky, así que una vez que el nombre
+   engancha en left:0 (scrollLeft>70) su borde real queda en
+   var(--stand-fix), 70px antes de donde el fade quedaba calculado —
+   por eso el difuminado caía en el medio de las stats en vez del borde
+   (bug reportado con captura real). */
 .stand-fade{position:absolute;top:0;bottom:0;width:46px;pointer-events:none;z-index:3;
   opacity:0;transition:opacity .22s var(--ease-out);}
 .stand-fade.r{right:0;background:linear-gradient(90deg,transparent,var(--card));}
