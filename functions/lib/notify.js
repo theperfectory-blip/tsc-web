@@ -2,6 +2,14 @@
 
 const { FieldValue } = require('firebase-admin/firestore');
 
+/* Canal de notificación con sonido propio — tiene que coincidir EXACTO con
+   el id que crea tsc-src/js/push.js (CHANNEL_ID) en el dispositivo. Sin
+   esto, Android manda la notificación al canal por defecto (sonido
+   genérico del sistema) aunque el canal custom ya exista. No hay forma de
+   compartir esta constante entre functions/ (Node, deploy propio) y
+   tsc-src/ (bundle del cliente) — se mantiene sincronizada a mano. */
+const NOTIFICATION_CHANNEL_ID = 'match_alerts';
+
 /* Zona horaria "de torneo": scheduledTime se carga con un <input type="time">
    en el Calendario admin (tsc-src/js/calendar.js) — un 'HH:MM' de reloj de
    pared sin zona en el dato, literalmente lo que el admin teclea en SU
@@ -160,6 +168,7 @@ async function notifyRecipients(db, messaging, { type, recipients, dedupKeyFor, 
         tokens: r.tokens,
         notification: { title: msg.title, body: msg.body },
         data: msg.data || {},
+        android: { notification: { channelId: NOTIFICATION_CHANNEL_ID } },
       });
     } catch (err) {
       console.error(`[push] sendEachForMulticast falló para uid=${r.uid}:`, err);

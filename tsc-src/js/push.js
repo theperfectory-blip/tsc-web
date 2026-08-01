@@ -28,6 +28,18 @@
   const TOKEN_KEY = 'tsc_push_token';
   const PENDING_REMOVE_KEY = 'tsc_push_pending_remove_token';
 
+  // Canal de notificación con sonido propio (Android 8+: el sonido vive en
+  // el CANAL, no en el mensaje individual — la Cloud Function tiene que
+  // mandar este mismo id en android.notification.channelId, ver notify.js).
+  // El archivo vive en android/app/src/main/res/raw/yunamafia.mp3.
+  //
+  // OJO — los canales son INMUTABLES una vez creados: si algún día se
+  // cambia el sonido, hay que crear un id NUEVO (p.ej. 'match_alerts_v2') y
+  // actualizarlo acá Y en notify.js — llamar createChannel() de nuevo con
+  // el mismo id y un sound distinto no hace nada, Android ignora el cambio
+  // silenciosamente.
+  const CHANNEL_ID = 'match_alerts';
+
   function _isNativeAndroid() {
     try {
       return !!(
@@ -210,11 +222,32 @@
      Android mientras tanto), simplemente se apaga el flag en silencio —
      mostrar el diálogo sin que el usuario haya tocado nada en la app violaría
      la regla central de este módulo. */
+  // Crea el canal si todavía no existe (no-op si ya existe, sea cual sea su
+  // configuración actual — ver nota junto a CHANNEL_ID). No requiere permiso
+  // de notificaciones: crearlo temprano, antes de que pueda llegar el primer
+  // push, es lo que recomienda Android — no hace falta esperar a que el
+  // usuario acepte el permiso.
+  async function _ensureChannel(pn) {
+    if (typeof pn.createChannel !== 'function') return;
+    try {
+      await pn.createChannel({
+        id: CHANNEL_ID,
+        name: 'Avisos de partidos',
+        description: 'Recordatorios de partidos y avisos de cuándo te toca jugar',
+        sound: 'yunamafia.mp3',
+        importance: 4, // alto: hace sonido + heads-up, sin llegar a MAX
+      });
+    } catch (e) {
+      console.warn('[push] no se pudo crear el canal de notificaciones:', e && e.message);
+    }
+  }
+
   async function _requestAndRegister(askIfNeeded) {
     const pn = _plugin();
     if (!pn) return { ok: false, reason: 'plugin-unavailable' };
 
     _bindListeners(pn);
+    await _ensureChannel(pn);
 
     let perm;
     try {
