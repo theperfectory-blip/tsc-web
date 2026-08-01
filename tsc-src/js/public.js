@@ -472,11 +472,9 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
         ? `<span class="st-crest"><img src="${_tkEsc(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
         : `<span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>`;
       return `<div class="stand-row" style="--team-color:${col};">
-        <span class="st-fix">
-          <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
-          ${crest}
-          <span class="st-name">${_tkEsc(name)}</span>
-        </span>
+        <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
+        ${crest}
+        <span class="st-fix"><span class="st-name">${_tkEsc(name)}</span></span>
         <span class="st-pts">${s.pts}</span>
         <span class="st-c">${s.pj}</span><span class="st-c">${s.v}</span><span class="st-c">${s.e}</span>
         <span class="st-c">${s.p}</span><span class="st-c">${s.gf}</span><span class="st-c">${s.gc}</span>
@@ -520,7 +518,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
 
     html += `
     <div class="comps-duo" style="margin-bottom:22px;">
-      <div class="stand-card">
+      <div class="stand-card" data-nudge-key="${phaseId}-${gi}">
         <div class="stand-hdr">
           <span class="stand-title">${_tkEsc(groupName)}</span>
           <button type="button" class="stand-criteria-btn" onclick="openCriteriaModal(${phaseId}, '${containerId}', false)" title="Criterios de clasificación" aria-label="Ver criterios de clasificación">
@@ -531,6 +529,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
           <div class="stand-scroll">
             <div class="stand-grid">
               <div class="stand-colhead" aria-hidden="true">
+                <span></span><span></span>
                 <span class="st-fix">Club</span>
                 <span class="st-ph">PTS</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span>
               </div>
@@ -553,6 +552,36 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
     const upd = ()=>{ card.classList.toggle('more-r', sc.scrollLeft+sc.clientWidth < sc.scrollWidth-2); card.classList.toggle('more-l', sc.scrollLeft>2); };
     sc.addEventListener('scroll', upd, {passive:true});
     upd();
+  });
+  _pubStandNudge(el);
+}
+
+/* Pista de scroll: en pantallas angostas la franja de stats visible es muy
+   chica (posición+escudo+nombre ocupan la mayor parte del ancho), así que
+   al usuario le cuesta notar/agarrar el gesto de deslizar. Un pequeño
+   "peek" (desliza unos px y vuelve) al mostrarse la tabla, una sola vez por
+   tarjeta (Set por id de grupo — evita repetirlo en cada refresco en vivo,
+   que pelearía contra un scroll manual del usuario). Solo corre si hay algo
+   que scrollear (en desktop, donde todo entra sin scroll, sc.scrollWidth no
+   excede clientWidth y esto no hace nada) y respeta reduced-motion. */
+const _pubStandNudged = new Set();
+function _pubStandNudge(el){
+  const reduced = window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(reduced) return;
+  el.querySelectorAll('.stand-card').forEach(card=>{
+    const sc = card.querySelector('.stand-scroll'); if(!sc) return;
+    // Clave lógica (phaseId-gi), no la referencia del nodo: esta función arma
+    // el HTML entero con innerHTML= en cada render, así que el DOM se
+    // recrea siempre — una clave atada al nodo nunca volvería a matchear
+    // entre refrescos y el "una sola vez" no funcionaría.
+    const key = card.dataset.nudgeKey || card;
+    if(_pubStandNudged.has(key)) return;
+    if(sc.scrollWidth <= sc.clientWidth + 2) return; // nada para scrollear (desktop)
+    _pubStandNudged.add(key);
+    requestAnimationFrame(()=>{
+      sc.scrollTo({ left: 56, behavior:'smooth' });
+      setTimeout(()=>{ if(sc.scrollLeft < 6) return; sc.scrollTo({ left:0, behavior:'smooth' }); }, 550);
+    });
   });
 }
 
