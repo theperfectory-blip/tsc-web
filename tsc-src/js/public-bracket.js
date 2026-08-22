@@ -180,14 +180,19 @@ function _pbConnectorSVG(leftRound, rightRound, colH, leftSlotH, rightSlotH){
   return `<svg class="gbr-mobile-connectors" viewBox="0 0 ${W} ${colH}" preserveAspectRatio="none" aria-hidden="true"><path d="${paths}"/></svg>`;
 }
 
-/* Árbol desktop (todas las rondas a la vez) */
+/* Árbol desktop (todas las rondas a la vez).
+   Los anchos/altos NO son px fijos: son var(--gbr-*)/calc() para que
+   _pbFitTree() pueda achicar el árbol entero (cards, logos, texto) sin
+   tener que re-renderizar este HTML — solo cambia las custom properties
+   inline en .gbr-tree-wrap y el navegador recalcula. Ver _pbFitTree más abajo. */
 function _pbDesktopTreeHTML(roundCards, compName, phaseName, copaKey){
   if(!roundCards.length) return `<div class="gbr-empty">Sin datos de bracket.</div>`;
-  const N = roundCards.length, ROW_H=88, CARD_W=320, COL_W=CARD_W+24;
+  const N = roundCards.length;
+  const CARD_W = 'var(--gbr-card-w)', COL_W = 'calc(var(--gbr-card-w) + 24px)';
   const halfRounds = roundCards.slice(0, N-1);
   const finalRound = roundCards[N-1];
   const nFirstLeft = Math.max(1, halfRounds.length ? Math.ceil(halfRounds[0].cards.length/2) : 1);
-  const colH = nFirstLeft * ROW_H * 2;
+  const colH = `calc(var(--gbr-row-h) * ${(nFirstLeft*2).toFixed(4)})`;
 
   const scoreHTML = (c, side, win)=>{
     const col = win ? 'var(--gold)' : 'var(--txt3)';
@@ -210,16 +215,16 @@ function _pbDesktopTreeHTML(roundCards, compName, phaseName, copaKey){
       ${scoreHTML(c, side, win)}
     </div>`;
   };
-  const card = (c, slotH)=>`<div style="height:${slotH}px;display:flex;align-items:center;justify-content:center;">
-    <div class="gbr-tree-card ${c&&c.live?'is-live':''}" style="width:${CARD_W}px;">
+  const card = (c, slotH)=>`<div style="height:${slotH};display:flex;align-items:center;justify-content:center;">
+    <div class="gbr-tree-card ${c&&c.live?'is-live':''}" style="width:${CARD_W};">
       ${tr(c,'A',c&&c.ta,c&&c.wA)}
       <div class="gbr-tree-sep"></div>
       ${tr(c,'B',c&&c.tb,c&&c.wB)}
     </div>
   </div>`;
   const col = (roundCards2, roundName, nSlots)=>{
-    const slotH = colH / Math.max(1, nSlots);
-    return `<div style="display:flex;flex-direction:column;width:${COL_W}px;flex-shrink:0;">
+    const slotH = `calc(var(--gbr-row-h) * ${(nFirstLeft*2/Math.max(1,nSlots)).toFixed(4)})`;
+    return `<div style="display:flex;flex-direction:column;width:${COL_W};flex-shrink:0;">
       <div class="gbr-rtitle">${_pbEsc(roundName)}</div>
       ${roundCards2.map(c=>card(c, slotH)).join('')}
     </div>`;
@@ -242,15 +247,44 @@ function _pbDesktopTreeHTML(roundCards, compName, phaseName, copaKey){
         <div class="gbr-champ-lbl">Campeón</div><div class="gbr-champ-name">${_pbEsc(winner.name)}</div></div>`
     : `<div class="gbr-champ tbd"><div style="display:inline-block;">${trophy}</div><div class="gbr-champ-lbl">Campeón por definir</div></div>`;
 
-  const finalCenterW = CARD_W + 40;
-  const finalCenter = `<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:${finalCenterW}px;">
+  const finalCenterW = 'calc(var(--gbr-card-w) + 40px)';
+  const finalCenter = `<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:${finalCenterW};">
     <div class="gbr-rtitle">Final</div>
-    <div style="height:${colH}px;display:flex;align-items:center;justify-content:center;width:100%;">${card(finalCard, colH)}</div>
+    <div style="height:${colH};display:flex;align-items:center;justify-content:center;width:100%;">${card(finalCard, colH)}</div>
     ${champ}
   </div>`;
 
   return `<div>${leftHTML}${finalCenter}${rightHTML}</div>`;
 }
+
+/* Achica el árbol desktop (cards/logos/texto) para que quepa sin scroll
+   horizontal, hasta cierto número de rondas — no toca <1025px (ahí rige el
+   pager móvil, sin cambios). wrap.dataset.rounds lo fija _pbBracketMount. */
+function _pbFitTree(wrap){
+  if(!wrap || window.innerWidth < 1025) return;
+  const nRondas = parseInt(wrap.dataset.rounds, 10);
+  if(!nRondas) return;
+  const cols = 2*(nRondas-1)+1;
+  const avail = wrap.clientWidth;
+  let cardW = Math.floor((avail - 80 - (cols-1)*24) / cols);
+  cardW = Math.max(150, Math.min(320, cardW));
+  const r = cardW/320;
+  wrap.style.setProperty('--gbr-card-w',    cardW+'px');
+  wrap.style.setProperty('--gbr-row-h',     Math.max(56, Math.round(88*r))+'px');
+  wrap.style.setProperty('--gbr-crest',     Math.max(18, Math.round(30*r))+'px');
+  wrap.style.setProperty('--gbr-name-fs',   Math.max(11, Math.round(15*r))+'px');
+  wrap.style.setProperty('--gbr-score-fs',  Math.max(14, Math.round(20*r))+'px');
+  wrap.style.setProperty('--gbr-row-pad-y', Math.max(5,  Math.round(8*r))+'px');
+  wrap.style.setProperty('--gbr-row-pad-x', Math.max(7,  Math.round(12*r))+'px');
+  wrap.style.setProperty('--gbr-row-gap',   Math.max(6,  Math.round(10*r))+'px');
+}
+let _pbFitResizeTimer = null;
+window.addEventListener('resize', function(){
+  clearTimeout(_pbFitResizeTimer);
+  _pbFitResizeTimer = setTimeout(function(){
+    document.querySelectorAll('.gbr-tree-wrap').forEach(_pbFitTree);
+  }, 150);
+});
 
 /* Monta el bracket: árbol desktop + pager móvil con navegación y conectores */
 function _pbBracketMount(el, roundCards, compName, phase, copaKey){
@@ -270,6 +304,9 @@ function _pbBracketMount(el, roundCards, compName, phase, copaKey){
     <div class="gbr-mobile-wrap">${mobileHTML}</div>
     <div class="gbr-tree-wrap">${_pbDesktopTreeHTML(roundCards, compName, phase.name, copaKey)}</div>
   </div>`;
+
+  const treeWrap = el.querySelector('.gbr-tree-wrap');
+  if(treeWrap){ treeWrap.dataset.rounds = N; _pbFitTree(treeWrap); }
 
   const pairHTML = (pi)=>{
     const leftRound = roundCards[pi];

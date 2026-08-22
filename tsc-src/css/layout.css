@@ -302,6 +302,10 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   transition:margin-left 0.25s,margin-top 0.25s;
 }
 #main.with-sidebar{margin-left:200px;}
+/* Admin: sin tope de ancho en ninguna resolución — el modo admin siempre
+   usa todo el ancho disponible (gana a #main{max-width:1400px} por
+   especificidad: body.admin-mode #main > #main, sin necesitar !important). */
+body.admin-mode #main{max-width:none;}
 
 /* ============================================================
    PÁGINAS

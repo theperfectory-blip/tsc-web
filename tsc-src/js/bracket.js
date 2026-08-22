@@ -414,6 +414,13 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
   // Render
   el.innerHTML = renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle, anyLive);
 
+  // Si alguna tarjeta terminó más alta que el slot que le tocó (ROW_H es un
+  // cálculo a priori, no mide el contenido real), agrandar el slot — nunca
+  // al revés. Evita que una tarjeta tape a la de al lado (ver bug previo
+  // con ROW_H=64 para 16+ equipos). Antes de scaleBracket, que mide el
+  // alto total del árbol ya con esta corrección aplicada.
+  fixBracketSlotHeights(phase.id);
+
   // Escalar bracket para llenar ancho disponible sin scroll
   requestAnimationFrame(()=>{ scaleBracket(phase.id); setTimeout(()=>scaleBracket(phase.id),150); });
 
@@ -598,17 +605,17 @@ const GROUP_COLORS = ['#3B82F6','#25A864','#E84040','#8B5CF6','#F97316','#14B8A6
 const PLACE_COLORS = ['#C9A84C','#9CA3AF','#CD7F32','#6366F1','#F87171','#34D399','#60A5FA','#F472B6'];
 
 /* Renderiza un badge coloreado a partir de un label "GX-Nro" o "GX-Nro·COMP" */
-function refBadgeHTML(label){
+function refBadgeHTML(label, baseFs=11){
   const m = label.match(/^G([A-Z])-([^·]+)(?:·(.+))?$/);
-  if(!m) return `<span style="font-size:11px;color:var(--txt3);">${label}</span>`;
+  if(!m) return `<span style="font-size:${baseFs}px;color:var(--txt3);">${label}</span>`;
   const groupIdx = m[1].charCodeAt(0)-65;
   const placeIdx = ['1ro','2do','3ro','4to','5to','6to','7mo','8vo'].indexOf(m[2]);
   const gColor = GROUP_COLORS[groupIdx % GROUP_COLORS.length];
   const pColor = PLACE_COLORS[Math.max(0,placeIdx) % PLACE_COLORS.length];
   const ctxHtml = m[3]
-    ? `<span style="color:var(--txt3);font-size:9px;font-weight:600;margin-left:3px;">${m[3]}</span>`
+    ? `<span style="color:var(--txt3);font-size:${baseFs-2}px;font-weight:600;margin-left:3px;">${m[3]}</span>`
     : '';
-  return `<span style="font-size:11px;font-weight:700;font-family:'Barlow Condensed';letter-spacing:0.3px;">` +
+  return `<span style="font-size:${baseFs}px;font-weight:700;font-family:'Barlow Condensed';letter-spacing:0.3px;">` +
     `<span style="color:${gColor};">G${m[1]}</span>` +
     `<span style="color:var(--txt3);">-</span>` +
     `<span style="color:${pColor};">${m[2]}</span>` +
@@ -759,6 +766,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
   // las tarjetas no se solapen verticalmente.
   const _anyTwoLeg = slots.some(r=>r.some(s=>s && s.twoLeg));
   if(_anyTwoLeg) ROW_H = Math.max(ROW_H, isAdmin ? 120 : 104);
+  // (16+ equipos ya no recorta ROW_H a 64 — tapaba al equipo B; ver fixBracketSlotHeights.)
 
   const leftSlots  = slots.map(r => r.slice(0, Math.ceil(r.length/2)));
   const rightSlots = slots.map(r => r.slice(Math.ceil(r.length/2)));
@@ -864,8 +872,14 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
     // ── Botones de referencia (admin, primera ronda, sin resultado) ──
     var bA='',bB='';
     if(isAdmin&&ri===0&&!hasResult){
-      bA='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'A\')" style="font-size:10px;padding:2px 6px;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;color:'+(slot.teamA?'var(--gold)':'var(--txt3)')+';cursor:pointer;">'+(slot.refA?(slot.teamA?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelA):' Ref')+'</button></div>';
-      bB='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'B\')" style="font-size:10px;padding:2px 6px;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;color:'+(slot.teamB?'var(--gold)':'var(--txt3)')+';cursor:pointer;">'+(slot.refB?(slot.teamB?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelB):' Ref')+'</button></div>';
+      // Chip clicable para asignar de dónde sale este cupo (sorteo/grupo/fijo).
+      // font-size/padding/min-height subidos a propósito: dentro de un
+      // bracket grande esto se ve reducido por scaleBracket() (transform
+      // scale en todo el árbol) — sin este piso, con 16+ equipos quedaba en
+      // ~7px reales, ilegible y casi imposible de tocar con precisión.
+      var _refChipStyle='font-size:13px;padding:6px 11px;min-height:28px;box-sizing:border-box;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;cursor:pointer;';
+      bA='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'A\')" style="'+_refChipStyle+'color:'+(slot.teamA?'var(--gold)':'var(--txt3)')+';">'+(slot.refA?(slot.teamA?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelA,13):' Ref')+'</button></div>';
+      bB='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'B\')" style="'+_refChipStyle+'color:'+(slot.teamB?'var(--gold)':'var(--txt3)')+';">'+(slot.refB?(slot.teamB?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelB,13):' Ref')+'</button></div>';
     }
 
     // ── Filas de equipos ─────────────────────────────────────────────
@@ -909,7 +923,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
         +bB;
     }
 
-    return '<div'+(isLive?' class="live-border"':'')+' style="background:var(--card);border:'+(isLive?'2px':'1px')+' solid '+cardBc+';border-radius:10px;overflow:hidden;'
+    return '<div class="bk-card'+(isLive?' live-border':'')+'" style="background:var(--card);border:'+(isLive?'2px':'1px')+' solid '+cardBc+';border-radius:10px;overflow:hidden;'
       +'width:'+CARD_W+'px;flex-shrink:0;box-shadow:0 2px 16px rgba(0,0,0,0.12);" '
       +'onmouseover="this.style.boxShadow=\'0 4px 24px rgba(201,168,76,0.22)\';this.style.borderColor=\'var(--gold-b)\'" '
       +'onmouseout="this.style.boxShadow=\'0 2px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\''+cardBc+'\'">'
@@ -930,7 +944,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
     var ordered = side==='right' ? rSlots.slice().reverse() : rSlots;
     var cells = ordered.map(function(slot, vi){
       var localMi = side==='right' ? (rSlots.length-1-vi) : vi;
-      return '<div style="height:'+slotH+'px;display:flex;align-items:center;justify-content:center;padding:4px 0;">'
+      return '<div class="bk-slot" style="height:'+slotH+'px;display:flex;align-items:center;justify-content:center;padding:4px 0;">'
         +matchCard(slot, ri, localMi, side)
         +'</div>';
     }).join('');
@@ -981,7 +995,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
         +renderSide(leftSlots,'left')
         +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:'+centerW+'px;">'
           +'<div style="height:32px;display:flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\';font-weight:700;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);">Final</div>'
-          +'<div style="height:'+colH+'px;display:flex;align-items:center;justify-content:center;width:100%;">'
+          +'<div class="bk-slot" style="height:'+colH+'px;display:flex;align-items:center;justify-content:center;width:100%;">'
             +matchCard(finalSlot, nRounds-1, 0, 'left')
           +'</div>'
         +'</div>'
@@ -993,27 +1007,64 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
 }
 
 
+/* Corrige el alto de cada slot contra el alto REAL de su tarjeta — ROW_H es
+   un cálculo a priori (nº de partidos * alto de fila fijo) que no mide
+   contenido real (chips de ref, banner en vivo, ida/vuelta...). Si la
+   tarjeta terminó más alta que el slot que le tocó, agranda el slot; nunca
+   al revés (nunca achica por debajo de lo que ya traía calculado). */
+function fixBracketSlotHeights(phaseId){
+  var wrap = document.getElementById('bk-'+phaseId+'-wrap');
+  if(!wrap) return;
+  wrap.querySelectorAll('.bk-slot').forEach(function(slotEl){
+    var card = slotEl.querySelector('.bk-card');
+    if(!card) return;
+    // clientHeight incluye el padding vertical del slot (border-box global,
+    // layout.css:4): el contenido real disponible es clientHeight - padding,
+    // así que hay que sumar ese padding de vuelta al agrandar, si no la
+    // tarjeta queda 8px corta y se desborda por los dos lados.
+    var cs = getComputedStyle(slotEl);
+    var padV = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    var cardH = card.scrollHeight;
+    var availH = slotEl.clientHeight - padV;
+    if(cardH > availH) slotEl.style.height = (cardH + padV) + 'px';
+  });
+}
+
 /* Escala el bracket: ancho y alto del viewport; scroll horizontal si hace falta */
 function scaleBracket(phaseId){
   var uid = 'bk-'+phaseId;
   var wrap  = document.getElementById(uid+'-wrap');
   var inner = document.getElementById(uid+'-inner');
   if(!wrap || !inner) return;
-  inner.style.transform = '';
+  inner.style.transform   = '';
+  inner.style.marginLeft  = '';
+  inner.style.marginRight = '';
   var teams = parseInt(wrap.getAttribute('data-bk-teams') || '8', 10);
   // Evita recorte lateral: para 8+ no ampliar por encima del tamaño natural.
-  var maxScale = teams <= 4 ? 1.00 : 1.00;
+  var maxScale = 1.00;
   var minScale = teams <= 4 ? 0.70 : 0.55;
   var availW = wrap.clientWidth - 4;
-  var rect = wrap.getBoundingClientRect();
-  var availH = Math.max(window.innerHeight - rect.top - 40, 420);
   var natW = inner.scrollWidth;
-  var natH = inner.scrollHeight;
   if(natW < 1) return;
-  var s = Math.min(availW / natW, availH / natH, maxScale);
+  // El alto YA NO limita la escala: la página scrollea vertical y comprimir
+  // todo el árbol para que entre en el viewport (texto/logos ilegibles)
+  // es peor que dejar hacer scroll. Antes availH/natH entraba en el
+  // Math.min y en brackets con muchas rondas terminaba mandando él solo
+  // (natH crece más rápido que natW), aplastando la escala muy por debajo
+  // de lo que el ancho disponible en realidad permitía.
+  var s = Math.min(availW / natW, maxScale);
   if(s < minScale) s = minScale;
   inner.style.transform       = 'scale('+s+')';
-  inner.style.transformOrigin = 'top center';
+  // 'top center' escala desde el centro de la caja SIN escalar (el transform
+  // no achica el layout box, solo el pintado): con scrollLeft forzado a 0 eso
+  // recortaba contenido a la derecha y dejaba un vacío muerto a la izquierda.
+  // 'top left' + márgenes explícitos: escala desde el borde izquierdo (que
+  // coincide con scrollLeft=0) y luego el marginLeft empuja para centrar
+  // visualmente; marginRight negativo achica el layout box lo que el
+  // transform ya achicó visualmente, para no dejar cola de scroll vacía.
+  inner.style.transformOrigin = 'top left';
+  inner.style.marginRight = (-(natW - natW*s)) + 'px';
+  inner.style.marginLeft  = Math.max(0, (availW - natW*s)/2) + 'px';
   // Al re-renderizar, comenzar siempre desde el borde izquierdo.
   wrap.scrollLeft = 0;
   var padY = 24 + 32;

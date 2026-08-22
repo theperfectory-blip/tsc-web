@@ -841,17 +841,17 @@ body.sala-open{overflow:hidden;}
   box-shadow:0 2px 16px rgba(0,0,0,.12);transition:box-shadow .15s,border-color .15s;}
 .gbr-tree-card:hover{box-shadow:0 4px 24px rgba(201,168,76,.22);border-color:var(--gold-b);}
 .gbr-tree-card.is-live{border-color:var(--red);}
-.gbr-tree-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-left:3px solid transparent;}
+.gbr-tree-row{display:flex;align-items:center;gap:var(--gbr-row-gap,10px);padding:var(--gbr-row-pad-y,8px) var(--gbr-row-pad-x,12px);border-left:3px solid transparent;}
 .gbr-tree-row.win{border-left-color:var(--gold);background:rgba(201,168,76,.09);}
 .gbr-tree-row.tbd{opacity:.4;}
-.gbr-tree-crest{width:30px;height:30px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+.gbr-tree-crest{width:var(--gbr-crest,30px);height:var(--gbr-crest,30px);border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,var(--team-color,#444),var(--team-color-2,#222));color:#fff;font-family:'Bebas Neue';font-size:10px;line-height:1;
   border:1.5px solid rgba(255,255,255,.14);overflow:hidden;}
 .gbr-tree-crest img{width:100%;height:100%;object-fit:cover;}
-.gbr-tree-name{flex:1;min-width:0;font-family:'Barlow Condensed';font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt2);}
+.gbr-tree-name{flex:1;min-width:0;font-family:'Barlow Condensed';font-size:var(--gbr-name-fs,15px);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt2);}
 .gbr-tree-row.win .gbr-tree-name{color:var(--txt);font-weight:700;}
 .gbr-tree-sep{height:1px;background:var(--brd);margin:0 10px;}
-.gbr-tree-score{font-family:'Bebas Neue';font-size:20px;min-width:22px;text-align:right;line-height:1;color:var(--txt3);flex:none;}
+.gbr-tree-score{font-family:'Bebas Neue';font-size:var(--gbr-score-fs,20px);min-width:22px;text-align:right;line-height:1;color:var(--txt3);flex:none;}
 .gbr-tree-row.win .gbr-tree-score{color:var(--gold-ink);}
 .gbr-rtitle{height:32px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';
   font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--txt3);}
@@ -880,9 +880,16 @@ body.sala-open{overflow:hidden;}
 }
 @media(min-width:1025px){
   .gbr-mobile-wrap{display:none;}
-  .gbr-tree-wrap{display:flex;justify-content:flex-start;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 0 4px;box-sizing:border-box;}
+  .gbr-tree-wrap{display:flex;justify-content:flex-start;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:0 0 4px;box-sizing:border-box;
+    /* Tamaños base del árbol — _pbFitTree() los reduce en JS (inline en el wrap)
+       cuando el bracket no cabe en el ancho disponible, ver public-bracket.js. */
+    --gbr-card-w:320px;--gbr-row-h:88px;--gbr-crest:30px;--gbr-name-fs:15px;--gbr-score-fs:20px;--gbr-row-pad-y:8px;--gbr-row-pad-x:12px;--gbr-row-gap:10px;}
   .gbr-tree-wrap::-webkit-scrollbar{display:none;}
-  .gbr-tree-wrap > div{display:inline-flex;flex-direction:row;align-items:flex-start;padding:0 20px;width:max-content;margin:0;}
+  /* margin auto (no justify-content:center en el wrap): centra cuando el
+     árbol entra en el viewport, y si desborda arranca desde el borde
+     izquierdo alcanzable por scroll — justify-content:center + overflow-x:auto
+     recorta el lado izquierdo y lo deja inalcanzable con el mouse. */
+  .gbr-tree-wrap > div{display:inline-flex;flex-direction:row;align-items:flex-start;padding:0 20px;width:max-content;margin-left:auto;margin-right:auto;}
 }
 
 /* ============ 04 · CALENDARIO ============ */
