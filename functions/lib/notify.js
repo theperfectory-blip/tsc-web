@@ -168,7 +168,14 @@ async function notifyRecipients(db, messaging, { type, recipients, dedupKeyFor, 
         tokens: r.tokens,
         notification: { title: msg.title, body: msg.body },
         data: msg.data || {},
-        android: { notification: { channelId: NOTIFICATION_CHANNEL_ID } },
+        // priority:'high' ya es el default de FCM para mensajes con `notification`
+        // (vs. 'normal' para mensajes solo-data) — se deja explícito para no
+        // depender de ese default implícito. Ayuda a que la entrega no se demore
+        // por Doze/ahorro de batería estándar de Android, pero los gestores de
+        // batería agresivos de algunos fabricantes (Xiaomi/Vivo/Huawei/Samsung)
+        // igual pueden retrasarla hasta que el usuario abre el teléfono si la
+        // app no está exceptuada a mano — eso no se puede forzar desde acá.
+        android: { priority: 'high', notification: { channelId: NOTIFICATION_CHANNEL_ID } },
       });
     } catch (err) {
       console.error(`[push] sendEachForMulticast falló para uid=${r.uid}:`, err);
