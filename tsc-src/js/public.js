@@ -471,13 +471,16 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       const crest = td.logo
         ? `<span class="st-crest"><img src="${_tkEsc(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
         : `<span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>`;
+      const dg = s.gf - s.gc;
+      const dgColor = dg>0 ? 'var(--green-ink)' : dg<0 ? 'var(--red)' : 'var(--txt2)';
+      const dgText = dg>0 ? `+${dg}` : dg;
       return `<div class="stand-row" style="--team-color:${col};">
         <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
         ${crest}
         <span class="st-fix"><span class="st-name">${_tkEsc(name)}</span></span>
         <span class="st-pts">${s.pts}</span>
         <span class="st-c">${s.pj}</span><span class="st-c">${s.v}</span><span class="st-c">${s.e}</span>
-        <span class="st-c">${s.p}</span><span class="st-c">${s.gf}</span><span class="st-c">${s.gc}</span>
+        <span class="st-c">${s.p}</span><span class="st-c" style="color:${dgColor};">${dgText}</span><span class="st-c">${s.gf}</span><span class="st-c">${s.gc}</span>
       </div>`;
     }));
 
@@ -531,7 +534,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
               <div class="stand-colhead" aria-hidden="true">
                 <span></span><span></span>
                 <span class="st-fix">Club</span>
-                <span class="st-ph">PTS</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>GF</span><span>GC</span>
+                <span class="st-ph">PTS</span><span>PJ</span><span>G</span><span>E</span><span>P</span><span>DG</span><span>GF</span><span>GC</span>
               </div>
               <div>${rows.join('')}</div>
             </div>

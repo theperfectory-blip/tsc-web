@@ -647,10 +647,10 @@ body.sala-open{overflow:hidden;}
 .stand-scrollwrap{position:relative;}
 .stand-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 .stand-scroll::-webkit-scrollbar{height:0;display:none;}
-/* 38px pos + 32px escudo + var(--stand-fix) nombre + 294px (7×42px stats) */
-.stand-grid{min-width:calc(38px + 32px + var(--stand-fix) + 294px);}
+/* 38px pos + 32px escudo + var(--stand-fix) nombre + 336px (8×42px stats) */
+.stand-grid{min-width:calc(38px + 32px + var(--stand-fix) + 336px);}
 .stand-colhead,.stand-row{
-  display:grid;grid-template-columns:38px 32px var(--stand-fix) repeat(7,minmax(42px,1fr));
+  display:grid;grid-template-columns:38px 32px var(--stand-fix) repeat(8,minmax(42px,1fr));
   align-items:center;
 }
 .stand-row{font-family:'Barlow Condensed';font-size:15px;font-weight:600;
