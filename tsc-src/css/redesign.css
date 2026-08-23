@@ -1395,6 +1395,35 @@ body.sala-open{overflow:hidden;}
 .ht-card.more-r .ht-fade.r{opacity:1;}
 .ht-card.more-l .ht-fade.l{opacity:1;}
 
+/* Detail (expandida) en teléfono (<620px, el mismo breakpoint que ya usa
+   _htLayout() para este layout): compactar para que se lea tan apretada
+   como la colapsada. A 393px de ancho la fila expandida media 688px (333px
+   fuera de pantalla, solo 3 de 8 .ht-detail-item visibles sin scrollear) —
+   .ht-fix ocupaba 150px (42% del ancho útil), el gap entre datos era el
+   doble que en la colapsada, y .ht-detail-item no tenía ancho fijo (solo
+   min-width), así que ni siquiera quedaban alineados entre filas. Los
+   layouts de escritorio (trim/mid/wide/full, >=620px) no se tocan. */
+@media(max-width:619px){
+  .ht-card[data-layout="detail"] .ht-row{padding-top:6px;padding-bottom:6px;}
+  .ht-card[data-layout="detail"] .ht-row.hdr{padding-top:4px;padding-bottom:4px;}
+  /* 210px = el nombre más largo real (SAN MARTIN DE MENDOZA, 21
+     caracteres) mide 133px con esta tipografía — más pos+escudo+paddings.
+     Antes 108px cortaba a 2-3 iniciales; el nombre completo importa más
+     que ver más columnas de stats sin scroll, así que se prioriza el
+     nombre y las stats siguen scrolleando (.ht-name conserva el ellipsis
+     como red de seguridad si algún nombre futuro fuera aún más largo). */
+  .ht-card[data-layout="detail"] .ht-fix{width:210px;padding:4px 8px 4px 10px;}
+  .ht-card[data-layout="detail"] .ht-detail{gap:8px;padding:6px 8px 6px 4px;}
+  /* Ancho FIJO (no solo min-width): antes cada item medía su contenido
+     (un número corto vs una etiqueta de 3 letras dan anchos distintos),
+     por eso las cifras no quedaban alineadas en columna entre filas. */
+  .ht-card[data-layout="detail"] .ht-detail-item{flex:0 0 34px;width:34px;min-width:0;}
+  .ht-card[data-layout="detail"] .ht-fade.l{left:210px;}
+  /* El botón ✕ del header (18x18) era lo que más empujaba el alto del
+     header en detail — no aparece en las filas de datos, solo acá. */
+  .ht-card[data-layout="detail"] .ht-fix-close{width:15px;height:15px;}
+}
+
 /* === INICIO: HISTORIAL PUBLIC === */
 /* Carrusel de vistas «Partidos | Tabla histórica» del historial público. */
 .hist-pub-tabs{display:flex;gap:0;margin:4px 0 18px;border-bottom:1px solid var(--brd);}
