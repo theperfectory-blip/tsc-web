@@ -791,6 +791,7 @@ function _calWireHero(scope, anchorDateStr, container){
   const listen = { signal:controller.signal };
   const intervals = new Set();
   let observer = null;
+  let lblFallbackTimer = null;
 
   /* ── Máquina de escribir (portada del prototipo) ─────────────────────── */
   const _reduced = ()=> window.MOTION?.reduced() || matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -815,12 +816,12 @@ function _calWireHero(scope, anchorDateStr, container){
   const _clear = el=>{ _stash(el); el.textContent=''; el.style.opacity='0'; el.style.minWidth=''; el.classList.remove('hm-typing'); };
   const _fill  = el=>{ _stash(el); el.textContent=el.dataset.full; el.style.opacity=''; el.style.minWidth=''; el.classList.remove('hm-typing'); };
 
-  const _type = (el, speed, token)=>new Promise(resolve=>{
+  const _type = (el, speed, token, getRun)=>new Promise(resolve=>{
     if(!el) return resolve();
     el.style.opacity='1'; el.classList.add('hm-typing');
     const full=el.dataset.full; let i=0;
     const id=setInterval(()=>{
-      if(token!==_run){ clearInterval(id); intervals.delete(id); return resolve(); }
+      if(token!==getRun()){ clearInterval(id); intervals.delete(id); return resolve(); }
       el.textContent=full.slice(0,++i);
       if(i>=full.length){ clearInterval(id); intervals.delete(id); el.classList.remove('hm-typing'); resolve(); }
     }, speed);
@@ -833,20 +834,50 @@ function _calWireHero(scope, anchorDateStr, container){
     all.forEach(_reserve);
     for(const g of groups){
       if(token!==_run) return;
-      await Promise.all(g.map(el=>_type(el,20,token)));
+      await Promise.all(g.map(el=>_type(el,20,token,()=>_run)));
     }
   }
   function resetSeq(){ _run++; seqEls().forEach(_reduced()?_fill:_clear); }
 
-  /* La etiqueta «Próximo partido» se escribe al entrar en viewport */
+  /* La etiqueta «Próximo partido» se escribe al entrar en viewport — token
+     PROPIO (_lblRun), independiente de _run: antes compartía el contador
+     con la secuencia principal, así que un simple mouseenter/mouseleave
+     sobre el hero (typeIn/resetSeq, más abajo) abortaba el tipeo del
+     rótulo a mitad de palabra sin ningún reintento (el observer ya había
+     hecho unobserve). Solo _calHeroCleanup puede invalidar _lblRun. */
+  let _lblRun = 0;
   const lbl=hero.querySelector('.hm-peek-lbl');
+  async function typeLbl(){
+    const token=++_lblRun;
+    _reserve(lbl);
+    await _type(lbl, 32, token, ()=>_lblRun);
+    // Estado terminal garantizado: si igual quedó a medio escribir (el
+    // único invalidador de _lblRun es el cleanup, que ya no necesita nada
+    // más porque el nodo se descarta) forzar el texto completo — un
+    // rótulo vacío o parcial nunca es un estado aceptable.
+    if(lbl.textContent!==lbl.dataset.full) _fill(lbl);
+  }
   if(lbl){
     if(!_reduced()) _clear(lbl);
     if('IntersectionObserver' in window){
+      let lblStarted=false;
+      const startLbl = ()=>{
+        if(lblStarted) return Promise.resolve();
+        lblStarted=true;
+        return _reduced() ? (_fill(lbl), Promise.resolve()) : typeLbl();
+      };
       observer = new IntersectionObserver((ents,obs)=>{
-        ents.forEach(e=>{ if(e.isIntersecting){ _reduced()?_fill(lbl):(_reserve(lbl),_type(lbl,32,_run)); obs.unobserve(e.target); }});
+        // No dejar de observar hasta que el tipeo haya terminado — antes se
+        // hacía unobserve() apenas intersectaba, sin saber si el tipeo
+        // llegaba a completarse, y sin reintento posible después.
+        ents.forEach(e=>{ if(e.isIntersecting) startLbl().then(()=>obs.unobserve(e.target)); });
       },{threshold:0.4});
       observer.observe(hero);
+      // Respaldo: si el observer nunca dispara (pestaña en 2do plano, la
+      // sección nunca cruza el 40% de umbral), el rótulo no puede quedar
+      // vacío para siempre. Cancelado en el cleanup — si no, un timer
+      // huérfano podría arrancar el tipeo sobre un hero ya descartado.
+      lblFallbackTimer = setTimeout(()=>{ lblFallbackTimer=null; if(!lblStarted && !lbl.textContent) startLbl(); }, 2500);
     } else {
       _fill(lbl);
     }
@@ -893,7 +924,9 @@ function _calWireHero(scope, anchorDateStr, container){
   }
   _calHeroCleanup = ()=>{
     _run++;
+    _lblRun++;
     observer?.disconnect();
+    if(lblFallbackTimer){ clearTimeout(lblFallbackTimer); lblFallbackTimer=null; }
     intervals.forEach(clearInterval);
     intervals.clear();
     controller.abort();
