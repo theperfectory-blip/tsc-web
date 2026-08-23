@@ -1,7 +1,7 @@
 # Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-08-22)
 
 ## Corpus Check
-- 49 files · ~1,276,627 words
+- 49 files · ~1,277,028 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -335,11 +335,11 @@ Nodes (1): Drumroll Sound Effect
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 13`, `Community 14`, `Community 15`, `Community 19`?**
-  _High betweenness centrality (0.128) - this node is a cross-community bridge._
+  _High betweenness centrality (0.120) - this node is a cross-community bridge._
 - **Why does `add()` connect `Community 4` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 21`, `Community 26`?**
   _High betweenness centrality (0.083) - this node is a cross-community bridge._
-- **Why does `qt` connect `Community 5` to `Community 1`, `Community 10`, `Community 3`, `Community 14`?**
-  _High betweenness centrality (0.079) - this node is a cross-community bridge._
+- **Why does `copy()` connect `Community 0` to `Community 1`, `Community 3`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 11`, `Community 12`, `Community 14`, `Community 17`, `Community 18`, `Community 19`, `Community 21`?**
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
 - **Are the 8 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 28 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**

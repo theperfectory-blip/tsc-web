@@ -358,7 +358,7 @@ async function _pubSwitchHistoryView(idx){
     ? _pubCaptureVisualAnchor(document.getElementById('page-historial'))
     : null;
   if(idx===0) await renderPubHistory();
-  else await renderPubHistoryStandings();
+  else await renderPubHistoryStandings(true);
   if(typeof _pubRestoreVisualAnchor==='function') await _pubRestoreVisualAnchor(anchor, 'historial');
   else if(typeof focusPublicSection==='function') await focusPublicSection('historial');
 }
@@ -1359,7 +1359,12 @@ async function renderAdmHistoryStandings(){
   await _renderHistoryStandingsInto(el, true);
 }
 
-async function renderPubHistoryStandings(){
+/* resetView=true SOLO cuando el usuario cambia de sub-vista explícitamente
+   (Partidos → Tabla histórica): ahí sí corresponde volver a "Rendimiento"
+   colapsado. Un refresco pasivo (reenfoque de sección, dato en vivo — ver
+   nav.js) o un cambio de filtro/orden dentro de la misma vista NUNCA deben
+   resetear esa preferencia del usuario. */
+async function renderPubHistoryStandings(resetView=false){
   const renderToken = ++_pubHistRenderToken;
   _histStdState.mode = 'public';
   // La tabla histórica pública hereda el filtro juego/temporada del carrusel.
@@ -1369,11 +1374,11 @@ async function renderPubHistoryStandings(){
   const el = document.getElementById('pub-history-content');
   if(!el) return;
   _injectHistHeader(1);
-  await _pubRenderHistoryStandings(el, renderToken);
+  await _pubRenderHistoryStandings(el, renderToken, resetView);
 }
 
 /* ── Tabla histórica pública: 6 layouts responsive (_htLayout) + expansión ── */
-const _htState = { rows:[], expanded:false };
+const _htState = { rows:[], expanded:false, token:0, sig:null };
 function _htNum(v){ return Number.isFinite(Number(v)) ? String(Number(v)) : '—'; }
 function _htPct(v){ return Number.isFinite(Number(v)) ? `${Number(v).toFixed(1)}%` : '—'; }
 function _htStatCell(value){ return `<div class="ht-detail-item"><b>${_esc(_htNum(value))}</b></div>`; }
@@ -1434,26 +1439,41 @@ function _htRow(r, layout){
   return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
     <div class="ht-team">${_htCrest(r)}${_htNameHTML(r)}</div>${cells}</div>`;
 }
+// Firma de lo último pintado (ancho + layout), para que el resize handler
+// pueda saltarse repaints cuando nada relevante cambió (ver _bindHtTable).
+let _htLastPaint = null;
 function _renderHtTable(el){
   const card = el.querySelector('.ht-card');
   const head = card?.querySelector('.ht-row.hdr');
   const rows = card?.querySelector('#ht-rows');
   if(!card || !head || !rows) return;
+  // _htState.rows puede corresponder a un render ya superado (nuevo filtro
+  // en curso, _pubHistRenderToken ya avanzó pero el cómputo async todavía
+  // no terminó de escribir _htState.rows/_htState.token) — no pintar datos
+  // viejos; mejor no tocar el DOM y dejar que el render vigente termine.
+  if(_htState.token !== _pubHistRenderToken) return;
+  const scroll = card.querySelector('.ht-scroll');
+  const savedScrollLeft = scroll ? scroll.scrollLeft : 0;
   const layout = _htLayout();
   card.dataset.layout = layout.key;
   card.style.setProperty('--ht-grid', layout.grid);
   card.style.setProperty('--ht-detail-cols', layout.detailCols);
   head.innerHTML = _htHeader(layout);
   rows.innerHTML = _htState.rows.map(r=>_htRow(r, layout)).join('');
+  // El ancho de contenido pudo cambiar con el layout nuevo (o simplemente
+  // repintarse igual) — restaurar la posición horizontal en vez de perderla.
+  if(scroll) scroll.scrollLeft = savedScrollLeft;
   // Rellena las barras de rendimiento (transición CSS desde 0%).
   requestAnimationFrame(()=>{ rows.querySelectorAll('.ht-bar i').forEach(b=>{ b.style.width = (b.dataset.w||0)+'%'; }); });
   // Re-evalúa el fade de bordes (scroll horizontal del detalle): el ancho de
   // contenido pudo cambiar con el layout nuevo.
   card.querySelector('.ht-scroll')?._htFadeUpdate?.();
+  _htLastPaint = { width: window.innerWidth, sig: layout.key+'|'+layout.grid+'|'+layout.detailCols };
 }
 
 let _htBound = false;
 let _htObserver = null;
+let _htResizeTimer = null;
 function _bindHtTable(el){
   const card = el.querySelector('.ht-card');
   if(!card) return;
@@ -1473,10 +1493,23 @@ function _bindHtTable(el){
   if(!_htBound){
     _htBound = true;
     window.addEventListener('resize', ()=>{
-      const live = document.querySelector('#pub-history-content .ht-card');
-      if(!live) return;
-      if(window.innerWidth>=860 && _htState.expanded) _htState.expanded = false;
-      _renderHtTable(live.closest('#pub-history-content') || document);
+      // Debounce corto: agrupa ráfagas de resize (colapso de la barra de
+      // direcciones al scrollear, cambios de insets del sistema en la APK)
+      // en una sola evaluación tras el último evento.
+      clearTimeout(_htResizeTimer);
+      _htResizeTimer = setTimeout(()=>{
+        const live = document.querySelector('#pub-history-content .ht-card');
+        if(!live) return;
+        if(window.innerWidth>=860 && _htState.expanded) _htState.expanded = false;
+        // Nada relevante cambió (mismo ancho + mismo layout resultante):
+        // salir sin tocar el DOM. Un resize de solo-alto (colapso de barra
+        // de direcciones al scrollear en móvil/APK) no debe reconstruir
+        // las filas — antes lo hacía siempre, sin comparar nada.
+        const layout = _htLayout();
+        const sig = layout.key+'|'+layout.grid+'|'+layout.detailCols;
+        if(_htLastPaint && window.innerWidth===_htLastPaint.width && sig===_htLastPaint.sig) return;
+        _renderHtTable(live.closest('#pub-history-content') || document);
+      }, 120);
     });
   }
   // Anima barras al entrar en viewport
@@ -1494,7 +1527,7 @@ function _bindHtTable(el){
 }
 
 /* Renderer público de la tabla histórica con markup .ht-* responsive (sin controles admin). */
-async function _pubRenderHistoryStandings(el, renderToken){
+async function _pubRenderHistoryStandings(el, renderToken, resetView){
   try {
     const data = await _computeHistoricalStandings();
     if(renderToken!==_pubHistRenderToken) return;
@@ -1502,17 +1535,33 @@ async function _pubRenderHistoryStandings(el, renderToken){
       el.innerHTML = '<div style="color:var(--txt3);font-size:15px;padding:20px;text-align:center;">No hay datos suficientes para la tabla histórica.</div>';
       return;
     }
-    _htState.expanded = false;
-    _htState.rows = data.standings.map((s,i)=>({
+    const rows = data.standings.map((s,i)=>({
       pos:i+1, name:s.name||'?', ini:(s.ini||(s.name||'?').substring(0,3)).toUpperCase(),
       color:s.color||'#5f6368', logo:s.logo||null,
       pj:s.pj, w:s.v, d:s.e, l:s.p, gf:s.gf, gc:s.gc, dif:s.dg, pts:s.pts,
       rend:(s.rendimiento||0)*100,
       previousNames:s.previousNames||[],
     }));
-    el.innerHTML = `<div class="ht-card"><div class="ht-scrollwrap"><div class="ht-scroll"><div class="ht-row hdr"></div><div id="ht-rows"></div></div><div class="ht-fade l"></div><div class="ht-fade r"></div></div></div>`;
+    // Firma de los datos ya pintados: el reenfoque de la sección (nav.js)
+    // fuerza este render para no mostrar datos stale, pero la tabla
+    // histórica SOLO refleja temporadas finalizadas — casi siempre van a
+    // ser idénticos a los ya pintados. Si además no hay que resetear la
+    // vista (no es un cambio de sub-vista explícito) y ya está montada,
+    // reconstruir el DOM es destructivo gratis: pisa _htState.expanded,
+    // tira el scroll horizontal y recrea las filas sin ningún motivo real.
+    const sig = JSON.stringify(rows);
+    const dataChanged = sig !== _htState.sig;
+    const card = el.querySelector('.ht-card');
+    if(resetView) _htState.expanded = false;
+    _htState.rows = rows;
+    _htState.sig = sig;
+    _htState.token = renderToken;
+    if(card && !dataChanged && !resetView) return;
+    if(!card){
+      el.innerHTML = `<div class="ht-card"><div class="ht-scrollwrap"><div class="ht-scroll"><div class="ht-row hdr"></div><div id="ht-rows"></div></div><div class="ht-fade l"></div><div class="ht-fade r"></div></div></div>`;
+      _bindHtTable(el);
+    }
     _renderHtTable(el);
-    _bindHtTable(el);
   } catch(err){
     console.error('[Tabla histórica pública]', err);
     if(renderToken!==_pubHistRenderToken) return;

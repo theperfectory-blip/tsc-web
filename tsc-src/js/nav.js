@@ -556,7 +556,7 @@ function renderPubSidebarHistorial(activeTab){
       Partidos
     </div>
     <div class="pub-sub-comp${tab==='tabla'?' active':''}"
-      onclick="renderPubHistoryStandings()" title="Tabla histórica">
+      onclick="renderPubHistoryStandings(true)" title="Tabla histórica">
       Tabla histórica
     </div>`;
 }
