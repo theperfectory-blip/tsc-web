@@ -255,12 +255,17 @@ async function renderAdmCalendar(){
     if(ph.type !== 'groups') continue;
     groupStandings[ph.id] = {};
     const phMs = byPhase[ph.id] || [];
+    // Criterios de la fase origen, no hardcodeados: con un desempate por
+    // enfrentamiento directo o custom, usar solo pts/dg/gf da una posición
+    // distinta a la de la tabla oficial (mismo bug que bracket.js resolvía
+    // vía getStandingsForPhase — ver getCriteria más abajo).
+    const criteria = await getCriteria(ph.id);
     for(const [gi, teamIds] of Object.entries(ph.groups || {})){
       const gIdx = parseInt(gi);
       const groupMs = phMs.filter(m => m.groupIdx === gIdx);
       const validIds = (teamIds || []).filter(v => v != null);
       if(validIds.length){
-        groupStandings[ph.id][gIdx] = calcGroupStandings(validIds, groupMs, ['pts','dg','gf'], groupMs);
+        groupStandings[ph.id][gIdx] = calcGroupStandings(validIds, groupMs, criteria, groupMs);
       }
     }
   }

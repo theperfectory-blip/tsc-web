@@ -586,6 +586,12 @@ async function saveCriteriaAndRefresh(){
     'La tabla de clasificación se recalculará en tiempo real con el nuevo orden.',
     async () => {
       await saveCriteria(_criteriaPhaseId, newActive, newDisabled, newCustom);
+      // Los criterios nuevos son el mecanismo exacto que puede dar vuelta un
+      // desempate (GX-Nro pasa a resolver a otro equipo) — invalidar Y
+      // resincronizar los cruces de bracket que referencian esta fase, igual
+      // que al cargar un resultado. De paso resuelve que getStandingsForPhase
+      // seguía sirviendo el orden viejo desde el caché hasta recargar.
+      if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(_criteriaPhaseId);
       closeCriteriaModal();
       showToast('Criterios guardados. Tabla actualizada.');
       renderGroupTable(_criteriaPhaseId, _criteriaContainerId, _criteriaIsAdmin);
@@ -969,6 +975,10 @@ async function saveGroupAssign(phaseId){
   }
 
   await dbPut('phases',{...phase, groups:newGroups, groupRefs: window._assignGroupRefs||[]});
+  // Reasignar equipos cambia quién ocupa cada posición de la tabla — mismo
+  // motivo que el cambio de criterios: invalidar Y resincronizar los cruces
+  // de bracket que referencian esta fase.
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
   showToast('Grupos guardados');
   closeGroupAssignModal();
   // Refrescar si la tabla está visible

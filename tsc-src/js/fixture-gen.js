@@ -598,7 +598,7 @@ async function fxGenerate(){
     // El navegador de fechas apuntaba a una ronda que ya no existe.
     delete window[`ronda_view_${phaseId}_${groupIdx}`];
     window._matchRondaActual = 1;
-    invalidateStandingsCache(phaseId);
+    invalidateStandingsAndSyncBrackets(phaseId);
 
     stopLoader();
     showToast(`${st.rounds.length} fechas generadas · ${items.length} partidos`);

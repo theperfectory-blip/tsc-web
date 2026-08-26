@@ -1505,7 +1505,7 @@
       // otro admin en fases que esta sesión nunca modificó).
       for (const p of journal.phases.values()) {
         await dbPut('phases', p);
-        if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(p.id);
+        if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(p.id);
       }
       // Restaurar SOLO los matches (+ su historial) de los cruces playoff tocados.
       for (const entry of journal.matches.values()) {
@@ -1560,7 +1560,7 @@
     groups[groupIdx][posIdx] = teamId;
 
     await dbPut('phases', { ...phase, groups });
-    if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(phaseId);
+    if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(phaseId);
 
     // 5. Invalidar links stale en TODOS los bombos:
     //    a) cualquier link que apuntara a esta posición destino (lo perdió el ocupante anterior)
@@ -1609,7 +1609,7 @@
         arr[link.posIdx] = null;
         groups[link.groupIdx] = arr;
         await dbPut('phases', { ...phase, groups });
-        if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(link.phaseId);
+        if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(link.phaseId);
       }
     } else if (link.kind === 'bracket') {
       const refs = (phase.slotRefs || []).filter(r => {
@@ -1619,7 +1619,7 @@
         return !(r.type === 'team' && parseInt(r.teamId) === teamId);
       });
       await dbPut('phases', { ...phase, slotRefs: refs });
-      if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(link.phaseId);
+      if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(link.phaseId);
     } else if (link.kind === 'playoff') {
       const key = link.side === 'A' ? 'teamA' : 'teamB';
       const slots = phase.playoffSlots ? JSON.parse(JSON.stringify(phase.playoffSlots)) : [];
@@ -1636,7 +1636,7 @@
       });
       if (changed || refs.length !== (phase.slotRefs || []).length) {
         await dbPut('phases', { ...phase, playoffSlots: slots, slotRefs: refs });
-        if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(link.phaseId);
+        if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(link.phaseId);
       }
     }
   }
@@ -1674,7 +1674,7 @@
     refs.push({ type:'team', slotIdx, side, teamId });
 
     await dbPut('phases', { ...phase, slotRefs: refs });
-    if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(phaseId);
+    if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(phaseId);
 
     // 6. Invalidar links stale en TODOS los bombos.
     for (const bb of state.bombos) {
@@ -1749,7 +1749,7 @@
     slots[matchIdx] = { ...slots[matchIdx], [key]: teamId };
 
     await dbPut('phases', { ...phase, playoffSlots: slots, slotRefs: refs });
-    if (typeof invalidateStandingsCache === 'function') invalidateStandingsCache(phaseId);
+    if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(phaseId);
 
     // 7. Si cambió el ocupante de este lado, limpiar matches + historial del cruce
     //    (mismo criterio que savePlayoffAssign: evita mezclar resultados de una pareja anterior).

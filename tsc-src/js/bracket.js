@@ -497,7 +497,132 @@ async function getStandingsForPhase(phaseId){
   return result;
 }
 
+/* Invalidación PURA — solo borra la entrada de caché, no escribe nada.
+   Si lo que hace falta es invalidar Y re-sincronizar los brackets que
+   referencian esta fase (el caso normal cuando cambió un resultado),
+   usar invalidateStandingsAndSyncBrackets más abajo — ese es el que deben
+   llamar los callers. Esta versión pura queda para quien de verdad solo
+   necesite tirar la caché. */
 function invalidateStandingsCache(phaseId){ delete _standingsCache[phaseId]; }
+
+/* Invalida la caché de posiciones de `phaseId` Y dispara la
+   re-sincronización de los partidos de bracket que referencian esa fase
+   (ver _syncBracketSlotsForSourcePhase). El nombre es explícito a propósito:
+   esta función ESCRIBE en la base (fire-and-forget) cuando corresponde —
+   no es una simple invalidación de caché, aunque también la haga.
+   Enganche único: TODO camino que puede haber cambiado los resultados de
+   una fase de grupos (matches.js, livematch.js, fixture-gen.js, sorteo.js,
+   standings.js, seasons.js, phases.js) llama a ESTA función — así se cubre
+   sin duplicar el hook en cada uno. Si phaseId no es una fase de grupos
+   (p.ej. bracket.js invalidando su propia fase al renderizar/materializar),
+   _syncBracketSlotsForSourcePhase corta apenas lee el tipo de fase. */
+function invalidateStandingsAndSyncBrackets(phaseId){
+  delete _standingsCache[phaseId];
+  _syncBracketSlotsForSourcePhase(phaseId).catch(e=>console.error('[bracket] sync de slots referenciados:', e));
+}
+
+/* Re-sincroniza en la base los partidos de bracket YA PERSISTIDOS cuyo slot
+   referencia a una fase de grupos (sourcePhaseId) que acaba de invalidar su
+   caché de posiciones (o sea, cambiaron sus resultados). El bug que esto
+   corrige: _calSaveSlot (calendar.js) escribe teamA/teamB una sola vez, al
+   asignarle fecha al cruce — si después un resultado de grupos da vuelta un
+   desempate, ese dato queda viejo para siempre (el calendario público lee
+   m.teamA crudo, sin resolver referencias) hasta que algo lo vuelva a
+   escribir. Esta función es ese "algo".
+
+   Reglas duras:
+   - Nunca toca un partido con resultado cargado o en vivo — la historia no
+     se reescribe.
+   - Nunca toca fecha/hora/goles/cualquier otro campo: solo teamA/teamB y
+     sus labelA/labelB.
+   - Si la referencia no resuelve todavía (la tabla no define esa posición),
+     deja el registro como está — nunca lo vacía.
+   - Idempotente: si el valor guardado ya coincide con la resolución en
+     vivo, no escribe nada (permite correrla en cada invalidación sin
+     generar escrituras redundantes).
+   - Cubre ambos legs (ida y vuelta) de forma independiente, y ambos lados
+     (A y B) — el barrido anterior solo miraba leg1.
+
+   opts.dryRun=true: no escribe nada, solo devuelve la lista de cambios que
+   HARÍA (mismo cálculo, para poder auditar antes de aplicar — ver reporte).
+   Sin dryRun, requiere rol admin: esto corre en el navegador de cualquier
+   visitante público vía el hook de invalidateStandingsAndSyncBrackets, que
+   no tiene permiso de escritura en Firestore. Ante una discrepancia real
+   intentaría el dbPut, fallaría con permission-denied y ensuciaría la
+   consola sin arreglar nada. Si no es dryRun y no hay sesión admin, corta
+   en silencio antes de calcular nada — ni intento de escritura ni log. */
+async function _syncBracketSlotsForSourcePhase(sourcePhaseId, opts){
+  const dryRun = !!(opts && opts.dryRun);
+  if(!dryRun){
+    const isAdmin = typeof AUTH!=='undefined' && AUTH && AUTH.role==='admin';
+    if(!isAdmin) return [];
+  }
+  const srcPhase = await dbGet('phases', parseInt(sourcePhaseId));
+  // Cualquier fase que pueda producir un clasificado/ganador resoluble en
+  // vivo: 'groups' (posición de tabla, ref type:'ref') y 'playoff'/'single'
+  // (ganador de llave, ref type:'playoff_winner', vía getPlayoffWinnerForMatch
+  // — no se toca esa lógica, solo se reusa). No 'bracket' como origen: un
+  // bracket propaga su propio ganador en cada render (buildBracketSlots),
+  // no depende de este sync.
+  if(!srcPhase || !['groups','playoff','single'].includes(srcPhase.type)) return [];
+
+  const teams = await dbGetAll('teams');
+  const nameById = {}; teams.forEach(t=>{ nameById[t.id]=t.name; });
+
+  // Fases destino: bracket (refs type:'ref') y playoff (refs
+  // type:'playoff_winner', p.ej. "Fase 2" de un Play Off Promoción
+  // apuntando a "Fase 1"). Ambas guardan sus referencias en slotRefs.
+  const targetPhases = await dbGetAll('phases', p=>p.type==='bracket' || p.type==='playoff');
+  const changes = [];
+  for(const bp of targetPhases){
+    const isBracket = bp.type==='bracket';
+    const refs = (bp.slotRefs||[]).filter(r=>
+      (r.type==='ref' || r.type==='playoff_winner') && parseInt(r.phaseId)===parseInt(sourcePhaseId)
+    );
+    if(!refs.length) continue;
+
+    const isDouble = isBracket ? (bp.config||{}).legs==='double' : String((bp.config||{}).legs)==='2';
+    const allMatches = await dbGetAll('matches', m=>m.phaseId===bp.id);
+
+    for(const ref of refs){
+      const {slotIdx, side} = ref;
+      const liveTeamId = await resolveSlotRef(ref);
+      if(liveTeamId==null) continue; // sin resolver aún: no vaciar el slot
+      const liveName = nameById[liveTeamId] ?? null;
+
+      // Ubicar el/los doc(s) persistidos por matchIdx (+ leg) — NO
+      // reconstruyendo el slotId a mano: el formato difiere entre bracket
+      // ("{id}_r0_m{idx}[_legN]") y playoff/single a dos vueltas
+      // ("{id}_m{idx}_legN", sin "_r0"; ver calendar.js _calSaveSlot). Si el
+      // string no coincide, matchMap[sid] da undefined y el sync queda
+      // silenciosamente sin hacer nada — matchIdx/leg no depende de ese
+      // formato y evita ese modo de falla.
+      const forSlot = allMatches.filter(m=>
+        m.matchIdx===slotIdx && (!isBracket || m.roundIdx===0)
+      );
+      const docs = isDouble
+        ? [forSlot.find(m=>m.leg===1), forSlot.find(m=>m.leg===2)]
+        : [forSlot.find(m=>m.leg==null) || forSlot[0]];
+
+      for(const doc of docs){
+        if(!doc) continue; // no persistido todavía: nada que sincronizar
+        const hasResult = doc.goalsA!=null || doc.goalsB!=null || !!doc.live;
+        if(hasResult) continue; // congelado — la historia no se reescribe
+        const teamField  = side==='A' ? 'teamA'  : 'teamB';
+        const labelField = side==='A' ? 'labelA' : 'labelB';
+        if(doc[teamField]===liveTeamId && doc[labelField]===liveName) continue; // ya al día
+
+        changes.push({
+          phaseId: bp.id, matchId: doc.id, slotId: doc.slotId, side,
+          before: { teamId: doc[teamField]??null, name: doc[teamField]!=null ? (nameById[doc[teamField]]??null) : null },
+          after:  { teamId: liveTeamId, name: liveName },
+        });
+        if(!dryRun) await dbPut('matches', {...doc, [teamField]: liveTeamId, [labelField]: liveName});
+      }
+    }
+  }
+  return changes;
+}
 
 /* Resuelve una ref dinámica → ID del equipo o null */
 async function resolveSlotRef(ref){
@@ -567,7 +692,7 @@ async function materializeGroupRefs(phaseId, groupIdx){
   }
   groups[groupIdx] = g;
   await dbPut('phases', {...phase, groups, groupRefs: keep});
-  invalidateStandingsCache(phaseId);
+  invalidateStandingsAndSyncBrackets(phaseId);
 }
 
 /* Etiqueta legible de una ref para mostrar en slot TBD.
@@ -686,8 +811,19 @@ async function buildBracketSlots(phase, rounds, matchMap){
         // Compatibilidad con datos guardados en formato antiguo (doc único con leg1a/leg2a…)
         const unified=matchMap[slotId];
         if(leg1||leg2){
-          if(leg1?.teamA) slots[ri][mi].teamA=leg1.teamA;
-          if(leg1?.teamB) slots[ri][mi].teamB=leg1.teamB;
+          // Un slot con referencia (refA/refB, seteado en el paso 1 contra la
+          // tabla en vivo) y SIN resultado todavía no se puede congelar: el
+          // equipo guardado en el doc de match puede ser el que clasificaba
+          // cuando se materializó, no el que clasifica ahora. Solo el
+          // resultado (o un partido ya en vivo) es la frontera que fija la
+          // historia — antes de eso, la resolución en vivo manda siempre.
+          const hasRefTL = !!(slots[ri][mi].refA || slots[ri][mi].refB);
+          const hasResultTL = !!((leg1 && (leg1.goalsA!=null||leg1.goalsB!=null||leg1.live))
+                                || (leg2 && (leg2.goalsA!=null||leg2.goalsB!=null||leg2.live)));
+          if(!hasRefTL || hasResultTL){
+            if(leg1?.teamA) slots[ri][mi].teamA=leg1.teamA;
+            if(leg1?.teamB) slots[ri][mi].teamB=leg1.teamB;
+          }
           slots[ri][mi].leg1a=leg1?.goalsA??null;
           slots[ri][mi].leg1b=leg1?.goalsB??null;
           slots[ri][mi].leg2a=leg2?.goalsA??null;
@@ -701,8 +837,12 @@ async function buildBracketSlots(phase, rounds, matchMap){
           slots[ri][mi].leg2Id=leg2?.id??null;
           slots[ri][mi].matchId=leg2?.id??leg1?.id??null;
         } else if(unified){
-          if(unified.teamA) slots[ri][mi].teamA=unified.teamA;
-          if(unified.teamB) slots[ri][mi].teamB=unified.teamB;
+          const hasRefU = !!(slots[ri][mi].refA || slots[ri][mi].refB);
+          const hasResultU = unified.leg1a!=null || unified.leg1b!=null || unified.leg2a!=null || unified.leg2b!=null || !!unified.live;
+          if(!hasRefU || hasResultU){
+            if(unified.teamA) slots[ri][mi].teamA=unified.teamA;
+            if(unified.teamB) slots[ri][mi].teamB=unified.teamB;
+          }
           slots[ri][mi].leg1a=unified.leg1a??null;
           slots[ri][mi].leg1b=unified.leg1b??null;
           slots[ri][mi].leg2a=unified.leg2a??null;
@@ -715,8 +855,16 @@ async function buildBracketSlots(phase, rounds, matchMap){
       } else {
         const saved=matchMap[slotId];
         if(saved){
-          slots[ri][mi].teamA=saved.teamA||slots[ri][mi].teamA;
-          slots[ri][mi].teamB=saved.teamB||slots[ri][mi].teamB;
+          // Ver comentario del caso ida/vuelta arriba: sin resultado (ni en
+          // vivo), un slot con referencia se resuelve siempre contra la
+          // tabla actual — el teamA/teamB guardado puede haber quedado de
+          // cuando se materializó el partido, con una clasificación vieja.
+          const hasRef = !!(slots[ri][mi].refA || slots[ri][mi].refB);
+          const hasResult = saved.goalsA!=null || saved.goalsB!=null || !!saved.live;
+          if(!hasRef || hasResult){
+            slots[ri][mi].teamA=saved.teamA||slots[ri][mi].teamA;
+            slots[ri][mi].teamB=saved.teamB||slots[ri][mi].teamB;
+          }
           slots[ri][mi].ga=saved.goalsA??null;
           slots[ri][mi].gb=saved.goalsB??null;
           slots[ri][mi].penA=saved.penA??null;

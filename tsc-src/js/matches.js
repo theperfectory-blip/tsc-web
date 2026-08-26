@@ -1065,7 +1065,7 @@ async function saveRonda(){
   await dbPut('phases', {...phase, rondaMeta:meta});
 
   window._matchRondaActual = targetR;
-  invalidateStandingsCache(phaseId);
+  invalidateStandingsAndSyncBrackets(phaseId);
   showToast(`Fecha ${targetR} guardada`);
   closeRondaModal();
   await showMatchGroupTable(phaseId, groupIdx);
@@ -1172,7 +1172,7 @@ async function saveEditResult(matchId, phaseId, groupIdx){
     date: new Date().toISOString(), // timestamp de cuándo se ingresó
   });
   await appendOrUpdateHistory(matchId);
-  invalidateStandingsCache(phaseId);
+  invalidateStandingsAndSyncBrackets(phaseId);
   showToast(`${teamAName} ${ga}-${gb} ${teamBName} registrado`);
   closeEditResultModal();
   await showMatchGroupTable(phaseId, groupIdx);
@@ -1359,7 +1359,7 @@ async function saveMatchResult(phaseId, groupIdx){
   });
   await appendOrUpdateHistory(newId);
 
-  invalidateStandingsCache(phaseId);
+  invalidateStandingsAndSyncBrackets(phaseId);
   // Resolver nombres para el toast (ta/tb pueden ser IDs)
   const _resolveName = async (v)=>{
     if(typeof v==='number' || Number.isFinite(parseInt(v))){
@@ -1379,7 +1379,7 @@ async function deleteMatch(id){
   showConfirm('¿Eliminar partido?','Esta acción revertirá el resultado en la tabla.',async()=>{
     await removeHistoryByMatchRef(id);
     await dbDelete('matches',id);
-    invalidateStandingsCache(window._matchPhaseId); // ← actualiza brackets
+    invalidateStandingsAndSyncBrackets(window._matchPhaseId); // ← actualiza brackets
     showToast('Partido eliminado');
     showMatchGroupTable(window._matchPhaseId, window._matchGroupIdx);
   });
@@ -1404,7 +1404,7 @@ async function deleteRonda(phaseId, groupIdx, ronda){
         await dbPut('phases', {...phase, rondaMeta:meta});
       }
 
-      invalidateStandingsCache(phaseId);
+      invalidateStandingsAndSyncBrackets(phaseId);
       showToast(`Fecha ${ronda} eliminada (${toDelete.length} partido${toDelete.length===1?'':'s'})`);
       showMatchGroupTable(phaseId, groupIdx);
     }

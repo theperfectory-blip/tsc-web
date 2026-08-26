@@ -400,6 +400,7 @@ async function deletePlayoffLeg(phaseId, slotId, matchIdx, leg){
       await removeHistoryByMatchRef(m.id);
       await dbDelete('matches', m.id);
     }
+    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(parseInt(phaseId));
     closePlayoffLegModal();
     showToast(`${leg===1?'Ida':'Vuelta'} eliminada`);
     const cid=document.querySelector('[id^="playoff-container-"]')?.id;
@@ -427,6 +428,10 @@ async function savePlayoffLeg(phaseId, slotId, matchIdx, leg, teamA, teamB){
     savedId = await dbAdd('matches',data);
   }
   await appendOrUpdateHistory(savedId);
+  // Un resultado de playoff/single puede definir quién gana la llave — otras
+  // fases (bracket o playoff) pueden tener slots type:'playoff_winner'
+  // apuntando acá y materializados sin resultado todavía.
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(parseInt(phaseId));
   // Resolver nombres para el toast (teamA/B pueden ser IDs)
   const _resolveName = async (v)=>{
     if(typeof v==='number' || Number.isFinite(parseInt(v))){
@@ -548,12 +553,15 @@ async function buildPlayoffPools(currentPhaseId){
     const zones = gp.zones||[];
     if(!zones.length) continue;
 
-    // Calcular standings actuales para ordenar por mérito
+    // Calcular standings actuales para ordenar por mérito. Criterios de la
+    // fase origen (no hardcodeados: pts/dg/gf a secas se salta direct/custom
+    // y con un empate como ese la posición sale distinta a la tabla oficial).
     const phaseMatches = await dbGetAll('matches', m=>m.phaseId===gp.id);
+    const criteria = await getCriteria(gp.id);
     const standingsByGroup = {};
     Object.entries(groups).forEach(([gi, teamIds])=>{
       const groupMatches = phaseMatches.filter(m=>m.groupIdx===parseInt(gi));
-      standingsByGroup[gi] = calcGroupStandings((teamIds||[]).filter(t=>t!=null), groupMatches, ['pts','dg','gf'], groupMatches);
+      standingsByGroup[gi] = calcGroupStandings((teamIds||[]).filter(t=>t!=null), groupMatches, criteria, groupMatches);
     });
 
     for(const zone of zones){

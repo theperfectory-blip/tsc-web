@@ -772,7 +772,7 @@ async function savePhase(id){
   if(id){
     const existing = await dbGet('phases',id);
     await dbPut('phases',{...existing,...data});
-    invalidateStandingsCache(id); // zonas cambiaron, invalidar cache
+    invalidateStandingsAndSyncBrackets(id); // zonas cambiaron, invalidar cache y resincronizar brackets
     showToast('Fase actualizada');
   } else {
     await dbAdd('phases',{...data, createdAt:new Date().toISOString()});

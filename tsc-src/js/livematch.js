@@ -114,7 +114,7 @@ async function startLiveGroupMatch(matchId, phaseId, groupIdx){
     liveEndAt: null,
     playedAt: m.playedAt || now,
   });
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
   _liveCtx = { kind:'group', phaseId, groupIdx };
   await openLiveMatch(matchId);
 }
@@ -138,7 +138,7 @@ async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, ma
       live:true, liveStartAt:now, liveEndAt:null, date:now,
     });
   }
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
   _liveCtx = { kind:'bracket', phaseId };
   await openLiveMatch(id);
 }
@@ -163,7 +163,7 @@ async function startLiveBracketLeg(baseSlotId, phaseId, legNum, teamA, teamB, ro
       live:true, liveStartAt:now, liveEndAt:null, date:now,
     });
   }
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
   _liveCtx = { kind:'bracket', phaseId };
   await openLiveMatch(id);
 }
@@ -187,7 +187,7 @@ async function startLivePlayoffLeg(phaseId, slotId, matchIdx, leg, teamA, teamB)
       live:true, liveStartAt:now, liveEndAt:null, date:now,
     });
   }
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
   _liveCtx = { kind:'playoff', phaseId };
   await openLiveMatch(id);
 }
@@ -297,7 +297,7 @@ async function liveReset(matchId){
   const m = await dbGet('matches', matchId);
   if(!m) return;
   await dbPut('matches', { ...m, goalsA:0, goalsB:0, live:true });
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
   const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = 0;
   const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = 0;
   _liveClearWarn();
@@ -312,7 +312,7 @@ async function liveAdjust(matchId, side, delta){
   if(side==='ga') ga = Math.max(0, ga+delta);
   else            gb = Math.max(0, gb+delta);
   await dbPut('matches', { ...m, goalsA:ga, goalsB:gb, live:true });
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
   const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = ga;
   const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = gb;
   _liveRefreshBackground();
@@ -433,7 +433,7 @@ async function liveFinalize(matchId){
     playedAt: m.playedAt || now,
   });
   if(typeof appendOrUpdateHistory==='function') await appendOrUpdateHistory(matchId);
-  if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
   // Guardar contexto ANTES de cerrar (closeLiveMatch lo pone a null).
   const _savedCtx = _liveCtx ? {..._liveCtx} : null;
   showToast(`Partido finalizado · ${ga}-${gb}`);
@@ -471,7 +471,7 @@ async function liveDiscard(matchId){
     } else {
       await dbPut('matches', { ...m, live:false, goalsA:null, goalsB:null, penA:null, penB:null, extraTime:false, liveStartAt:null, liveEndAt:null });
     }
-    if(typeof invalidateStandingsCache==='function') invalidateStandingsCache(m.phaseId);
+    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
     showToast('Partido en vivo descartado');
     closeLiveMatch();
   };
