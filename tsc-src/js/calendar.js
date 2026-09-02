@@ -332,20 +332,90 @@ async function renderAdmCalendar(){
       continue;
     }
 
-    /* ── BRACKET / PLAYOFF / SINGLE ────────────────────
-       Todos usan slotRefs para definir cruces. El matchupCount
-       se deriva del slotIdx máximo en slotRefs (no de config.matchups
-       que puede no existir). Para dos vueltas se muestran leg1 y leg2
-       de forma independiente según cuál esté sin resultado.
+    /* ── BRACKET (y SINGLE con mini-bracket de 4) ──────
+       Estas fases tienen varias rondas (r0=cuartos, r1=semis, r2=final…)
+       con propagación de ganador entre rondas — se reutiliza la misma
+       lógica que bracket.js (buildBracketRounds/buildBracketSlots) para
+       que las rondas siguientes aparezcan en el calendario tan pronto
+       la ronda anterior tenga equipo(s) resuelto(s), no solo la ronda 0.
        ─────────────────────────────────────────────────── */
-    if(phase.type==='bracket' || phase.type==='playoff' || phase.type==='single'){
-      const refs      = phase.slotRefs || [];
-      const isBracket = phase.type==='bracket';
+    const isMiniBracket = phase.type==='single' && (phase.config?.teams||2)===4;
+    if(phase.type==='bracket' || isMiniBracket){
+      const cfg         = phase.config||{};
+      const totalTeams  = cfg.teams || 8;
+      const rounds      = buildBracketRounds(totalTeams);
+      const matchMap    = {};
+      phasMs.forEach(m=>matchMap[m.slotId]=m);
+      const slots       = await buildBracketSlots(phase, rounds, matchMap);
+      const twoLeg      = cfg.legs === 'double';
+      const finalSingle = cfg.finalSingle !== false;
 
-      /* dos vueltas: bracket con legs=double, playoff/single con legs="2" */
-      const twoLeg = isBracket
-        ? phase.config?.legs === 'double'
-        : String(phase.config?.legs) === '2';
+      rounds.forEach((r, ri)=>{
+        const slotTwoLeg = twoLeg && !(finalSingle && ri===rounds.length-1);
+        for(let mi=0; mi<r.matches; mi++){
+          const slot = slots[ri]?.[mi];
+          if(!slot) continue;
+          const taId   = slot.teamA ?? null;
+          const tbId   = slot.teamB ?? null;
+          const labelA = teamById[taId]?.name || slot.labelA || 'Por definir';
+          const labelB = teamById[tbId]?.name || slot.labelB || 'Por definir';
+
+          const baseEntry = {
+            phase, comp,
+            matchId: null,
+            slotPhaseId:  phase.id,
+            slotTeamAId:  taId,
+            slotTeamBId:  tbId,
+            slotMatchIdx: mi,
+            slotRoundIdx: ri,
+            teamA:   teamById[taId]||null,
+            teamB:   teamById[tbId]||null,
+            labelA,
+            labelB,
+          };
+
+          const slotId = `${phase.id}_r${ri}_m${mi}`;
+          if(!slotTwoLeg){
+            const doc = matchMap[slotId];
+            if(doc && doc.goalsA!=null) continue;
+            entries.push({...baseEntry, slotId, slotLeg:null,
+              scheduledDate: doc?.scheduledDate||null, scheduledTime: doc?.scheduledTime||null});
+          } else {
+            const sid1 = slotId+'_leg1';
+            const sid2 = slotId+'_leg2';
+            const leg1 = matchMap[sid1];
+            const leg2 = matchMap[sid2];
+            const leg1Done = leg1 && leg1.goalsA!=null;
+            const leg2Done = leg2 && leg2.goalsA!=null;
+            if(!leg1Done){
+              entries.push({...baseEntry, slotId:sid1, slotLeg:1,
+                scheduledDate: leg1?.scheduledDate||null, scheduledTime: leg1?.scheduledTime||null});
+            }
+            if(!leg2Done){
+              entries.push({...baseEntry, slotId:sid2, slotLeg:2,
+                scheduledDate: leg2?.scheduledDate||null, scheduledTime: leg2?.scheduledTime||null});
+            }
+            /* si ambos jugados → no aparece ninguno */
+          }
+        }
+      });
+      continue;
+    }
+
+    /* ── PLAYOFF / SINGLE (1 cruce) ────────────────────
+       Vuelta única de cruces (sin rondas propagadas) definidos por
+       slotRefs — el matchupCount se deriva del slotIdx máximo en
+       slotRefs (no de config.matchups que puede no existir). Para dos
+       vueltas se muestran leg1 y leg2 de forma independiente según
+       cuál esté sin resultado.
+       ─────────────────────────────────────────────────── */
+    if(phase.type==='playoff' || phase.type==='single'){
+      const refs = phase.slotRefs || [];
+
+      /* dos vueltas: playoff/single con legs="2" (legs=1 sigue usando
+         slotId con sufijo _leg1, ver playoff.js — nunca hay slotId
+         sin sufijo de leg para este tipo de fase) */
+      const twoLeg = String(phase.config?.legs) === '2';
 
       /* agrupar refs por slotIdx */
       const refBySlot = {};
@@ -394,7 +464,7 @@ async function renderAdmCalendar(){
           slotTeamAId:  taId,
           slotTeamBId:  tbId,
           slotMatchIdx: mi,
-          slotRoundIdx: isBracket ? 0 : null,
+          slotRoundIdx: null,
           teamA:   teamById[taId]||null,
           teamB:   teamById[tbId]||null,
           labelA,
@@ -402,16 +472,17 @@ async function renderAdmCalendar(){
         };
 
         if(!twoLeg){
-          /* vuelta única */
-          const slotId = `${phase.id}_r0_m${mi}`;
+          /* vuelta única: playoff/single siempre guarda el doc con
+             sufijo _leg1, aunque solo haya una vuelta (ver playoff.js) */
+          const slotId = `${phase.id}_m${mi}_leg1`;
           const doc    = phasMs.find(m=>m.slotId===slotId);
           if(doc && doc.goalsA!=null) continue;
           entries.push({...baseEntry, slotId, slotLeg:null,
             scheduledDate: doc?.scheduledDate||null, scheduledTime: doc?.scheduledTime||null});
         } else {
           /* dos vueltas: mostrar el leg pendiente */
-          const sid1 = isBracket ? `${phase.id}_r0_m${mi}_leg1` : `${phase.id}_m${mi}_leg1`;
-          const sid2 = isBracket ? `${phase.id}_r0_m${mi}_leg2` : `${phase.id}_m${mi}_leg2`;
+          const sid1 = `${phase.id}_m${mi}_leg1`;
+          const sid2 = `${phase.id}_m${mi}_leg2`;
           const leg1 = phasMs.find(m=>m.slotId===sid1);
           const leg2 = phasMs.find(m=>m.slotId===sid2);
           const leg1Done = leg1 && leg1.goalsA!=null;
