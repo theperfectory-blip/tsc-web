@@ -3,8 +3,9 @@
    Store IDB: 'palmares'  · un registro = un título conquistado
    { id, teamId, competition, year?, season?, notes? }
 
-   Override de "campeón vigente" persiste en 'settings' bajo key
-   'palmares.reigningOverrides' como { [compKey]: recordId }.
+   El campeón vigente de cada competición es el PRIMERO por `order`
+   (ver _palmCompareChrono) — única fuente de verdad. Se controla a mano
+   con "↕ Ordenar campeones" en el admin.
    ============================================================ */
 
 /* ---------------- Competiciones canónicas (predefinidas) + dinámicas (IDB) */
@@ -501,24 +502,6 @@ async function aggregatePalmaresByTeam(){
   return out;
 }
 
-/* Reigning overrides: { [compKey]: palmaresRecordId } */
-async function getReigningOverrides(){
-  const all = await dbGetAll('settings');
-  const rec = all.find(r => r.key === 'palmares.reigningOverrides');
-  return { record: rec || null, value: rec?.value || {} };
-}
-async function setReigningOverride(compKey, recordIdOrNull){
-  const { record, value } = await getReigningOverrides();
-  const next = { ...value };
-  if (recordIdOrNull == null) delete next[compKey];
-  else next[compKey] = recordIdOrNull;
-  if (record) {
-    await dbPut('settings', { ...record, value: next });
-  } else {
-    await dbAdd('settings', { key: 'palmares.reigningOverrides', value: next });
-  }
-}
-
 /* Crear nueva copa personalizada */
 async function createNewCopa(label, short, trophy, color){
   const key = `CUSTOM_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
@@ -620,9 +603,9 @@ async function seedPalmaresIfEmpty(){
     return teams.find(x => norm(x.name).includes(n)) || teams.find(x => n.includes(norm(x.name)));
   };
 
-  const overrideTargets = {};   // compKey -> insertedId
   const skipped = [];
   let inserted = 0;
+  let vigentes = 0;
   for (const r of seedRecords) {
     const team = findTeam(r.team);
     if (!team) { skipped.push(r.team); continue; }
@@ -635,21 +618,21 @@ async function seedPalmaresIfEmpty(){
     if (r.season) rec.season = r.season;
     if (r.juego)  rec.juego  = r.juego;
     if (r.year)   rec.year   = r.year;
-    const id = await dbAdd('palmares', rec);
-    if (r.vigente) overrideTargets[r.competition] = id;
+    // El vigente del seed queda primero por `order` (única fuente de
+    // verdad del campeón vigente, ver _palmCompareChrono) — el resto de
+    // los registros de esa copa siguen con el orden cronológico por
+    // defecto (sin `order`), que siempre pierde contra uno que sí lo tiene.
+    if (r.vigente) { rec.order = 0; vigentes++; }
+    await dbAdd('palmares', rec);
     inserted++;
-  }
-  // Aplicar overrides de campeón vigente
-  for (const [comp, id] of Object.entries(overrideTargets)) {
-    await setReigningOverride(comp, id);
   }
 
   await dbAdd('settings', {
     key: 'palmaresSeedV1',
-    value: { inserted, vigentes: Object.keys(overrideTargets).length, skipped },
+    value: { inserted, vigentes, skipped },
     at: new Date().toISOString()
   });
-  console.log(`[palmares] sembrado ${inserted} títulos, ${Object.keys(overrideTargets).length} vigentes` +
+  console.log(`[palmares] sembrado ${inserted} títulos, ${vigentes} vigentes` +
     (skipped.length ? `, ${skipped.length} omitidos: ${skipped.join(', ')}` : ''));
 }
 
@@ -984,10 +967,9 @@ async function renderAdmPalmares(){
 
   await _palmResetBadOrderOnce();
   await loadPalmaresComps();
-  const [recs, allTeams, { value: overrides }] = await Promise.all([
+  const [recs, allTeams] = await Promise.all([
     getAllPalmaresRecords(),
-    dbGetAll('teams'),
-    getReigningOverrides()
+    dbGetAll('teams')
   ]);
   const teamById = {}; allTeams.forEach(t => teamById[t.id] = t);
   const agg = await aggregatePalmaresByTeam();
@@ -1008,14 +990,12 @@ async function renderAdmPalmares(){
       return a.team.name.localeCompare(b.team.name, 'es');                                // 3º: alfabético (último recurso)
     });
 
-  // Para cada competición, lista de registros + el override actual
+  // Para cada competición, lista de registros + el vigente (1º por order)
   const compSections = PALMARES_COMPS.map(c => {
     const compRecs = recs.filter(r => r.competition === c.key)
       .sort(_palmCompareChrono);
-    const overrideId = overrides[c.key];
-    const autoChamp = reigningChampion(recs, c.key, {}); // sin override
-    const effective = reigningChampion(recs, c.key, overrides);
-    return { comp: c, recs: compRecs, overrideId, autoChamp, effective };
+    const effective = reigningChampion(recs, c.key);
+    return { comp: c, recs: compRecs, effective };
   });
 
   el.innerHTML = `
@@ -1032,15 +1012,6 @@ async function renderAdmPalmares(){
     <div style="font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);margin-bottom:10px;">Campeones vigentes</div>
     <div class="palm-vigentes-grid">
       ${compSections.map(s => {
-        const opts = s.recs.map(r => {
-          const t = teamById[r.teamId];
-          const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
-          const lbl = `${t ? t.name : '#'+r.teamId}${extras ? ' · ' + extras : ''}`;
-          const selected = s.overrideId === r.id;
-          return `<option value="${r.id}" ${selected?'selected':''}>${_esc(lbl)}</option>`;
-        }).join('');
-        const autoExtras = s.autoChamp ? [s.autoChamp.season, s.autoChamp.juego, s.autoChamp.year].filter(Boolean).join(' · ') : '';
-        const autoLbl = s.autoChamp ? `Auto · ${teamById[s.autoChamp.teamId]?.name || '#'+s.autoChamp.teamId}${autoExtras?' ('+autoExtras+')':''}` : 'Auto · sin campeón';
         const effTeam = s.effective ? teamById[s.effective.teamId] : null;
         const effExtras = s.effective ? [s.effective.season, s.effective.juego, s.effective.year].filter(Boolean).join(' · ') : '';
         const effPending = !!(s.effective && s.effective.pending);
@@ -1106,14 +1077,6 @@ async function renderAdmPalmares(){
       </tbody>
     </table>
   </div>`;
-}
-
-/* Selector de campeón vigente (override) */
-async function setVigenteChampion(compKey, value){
-  const recordId = value ? parseInt(value) : null;
-  await setReigningOverride(compKey, recordId);
-  if (typeof showToast === 'function') showToast(recordId ? 'Campeón vigente actualizado' : 'Vuelve al modo automático');
-  renderAdmPalmares();
 }
 
 /* ---- Reordenamiento manual de campeones por competición ---- */
@@ -1408,9 +1371,6 @@ async function addPalmaresRecord(teamId, compKey){
 }
 async function deletePalmaresRecord(recId, teamId, compKey){
   if (!confirm('¿Quitar este título del palmarés?')) return;
-  // Si era el campeón vigente forzado, limpiar el override.
-  const { value: overrides } = await getReigningOverrides();
-  if (overrides[compKey] === recId) await setReigningOverride(compKey, null);
   await dbDelete('palmares', recId);
   if (typeof showToast === 'function') showToast('Título eliminado');
   await openPalmaresCellEdit(teamId, compKey);
@@ -1421,8 +1381,6 @@ async function deletePalmaresRecord(recId, teamId, compKey){
    no tiene equipo, así que no hay celda (team × comp) a la que volver. */
 async function deletePendingPalmaresRecord(recId, compKey){
   if (!confirm('¿Quitar este título pendiente?')) return;
-  const { value: overrides } = await getReigningOverrides();
-  if (overrides[compKey] === recId) await setReigningOverride(compKey, null);
   await dbDelete('palmares', recId);
   if (typeof showToast === 'function') showToast('Título pendiente eliminado');
   renderAdmPalmares();
@@ -2233,12 +2191,12 @@ function getPalmaresMedia(recordId){
   };
 }
 
-function _palmBuildPublicCompData(recs, teamById, overrides){
+function _palmBuildPublicCompData(recs, teamById){
   return PALMARES_COMPS.map(comp => {
     const sortedRecords = recs
       .filter(r => r.competition === comp.key)
       .sort(_palmCompareChrono);
-    const champion = reigningChampion(recs, comp.key, overrides || {}) || sortedRecords[0] || null;
+    const champion = reigningChampion(recs, comp.key) || sortedRecords[0] || null;
     const records = champion
       ? [champion, ...sortedRecords.filter(record => record.id !== champion.id)]
       : sortedRecords;
@@ -3692,16 +3650,15 @@ async function renderPubPalmares(){
   const token = ++_PALM_PUB.renderToken;
   await seedPalmaresIfEmpty();
   await loadPalmaresComps();
-  const [recs, allTeams, { value: overrides }] = await Promise.all([
+  const [recs, allTeams] = await Promise.all([
     getAllPalmaresRecords(),
-    dbGetAll('teams'),
-    getReigningOverrides()
+    dbGetAll('teams')
   ]);
   if (token !== _PALM_PUB.renderToken) return;
   const teamById = {};
   allTeams.forEach(team => { teamById[team.id] = team; });
   _PALM_PUB.teamById = teamById;
-  _PALM_PUB.compData = _palmBuildPublicCompData(recs, teamById, overrides);
+  _PALM_PUB.compData = _palmBuildPublicCompData(recs, teamById);
   _PALM_PUB.compIdx = Math.max(0, Math.min(_PALM_PUB.compIdx || 0, Math.max(0, _PALM_PUB.compData.length - 1)));
   el.innerHTML = _palmVitrineShellHTML();
   _palmBindPublicPalmares(el);
