@@ -34,8 +34,8 @@ android {
         // desde HEAD daba un code viejo que Android rechaza instalar encima
         // del instalado (INSTALL_FAILED_VERSION_DOWNGRADE). El auto-actualizador
         // compara justamente este número. Ver docs/android-build.md.
-        versionCode 12
-        versionName "1.5.6"
+        versionCode 13
+        versionName "1.5.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
