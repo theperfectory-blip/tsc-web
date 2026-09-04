@@ -1029,10 +1029,12 @@ async function renderAdmPalmares(){
           </div>
           ${pendingRecs.map(r => {
             const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
+            const galleryCount = _palmGallerySafeItems(r.gallery).length;
             return `
             <div class="palm-vig-pending" style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px dashed var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
               <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${_esc(extras)}`:''}</span>
               <span style="display:flex;gap:6px;">
+                <button class="btn btn-xs" onclick="openPalmaresGallery(${_escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
                 <button class="btn btn-xs btn-primary" onclick="openPalmaresEditRecord(${_escAttr(JSON.stringify(r.id))})">Definir campeón</button>
                 <button class="btn btn-xs btn-danger" onclick="deletePendingPalmaresRecord(${_escAttr(JSON.stringify(r.id))}, '${_escAttr(s.comp.key)}')">Quitar</button>
               </span>
