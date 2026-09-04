@@ -2340,6 +2340,22 @@ function _palmVitrineHeroHTML(entry, idx){
   `;
 }
 
+/* Escudos subidos a un título pendiente ("¿?") vía openPalmaresGallery
+   (admin: fila "Pendiente" -> botón "Imágenes") — se muestran como
+   ambientación en la vitrina pública mientras el campeón no está
+   definido. Reusa getPalmaresMedia, la misma fuente que ya alimenta el
+   collage de la Sala. */
+function _palmVitrinePendingLogosHTML(pendingRec){
+  if (!pendingRec) return '';
+  const items = getPalmaresMedia(pendingRec.id).items.slice(0, 6);
+  if (!items.length) return '';
+  return `
+    <div class="mv-vig-pending-logos">
+      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${_escAttr(item.url)}" alt="${_escAttr(item.alt)}" loading="lazy"></span>`).join('')}
+    </div>
+  `;
+}
+
 function _palmVitrineDataHTML(entry){
   if (!entry) return '';
   const team = entry.champTeam;
@@ -2353,7 +2369,7 @@ function _palmVitrineDataHTML(entry){
       <span class="mv-vig-name">${_esc(team.name || '—')}</span>
     </div>
   ` : entry.champion?.pending
-    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${_escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>`
+    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${_escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>${_palmVitrinePendingLogosHTML(entry.champion)}`
     : `<div class="mv-vig-row"><span class="mv-vig-name">Sin campeón registrado</span></div>`;
   return `
     <div class="mv-vig">
