@@ -69,8 +69,20 @@ function teamLogoHtml(name, team, size=28){
 
   // Corte de audio por background (pauseAllAppAudio en sounds.js) — los
   // sonidos de fuegos son cortos, pero por las dudas de que quede uno en
-  // vuelo justo al minimizar.
-  window.BRACKET_AUDIO = { pauseForBackground(){ try{ _audioCtx?.suspend?.(); }catch(_){} } };
+  // vuelo justo al minimizar. resume() es la contraparte que faltaba: sin
+  // ella, un blur (cambiar de pestaña/app, común en el WebView de la APK —
+  // ver el comentario de resumeAudioOnForeground en sounds.js) suspende
+  // este AudioContext PARA SIEMPRE. _audioCtx es un singleton del módulo
+  // (se crea una vez y se reusa en cada fuego artificial posterior), así
+  // que el bug no se nota en el primer campeón de la sesión (contexto
+  // recién creado, corriendo) sino en el SIGUIENTE: el canvas/rAF de los
+  // fuegos no dependen del audio y se ven bien, pero cada nodo Web Audio
+  // programado sobre un contexto 'suspended' no sale por los parlantes —
+  // sin throw, así que quedaba en silencio sin ningún error en consola.
+  window.BRACKET_AUDIO = {
+    pauseForBackground(){ try{ _audioCtx?.suspend?.(); }catch(_){} },
+    resume(){ try{ if(_audioCtx && _audioCtx.state==='suspended') _audioCtx.resume().catch(()=>{}); }catch(_){} }
+  };
 
   // Sonido de cohete subiendo: silbido ascendente
   function _soundRocketLaunch(volScale){

@@ -1085,66 +1085,75 @@ function _calInitHeroCountdown(m, scope){
   }
 }
 
-/* Competición/fase "en juego ahora mismo" — usada por renderPubPanel
-   (public.js, sección 02) para elegir el default cuando el viewer todavía
-   no navegó nada: el mismo criterio del hero del Calendario (EN VIVO >
-   próximo partido con fecha), en vez de la primera competición creada.
-   Así, si ya se jugaron los cuartos y están las semis, la sección 02 abre
-   directo en la fase que se está jugando. `activeCompIds` filtra a las
-   competiciones ya activas que ve renderPubPanel — evita apuntar a una
-   comp archivada/inactiva. Devuelve null si no hay partido en vivo ni
-   próximo (pretemporada / fin de temporada) para que el llamador use su
-   fallback de siempre. */
-async function getActiveCompPhase(activeCompIds){
-  const [allMatches, allPhases] = await Promise.all([
-    getForSeason('matches'),
-    getForSeason('phases'),
-  ]);
-  const phaseById = Object.fromEntries(allPhases.map(p=>[p.id, p]));
-  const phaseInScope = m => {
-    const phase = phaseById[m.phaseId];
-    return phase && activeCompIds.has(phase.compId) ? phase : null;
-  };
-  const liveMatch = allMatches.find(m => m.live && m.teamA && m.teamB && phaseInScope(m));
-  if(liveMatch){
-    const phase = phaseInScope(liveMatch);
-    return { compId: phase.compId, phaseId: phase.id };
-  }
+/* Núcleo compartido de "qué fase está vigente ahora" — un solo criterio
+   para los dos usos de abajo (antes cada uno reimplementaba su propio
+   filtro de vivo/próximo, y getDefaultPhaseId ni siquiera los miraba,
+   solo chequeaba "tiene algún partido cargado"). Recibe los partidos ya
+   acotados al alcance que corresponda (todas las comps activas, o solo
+   las fases de una comp puntual) y un phaseById con ESE mismo alcance —
+   así un partido de una fase fuera de alcance (comp archivada, etc.)
+   queda afuera sin chequeos aparte. Prioridad: EN VIVO > próximo partido
+   con fecha (mismo criterio que el hero del Calendario) > último partido
+   YA JUGADO (por fecha, el más reciente) — este tercer nivel es lo que
+   hace que una copa ya terminada ancle en su fase final en vez de cara o
+   cruz según cuál fase tenga matches. Devuelve null si no hay nada (ni
+   vivo, ni próximo, ni jugado) para que el llamador use su propio
+   fallback (típicamente la primera fase/competición). */
+function _calResolveAnchorPhase(matches, phaseById){
+  const inScope = m => phaseById[m.phaseId] || null;
+  const live = matches.find(m => m.live && m.teamA && m.teamB && inScope(m));
+  if(live) return inScope(live);
+
   const today = _calTodayStr();
-  const upcoming = allMatches
-    .filter(m => m.scheduledDate && m.scheduledDate>=today && m.goalsA==null && phaseInScope(m))
+  const upcoming = matches
+    .filter(m => m.scheduledDate && m.scheduledDate>=today && m.goalsA==null && inScope(m))
     .sort((a,b)=>{
       const ka=a.scheduledDate+(a.scheduledTime||'00:00');
       const kb=b.scheduledDate+(b.scheduledTime||'00:00');
       return ka<kb?-1:1;
     });
-  if(upcoming.length){
-    const phase = phaseInScope(upcoming[0]);
-    return { compId: phase.compId, phaseId: phase.id };
-  }
-  return null;
+  if(upcoming.length) return inScope(upcoming[0]);
+
+  const played = matches
+    .filter(m => m.scheduledDate && m.goalsA!=null && inScope(m))
+    .sort((a,b)=>{
+      const ka=a.scheduledDate+(a.scheduledTime||'00:00');
+      const kb=b.scheduledDate+(b.scheduledTime||'00:00');
+      return ka<kb?1:-1; // más reciente primero
+    });
+  return played.length ? inScope(played[0]) : null;
+}
+
+/* Competición/fase "en juego ahora mismo" — usada por renderPubPanel
+   (public.js, sección 02) para elegir el default cuando el viewer todavía
+   no navegó nada, en vez de la primera competición creada. `activeCompIds`
+   filtra a las competiciones ya activas que ve renderPubPanel — evita
+   apuntar a una comp archivada/inactiva. */
+async function getActiveCompPhase(activeCompIds){
+  const [allMatches, allPhases] = await Promise.all([
+    getForSeason('matches'),
+    getForSeason('phases'),
+  ]);
+  const phaseById = {};
+  for(const p of allPhases) if(activeCompIds.has(p.compId)) phaseById[p.id] = p;
+  const phase = _calResolveAnchorPhase(allMatches, phaseById);
+  return phase ? { compId: phase.compId, phaseId: phase.id } : null;
 }
 
 /* Fase por defecto DENTRO de una competición ya elegida — usada por
    renderPubPanel cuando el viewer cambia de competición en el carrusel
-   (pubSelectComp la llama sin fase → null) y por getActiveCompPhase arriba
-   NO pasó, porque esa comp no tiene el próximo partido global.
-   `phases` ya viene ordenada por `order` ascendente (grupos → ... → final).
-   Se toma la ÚLTIMA fase que ya tiene algún partido cargado (jugado o
-   programado) — así una copa/división que ya terminó abre en su fase
-   final (la última que el admin tocó), no en la fase de grupos por ser la
-   primera de la lista. Si ninguna fase tiene partidos todavía (torneo sin
-   arrancar), cae a la primera como antes. */
+   (pubSelectComp la llama sin fase → null). `phases` ya viene ordenada
+   por `order` ascendente (grupos → ... → final); si ninguna tiene ni
+   vivo, ni próximo, ni jugado (torneo sin arrancar todavía), cae a la
+   primera como antes. */
 async function getDefaultPhaseId(phases){
   if(!phases.length) return null;
   if(phases.length === 1) return phases[0].id;
-  const ids = new Set(phases.map(p=>p.id));
+  const phaseById = Object.fromEntries(phases.map(p=>[p.id, p]));
   const allMatches = await getForSeason('matches');
-  const phasesWithMatches = new Set(allMatches.filter(m=>ids.has(m.phaseId)).map(m=>m.phaseId));
-  for(let i=phases.length-1; i>=0; i--){
-    if(phasesWithMatches.has(phases[i].id)) return phases[i].id;
-  }
-  return phases[0].id;
+  const scoped = allMatches.filter(m => phaseById[m.phaseId]);
+  const phase = _calResolveAnchorPhase(scoped, phaseById);
+  return phase ? phase.id : phases[0].id;
 }
 
 async function renderPubCalendar(){
