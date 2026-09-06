@@ -787,7 +787,15 @@ body.sala-open{overflow:hidden;}
 .gbr-nav-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
 .gbr-round-title{min-width:0;font-family:'Barlow Condensed';font-size:12px;font-weight:700;
   letter-spacing:.4px;color:var(--txt);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.gbr-mobile-viewport{position:relative;overflow:hidden;padding:0 8px 14px;}
+/* overflow-x hidden es lo único que el pager necesita (oculta la mitad
+   fuera de pantalla del rail durante el slide horizontal entre rondas) —
+   overflow-y en hidden de más cortaba cualquier tarjeta más alta que el
+   slot uniforme calculado a priori (constrainedUnit), típicamente un
+   nombre de equipo de 3 palabras que envuelve a 2 líneas: el partido
+   quedaba con un solo equipo visible y el otro directamente inalcanzable
+   (ni haciendo scroll aparecía, porque el contenedor lo recortaba antes
+   de que existiera scroll que hacer). */
+.gbr-mobile-viewport{position:relative;overflow-x:hidden;overflow-y:visible;padding:0 8px 14px;}
 .gbr-mobile-viewport::after{content:'';position:absolute;top:0;right:0;bottom:0;width:42px;pointer-events:none;
   background:linear-gradient(270deg,var(--bg-deep) 0%,rgba(10,11,15,0) 100%);}
 .gbr-mobile-rail{display:flex;width:100%;}

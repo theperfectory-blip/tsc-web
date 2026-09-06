@@ -338,6 +338,14 @@ function _pbBracketMount(el, roundCards, compName, phase, copaKey){
     if(!vp) return;
     vp.innerHTML = `<div class="gbr-mobile-rail"><div class="gbr-mobile-pane">${pairHTML(pi)}</div></div>`;
     updateNav(pi);
+    // Fuegos del campeón: recién tienen sentido cuando el par visible es el
+    // que muestra la Final (columna derecha) — antes se lanzaban una sola
+    // vez al montar, casi siempre viendo Octavos/Cuartos, y como quedaban
+    // marcados como "ya lanzados" nunca volvían a salir al llegar
+    // paginando hasta la Final real. Se re-evalúa en cada pane asentado
+    // (mount y cada vez que moveTo termina), pero solo dispara una vez por
+    // fase gracias al guard de _pbMaybeFireworks.
+    _pbMaybeFireworks(el, roundCards, phase.id, pi, N);
   };
   const animateTo = (fromPi, toPi)=>{
     const vp = el.querySelector('.gbr-mobile-viewport');
@@ -364,11 +372,34 @@ function _pbBracketMount(el, roundCards, compName, phase, copaKey){
   el.querySelector('.gbr-nav-back')?.addEventListener('click', ()=>moveTo(_pi-1));
   el.querySelector('.gbr-nav-fwd')?.addEventListener('click', ()=>moveTo(_pi+1));
 
-  // Fuegos del campeón (una vez por fase, solo si el contenedor está visible)
-  _pbMaybeFireworks(el, roundCards, phase.id);
+  // Gesto táctil: deslizar el dedo cambia de ronda igual que las flechitas
+  // (izquierda→derecha del dedo = avanza, ronda siguiente; al revés,
+  // retrocede). Umbral en X para no competir con el scroll vertical de la
+  // página, y se descarta el gesto si el dedo se movió más en vertical que
+  // en horizontal (evita robarle el swipe a un scroll normal).
+  const vpEl = el.querySelector('.gbr-mobile-viewport');
+  if(vpEl){
+    let tx=0, ty=0, tracking=false;
+    vpEl.addEventListener('touchstart', (e)=>{
+      if(_animating || e.touches.length!==1) return;
+      tx = e.touches[0].clientX; ty = e.touches[0].clientY; tracking = true;
+    }, { passive:true });
+    vpEl.addEventListener('touchend', (e)=>{
+      if(!tracking) return;
+      tracking = false;
+      const dx = (e.changedTouches[0]?.clientX||tx) - tx;
+      const dy = (e.changedTouches[0]?.clientY||ty) - ty;
+      if(Math.abs(dx) < 40 || Math.abs(dx) <= Math.abs(dy)) return;
+      moveTo(dx < 0 ? _pi+1 : _pi-1);
+    }, { passive:true });
+  }
 }
 
-function _pbMaybeFireworks(el, roundCards, phaseId){
+function _pbMaybeFireworks(el, roundCards, phaseId, pi, N){
+  // El pane que muestra la Final es el de índice N-2 (columna derecha del
+  // par) — salvo con N=1 (un bracket de un solo round), donde el único
+  // pane posible (pi=0) YA es esa Final como columna izquierda.
+  if(pi !== Math.max(0, N-2)) return;
   const finalCard = roundCards[roundCards.length-1]?.cards?.[0];
   const winner = finalCard && (finalCard.wA ? finalCard.ta : finalCard.wB ? finalCard.tb : null);
   if(!winner) return;
