@@ -1466,6 +1466,20 @@ function _palmGallerySafeItems(value, max = _PALM_GALLERY_MAX){
     .slice(0, max);
 }
 
+/* Las fotos del palmarés se suben a Cloudinary sin redimensionar
+   (uploadImageToCloud sube el archivo tal cual, ver cloudinary.js) — una
+   foto de celular puede pesar varios MB a resolución original. Se muestran
+   siempre en miniaturas o tarjetas chicas (30-640px), así que se pide la
+   versión ya redimensionada/comprimida vía URL de Cloudinary en vez de la
+   original: mismo archivo subido, sin re-subir ni migrar nada, Cloudinary
+   genera y cachea la variante en el primer pedido.
+   No toca URLs que no sean de Cloudinary (deja el <img> como estaba). */
+function _palmCloudThumb(url, width){
+  const m = /^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/.exec(String(url || ''));
+  if (!m) return url;
+  return `${m[1]}f_auto,q_auto,w_${width}/${m[2]}`;
+}
+
 function _palmGalleryStatusLabel(status){
   return ({
     waiting:'Esperando',
@@ -1483,7 +1497,7 @@ function _palmGalleryHTML(){
     ? state.items.map((item, index) => `
       <div class="palm-gallery-item" draggable="${state.saving?'false':'true'}" data-gallery-index="${index}"
         ondragstart="palmGalleryDragStart(${index})" ondragend="palmGalleryDragEnd()" ondragover="palmGalleryDragOver(event)" ondrop="palmGalleryDrop(event,${index})">
-        <img class="palm-gallery-thumb" src="${_escAttr(item.url)}" alt="${_escAttr(item.alt)}">
+        <img class="palm-gallery-thumb" src="${_escAttr(_palmCloudThumb(item.url, 160))}" alt="${_escAttr(item.alt)}">
         <div class="palm-gallery-item-main">
           <label for="palm-gallery-alt-${index}">Texto alternativo</label>
           <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${_escAttr(item.alt)}"
@@ -2351,7 +2365,7 @@ function _palmVitrinePendingLogosHTML(pendingRec){
   if (!items.length) return '';
   return `
     <div class="mv-vig-pending-logos">
-      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${_escAttr(item.url)}" alt="${_escAttr(item.alt)}" loading="lazy"></span>`).join('')}
+      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${_escAttr(_palmCloudThumb(item.url, 90))}" alt="${_escAttr(item.alt)}" loading="lazy"></span>`).join('')}
     </div>
   `;
 }
@@ -2666,7 +2680,7 @@ function _palmRenderSalaCollage(){
     const shot = document.createElement('figure');
     const img = document.createElement('img');
     shot.className = 'sala-shot';
-    img.src = item.url;
+    img.src = _palmCloudThumb(item.url, 800);
     img.alt = item.alt;
     shot.style.left = `${slot.x + Math.random() * 5 - 2.5}%`;
     shot.style.top = `${slot.y + Math.random() * 6 - 3}%`;
@@ -2761,7 +2775,7 @@ function _palmPreloadCollageMedia(record, max = 3){
     .map(item => typeof item === 'string' ? item : (item?.url || item?.src || ''))
     .filter(Boolean)
     .slice(0, max);
-  return Promise.all(urls.map(_palmPreloadImage)).then(() => {});
+  return Promise.all(urls.map(url => _palmPreloadImage(_palmCloudThumb(url, 800)))).then(() => {});
 }
 
 function _palmSetSalaLoaderProgress(pct){
