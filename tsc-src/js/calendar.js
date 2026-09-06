@@ -1085,6 +1085,46 @@ function _calInitHeroCountdown(m, scope){
   }
 }
 
+/* Competición/fase "en juego ahora mismo" — usada por renderPubPanel
+   (public.js, sección 02) para elegir el default cuando el viewer todavía
+   no navegó nada: el mismo criterio del hero del Calendario (EN VIVO >
+   próximo partido con fecha), en vez de la primera competición creada.
+   Así, si ya se jugaron los cuartos y están las semis, la sección 02 abre
+   directo en la fase que se está jugando. `activeCompIds` filtra a las
+   competiciones ya activas que ve renderPubPanel — evita apuntar a una
+   comp archivada/inactiva. Devuelve null si no hay partido en vivo ni
+   próximo (pretemporada / fin de temporada) para que el llamador use su
+   fallback de siempre. */
+async function getActiveCompPhase(activeCompIds){
+  const [allMatches, allPhases] = await Promise.all([
+    getForSeason('matches'),
+    getForSeason('phases'),
+  ]);
+  const phaseById = Object.fromEntries(allPhases.map(p=>[p.id, p]));
+  const phaseInScope = m => {
+    const phase = phaseById[m.phaseId];
+    return phase && activeCompIds.has(phase.compId) ? phase : null;
+  };
+  const liveMatch = allMatches.find(m => m.live && m.teamA && m.teamB && phaseInScope(m));
+  if(liveMatch){
+    const phase = phaseInScope(liveMatch);
+    return { compId: phase.compId, phaseId: phase.id };
+  }
+  const today = _calTodayStr();
+  const upcoming = allMatches
+    .filter(m => m.scheduledDate && m.scheduledDate>=today && m.goalsA==null && phaseInScope(m))
+    .sort((a,b)=>{
+      const ka=a.scheduledDate+(a.scheduledTime||'00:00');
+      const kb=b.scheduledDate+(b.scheduledTime||'00:00');
+      return ka<kb?-1:1;
+    });
+  if(upcoming.length){
+    const phase = phaseInScope(upcoming[0]);
+    return { compId: phase.compId, phaseId: phase.id };
+  }
+  return null;
+}
+
 async function renderPubCalendar(){
   const el = document.getElementById('pub-calendar-content');
   if(!el) return;

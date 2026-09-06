@@ -175,10 +175,17 @@ async function renderPubPanel(){
     stageReady = true;
     return;
   }
-  // Si no hay comp seleccionada, tomar la primera
+  // Si no hay comp seleccionada, tomar la que está en juego ahora mismo
+  // (EN VIVO > próximo partido con fecha, mismo criterio que el hero del
+  // Calendario) — solo si el viewer no navegó nada todavía. Si no hay
+  // partido en vivo ni próximo (pretemporada/fin de temporada), cae a la
+  // primera competición como antes.
   if(!window._pubState.compId || !active.find(c=>c.id===window._pubState.compId)){
-    window._pubState.compId = active[0].id;
-    window._pubState.phaseId = null;
+    const picked = typeof getActiveCompPhase === 'function'
+      ? await getActiveCompPhase(new Set(active.map(c=>c.id)))
+      : null;
+    window._pubState.compId = picked?.compId ?? active[0].id;
+    window._pubState.phaseId = picked?.phaseId ?? null;
   }
   const selComp = active.find(c=>c.id===window._pubState.compId) || active[0];
 
