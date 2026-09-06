@@ -198,7 +198,9 @@ async function renderPubPanel(){
   phases.sort((a,b)=>(a.order||0)-(b.order||0));
 
   if(!window._pubState.phaseId || !phases.find(p=>p.id===window._pubState.phaseId)){
-    window._pubState.phaseId = phases[0]?.id || null;
+    window._pubState.phaseId = typeof getDefaultPhaseId === 'function'
+      ? await getDefaultPhaseId(phases)
+      : (phases[0]?.id || null);
   }
   const selPhase = phases.find(p=>p.id===window._pubState.phaseId);
 

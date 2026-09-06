@@ -1125,6 +1125,28 @@ async function getActiveCompPhase(activeCompIds){
   return null;
 }
 
+/* Fase por defecto DENTRO de una competición ya elegida — usada por
+   renderPubPanel cuando el viewer cambia de competición en el carrusel
+   (pubSelectComp la llama sin fase → null) y por getActiveCompPhase arriba
+   NO pasó, porque esa comp no tiene el próximo partido global.
+   `phases` ya viene ordenada por `order` ascendente (grupos → ... → final).
+   Se toma la ÚLTIMA fase que ya tiene algún partido cargado (jugado o
+   programado) — así una copa/división que ya terminó abre en su fase
+   final (la última que el admin tocó), no en la fase de grupos por ser la
+   primera de la lista. Si ninguna fase tiene partidos todavía (torneo sin
+   arrancar), cae a la primera como antes. */
+async function getDefaultPhaseId(phases){
+  if(!phases.length) return null;
+  if(phases.length === 1) return phases[0].id;
+  const ids = new Set(phases.map(p=>p.id));
+  const allMatches = await getForSeason('matches');
+  const phasesWithMatches = new Set(allMatches.filter(m=>ids.has(m.phaseId)).map(m=>m.phaseId));
+  for(let i=phases.length-1; i>=0; i--){
+    if(phasesWithMatches.has(phases[i].id)) return phases[i].id;
+  }
+  return phases[0].id;
+}
+
 async function renderPubCalendar(){
   const el = document.getElementById('pub-calendar-content');
   if(!el) return;
