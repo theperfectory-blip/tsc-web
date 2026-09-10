@@ -672,6 +672,24 @@
   color: var(--txt);
 }
 
+.mv-vig-pending-logos {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.mv-vig-pending-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--brd);
+  background: var(--card2);
+  flex: none;
+}
+.mv-vig-pending-logo img { width: 100%; height: 100%; object-fit: cover; }
+
 .mv-counts {
   display: grid;
   grid-template-columns: 1fr 1fr;

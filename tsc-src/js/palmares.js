@@ -3,8 +3,9 @@
    Store IDB: 'palmares'  · un registro = un título conquistado
    { id, teamId, competition, year?, season?, notes? }
 
-   Override de "campeón vigente" persiste en 'settings' bajo key
-   'palmares.reigningOverrides' como { [compKey]: recordId }.
+   El campeón vigente de cada competición es el PRIMERO por `order`
+   (ver _palmCompareChrono) — única fuente de verdad. Se controla a mano
+   con "↕ Ordenar campeones" en el admin.
    ============================================================ */
 
 /* ---------------- Competiciones canónicas (predefinidas) + dinámicas (IDB) */
@@ -501,24 +502,6 @@ async function aggregatePalmaresByTeam(){
   return out;
 }
 
-/* Reigning overrides: { [compKey]: palmaresRecordId } */
-async function getReigningOverrides(){
-  const all = await dbGetAll('settings');
-  const rec = all.find(r => r.key === 'palmares.reigningOverrides');
-  return { record: rec || null, value: rec?.value || {} };
-}
-async function setReigningOverride(compKey, recordIdOrNull){
-  const { record, value } = await getReigningOverrides();
-  const next = { ...value };
-  if (recordIdOrNull == null) delete next[compKey];
-  else next[compKey] = recordIdOrNull;
-  if (record) {
-    await dbPut('settings', { ...record, value: next });
-  } else {
-    await dbAdd('settings', { key: 'palmares.reigningOverrides', value: next });
-  }
-}
-
 /* Crear nueva copa personalizada */
 async function createNewCopa(label, short, trophy, color){
   const key = `CUSTOM_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
@@ -620,9 +603,9 @@ async function seedPalmaresIfEmpty(){
     return teams.find(x => norm(x.name).includes(n)) || teams.find(x => n.includes(norm(x.name)));
   };
 
-  const overrideTargets = {};   // compKey -> insertedId
   const skipped = [];
   let inserted = 0;
+  let vigentes = 0;
   for (const r of seedRecords) {
     const team = findTeam(r.team);
     if (!team) { skipped.push(r.team); continue; }
@@ -635,21 +618,21 @@ async function seedPalmaresIfEmpty(){
     if (r.season) rec.season = r.season;
     if (r.juego)  rec.juego  = r.juego;
     if (r.year)   rec.year   = r.year;
-    const id = await dbAdd('palmares', rec);
-    if (r.vigente) overrideTargets[r.competition] = id;
+    // El vigente del seed queda primero por `order` (única fuente de
+    // verdad del campeón vigente, ver _palmCompareChrono) — el resto de
+    // los registros de esa copa siguen con el orden cronológico por
+    // defecto (sin `order`), que siempre pierde contra uno que sí lo tiene.
+    if (r.vigente) { rec.order = 0; vigentes++; }
+    await dbAdd('palmares', rec);
     inserted++;
-  }
-  // Aplicar overrides de campeón vigente
-  for (const [comp, id] of Object.entries(overrideTargets)) {
-    await setReigningOverride(comp, id);
   }
 
   await dbAdd('settings', {
     key: 'palmaresSeedV1',
-    value: { inserted, vigentes: Object.keys(overrideTargets).length, skipped },
+    value: { inserted, vigentes, skipped },
     at: new Date().toISOString()
   });
-  console.log(`[palmares] sembrado ${inserted} títulos, ${Object.keys(overrideTargets).length} vigentes` +
+  console.log(`[palmares] sembrado ${inserted} títulos, ${vigentes} vigentes` +
     (skipped.length ? `, ${skipped.length} omitidos: ${skipped.join(', ')}` : ''));
 }
 
@@ -966,6 +949,7 @@ async function _palmResetBadOrderOnce(){
     const recs = await getAllPalmaresRecords();
     let cleared = 0;
     for(const r of recs){
+      if(r.pending || r.teamId == null) continue; // no tocar el order del pendiente "¿?"
       if(typeof r.order === 'number'){
         const { order, ...rest } = r;
         await dbPut('palmares', rest);   // setDoc reemplaza: el campo order desaparece
@@ -983,10 +967,9 @@ async function renderAdmPalmares(){
 
   await _palmResetBadOrderOnce();
   await loadPalmaresComps();
-  const [recs, allTeams, { value: overrides }] = await Promise.all([
+  const [recs, allTeams] = await Promise.all([
     getAllPalmaresRecords(),
-    dbGetAll('teams'),
-    getReigningOverrides()
+    dbGetAll('teams')
   ]);
   const teamById = {}; allTeams.forEach(t => teamById[t.id] = t);
   const agg = await aggregatePalmaresByTeam();
@@ -1007,14 +990,12 @@ async function renderAdmPalmares(){
       return a.team.name.localeCompare(b.team.name, 'es');                                // 3º: alfabético (último recurso)
     });
 
-  // Para cada competición, lista de registros + el override actual
+  // Para cada competición, lista de registros + el vigente (1º por order)
   const compSections = PALMARES_COMPS.map(c => {
     const compRecs = recs.filter(r => r.competition === c.key)
       .sort(_palmCompareChrono);
-    const overrideId = overrides[c.key];
-    const autoChamp = reigningChampion(recs, c.key, {}); // sin override
-    const effective = reigningChampion(recs, c.key, overrides);
-    return { comp: c, recs: compRecs, overrideId, autoChamp, effective };
+    const effective = reigningChampion(recs, c.key);
+    return { comp: c, recs: compRecs, effective };
   });
 
   el.innerHTML = `
@@ -1031,27 +1012,35 @@ async function renderAdmPalmares(){
     <div style="font:700 11px/1 'Barlow Condensed',sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--txt3);margin-bottom:10px;">Campeones vigentes</div>
     <div class="palm-vigentes-grid">
       ${compSections.map(s => {
-        const opts = s.recs.map(r => {
-          const t = teamById[r.teamId];
-          const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
-          const lbl = `${t ? t.name : '#'+r.teamId}${extras ? ' · ' + extras : ''}`;
-          const selected = s.overrideId === r.id;
-          return `<option value="${r.id}" ${selected?'selected':''}>${_esc(lbl)}</option>`;
-        }).join('');
-        const autoExtras = s.autoChamp ? [s.autoChamp.season, s.autoChamp.juego, s.autoChamp.year].filter(Boolean).join(' · ') : '';
-        const autoLbl = s.autoChamp ? `Auto · ${teamById[s.autoChamp.teamId]?.name || '#'+s.autoChamp.teamId}${autoExtras?' ('+autoExtras+')':''}` : 'Auto · sin campeón';
         const effTeam = s.effective ? teamById[s.effective.teamId] : null;
         const effExtras = s.effective ? [s.effective.season, s.effective.juego, s.effective.year].filter(Boolean).join(' · ') : '';
+        const effPending = !!(s.effective && s.effective.pending);
+        const pendingRecs = s.recs.filter(r => r.pending);
         return `
         <div class="palm-vig-item">
           <div class="palm-vig-trophy">${renderTrophy(s.comp.key, 28)}</div>
           <div class="palm-vig-text">
             <div class="palm-vig-comp">${_esc(s.comp.label)}</div>
             <div class="palm-vig-eff">
-              ${effTeam ? `<span class="palm-vig-dot" style="background:${_escAttr(_palmIsHex(effTeam.color)?effTeam.color:'#888888')}"></span>${_esc(effTeam.name)}${effExtras?` · ${_esc(effExtras)}`:''}` : '<span style="color:var(--txt3);">sin campeón</span>'}
+              ${effPending ? `<span class="palm-vig-dot" style="background:var(--gold);"></span>¿? — Campeón por definir${effExtras?` · ${_esc(effExtras)}`:''}`
+                : effTeam ? `<span class="palm-vig-dot" style="background:${_escAttr(_palmIsHex(effTeam.color)?effTeam.color:'#888888')}"></span>${_esc(effTeam.name)}${effExtras?` · ${_esc(effExtras)}`:''}`
+                : '<span style="color:var(--txt3);">sin campeón</span>'}
             </div>
           </div>
-          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="margin-top:6px;">↕ Ordenar campeones</button>` : ''}
+          ${pendingRecs.map(r => {
+            const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
+            const galleryCount = _palmGallerySafeItems(r.gallery).length;
+            return `
+            <div class="palm-vig-pending" style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px dashed var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${_esc(extras)}`:''}</span>
+              <span style="display:flex;gap:6px;">
+                <button class="btn btn-xs" onclick="openPalmaresGallery(${_escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                <button class="btn btn-xs btn-primary" onclick="openPalmaresEditRecord(${_escAttr(JSON.stringify(r.id))})">Definir campeón</button>
+                <button class="btn btn-xs btn-danger" onclick="deletePendingPalmaresRecord(${_escAttr(JSON.stringify(r.id))}, '${_escAttr(s.comp.key)}')">Quitar</button>
+              </span>
+            </div>`;
+          }).join('')}
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;">↕ Ordenar campeones</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1092,14 +1081,6 @@ async function renderAdmPalmares(){
   </div>`;
 }
 
-/* Selector de campeón vigente (override) */
-async function setVigenteChampion(compKey, value){
-  const recordId = value ? parseInt(value) : null;
-  await setReigningOverride(compKey, recordId);
-  if (typeof showToast === 'function') showToast(recordId ? 'Campeón vigente actualizado' : 'Vuelve al modo automático');
-  renderAdmPalmares();
-}
-
 /* ---- Reordenamiento manual de campeones por competición ---- */
 async function openPalmaresReorder(compKey){
   const [recs, teams] = await Promise.all([getAllPalmaresRecords(), dbGetAll('teams')]);
@@ -1135,8 +1116,8 @@ function _palmReorderListHTML(list, teamById){
       <span class="palm-reorder-handle" aria-hidden="true"
         onpointerdown="_palmReorderPointerDown(event,'${_escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
       <span class="palm-reorder-pos">${i+1}</span>
-      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${t?.logo ? `<img src="${_escAttr(t.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3))}</span>
-      <span class="palm-reorder-name">${_esc(t ? t.name : '#'+r.teamId)}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
+      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (t?.logo ? `<img src="${_escAttr(t.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3)))}</span>
+      <span class="palm-reorder-name">${_esc(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
     </div>`;
   }).join('');
 }
@@ -1270,7 +1251,11 @@ async function openPalmaresAddModal(presetTeamId=null){
       <div class="modal-hdr"><div class="modal-title">Agregar título</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group"><label>Equipo</label>
-          <select id="palm-team">${teams.map(t => `<option value="${t.id}" ${t.id===presetTeamId?'selected':''}>${_esc(t.name)}</option>`).join('')}</select>
+          <select id="palm-team">
+            <option value="" ${presetTeamId?'':'selected'}>¿? — Campeón por definir</option>
+            ${teams.map(t => `<option value="${t.id}" ${t.id===presetTeamId?'selected':''}>${_esc(t.name)}</option>`).join('')}
+          </select>
+          <small style="display:block;margin-top:4px;color:var(--txt3);">"¿? — Campeón por definir" deja el título pendiente: sirve para mostrar la copa en la Sala con signo de interrogación antes del último partido, y después se edita para poner el equipo real.</small>
         </div>
         <div class="form-group"><label>Competición</label>
           <select id="palm-comp">${PALMARES_COMPS.map(c => `<option value="${_escAttr(c.key)}">${_esc(c.label)}</option>`).join('')}</select>
@@ -1292,7 +1277,8 @@ async function openPalmaresAddModal(presetTeamId=null){
   </div>`;
 }
 async function savePalmaresAdd(){
-  const teamId = parseInt(document.getElementById('palm-team').value);
+  const teamIdRaw = document.getElementById('palm-team').value;
+  const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
   const competition = document.getElementById('palm-comp').value;
   const yearRaw = document.getElementById('palm-year').value.trim();
   const seasonRaw = document.getElementById('palm-season').value.trim();
@@ -1301,9 +1287,23 @@ async function savePalmaresAdd(){
   if (yearRaw) rec.year = parseInt(yearRaw);
   if (seasonRaw) rec.season = seasonRaw;
   if (juegoRaw) rec.juego = juegoRaw;
+  if (teamId == null) {
+    // Título pendiente ("¿?"): forzar un order por debajo del mínimo actual
+    // de esa copa para que quede vigente (arriba de todo) sin necesitar un
+    // reordenamiento manual — así se puede crear en caliente, minutos antes
+    // del último partido, y ya aparece en la Sala con el signo de
+    // interrogación. Un order fijo (0) no alcanza: si ya hay un pendiente
+    // anterior con order 0 (o cualquier otro registro con order <= 0), el
+    // empate lo resuelve _palmCompareChrono por año/id — no determinista
+    // entre pendientes sin año, y Firestore no garantiza orden de lectura.
+    rec.pending = true;
+    const compRecs = await dbGetAll('palmares', r => r.competition === competition);
+    const orders = compRecs.map(r => r.order).filter(o => typeof o === 'number');
+    rec.order = Math.min(1, ...orders) - 1;
+  }
   rec.createdAt = new Date().toISOString();
   await dbAdd('palmares', rec);
-  if (typeof showToast === 'function') showToast('Título registrado');
+  if (typeof showToast === 'function') showToast(teamId == null ? 'Título pendiente creado — ya aparece en la Sala con "¿?"' : 'Título registrado');
   closePalmaresModals();
   renderAdmPalmares();
 }
@@ -1373,12 +1373,18 @@ async function addPalmaresRecord(teamId, compKey){
 }
 async function deletePalmaresRecord(recId, teamId, compKey){
   if (!confirm('¿Quitar este título del palmarés?')) return;
-  // Si era el campeón vigente forzado, limpiar el override.
-  const { value: overrides } = await getReigningOverrides();
-  if (overrides[compKey] === recId) await setReigningOverride(compKey, null);
   await dbDelete('palmares', recId);
   if (typeof showToast === 'function') showToast('Título eliminado');
   await openPalmaresCellEdit(teamId, compKey);
+  renderAdmPalmares();
+}
+
+/* Igual que deletePalmaresRecord, pero para un título pendiente ("¿?") —
+   no tiene equipo, así que no hay celda (team × comp) a la que volver. */
+async function deletePendingPalmaresRecord(recId, compKey){
+  if (!confirm('¿Quitar este título pendiente?')) return;
+  await dbDelete('palmares', recId);
+  if (typeof showToast === 'function') showToast('Título pendiente eliminado');
   renderAdmPalmares();
 }
 
@@ -1399,7 +1405,11 @@ async function openPalmaresEditRecord(recId){
           <div style="font:600 12px/1.3 'Barlow Condensed',sans-serif;letter-spacing:1px;color:var(--txt2);text-transform:uppercase;">${_esc(palmaresCompByKey(rec.competition)?.label || rec.competition)}</div>
         </div>
         <div class="form-group"><label>Equipo</label>
-          <select id="palm-edit-team">${teams.map(t => `<option value="${_escAttr(String(t.id))}" ${String(t.id)===String(rec.teamId)?'selected':''}>${_esc(t.name)}</option>`).join('')}</select>
+          <select id="palm-edit-team">
+            <option value="" ${rec.teamId==null?'selected':''}>¿? — Campeón por definir</option>
+            ${teams.map(t => `<option value="${_escAttr(String(t.id))}" ${String(t.id)===String(rec.teamId)?'selected':''}>${_esc(t.name)}</option>`).join('')}
+          </select>
+          ${rec.teamId==null ? '<small style="display:block;margin-top:4px;color:var(--txt3);">Elegí el equipo real para definir el campeón — deja de ser pendiente.</small>' : ''}
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div><label>Temporada</label><input type="text" id="palm-edit-season" placeholder="T1" value="${_escAttr(rec.season||'')}"></div>
@@ -1420,11 +1430,12 @@ async function openPalmaresEditRecord(recId){
 async function savePalmaresEditRecord(recId){
   const rec = await dbGet('palmares', recId);
   if (!rec) return;
-  const teamId = parseInt(document.getElementById('palm-edit-team').value);
+  const teamIdRaw = document.getElementById('palm-edit-team').value;
+  const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
   const yearRaw = document.getElementById('palm-edit-year').value.trim();
   const seasonRaw = document.getElementById('palm-edit-season').value.trim();
   const juegoRaw = document.getElementById('palm-edit-juego').value.trim();
-  const next = { ...rec, teamId };
+  const next = { ...rec, teamId, pending: teamId == null };
   if (yearRaw) next.year = parseInt(yearRaw); else delete next.year;
   if (seasonRaw) next.season = seasonRaw; else delete next.season;
   if (juegoRaw) next.juego = juegoRaw; else delete next.juego;
@@ -1455,6 +1466,20 @@ function _palmGallerySafeItems(value, max = _PALM_GALLERY_MAX){
     .slice(0, max);
 }
 
+/* Las fotos del palmarés se suben a Cloudinary sin redimensionar
+   (uploadImageToCloud sube el archivo tal cual, ver cloudinary.js) — una
+   foto de celular puede pesar varios MB a resolución original. Se muestran
+   siempre en miniaturas o tarjetas chicas (30-640px), así que se pide la
+   versión ya redimensionada/comprimida vía URL de Cloudinary en vez de la
+   original: mismo archivo subido, sin re-subir ni migrar nada, Cloudinary
+   genera y cachea la variante en el primer pedido.
+   No toca URLs que no sean de Cloudinary (deja el <img> como estaba). */
+function _palmCloudThumb(url, width){
+  const m = /^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/.exec(String(url || ''));
+  if (!m) return url;
+  return `${m[1]}f_auto,q_auto,w_${width}/${m[2]}`;
+}
+
 function _palmGalleryStatusLabel(status){
   return ({
     waiting:'Esperando',
@@ -1472,7 +1497,7 @@ function _palmGalleryHTML(){
     ? state.items.map((item, index) => `
       <div class="palm-gallery-item" draggable="${state.saving?'false':'true'}" data-gallery-index="${index}"
         ondragstart="palmGalleryDragStart(${index})" ondragend="palmGalleryDragEnd()" ondragover="palmGalleryDragOver(event)" ondrop="palmGalleryDrop(event,${index})">
-        <img class="palm-gallery-thumb" src="${_escAttr(item.url)}" alt="${_escAttr(item.alt)}">
+        <img class="palm-gallery-thumb" src="${_escAttr(_palmCloudThumb(item.url, 160))}" alt="${_escAttr(item.alt)}">
         <div class="palm-gallery-item-main">
           <label for="palm-gallery-alt-${index}">Texto alternativo</label>
           <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${_escAttr(item.alt)}"
@@ -2182,23 +2207,27 @@ function getPalmaresMedia(recordId){
   };
 }
 
-function _palmBuildPublicCompData(recs, teamById, overrides){
+function _palmBuildPublicCompData(recs, teamById){
   return PALMARES_COMPS.map(comp => {
     const sortedRecords = recs
       .filter(r => r.competition === comp.key)
       .sort(_palmCompareChrono);
-    const champion = reigningChampion(recs, comp.key, overrides || {}) || sortedRecords[0] || null;
+    const champion = reigningChampion(recs, comp.key) || sortedRecords[0] || null;
     const records = champion
       ? [champion, ...sortedRecords.filter(record => record.id !== champion.id)]
       : sortedRecords;
     const champTeam = champion ? teamById[champion.teamId] : null;
-    const champions = new Set(records.map(r => r.teamId)).size;
+    // Un título pendiente ("¿?") todavía no es una edición jugada ni un
+    // campeón real — no debe contarse en las estadísticas públicas
+    // (ediciones/campeones), solo debe poder navegarse en la Sala.
+    const awardedRecords = records.filter(r => !r.pending);
+    const champions = new Set(awardedRecords.map(r => r.teamId)).size;
     return {
       comp,
       records,
       champion,
       champTeam,
-      editions: records.length,
+      editions: awardedRecords.length,
       champions,
       colors: _palmTeamColors(champTeam, comp)
     };
@@ -2208,7 +2237,7 @@ function _palmBuildPublicCompData(recs, teamById, overrides){
 function _palmVitrineShellHTML(){
   const totalTitles = _PALM_PUB.compData.reduce((sum, entry) => sum + entry.editions, 0);
   const totalChampions = new Set(
-    _PALM_PUB.compData.flatMap(entry => entry.records.map(rec => rec.teamId))
+    _PALM_PUB.compData.flatMap(entry => entry.records.filter(rec => !rec.pending).map(rec => rec.teamId))
   ).size;
   const particles = Array.from({ length: 24 }, () => '<i></i>').join('');
   const headIcon = _palmLineArt(renderTrophyByStyle('classica', 40), 2);
@@ -2325,6 +2354,22 @@ function _palmVitrineHeroHTML(entry, idx){
   `;
 }
 
+/* Escudos subidos a un título pendiente ("¿?") vía openPalmaresGallery
+   (admin: fila "Pendiente" -> botón "Imágenes") — se muestran como
+   ambientación en la vitrina pública mientras el campeón no está
+   definido. Reusa getPalmaresMedia, la misma fuente que ya alimenta el
+   collage de la Sala. */
+function _palmVitrinePendingLogosHTML(pendingRec){
+  if (!pendingRec) return '';
+  const items = getPalmaresMedia(pendingRec.id).items.slice(0, 6);
+  if (!items.length) return '';
+  return `
+    <div class="mv-vig-pending-logos">
+      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${_escAttr(_palmCloudThumb(item.url, 90))}" alt="${_escAttr(item.alt)}" loading="lazy"></span>`).join('')}
+    </div>
+  `;
+}
+
 function _palmVitrineDataHTML(entry){
   if (!entry) return '';
   const team = entry.champTeam;
@@ -2337,7 +2382,9 @@ function _palmVitrineDataHTML(entry){
       <span class="mv-badge" style="background:${_escAttr(colors.c1)}">${badgeContent}</span>
       <span class="mv-vig-name">${_esc(team.name || '—')}</span>
     </div>
-  ` : `<div class="mv-vig-row"><span class="mv-vig-name">Sin campeón registrado</span></div>`;
+  ` : entry.champion?.pending
+    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${_escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>${_palmVitrinePendingLogosHTML(entry.champion)}`
+    : `<div class="mv-vig-row"><span class="mv-vig-name">Sin campeón registrado</span></div>`;
   return `
     <div class="mv-vig">
       <div class="mv-lbl">Campeón vigente</div>
@@ -2551,13 +2598,14 @@ function _palmRenderSala(){
   const plateEdition = ['CAMPEÓN', rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
   if (compEl) compEl.textContent = comp.comp.label;
   if (plateEl) {
-    plateEl.innerHTML = `<b>${_esc(team?.name || 'Sin campeón')}</b><small>${_esc(plateEdition)}</small>`;
+    const plateName = rec.pending ? '¿?' : (team?.name || 'Sin campeón');
+    plateEl.innerHTML = `<b>${_esc(plateName)}</b><small>${_esc(plateEdition)}</small>`;
   }
   if (dotsEl) {
     dotsEl.innerHTML = comp.records.map((entry, idx) => {
       const dotTeam = _PALM_PUB.teamById[entry.teamId];
       const dotEdition = [entry.season, entry.juego, entry.year].filter(Boolean).join(' · ');
-      const dotLabel = `${dotTeam?.name || `Campeón ${idx + 1}`}${dotEdition ? ` · ${dotEdition}` : ''}`;
+      const dotLabel = `${entry.pending ? '¿? — Campeón por definir' : (dotTeam?.name || `Campeón ${idx + 1}`)}${dotEdition ? ` · ${dotEdition}` : ''}`;
       return `<button type="button" class="sala-dot${idx === _PALM_PUB.salaChampIdx ? ' on' : ''}" data-sala-dot="${idx}" aria-label="${_escAttr(dotLabel)}" aria-pressed="${idx === _PALM_PUB.salaChampIdx ? 'true' : 'false'}"></button>`;
     }).join('');
     _palmRevealActiveSalaDot(dotsEl);
@@ -2632,7 +2680,7 @@ function _palmRenderSalaCollage(){
     const shot = document.createElement('figure');
     const img = document.createElement('img');
     shot.className = 'sala-shot';
-    img.src = item.url;
+    img.src = _palmCloudThumb(item.url, 800);
     img.alt = item.alt;
     shot.style.left = `${slot.x + Math.random() * 5 - 2.5}%`;
     shot.style.top = `${slot.y + Math.random() * 6 - 3}%`;
@@ -2727,7 +2775,7 @@ function _palmPreloadCollageMedia(record, max = 3){
     .map(item => typeof item === 'string' ? item : (item?.url || item?.src || ''))
     .filter(Boolean)
     .slice(0, max);
-  return Promise.all(urls.map(_palmPreloadImage)).then(() => {});
+  return Promise.all(urls.map(url => _palmPreloadImage(_palmCloudThumb(url, 800)))).then(() => {});
 }
 
 function _palmSetSalaLoaderProgress(pct){
@@ -3634,16 +3682,15 @@ async function renderPubPalmares(){
   const token = ++_PALM_PUB.renderToken;
   await seedPalmaresIfEmpty();
   await loadPalmaresComps();
-  const [recs, allTeams, { value: overrides }] = await Promise.all([
+  const [recs, allTeams] = await Promise.all([
     getAllPalmaresRecords(),
-    dbGetAll('teams'),
-    getReigningOverrides()
+    dbGetAll('teams')
   ]);
   if (token !== _PALM_PUB.renderToken) return;
   const teamById = {};
   allTeams.forEach(team => { teamById[team.id] = team; });
   _PALM_PUB.teamById = teamById;
-  _PALM_PUB.compData = _palmBuildPublicCompData(recs, teamById, overrides);
+  _PALM_PUB.compData = _palmBuildPublicCompData(recs, teamById);
   _PALM_PUB.compIdx = Math.max(0, Math.min(_PALM_PUB.compIdx || 0, Math.max(0, _PALM_PUB.compData.length - 1)));
   el.innerHTML = _palmVitrineShellHTML();
   _palmBindPublicPalmares(el);

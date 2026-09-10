@@ -332,20 +332,90 @@ async function renderAdmCalendar(){
       continue;
     }
 
-    /* ── BRACKET / PLAYOFF / SINGLE ────────────────────
-       Todos usan slotRefs para definir cruces. El matchupCount
-       se deriva del slotIdx máximo en slotRefs (no de config.matchups
-       que puede no existir). Para dos vueltas se muestran leg1 y leg2
-       de forma independiente según cuál esté sin resultado.
+    /* ── BRACKET (y SINGLE con mini-bracket de 4) ──────
+       Estas fases tienen varias rondas (r0=cuartos, r1=semis, r2=final…)
+       con propagación de ganador entre rondas — se reutiliza la misma
+       lógica que bracket.js (buildBracketRounds/buildBracketSlots) para
+       que las rondas siguientes aparezcan en el calendario tan pronto
+       la ronda anterior tenga equipo(s) resuelto(s), no solo la ronda 0.
        ─────────────────────────────────────────────────── */
-    if(phase.type==='bracket' || phase.type==='playoff' || phase.type==='single'){
-      const refs      = phase.slotRefs || [];
-      const isBracket = phase.type==='bracket';
+    const isMiniBracket = phase.type==='single' && (phase.config?.teams||2)===4;
+    if(phase.type==='bracket' || isMiniBracket){
+      const cfg         = phase.config||{};
+      const totalTeams  = cfg.teams || 8;
+      const rounds      = buildBracketRounds(totalTeams);
+      const matchMap    = {};
+      phasMs.forEach(m=>matchMap[m.slotId]=m);
+      const slots       = await buildBracketSlots(phase, rounds, matchMap);
+      const twoLeg      = cfg.legs === 'double';
+      const finalSingle = cfg.finalSingle !== false;
 
-      /* dos vueltas: bracket con legs=double, playoff/single con legs="2" */
-      const twoLeg = isBracket
-        ? phase.config?.legs === 'double'
-        : String(phase.config?.legs) === '2';
+      rounds.forEach((r, ri)=>{
+        const slotTwoLeg = twoLeg && !(finalSingle && ri===rounds.length-1);
+        for(let mi=0; mi<r.matches; mi++){
+          const slot = slots[ri]?.[mi];
+          if(!slot) continue;
+          const taId   = slot.teamA ?? null;
+          const tbId   = slot.teamB ?? null;
+          const labelA = teamById[taId]?.name || slot.labelA || 'Por definir';
+          const labelB = teamById[tbId]?.name || slot.labelB || 'Por definir';
+
+          const baseEntry = {
+            phase, comp,
+            matchId: null,
+            slotPhaseId:  phase.id,
+            slotTeamAId:  taId,
+            slotTeamBId:  tbId,
+            slotMatchIdx: mi,
+            slotRoundIdx: ri,
+            teamA:   teamById[taId]||null,
+            teamB:   teamById[tbId]||null,
+            labelA,
+            labelB,
+          };
+
+          const slotId = `${phase.id}_r${ri}_m${mi}`;
+          if(!slotTwoLeg){
+            const doc = matchMap[slotId];
+            if(doc && doc.goalsA!=null) continue;
+            entries.push({...baseEntry, slotId, slotLeg:null,
+              scheduledDate: doc?.scheduledDate||null, scheduledTime: doc?.scheduledTime||null});
+          } else {
+            const sid1 = slotId+'_leg1';
+            const sid2 = slotId+'_leg2';
+            const leg1 = matchMap[sid1];
+            const leg2 = matchMap[sid2];
+            const leg1Done = leg1 && leg1.goalsA!=null;
+            const leg2Done = leg2 && leg2.goalsA!=null;
+            if(!leg1Done){
+              entries.push({...baseEntry, slotId:sid1, slotLeg:1,
+                scheduledDate: leg1?.scheduledDate||null, scheduledTime: leg1?.scheduledTime||null});
+            }
+            if(!leg2Done){
+              entries.push({...baseEntry, slotId:sid2, slotLeg:2,
+                scheduledDate: leg2?.scheduledDate||null, scheduledTime: leg2?.scheduledTime||null});
+            }
+            /* si ambos jugados → no aparece ninguno */
+          }
+        }
+      });
+      continue;
+    }
+
+    /* ── PLAYOFF / SINGLE (1 cruce) ────────────────────
+       Vuelta única de cruces (sin rondas propagadas) definidos por
+       slotRefs — el matchupCount se deriva del slotIdx máximo en
+       slotRefs (no de config.matchups que puede no existir). Para dos
+       vueltas se muestran leg1 y leg2 de forma independiente según
+       cuál esté sin resultado.
+       ─────────────────────────────────────────────────── */
+    if(phase.type==='playoff' || phase.type==='single'){
+      const refs = phase.slotRefs || [];
+
+      /* dos vueltas: playoff/single con legs="2" (legs=1 sigue usando
+         slotId con sufijo _leg1, ver playoff.js — nunca hay slotId
+         sin sufijo de leg para este tipo de fase) */
+      const twoLeg = String(phase.config?.legs) === '2';
 
       /* agrupar refs por slotIdx */
       const refBySlot = {};
@@ -394,7 +464,7 @@ async function renderAdmCalendar(){
           slotTeamAId:  taId,
           slotTeamBId:  tbId,
           slotMatchIdx: mi,
-          slotRoundIdx: isBracket ? 0 : null,
+          slotRoundIdx: null,
           teamA:   teamById[taId]||null,
           teamB:   teamById[tbId]||null,
           labelA,
@@ -402,16 +472,17 @@ async function renderAdmCalendar(){
         };
 
         if(!twoLeg){
-          /* vuelta única */
-          const slotId = `${phase.id}_r0_m${mi}`;
+          /* vuelta única: playoff/single siempre guarda el doc con
+             sufijo _leg1, aunque solo haya una vuelta (ver playoff.js) */
+          const slotId = `${phase.id}_m${mi}_leg1`;
           const doc    = phasMs.find(m=>m.slotId===slotId);
           if(doc && doc.goalsA!=null) continue;
           entries.push({...baseEntry, slotId, slotLeg:null,
             scheduledDate: doc?.scheduledDate||null, scheduledTime: doc?.scheduledTime||null});
         } else {
           /* dos vueltas: mostrar el leg pendiente */
-          const sid1 = isBracket ? `${phase.id}_r0_m${mi}_leg1` : `${phase.id}_m${mi}_leg1`;
-          const sid2 = isBracket ? `${phase.id}_r0_m${mi}_leg2` : `${phase.id}_m${mi}_leg2`;
+          const sid1 = `${phase.id}_m${mi}_leg1`;
+          const sid2 = `${phase.id}_m${mi}_leg2`;
           const leg1 = phasMs.find(m=>m.slotId===sid1);
           const leg2 = phasMs.find(m=>m.slotId===sid2);
           const leg1Done = leg1 && leg1.goalsA!=null;
@@ -1012,6 +1083,77 @@ function _calInitHeroCountdown(m, scope){
     const localTime = _calMatchTimeLocal(m);
     cEl.textContent = localTime || _calFormatDay(_calLocalDateStr(target) || m.scheduledDate);
   }
+}
+
+/* Núcleo compartido de "qué fase está vigente ahora" — un solo criterio
+   para los dos usos de abajo (antes cada uno reimplementaba su propio
+   filtro de vivo/próximo, y getDefaultPhaseId ni siquiera los miraba,
+   solo chequeaba "tiene algún partido cargado"). Recibe los partidos ya
+   acotados al alcance que corresponda (todas las comps activas, o solo
+   las fases de una comp puntual) y un phaseById con ESE mismo alcance —
+   así un partido de una fase fuera de alcance (comp archivada, etc.)
+   queda afuera sin chequeos aparte. Prioridad: EN VIVO > próximo partido
+   con fecha (mismo criterio que el hero del Calendario) > último partido
+   YA JUGADO (por fecha, el más reciente) — este tercer nivel es lo que
+   hace que una copa ya terminada ancle en su fase final en vez de cara o
+   cruz según cuál fase tenga matches. Devuelve null si no hay nada (ni
+   vivo, ni próximo, ni jugado) para que el llamador use su propio
+   fallback (típicamente la primera fase/competición). */
+function _calResolveAnchorPhase(matches, phaseById){
+  const inScope = m => phaseById[m.phaseId] || null;
+  const live = matches.find(m => m.live && m.teamA && m.teamB && inScope(m));
+  if(live) return inScope(live);
+
+  const today = _calTodayStr();
+  const upcoming = matches
+    .filter(m => m.scheduledDate && m.scheduledDate>=today && m.goalsA==null && inScope(m))
+    .sort((a,b)=>{
+      const ka=a.scheduledDate+(a.scheduledTime||'00:00');
+      const kb=b.scheduledDate+(b.scheduledTime||'00:00');
+      return ka<kb?-1:1;
+    });
+  if(upcoming.length) return inScope(upcoming[0]);
+
+  const played = matches
+    .filter(m => m.scheduledDate && m.goalsA!=null && inScope(m))
+    .sort((a,b)=>{
+      const ka=a.scheduledDate+(a.scheduledTime||'00:00');
+      const kb=b.scheduledDate+(b.scheduledTime||'00:00');
+      return ka<kb?1:-1; // más reciente primero
+    });
+  return played.length ? inScope(played[0]) : null;
+}
+
+/* Competición/fase "en juego ahora mismo" — usada por renderPubPanel
+   (public.js, sección 02) para elegir el default cuando el viewer todavía
+   no navegó nada, en vez de la primera competición creada. `activeCompIds`
+   filtra a las competiciones ya activas que ve renderPubPanel — evita
+   apuntar a una comp archivada/inactiva. */
+async function getActiveCompPhase(activeCompIds){
+  const [allMatches, allPhases] = await Promise.all([
+    getForSeason('matches'),
+    getForSeason('phases'),
+  ]);
+  const phaseById = {};
+  for(const p of allPhases) if(activeCompIds.has(p.compId)) phaseById[p.id] = p;
+  const phase = _calResolveAnchorPhase(allMatches, phaseById);
+  return phase ? { compId: phase.compId, phaseId: phase.id } : null;
+}
+
+/* Fase por defecto DENTRO de una competición ya elegida — usada por
+   renderPubPanel cuando el viewer cambia de competición en el carrusel
+   (pubSelectComp la llama sin fase → null). `phases` ya viene ordenada
+   por `order` ascendente (grupos → ... → final); si ninguna tiene ni
+   vivo, ni próximo, ni jugado (torneo sin arrancar todavía), cae a la
+   primera como antes. */
+async function getDefaultPhaseId(phases){
+  if(!phases.length) return null;
+  if(phases.length === 1) return phases[0].id;
+  const phaseById = Object.fromEntries(phases.map(p=>[p.id, p]));
+  const allMatches = await getForSeason('matches');
+  const scoped = allMatches.filter(m => phaseById[m.phaseId]);
+  const phase = _calResolveAnchorPhase(scoped, phaseById);
+  return phase ? phase.id : phases[0].id;
 }
 
 async function renderPubCalendar(){

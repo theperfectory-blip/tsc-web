@@ -300,7 +300,13 @@ window.addEventListener('blur', () => pauseAllAppAudio('blur'));
    así que un timer de fondo (el motivo original de exigir un gesto
    explícito) sigue sin poder reactivar nada por sí solo. */
 function resumeAudioOnForeground(){
-  if (!document.hidden) window.SFX?.unlock?.();
+  if (!document.hidden) {
+    window.SFX?.unlock?.();
+    // Mismo problema que SFX (ver arriba) pero con el AudioContext propio
+    // de los fuegos artificiales del campeón (bracket.js) — sin este
+    // resume() quedaba mudo para siempre tras el primer blur de la sesión.
+    window.BRACKET_AUDIO?.resume?.();
+  }
 }
 document.addEventListener('visibilitychange', resumeAudioOnForeground);
 window.addEventListener('focus', resumeAudioOnForeground);

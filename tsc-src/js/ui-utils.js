@@ -765,6 +765,7 @@ async function migratePalmaresV4DiablosToAngeles(){
     const pal = await dbGetAll('palmares');
     let fixed = 0;
     for (const p of pal) {
+      if (p.pending || p.teamId == null) continue; // pendiente "¿?" — sin equipo a propósito, no es huérfano
       if (!teamIds.has(p.teamId)) {           // teamId huérfano (era DIABLOS)
         await dbPut('palmares', {...p, teamId: angeles.id});
         fixed++;
