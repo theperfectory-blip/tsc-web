@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Prueba: crypto PES5 en browser</title>
+<style>
+body{font-family:monospace;background:#111;color:#ddd;padding:20px;}
+button{padding:8px 14px;margin:4px 0;}
+pre{background:#000;padding:10px;border:1px solid #333;white-space:pre-wrap;max-height:400px;overflow:auto;}
+.ok{color:#4f4;} .fail{color:#f44;}
+</style>
+</head>
+<body>
+<h1>Prueba: pes5-crypt.js / pes5-editor.js en el browser</h1>
+<p>Subi un snapshot .bin (ej. de <code>tsc-src/prototipo_yunas/pes5/snapshots/</code>) para correr las pruebas contra el.</p>
+<input type="file" id="archivo">
+<div id="salida"></div>
+
+<script src="../../js/pes5-crypt.js"></script>
+<script src="../../js/pes5-editor.js"></script>
+<script>
+const salida = document.getElementById('salida');
+function log(msg, ok) {
+  const p = document.createElement('div');
+  p.className = ok === true ? 'ok' : ok === false ? 'fail' : '';
+  p.textContent = (ok === true ? 'OK — ' : ok === false ? 'FALLO — ' : '') + msg;
+  salida.appendChild(p);
+}
+
+document.getElementById('archivo').addEventListener('change', async (ev) => {
+  salida.innerHTML = '';
+  const file = ev.target.files[0];
+  if (!file) return;
+  const buf = new Uint8Array(await file.arrayBuffer());
+  log('archivo cargado: ' + file.name + ' (' + buf.length + ' bytes)');
+
+  await PES5_CRYPT.cargarClaves('../../js/');
+  await PES5_EDITOR.cargarMapa('../../js/');
+  log('claves y mapa cargados');
+
+  // 1) round-trip: descifrar(cifrar(descifrar(x))) sin editar nada debe dar el archivo original
+  const plano = PES5_CRYPT.descifrar(buf);
+  const reconstruido = PES5_CRYPT.cifrar(plano);
+  let identico = reconstruido.length === buf.length;
+  if (identico) for (let i = 0; i < buf.length; i++) if (buf[i] !== reconstruido[i]) { identico = false; break; }
+  log('round-trip cifrar(descifrar(x)) === x', identico);
+
+  // 2) leer un jugador conocido y mostrar sus campos mapeados
+  const reg = PES5_EDITOR.buscarJugadorPorNombre(plano, 'Kirchler');
+  log('Kirchler encontrado en registro ' + reg, reg >= 0);
+  if (reg >= 0) {
+    const edad = PES5_EDITOR.leerCampoJugador(plano, reg, 'Edad');
+    log('Edad de Kirchler leida: ' + edad);
+  }
+
+  // 3) escribir un campo y verificar que se lee de vuelta el valor puesto
+  if (reg >= 0) {
+    const antes = PES5_EDITOR.leerCampoJugador(plano, reg, 'Edad');
+    const nuevaEdad = antes === 30 ? 31 : 30;
+    PES5_EDITOR.escribirCampoJugador(plano, reg, 'Edad', nuevaEdad);
+    const despues = PES5_EDITOR.leerCampoJugador(plano, reg, 'Edad');
+    log('escritura de Edad ' + antes + ' -> ' + nuevaEdad + ' (leido: ' + despues + ')', despues === nuevaEdad);
+  }
+
+  // 4) leer plantilla de un equipo conocido
+  const iBolton = PES5_EDITOR.buscarEquipoPorNombre(plano, 'Bolton Wanderers');
+  log('Bolton Wanderers encontrado en indice ' + iBolton, iBolton >= 0);
+  if (iBolton >= 0) {
+    const ids = PES5_EDITOR.leerPlantillaEquipo(plano, iBolton);
+    const nombres = ids.map(id => PES5_EDITOR.nombreDeRegistro(plano, id));
+    log('plantilla de Bolton (' + ids.length + ' jugadores): ' + nombres.join(', '));
+  }
+
+  log('listo.');
+});
+</script>
+</body>
+</html>

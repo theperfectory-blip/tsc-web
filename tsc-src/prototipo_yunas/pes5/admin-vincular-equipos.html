@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>PROTOTIPO · Vincular equipos PES5</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/variables.css">
+<link rel="stylesheet" href="../../css/components.css">
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script src="../../js/firebase-config.js"></script>
+<script src="../../js/state.js"></script>
+<script src="../../js/db.js"></script>
+<script src="../../js/auth.js"></script>
+<script src="../../js/pes5-editor.js"></script>
+<style>
+body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
+*{box-sizing:border-box;}
+.shell{max-width:760px;margin:0 auto;padding:24px 16px 80px;}
+h1{font-family:'Bebas Neue';font-size:26px;letter-spacing:0.5px;margin:0 0 4px;}
+.sub{color:var(--txt3);font-size:13px;margin-bottom:20px;}
+.row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--brd);
+  border-radius:var(--r);background:var(--card);margin-bottom:8px;}
+.row .nombre{flex:1;font-weight:600;}
+.row select{padding:7px 10px;background:var(--card2);border:1px solid var(--brd2);border-radius:var(--r);
+  color:var(--txt);font-size:13px;min-width:220px;}
+.row .estado{font-size:11px;color:var(--txt3);min-width:70px;text-align:right;}
+.gate{padding:40px;text-align:center;color:var(--txt3);}
+#ep-auth-status{position:fixed;top:14px;right:16px;font-size:12px;}
+</style>
+</head>
+<body>
+<div id="ep-auth-status"></div>
+<div class="shell">
+  <h1>Vincular equipos · PES5</h1>
+  <div class="sub">Elegí a qué club real de PES5 corresponde cada equipo de la TSC. Solo así el presidente puede entrar a editar sus jugadores.</div>
+  <div id="lista">Cargando...</div>
+</div>
+
+<script>
+function openModal(id){ document.getElementById(id)?.classList.add('open'); }
+function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
+function showToast(msg){ console.log(msg); }
+
+function renderAuthUI(){
+  const el = document.getElementById('ep-auth-status');
+  if (!el) return;
+  if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" onclick="openAuthModal()">Iniciar sesion</button>`;
+  else if (AUTH.role !== 'admin') el.textContent = 'Esta pagina es solo para el admin.';
+  else el.innerHTML = `${AUTH.profile?.displayName||AUTH.user.email} (admin) <button onclick="authSignOut()">Salir</button>`;
+  render();
+}
+
+let EQUIPOS_TSC = [];
+let NOMBRES_PES5 = [];
+
+async function render(){
+  const cont = document.getElementById('lista');
+  if (!AUTH.user){ cont.innerHTML = '<div class="gate">Iniciá sesión como admin para vincular equipos.</div>'; return; }
+  if (AUTH.role !== 'admin'){ cont.innerHTML = '<div class="gate">Esta página es solo para el admin (Luis).</div>'; return; }
+
+  if (!NOMBRES_PES5.length) NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('../../js/');
+  EQUIPOS_TSC = await dbGetAll('teams');
+  EQUIPOS_TSC.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+
+  const opciones = ['<option value="">— sin asignar —</option>']
+    .concat(NOMBRES_PES5.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`))
+    .join('');
+
+  cont.innerHTML = EQUIPOS_TSC.map(t => `
+    <div class="row">
+      <div class="nombre">${t.name}</div>
+      <select onchange="vincular(${t.id}, this.value)">${opciones.replace(
+        `value="${(t.pes5Club||'').replace(/"/g,'&quot;')}"`,
+        `value="${(t.pes5Club||'').replace(/"/g,'&quot;')}" selected`
+      )}</select>
+      <div class="estado">${t.pes5Club ? 'vinculado' : 'sin equipo'}</div>
+    </div>
+  `).join('') || '<div class="gate">No hay equipos cargados en la TSC todavía.</div>';
+}
+
+async function vincular(teamId, nombrePes5){
+  const team = EQUIPOS_TSC.find(t => t.id === teamId);
+  if (!team) return;
+  await dbPut('teams', { ...team, pes5Club: nombrePes5 || null });
+  showToast(nombrePes5 ? `${team.name} → ${nombrePes5}` : `${team.name} sin equipo`);
+  render();
+}
+
+if (typeof onAuthInit === 'function') onAuthInit();
+initDB().then(render);
+</script>
+</body>
+</html>
