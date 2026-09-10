@@ -482,6 +482,8 @@ const MAIN_STATS = [
 ];
 const MAIN_BY_KEY = Object.fromEntries(MAIN_STATS.map(s=>[s.k,s]));
 const ECHO_KEYS = ['psf','efe','cab','sal','tec','agr'];
+/* pagina 1 = las principales SIN las 6 que se repiten al inicio de la pagina 2 */
+const PAGE1_STATS = MAIN_STATS.filter(s=>!ECHO_KEYS.includes(s.k));
 
 const SEC_NEW = [
   {k:'ment',l:'Mentalidad',sc:99,d:'A mas alto, menor efecto de la fatiga; mejora cuando el equipo pierde.'},
@@ -720,12 +722,12 @@ const PLAYERS_DEMO = [
   mkPlayer({id:'kewell',name:'Kewell',dorsal:'20',posTag:'EX',bucket:'DC',locked:true,country:'Australia',height:178,age:27,foot:'Der.',
     stats:{atk:84,def:40,equ:85,res:90,vm:88,ace:95,rsp:90,agi:93,pcd:94,vcd:85,ppc:82,vpc:80,ppl:85,vpl:88,pre:86,pot:80,ted:90,psf:82,efe:87,cab:65,sal:78,tec:88,agr:90},
     sec:{ment:85,cons:8,gk:50,teq:85,cond:7,wff:6,wfa:6,inj:'A'},
-    abilities:['dribbling','dribbleKeeping','passing','bothFoot','pkKick','oneTouchPass','center','outside'],
+    abilities:['dribbling','dribbleKeeping','passing','midRange','pkKick','oneTouchPass','center','outside'],
     positions:['AMF','WB']}),
   mkPlayer({id:'rothen',name:'Rothen',dorsal:'8',posTag:'CLT',bucket:'DE',locked:true,country:'Francia',height:181,age:29,foot:'Izq.',
     stats:{atk:85,def:52,equ:83,res:88,vm:81,ace:80,rsp:82,agi:80,pcd:82,vcd:81,ppc:90,vpc:85,ppl:90,vpl:85,pre:87,pot:83,ted:78,psf:90,efe:85,cab:70,sal:78,tec:88,agr:80},
     sec:{ment:80,cons:7,gk:50,teq:84,cond:7,wff:5,wfa:5,inj:'A'},
-    abilities:['passing','bothFoot','outside'],
+    abilities:['passing','midRange','outside'],
     positions:['WG']}),
   mkPlayer({id:'cannavaro',name:'F. Cannavaro',dorsal:'5',posTag:'CT',bucket:'DE',locked:true,country:'Italia',height:176,age:30,foot:'Der.',
     stats:{atk:57,def:92,equ:87,res:82,vm:76,ace:88,rsp:96,agi:83,pcd:68,vcd:75,ppc:70,vpc:74,ppl:73,vpl:77,pre:58,pot:85,ted:60,psf:69,efe:66,cab:85,sal:95,tec:77,agr:60},
@@ -909,7 +911,7 @@ function renderRoster(){
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" onclick="selectPlayer('${p.id}')">
       <div class="av">${userSvg}</div>
       <div class="ep-pitem-info">
-        <div class="ep-pitem-name">${_esc(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':''}</div>
+        <div class="ep-pitem-name">${_esc(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</div>
         <div class="ep-pitem-tag">#${_esc(p.dorsal)} &middot; ${_esc(p.tag)}</div>
       </div>
     </div>`;
@@ -953,10 +955,7 @@ function renderCard(){
     <div class="ep-photo"><img src="${photo}" alt=""></div>
     <div>
       <div class="ep-name">${_esc(p.name)}</div>
-      <div class="ep-tag">#${_esc(p.dorsal)} &middot; ${_esc(p.tag)}
-        ${p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}
-        ${p.heightFixed?' <span class="ep-real-badge">REAL</span>':''}
-      </div>
+      <div class="ep-tag">#${_esc(p.dorsal)} &middot; ${_esc(p.tag)}</div>
     </div>
     <div class="ep-info">
       <div class="ep-info-height"><span>Altura</span>${heightRow}</div>
@@ -1163,8 +1162,28 @@ function showMiniToast(msg){
 /* ================= historial (registro para notificar al admin) ================= */
 
 const AUDIT_KEY = 'tsc_ep_audit_log';
+/* normaliza entradas al esquema actual — tolera el esquema viejo
+   (balanceBefore/balanceAfter planos, sin budgetAfter/fromGeneral/fromSub) */
+function normalizeAuditEntry(e){
+  if(!e || typeof e!=='object') return null;
+  const hasNewBudget = e.budgetAfter && typeof e.budgetAfter==='object';
+  return Object.assign({}, e, {
+    lines: Array.isArray(e.lines) ? e.lines : [],
+    totalCost: Number(e.totalCost||0),
+    fromGeneral: e.fromGeneral!=null ? Number(e.fromGeneral) : Number(e.totalCost||0),
+    fromSub: e.fromSub!=null ? Number(e.fromSub) : 0,
+    subscriber: !!e.subscriber,
+    budgetAfter: hasNewBudget
+      ? {general:Number(e.budgetAfter.general||0), subscribers:Number(e.budgetAfter.subscribers||0)}
+      : {general:Number(e.balanceAfter||0), subscribers:0},
+  });
+}
 function loadAuditLog(){
-  try{ return JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]'); }catch(e){ return []; }
+  try{
+    const raw = JSON.parse(localStorage.getItem(AUDIT_KEY)||'[]');
+    if(!Array.isArray(raw)) return [];
+    return raw.map(normalizeAuditEntry).filter(Boolean);
+  }catch(e){ return []; }
 }
 function saveAuditLog(){
   try{ localStorage.setItem(AUDIT_KEY, JSON.stringify(AUDIT_LOG.slice(-200))); }catch(e){}
@@ -1186,12 +1205,17 @@ function openAuditModal(){
           entries.map(e=>{
             const d = new Date(e.ts);
             const fecha = d.toLocaleDateString('es-CL')+' '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-            const resumen = e.lines.map(l=>`${_esc(l.label)} ${_esc(l.from)}&rarr;${_esc(l.to)}`).join(', ');
-            const subLine = e.fromSub>0 ? ` (general: ${e.fromGeneral.toLocaleString('es-CL')} + bono suscriptores: ${e.fromSub.toLocaleString('es-CL')})` : '';
+            const lines = Array.isArray(e.lines) ? e.lines : [];
+            const resumen = lines.map(l=>`${_esc(l.label)} ${_esc(l.from)}&rarr;${_esc(l.to)}`).join(', ');
+            const totalCost = Number(e.totalCost||0);
+            const fromGeneral = e.fromGeneral!=null ? Number(e.fromGeneral) : totalCost;
+            const fromSub = Number(e.fromSub||0);
+            const after = e.budgetAfter || {general:Number(e.balanceAfter||0), subscribers:0};
+            const subLine = fromSub>0 ? ` (general: ${fromGeneral.toLocaleString('es-CL')} + bono suscriptores: ${fromSub.toLocaleString('es-CL')})` : '';
             return `<div class="ep-audit-entry">
               <div class="ep-audit-entry-hd"><b>${_esc(e.playerName)} <span style="color:var(--txt3);font-weight:400;">#${_esc(e.dorsal)}</span>${e.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</b><span>${fecha}</span></div>
               <div class="sum">${resumen}</div>
-              <div class="sum" style="margin-top:4px;">Costo total: <span class="cost">${e.totalCost.toLocaleString('es-CL')} YunaCoins</span>${subLine} &middot; saldo restante general/bono: ${e.budgetAfter.general.toLocaleString('es-CL')} / ${e.budgetAfter.subscribers.toLocaleString('es-CL')}</div>
+              <div class="sum" style="margin-top:4px;">Costo total: <span class="cost">${totalCost.toLocaleString('es-CL')} YunaCoins</span>${subLine} &middot; saldo restante general/bono: ${Number(after.general||0).toLocaleString('es-CL')} / ${Number(after.subscribers||0).toLocaleString('es-CL')}</div>
             </div>`;
           }).join('')
         }
@@ -1536,7 +1560,7 @@ function renderRows(){
   let html = '';
 
   if(APP.page===1){
-    html = MAIN_STATS.map(s=>{
+    html = PAGE1_STATS.map(s=>{
       const v = d.stats[s.k];
       const afford = v>=99 || canAfford(bandCost99(v+1));
       const cost = v>p.stats[s.k] ? costRange99(p.stats[s.k], v) : 0;

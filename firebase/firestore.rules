@@ -76,6 +76,32 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- Pedidos de mejora PES5 (YunaCoins) ---
+    // El presidente crea pedidos para SU equipo; son inmutables para el
+    // (no puede editarlos ni marcarlos como aplicados el mismo). Solo el
+    // admin (Luis) los lee todos, los aplica en la tool y los marca.
+    match /pedidos_pes5/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+
+      allow create: if isPresident()
+                    && request.resource.data.uid == request.auth.uid
+                    && me().teamId != null && string(me().teamId) == request.resource.data.teamId
+                    && request.resource.data.estado == 'pendiente';
+
+      // Solo el admin puede tocar un pedido despues de creado (marcarlo
+      // aplicado). El presidente no puede modificar ni borrar su pedido.
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // --- Plantillas PES5 publicadas por Luis (foto del equipo real) ---
+    // Solo el admin las escribe (con la tool, leyendo su option file). El
+    // presidente de ese equipo puede leer la suya; nadie mas.
+    match /pes5_plantillas/{teamId} {
+      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null && string(me().teamId) == teamId);
+      allow write: if isAdmin();
+    }
+
     // --- Notificaciones push (Fase 8, backend FCM) ---
     // Solo el Admin SDK (Cloud Functions) escribe acá — las reglas de
     // cliente no importan para esas escrituras, pero se dejan explícitas

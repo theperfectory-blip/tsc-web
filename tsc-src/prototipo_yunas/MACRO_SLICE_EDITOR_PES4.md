@@ -7,7 +7,7 @@
 > validados.
 >
 > Lo que existe hoy son **scripts de investigación fuera del repo** más el
-> artefacto [`js/pes4/pes4-map.json`](js/pes4/pes4-map.json). **Los slices A-E
+> artefacto [`pes4-map.json`](pes4-map.json). **Los slices A-E
 > siguen sin implementar**: falta portar todo a los módulos del proyecto y
 > construir la UI. Cada slice se ejecuta y cierra por separado — mismo
 > protocolo que los macros anteriores.
@@ -135,14 +135,9 @@ mejoras`, suscriptores 85). Los nombres del save también son los del roster del
 prototipo: Michelo, Huevito Rey, Elon Musk, Maradroga, Evo Morales, MASIVO BRO,
 Putin, Zelenky, Bill Clinton, `$Saul Goodman`, `$JeffreyEpstein`.
 
-## 2. Lo que falta verificar — los dos bloqueantes
-
-Ninguno es investigación abierta: los dos se resuelven con **un diff
-controlado**, y el slice C existe justamente para automatizarlo.
-
 ### 1.5 El mapa de atributos — RESUELTO
 
-Artefacto: **[`js/pes4/pes4-map.json`](js/pes4/pes4-map.json)**. Bit de inicio
+Artefacto: **[`pes4-map.json`](pes4-map.json)**. Bit de inicio
 de cada uno de los 26 atributos, relativo al comienzo del registro.
 
 Se obtuvo por calibración in-game: en `MASIVO BRO` se pusieron los 24
@@ -176,20 +171,13 @@ pantalla del juego.
 malo` y `Frec. pie malo` — son de escala 1-8, no 0-99, y necesitan su propia
 calibración. No escribirlos a ciegas.
 
-### 2.2 El checksum — CONFIRMADO que existe, sin ubicar
+## 2. Los dos bloqueantes — los dos RESUELTOS
 
-**Verificado empíricamente el 2026-07-27, no es una hipótesis.** Se escribieron
-99 en los 21 atributos de `MASIVO BRO` (idx 2564) dentro de la tarjeta: 21
-bytes cambiados en 69 MB, tamaño idéntico, ECC recalculada, integridad del
-contenedor intacta. PES4 rechaza el archivo con *"Ha habido un error. No se
-pudo cargar."* al cargar el Archivo Opciones.
+Ambos se resolvieron con calibración in-game y diff controlado. Ninguno queda
+abierto. El slice C sigue teniendo sentido para automatizar el procedimiento
+si en el futuro hace falta mapear los campos de escala 1-8 que faltan.
 
-**Experimento de control hecho:** el backup sin modificar —idéntico salvo esos
-21 bytes— **carga sin problema**. Eso aísla la causa: no es la tarjeta, no es
-el filesystem, no es la ECC, no es el tamaño de 64 MB. Es un checksum sobre el
-contenido del option file.
-
-### 2.3 El checksum — RESUELTO
+### 2.1 El checksum — RESUELTO
 
 **No es del archivo entero: es por sección.** Por eso la búsqueda global no lo
 encontraba (se descartaron sum8/16/32, xor8/16/32, CRC32 y sumas negadas, en
@@ -201,10 +189,14 @@ checksum = suma de bytes desde 0x7B4D hasta ~0x9CB90, mod 256
 guardado en UN byte en 0x7B4C  (4 bytes antes de la tabla de jugadores)
 ```
 
-Se localizó con el diff de dos guardados hechos dentro del juego: el único byte
-que cambia fuera del registro del jugador es `0x7B4C`. La fórmula se dedujo de
-la respuesta del checksum al cambio (el `+1` movió un byte en +16 y el checksum
-en +16; los 24 valores movieron la suma en +180 y el checksum en +180).
+Cómo se encontró: se escribió una edición sin arreglar el checksum y PES4
+rechazó el archivo (*"Ha habido un error. No se pudo cargar."*). El
+**experimento de control** —cargar el backup sin modificar, que sí carga—
+aisló la causa: no era la tarjeta, ni el filesystem, ni la ECC, ni el tamaño de
+64 MB. Después, el diff de dos guardados hechos dentro del juego mostró que el
+único byte que cambia fuera del registro del jugador es `0x7B4C`, y la fórmula
+salió de la respuesta del checksum al cambio (el `+1` movió un byte en +16 y el
+checksum en +16; la calibración movió la suma en +180 y el checksum en +180).
 
 **Validada en 4 tarjetas** — las tres del juego (`0xF5`, `0x05`, `0xA9`) más una
 escrita por nosotros (`0xF9`).
@@ -214,7 +206,7 @@ límites distintos dan la misma suma. **Para escribir se usa el método de
 delta**, que es independiente de los límites:
 
 ```
-checksum_nuevo = checksum_viejo + (suma de bytes nuevos − suma de bytes viejos)
+checksum_nuevo = checksum_viejo + (suma de bytes nuevos - suma de bytes viejos)
 ```
 
 Correcto siempre que los bytes tocados caigan dentro de la región, que es el
@@ -224,21 +216,18 @@ caso para cualquier edición de atributos.
 > de checksum con el mismo esquema. Si en el futuro la tool escribe fuera de la
 > tabla de jugadores, hay que localizar el byte de esa sección igual que este.
 
-### 2.4 Estado del camino de escritura
+### 2.2 Estado del camino de escritura — VERIFICADO EN EL JUEGO
 
-**Completo y verificado end-to-end a nivel de archivo.** Filesystem, mapeo de
-offset de archivo a página física, empaquetado de 7 bits preservando los 4 bits
-sobrantes de cada grupo, checksum de sección y ECC. Una escritura de prueba
-(`MASIVO BRO` con los 21 atributos en 99) produce una tarjeta donde:
+**Cerrado end-to-end.** Filesystem, mapeo de offset de archivo a página física,
+empaquetado de 7 bits, checksum de sección y ECC. Una escritura de prueba
+(`MASIVO BRO`) produce una tarjeta donde:
 
-- los atributos releídos a través del filesystem dan 99, y los slots 18/19/23
-  quedan intactos;
+- los atributos releídos a través del filesystem dan el valor escrito;
 - el checksum guardado coincide con el calculado;
 - la ECC de toda la tarjeta es íntegra salvo el bloque malo preexistente;
 - el diff contra la original son 21 bytes de datos + 1 de checksum + 1 de ECC,
-  y nada más en 69 MB.
-
-Falta la confirmación dentro del juego (que PES4 cargue el Archivo Opciones).
+  y nada más en 69 MB;
+- **y PES4 carga el Archivo Opciones y muestra los valores nuevos en pantalla.**
 
 ## 3. Orden y dependencias
 
@@ -284,7 +273,7 @@ edición hecha dentro del juego — y reporta:
 - **qué bytes cambiaron fuera de la tabla de jugadores** (→ checksum)
 - un `pes4-map.json` sugerido a partir de los valores testigo
 
-Salida: `pes4-map.json` versionado en el repo, con los 24 nombres de atributo
+Salida: `pes4-map.json` (ya existe, ver §1.5), con los nombres de atributo
 en orden y la respuesta de checksum. Es el artefacto que hace que la tool no
 necesite un LLM nunca más.
 
@@ -328,14 +317,44 @@ Firestore queda como slice posterior — arrastra el gap que ya está
 documentado en `STREAMLABS_YUNACOINS.md` (no existe el mapeo usuario↔equipo)
 y no hace falta para que la tool funcione.
 
-## 5. Archivos
+## 5. Dónde vive esto
+
+Todo el material de investigación de esta rama está en
+**`tsc-src/prototipo_yunas/`**:
+
+```
+prototipo_yunas/
+├── MACRO_SLICE_EDITOR_PES4.md      # este documento
+├── pes4-map.json                   # el mapa de atributos (artefacto validado)
+├── prototype-editor-jugador.html   # el prototipo de UI
+├── STREAMLABS_YUNACOINS.md         # exploración Streamlabs ↔ YuNaCoins
+├── 1..4.webp                       # material de diseño
+├── *.ps2                           # memcards de prueba — IGNORADAS por git (276 MB)
+└── tools/                          # scripts de investigación (Node, fuera de la app)
+    ├── memcard-fs.js               # abre un .ps2 y devuelve el option file
+    ├── list-saves.js               # lista los saves de una tarjeta
+    ├── extract-save.js             # extrae un save a disco
+    ├── diff-cards.js               # compara option files entre tarjetas
+    └── write-attrs.js              # escribe atributos + checksum + ECC
+```
+
+`tools/` es de investigación, no de producción: son scripts de Node que
+corren desde la terminal. Los slices A-E portan esa lógica a los módulos del
+proyecto (ver abajo), que corren en el browser.
+
+Ejemplo de uso de `write-attrs.js`:
+
+```bash
+node tools/write-attrs.js entrada.ps2 "MASIVO BRO" salida.ps2 ataque=99 defensa=90 RESTO=80
+```
+
+## 6. Archivos de los slices
 
 **Nuevos**
 
 ```
 tsc-src/js/pes4/mc-fs.js            # slice A — filesystem de memcard PS2
 tsc-src/js/pes4/pes4-players.js     # slice B — decode/encode de registros
-tsc-src/js/pes4/pes4-map.json       # slice C — mapeo slot→atributo (artefacto)
 tsc-src/js/pes4/mc-write.js         # slice D — reinyección + ECC
 tsc-src/pes4-calibrar.html          # slice C — herramienta interna
 tsc-src/pes4-editor.html            # slice E — la tool de Luis
@@ -349,7 +368,7 @@ tsc-src/pes4-editor.html            # slice E — la tool de Luis
 **No se tocan:** `coins.js`, `firebase-config.js`, `cloudinary.js`, ni nada
 del flujo actual de la web. Esta tool es aditiva.
 
-## 6. Riesgos
+## 7. Riesgos
 
 | # | Riesgo | Mitigación |
 |---|---|---|
@@ -359,7 +378,7 @@ del flujo actual de la web. Esta tool es aditiva.
 | 6.4 | **La memcard de 69 MB quedó dentro del repo** (`tsc-src/prototipo_yunas/Memory64 MB.ps2`), sin trackear. | Agregar `*.ps2` al `.gitignore` en el slice A. No debe entrar nunca a git. |
 | 6.5 | Mapeo de atributos mal fijado. | Es la razón de existir del slice C. D no arranca sin él. |
 
-## 7. Qué se necesita de ustedes
+## 8. Qué se necesita de ustedes
 
 Una sola cosa, y desbloquea todo:
 
@@ -372,7 +391,7 @@ Una sola cosa, y desbloquea todo:
 
 Con eso corro el diff y sale el `pes4-map.json` definitivo.
 
-## 8. Próximo paso
+## 9. Próximo paso
 
 Aprobar (o corregir) este documento → ejecutar A, B y C, que no necesitan a
 Luis ni tocan ningún archivo suyo → pedir los saves de calibración → recién
