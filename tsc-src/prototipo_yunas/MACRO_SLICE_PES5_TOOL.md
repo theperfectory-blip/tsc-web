@@ -329,6 +329,75 @@ abrir PES5, confirmar el valor; dentro del juego renombrar un club, guardar,
 "Recargar" en la tool y confirmar el nombre nuevo y que el vínculo de FK
 Tupadre sigue resolviendo al mismo club.
 
+### Slice C.2 — correcciones tras la primera prueba en el juego (2026-09-15)
+
+Resultado de la prueba del usuario: **juego → tool funciona** (renombrar club
+y editar jugadores en PES5 se ven bien al recargar). **Tool → juego NO se
+pudo probar**: al aceptar el diálogo de "Escribir al save" no se generó
+nada. Evidencia en disco: la copia en `test-save-copy/` conserva el mtime
+previo y no existe `backups-tsc/` en ninguna carpeta, o sea que
+`PES5_SAVE.escribir` nunca llegó a escribir (falló antes o el error se
+perdió en un toast). Tres arreglos, un solo slice, una aprobación.
+
+**Archivos:** `pes5-tool.html`; `js/pes5-save.js` solo si hace falta para C2.3.
+
+**C2.1 · Diálogo de confirmación mínimo.** El texto antes de escribir muestra
+solo **equipo y jugadores** afectados, nada de campos:
+`Equipo: <nombre club del save>
+Jugadores: <nombre1>, <nombre2>
+
+Se crea backup automático. ¿Confirmar?`
+El detalle campo por campo ya se ve en el panel (resaltado `changed`).
+
+**C2.2 · Editar no debe re-renderizar todo.** Hoy `onCampoAttr`/`onCampoSimple`/
+`onCampoHabilidad`/`onCampoSelect` llaman `renderPlantillaBody()`, que
+reconstruye tabla + panel + botón + checkbox: se pierde el foco, el scroll
+vuelve arriba y se pisa el estado del checkbox "PES5 está cerrado". Cambiar
+a actualización en el lugar: (a) el input editado solo cambia su clase
+`changed`; (b) la celda correspondiente de la fila del jugador en la tabla
+se actualiza por `id` (`data-jugador`/`data-campo`) sin tocar el resto;
+(c) el contador de cambios pendientes y `actualizarBotonEscribir()` se
+llaman aparte. Enter en un input no debe hacer nada más que `blur`
+(no hay `<form>`; verificar que no lo haya). El panel lateral se
+reconstruye **solo** al cambiar de jugador o de equipo.
+
+**C2.3 · La escritura falla en silencio: hacerla visible y robusta.**
+1. Justo antes de escribir, dentro del mismo gesto del click, pedir el
+   permiso de escritura explícitamente: `PES5_SAVE.asegurarEscritura()`
+   (nuevo en `pes5-save.js`: `queryPermission({mode:'readwrite'})` y, si no
+   es `granted`, `requestPermission({mode:'readwrite'})`; devuelve `true`/`false`).
+   Si devuelve `false`, mostrar el error y no continuar.
+2. Los errores de `escribirAlSave` dejan de ser un toast de 2 s: se
+   muestran en un **panel de error persistente** dentro de la pestaña
+   Plantilla, con `e.name` y `e.message` y el nombre de la carpeta activa,
+   hasta que el admin lo cierre. También se loguean con `console.error`.
+3. Tras un éxito, el panel muestra ruta relativa del backup y tamaño
+   escrito, y se mantiene visible (no solo toast).
+4. `renderPlantillaBody` **no** debe vaciar `#pl-log` ni el panel de error.
+5. Reproducir el fallo antes de arreglarlo: en Chrome, con la carpeta
+   `test-save-copy/`, capturar la excepción real (`e.name`) y anotarla en el
+   reporte. Sospechosos por orden: permiso `readwrite` no concedido
+   (`NotAllowedError` en `createWritable`), `cifrar()` lanzando por bytes
+   inválidos, `escribirJugadorCompleto` lanzando por un valor fuera de rango
+   que el clamp de `onCampoAttr` dejó pasar (p. ej. `escala8` con `0`).
+
+**Pruebas (eval en `localhost:3001/prototipo_yunas/pes5-tool`, admin, carpeta `test-save-copy/`):**
+1. Editar tres campos de un jugador con Enter entre cada uno:
+   `document.activeElement` sigue siendo el input editado, `scrollY` no
+   cambia, el checkbox "PES5 está cerrado" conserva su estado, la fila de la
+   tabla muestra el valor nuevo con clase `changed`.
+2. Click "Escribir al save" → el `confirm` contiene solo equipo y nombres.
+3. Aceptar → aparece `test-save-copy/backups-tsc/KONAMI-WIN32PES5OPT.<ts>.bak`
+   con el md5 del archivo previo, y el save de la copia tiene el md5 nuevo
+   (verificar desde Node y pegar). `leerJugadorCompleto` sobre el archivo
+   reescrito devuelve el valor editado.
+4. Forzar un fallo (revocar el permiso desde el candado de Chrome, o
+   `PES5_SAVE.escribir = async()=>{throw new Error('x')}` en consola) →
+   el panel de error queda visible con nombre y mensaje.
+
+**Después de C.2:** repetir la prueba tool → juego (instalar la copia
+reescrita como save, abrir PES5, ver la altura editada).
+
 ---
 
 ### Slice D — sync bidireccional
@@ -429,4 +498,4 @@ de Sonnet:
 4. Regla que no cambia: en A-C, la carpeta que se elige en `PES5_SAVE` es una
    **carpeta de prueba con una copia** del save. La del juego recién en D.
 
-**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). Sigue **C.1** (un slice, una aprobación), después la prueba B.3 ampliada en el juego, y recién ahí D y E, un slice por aprobación.
+**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). C.1 commiteado (`23e3d37`) y probado en el juego: juego → tool OK; tool → juego falló (ver C.2). Sigue **C.2**, después repetir la prueba tool → juego, y recién ahí D y E, un slice por aprobación.
