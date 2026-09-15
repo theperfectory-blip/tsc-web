@@ -387,7 +387,24 @@ hoy se registran cambios en campos no tocados (probable disparo de
    toast real (mismo estilo que `showMiniToast` del editor) y, para errores,
    el panel persistente del punto 2. Antes de arreglar, leer la consola con
    el usuario o reproducir para capturar la excepción exacta.
-6. **Dato del usuario (15/09, segunda vuelta):** al aceptar no apareció
+6. **CAUSA RAÍZ, verificada por Opus en el navegador del usuario (15/09):**
+   el navegador es **Brave** (userAgentData: Brave 153 / Chromium 153).
+   Brave desactiva de fábrica la File System Access API:
+   `typeof window.showDirectoryPicker === 'undefined'` aun en contexto
+   seguro. `PES5_SAVE.tieneSoporte()` da `false`, la tool entra en modo
+   fallback (input de archivo) y `escribirAlSave` → `PES5_SAVE.escribir` →
+   `_fileHandleDelSave` lanza "no hay carpeta elegida", que solo llegó a la
+   consola por el stub del punto 5. **Arreglo en dos frentes:**
+   (a) en modo fallback, "Escribir al save" debe generar el archivo
+   reescrito con `PES5_SAVE.descargar(cifrado, 'KONAMI-WIN32PES5OPT')` y
+   dejar claro en el panel que el archivo original queda como backup y que
+   hay que copiarlo a mano a la carpeta del juego; el botón pasa a decir
+   "Descargar save editado"; (b) el aviso de "navegador sin soporte" debe
+   nombrar Brave y decir cómo habilitarlo:
+   `brave://flags/#file-system-access-api` → Enabled → relanzar, o usar
+   Chrome/Edge para la tool. No se debe detectar Brave por userAgent para
+   decidir nada: la decisión sigue siendo `tieneSoporte()`.
+7. **Dato del usuario (15/09, segunda vuelta):** al aceptar no apareció
    NINGÚN toast, ni de éxito ni de error, y `showToast` sí existe en la
    página. Eso descarta una excepción (habría entrado al `catch`) y apunta
    a un `await` que nunca resuelve dentro de `escribirAlSave`. Sospechoso
@@ -399,10 +416,10 @@ hoy se registran cambios en campos no tocados (probable disparo de
    además instrumentar `escribirAlSave` con una línea en `#pl-log` por cada
    paso (`aplicando cambios`, `cifrando`, `pidiendo permiso`, `backup`,
    `escribiendo`, `verificando`) para que un cuelgue diga en qué paso está.
-7. Punto menor: la barra de scroll horizontal de la tabla de Plantilla es
+8. Punto menor: la barra de scroll horizontal de la tabla de Plantilla es
    visible (captura del usuario). Regla del proyecto: ocultarla y usar fade
    en los bordes, el contenedor sigue siendo scrolleable.
-8. Reproducir el fallo antes de arreglarlo: en Chrome, con la carpeta
+9. Reproducir el fallo antes de arreglarlo: en Chrome, con la carpeta
    `test-save-copy/`, capturar la excepción real (`e.name`) y anotarla en el
    reporte. Sospechosos por orden: permiso `readwrite` no concedido
    (`NotAllowedError` en `createWritable`), `cifrar()` lanzando por bytes
