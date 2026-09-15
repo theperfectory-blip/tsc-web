@@ -281,6 +281,27 @@ listarse. **Alcance: exclusivamente esta tool.** El admin de usuarios de la
 web (`js/users-admin.js`, asignar equipo a presidente) está en producción y
 **no se toca** en este macro.
 
+*D.1 · Los clubes salen del save, nunca de una lista fija (decisión del
+usuario, 2026-09-15).* Sin save cargado, la pestaña Equipos no ofrece ningún
+club (selector deshabilitado con el aviso "Cargá el save para ver los clubes")
+y la pestaña Plantilla no lista nada. Con save cargado, los 138 clubes se leen
+con `PES5_EDITOR.nombreEquipo(bytes, i)` **cada vez** que se carga o recarga
+el archivo; si el admin renombra un club dentro del juego, la tool muestra el
+nombre nuevo al siguiente guardado. `pes5-teams.json` deja de usarse para
+poblar selectores (queda solo como referencia histórica; `cargarNombresEquipos`
+no se llama desde la tool).
+
+*D.1 bis · El vínculo se guarda por índice, no por nombre.* Hoy `teams.pes5Club`
+guarda el nombre ("Middlesbrough") y se rompe si el club se renombra. Nuevo
+campo `teams.pes5ClubIdx` (entero 0-137) como fuente del vínculo; `pes5Club`
+se sigue escribiendo solo como etiqueta informativa con el nombre vigente al
+vincular. Al cargar la tool, si un equipo tiene `pes5Club` pero no
+`pes5ClubIdx`, se resuelve una vez buscando el nombre en el save
+(`buscarEquipoPorNombre`) y se guarda el índice; si no se encuentra, se marca
+"vínculo roto: revinculá" y no se publica. El editor del presidente y
+`pes5_plantillas` usan `pes5ClubIdx`. Hoy hay un solo vínculo (FK Tupadre),
+así que la migración es trivial.
+
 *D.0 bis · Contador de ediciones.* `escribirJugadorCompleto` debe saltar los
 campos cuyo valor nuevo es igual al actual y no incrementar `+0x32` si no
 escribió nada real.
