@@ -344,7 +344,21 @@ sin resultados; la tool sigue pasando las pruebas de C y D; `graphify update .`.
 - Para D.1 y D.2: una cuenta presidente de prueba con `teamId` vinculado
   (hoy: FK TUPADRE, `teamId` 61).
 
-## 6. Próximo paso
+## 6. Próximo paso — primera iteración: slices A, B y C juntos
 
-Sonnet arranca por el **slice A** y presenta plan, archivos y riesgos antes
-de escribir código.
+Decisión del usuario (2026-09-15): como A, B y C **no tocan el save del
+juego** (solo copias en una carpeta de prueba), van en **una sola iteración**
+de Sonnet:
+
+1. Sonnet presenta **un solo** plan con archivos y riesgos para A+B+C y espera
+   **una** aprobación.
+2. Implementa A, luego B, luego C, en ese orden. Al cerrar cada slice entrega
+   diff summary, pruebas con salida real y evidencia, y **sigue sin esperar**
+   al siguiente. Opus revisa cada cierre por su cuenta y puede frenar la
+   iteración si algo no cierra.
+3. La prueba B.3 (abrir PES5 con una copia editada) se hace **después de C**,
+   con la tool ya armada, para no interrumpir la iteración.
+4. Regla que no cambia: en A-C, la carpeta que se elige en `PES5_SAVE` es una
+   **carpeta de prueba con una copia** del save. La del juego recién en D.
+
+D y E vuelven al protocolo normal: un slice por aprobación.
