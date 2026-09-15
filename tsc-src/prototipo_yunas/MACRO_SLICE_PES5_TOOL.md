@@ -271,6 +271,20 @@ helper de serialización.
 
 **Spec.**
 
+*D.0 · Solo equipos activos (decisión del usuario, 2026-09-15).* En la tool,
+la pestaña Equipos, el selector de la pestaña Plantilla ("Equipos TSC
+vinculados") y el bucle de Publicar consideran únicamente equipos con
+`status !== 'INACTIVO'` (si el campo falta, cuenta como activo, igual que en
+`teams.js`). Un inactivo no aparece para vincular ni se le publica plantilla;
+si ya tenía `pes5Club`, el dato se conserva en Firestore, solo deja de
+listarse. **Alcance: exclusivamente esta tool.** El admin de usuarios de la
+web (`js/users-admin.js`, asignar equipo a presidente) está en producción y
+**no se toca** en este macro.
+
+*D.0 bis · Contador de ediciones.* `escribirJugadorCompleto` debe saltar los
+campos cuyo valor nuevo es igual al actual y no incrementar `+0x32` si no
+escribió nada real.
+
 *Juego → web (pestaña Publicar).* Para cada equipo TSC con `pes5Club`,
 escribir `pes5_plantillas/{teamId}` con
 `{ teamId, pes5Club, indiceClub, publicadoEn, hash: md5 del save, jugadores: [leerJugadorCompleto…] }`.
