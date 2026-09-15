@@ -67,7 +67,7 @@ async function render(){
   if (!AUTH.user){ cont.innerHTML = '<div class="gate">Iniciá sesión como admin.</div>'; return; }
   if (AUTH.role !== 'admin'){ cont.innerHTML = '<div class="gate">Esta página es solo para el admin (Luis).</div>'; return; }
 
-  if (!NOMBRES_PES5.length) NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('./');
+  if (!NOMBRES_PES5.length) NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('../../js/pes5/');
   EQUIPOS_TSC = await dbGetAll('teams');
   EQUIPOS_TSC.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
 
@@ -116,8 +116,8 @@ async function onArchivo(ev){
   const file = ev.target.files[0];
   if (!file) return;
   const buf = new Uint8Array(await file.arrayBuffer());
-  await PES5_CRYPT.cargarClaves('./');
-  await PES5_EDITOR.cargarMapa('./');
+  await PES5_CRYPT.cargarClaves('../../js/pes5/');
+  await PES5_EDITOR.cargarMapa('../../js/pes5/');
   BYTES_PLANO = PES5_CRYPT.descifrar(buf);
   document.getElementById('btn-publicar').disabled = false;
   log(`Archivo cargado y descifrado: ${file.name} (${buf.length} b)`, 'ok');

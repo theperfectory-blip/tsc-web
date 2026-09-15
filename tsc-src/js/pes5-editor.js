@@ -188,6 +188,150 @@ const PES5_EDITOR = (() => {
     darDeAltaJugador(bytes, indiceEquipoDestino, idJugador);
   }
 
+  // ---------- nombre de camiseta (+0x20, ascii, 16 bytes) ----------
+  function nombreCamisetaDeRegistro(bytes, registro) {
+    const off = BASE + registro * STRIDE + 0x20;
+    let fin = off;
+    while (fin < off + 16 && bytes[fin] !== 0) fin++;
+    return new TextDecoder('utf-8').decode(bytes.slice(off, fin)).trim();
+  }
+
+  // ---------- contador de ediciones (+0x32, uint16LE — el hueco exacto
+  // entre camiseta (+0x20..+0x2f) y el primer campo de ajustes_basicos
+  // (Pie dominante, +0x34.0) ----------
+  function _offContador(registro) { return BASE + registro * STRIDE + 0x32; }
+  function _leerContador(bytes, registro) {
+    const off = _offContador(registro);
+    return bytes[off] | (bytes[off + 1] << 8);
+  }
+  function _incrementarContador(bytes, registro) {
+    const off = _offContador(registro);
+    const v = (_leerContador(bytes, registro) + 1) & 0xFFFF;
+    bytes[off] = v & 0xFF;
+    bytes[off + 1] = (v >> 8) & 0xFF;
+    return v;
+  }
+
+  const LESIONES_POR_RAW = ['C', 'B', 'A']; // ver pes5-map.json > ajustes_basicos['Resistencia lesiones']
+
+  // ---------- jugador completo: todos los campos de un registro en un objeto ----------
+  // Las claves de atributos/escala8/habilidades son EXACTAMENTE las de
+  // pes5-map.json (mismo nombre, sin traducir/renombrar) — es la unica
+  // fuente de verdad, para que el mapa siga sirviendo de referencia unica.
+  function leerJugadorCompleto(bytes, id) {
+    const atributos = {};
+    for (const nombre of Object.keys(MAPA.atributos_0_99)) {
+      if (nombre.startsWith('_')) continue;
+      atributos[nombre] = leerCampoJugador(bytes, id, nombre);
+    }
+    const escala8 = {};
+    for (const nombre of Object.keys(MAPA.atributos_1_8)) {
+      if (nombre.startsWith('_')) continue;
+      escala8[nombre] = leerCampoJugador(bytes, id, nombre);
+    }
+    const habilidades = {};
+    for (const nombre of Object.keys(MAPA.habilidades)) {
+      if (nombre.startsWith('_')) continue;
+      habilidades[nombre] = !!leerCampoJugador(bytes, id, nombre);
+    }
+    const pieRaw = leerCampoJugador(bytes, id, 'Pie dominante');
+    const lesionesRaw = leerCampoJugador(bytes, id, 'Resistencia lesiones');
+
+    return {
+      id,
+      nombre: nombreDeRegistro(bytes, id),
+      nombreCamiseta: nombreCamisetaDeRegistro(bytes, id),
+      atributos,
+      escala8,
+      habilidades,
+      edad: leerCampoJugador(bytes, id, 'Edad'),
+      pieDominante: pieRaw === 1 ? 'izq' : 'der',
+      lesiones: LESIONES_POR_RAW[lesionesRaw] || 'C',
+      altura: leerCampoJugador(bytes, id, 'Altura'),
+      posiciones: posicionesMarcadas(bytes, id),
+      posicionRegistrada: posicionRegistrada(bytes, id),
+      contadorEdiciones: _leerContador(bytes, id),
+    };
+  }
+
+  // Aplica solo las claves presentes en `cambios` (parcial). Valida rangos
+  // (atributos 0-99, escala8 1-8, altura 148-211cm, edad 15-46), incrementa
+  // el contador de ediciones (+0x32) una sola vez si escribio algo, y
+  // devuelve la lista de campos escritos.
+  //
+  // Decision (no estaba 100% especificada en el macro-slice): esta funcion
+  // NO edita `posiciones` ni `posicionRegistrada` — ambas dependen de un
+  // reindexado (el circulo O es un rango 0-based sobre las posiciones
+  // marcadas, ordenadas por bit) que se presta a corromper el dato si se
+  // cambia a mitad de una escritura parcial; se deja fuera de esta funcion
+  // hasta tener una spec propia (posible parte del slice C/D).
+  function escribirJugadorCompleto(bytes, id, cambios) {
+    const escritos = [];
+    if (cambios && cambios.atributos) {
+      for (const [nombre, valor] of Object.entries(cambios.atributos)) {
+        if (!MAPA.atributos_0_99[nombre]) throw new Error('atributo no encontrado en el mapa: ' + nombre);
+        if (!Number.isInteger(valor) || valor < 0 || valor > 99) throw new Error(`${nombre}: valor fuera de rango (0-99): ${valor}`);
+        escribirCampoJugador(bytes, id, nombre, valor);
+        escritos.push('atributos.' + nombre);
+      }
+    }
+    if (cambios && cambios.escala8) {
+      for (const [nombre, valor] of Object.entries(cambios.escala8)) {
+        if (!MAPA.atributos_1_8[nombre]) throw new Error('campo de escala 1-8 no encontrado en el mapa: ' + nombre);
+        if (!Number.isInteger(valor) || valor < 1 || valor > 8) throw new Error(`${nombre}: valor fuera de rango (1-8): ${valor}`);
+        escribirCampoJugador(bytes, id, nombre, valor);
+        escritos.push('escala8.' + nombre);
+      }
+    }
+    if (cambios && cambios.habilidades) {
+      for (const [nombre, valor] of Object.entries(cambios.habilidades)) {
+        if (!MAPA.habilidades[nombre]) throw new Error('habilidad no encontrada en el mapa: ' + nombre);
+        escribirCampoJugador(bytes, id, nombre, valor ? 1 : 0);
+        escritos.push('habilidades.' + nombre);
+      }
+    }
+    if (cambios && cambios.edad !== undefined) {
+      if (!Number.isInteger(cambios.edad) || cambios.edad < 15 || cambios.edad > 46) throw new Error('edad fuera de rango (15-46): ' + cambios.edad);
+      escribirCampoJugador(bytes, id, 'Edad', cambios.edad);
+      escritos.push('edad');
+    }
+    if (cambios && cambios.altura !== undefined) {
+      if (!Number.isInteger(cambios.altura) || cambios.altura < 148 || cambios.altura > 211) throw new Error('altura fuera de rango (148-211): ' + cambios.altura);
+      escribirCampoJugador(bytes, id, 'Altura', cambios.altura);
+      escritos.push('altura');
+    }
+    if (cambios && cambios.pieDominante !== undefined) {
+      if (cambios.pieDominante !== 'der' && cambios.pieDominante !== 'izq') throw new Error('pieDominante debe ser "der" o "izq": ' + cambios.pieDominante);
+      escribirCampoJugador(bytes, id, 'Pie dominante', cambios.pieDominante === 'izq' ? 1 : 0);
+      escritos.push('pieDominante');
+    }
+    if (cambios && cambios.lesiones !== undefined) {
+      const idx = LESIONES_POR_RAW.indexOf(cambios.lesiones);
+      if (idx < 0) throw new Error('lesiones debe ser "A", "B" o "C": ' + cambios.lesiones);
+      escribirCampoJugador(bytes, id, 'Resistencia lesiones', idx);
+      escritos.push('lesiones');
+    }
+    if (escritos.length) _incrementarContador(bytes, id);
+    return escritos;
+  }
+
+  // Plantilla completa de un club: leerJugadorCompleto(...) para cada slot
+  // ocupado, en el orden del roster (mismo orden que leerPlantillaEquipo).
+  function leerPlantillaCompleta(bytes, indiceClub) {
+    return leerPlantillaEquipo(bytes, indiceClub).map(id => leerJugadorCompleto(bytes, id));
+  }
+
+  // Indices de TODOS los clubes que tienen a este jugador en su roster (un
+  // jugador puede estar en su club Y en su seleccion a la vez — ver gotcha
+  // en pes5-map.json > equipos.seleccion_vs_club / README 1.3).
+  function equiposDelJugador(bytes, id) {
+    const equipos = [];
+    for (let i = 0; i < TOTAL_TEAMS; i++) {
+      if (leerPlantillaEquipo(bytes, i).includes(id)) equipos.push(i);
+    }
+    return equipos;
+  }
+
   return {
     cargarMapa, cargarNombresEquipos,
     buscarJugadorPorNombre, nombreDeRegistro,
@@ -195,5 +339,7 @@ const PES5_EDITOR = (() => {
     posicionesMarcadas, posicionRegistrada,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
+    leerJugadorCompleto, escribirJugadorCompleto,
+    leerPlantillaCompleta, equiposDelJugador,
   };
 })();

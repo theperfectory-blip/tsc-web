@@ -60,7 +60,7 @@ async function render(){
   if (!AUTH.user){ cont.innerHTML = '<div class="gate">Iniciá sesión como admin para vincular equipos.</div>'; return; }
   if (AUTH.role !== 'admin'){ cont.innerHTML = '<div class="gate">Esta página es solo para el admin (Luis).</div>'; return; }
 
-  if (!NOMBRES_PES5.length) NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('../../js/');
+  if (!NOMBRES_PES5.length) NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('../../js/pes5/');
   EQUIPOS_TSC = await dbGetAll('teams');
   EQUIPOS_TSC.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
 

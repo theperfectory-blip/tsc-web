@@ -156,8 +156,10 @@ los 7 campos restantes con Belgica (#24-#30). Verificacion 23/23 y 7/7.
 falta salir del juego para capturar una instantanea (a diferencia de PCSX2 con
 las memcards de PS2).
 
-Quedan sin mapear: edad, altura, pie dominante, resistencia a lesiones y
-posiciones.
+Quedan sin mapear en este punto (2026-08-29): edad, altura, pie dominante,
+resistencia a lesiones y posiciones — todos resueltos en las secciones
+siguientes (edad/pie/resistencia/posiciones el 2026-08-30, altura el
+2026-08-31, ver mas abajo).
 
 ## Mapa del registro — AMPLIADO (2026-08-30)
 
@@ -174,7 +176,7 @@ posicion** de base para aislar el bit de una posicion nueva, si no el diff
 sale con varios rangos de bits mezclados (paso con el primer lote de
 Belgica, se soluciono cambiando a jugadores de una sola posicion).
 
-Sin mapear: Altura.
+Altura: mapeada el 2026-08-31, ver seccion siguiente.
 
 ## Escritura probada end-to-end (2026-08-31)
 
@@ -195,3 +197,19 @@ save real — se detecto comparando el round-trip `cifrar(descifrar(x))` contra
 
 Con el fix, `cifrar(descifrar(x))` reproduce `x` byte a byte cuando no se
 edita nada — verificado.
+
+## Altura — mapeada (2026-08-31)
+
+`pes5-map.json` → `ajustes_basicos.Altura`: bit 704, `+0x58.0`, **6 bits**,
+valor almacenado + 148. Verificado el 31/08 con los 4894 jugadores del save
+real: campana centrada en ~180 cm, Puskas 172, Romario 169, Berbatov 188. El
+bit 710 (`+0x58.6`) no es parte de la altura (es un flag sin relacion que se
+colaba en la lectura con el ancho anterior de 7 bits y generaba una
+distribucion bimodal de 100-250cm).
+
+## Como se usa ahora
+
+Los 3 JSON estaticos (`pes5-keys.json`, `pes5-map.json`, `pes5-teams.json`) se
+movieron a `tsc-src/js/pes5/` (antes vivian en esta misma carpeta) — es la
+unica ubicacion; las paginas de `pes5/` y las tools de Node de esta carpeta
+los cargan desde ahi.

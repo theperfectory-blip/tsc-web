@@ -34,8 +34,8 @@ document.getElementById('archivo').addEventListener('change', async (ev) => {
   const buf = new Uint8Array(await file.arrayBuffer());
   log('archivo cargado: ' + file.name + ' (' + buf.length + ' bytes)');
 
-  await PES5_CRYPT.cargarClaves('./');
-  await PES5_EDITOR.cargarMapa('./');
+  await PES5_CRYPT.cargarClaves('../../js/pes5/');
+  await PES5_EDITOR.cargarMapa('../../js/pes5/');
   log('claves y mapa cargados');
 
   // 1) round-trip: descifrar(cifrar(descifrar(x))) sin editar nada debe dar el archivo original

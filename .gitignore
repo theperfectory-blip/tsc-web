@@ -73,3 +73,7 @@ NEXT_SESSION.md
 # La linea base SI se versiona: es el unico estado irrecuperable si se pierde.
 tsc-src/prototipo_yunas/pes5/snapshots/*.bin
 !tsc-src/prototipo_yunas/pes5/snapshots/00-baseline.bin
+
+# ─── PES5: copia de prueba del save para probar PES5_SAVE.escribir() /
+#     escribirJugadorCompleto() sin tocar nunca el save real del juego ───
+tsc-src/prototipo_yunas/pes5/test-save-copy/

@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tool PES5</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/variables.css">
+<link rel="stylesheet" href="../css/components.css">
+<!-- Firebase (compat) — debe cargar antes de firebase-config.js / auth.js -->
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script src="../js/firebase-config.js"></script>
+<script src="../js/state.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/pes5-crypt.js"></script>
+<script src="../js/pes5-editor.js"></script>
+<script src="../js/pes5-save.js"></script>
+<style>
+html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
+*{box-sizing:border-box;}
+.icn{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.icn.lg{width:18px;height:18px;}
+
+#ep-auth-status{position:fixed;top:14px;right:16px;font-size:12px;z-index:50;}
+.gate{padding:60px 20px;text-align:center;color:var(--txt3);}
+.gate .icn{width:32px;height:32px;margin-bottom:10px;color:var(--txt3);}
+
+.pt-shell{max-width:1280px;margin:0 auto;padding:20px 16px 90px;}
+.pt-h1{font-family:'Bebas Neue';font-size:26px;letter-spacing:0.5px;margin:0 0 2px;}
+.pt-sub{color:var(--txt3);font-size:13px;margin-bottom:16px;}
+
+/* ---------- barra de estado del save ---------- */
+.pt-statusbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);
+  border:1px solid var(--brd2);border-radius:var(--rl);padding:10px 14px;margin-bottom:16px;}
+.pt-status-item{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--txt2);}
+.pt-status-item b{color:var(--txt);font-weight:600;}
+.pt-status-sep{width:1px;align-self:stretch;background:var(--brd);}
+.pt-status-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.pt-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+.pt-dot.ok{background:var(--green);}
+.pt-dot.off{background:var(--txt3);}
+.pt-dot.warn{background:#F59E0B;}
+.pt-fallback-input{font-size:12px;color:var(--txt2);}
+
+/* ---------- tabs ---------- */
+.pt-tabs{display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:16px;overflow-x:auto;}
+.pt-tab{display:flex;align-items:center;gap:6px;padding:9px 14px;background:none;border:none;
+  border-bottom:2px solid transparent;color:var(--txt3);font-family:'Barlow Condensed';font-weight:700;
+  font-size:14px;letter-spacing:0.5px;text-transform:uppercase;cursor:pointer;white-space:nowrap;flex:none;}
+.pt-tab:hover{color:var(--txt);}
+.pt-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.pt-tab .icn{width:14px;height:14px;}
+
+/* ---------- equipos ---------- */
+.pt-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+.pt-search{flex:1;min-width:180px;max-width:320px;padding:7px 10px;background:var(--card2);
+  border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;}
+.pt-escudo{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--card3);flex:none;}
+.pt-escudo-ph{width:26px;height:26px;border-radius:50%;background:var(--card3);display:flex;align-items:center;
+  justify-content:center;color:var(--txt3);flex:none;}
+.pt-cupo{font-family:'Barlow Condensed';font-weight:700;color:var(--txt2);}
+.pt-cupo.full{color:var(--green);}
+
+/* ---------- plantilla ---------- */
+.pt-team-select-row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+.pt-team-select-row select{padding:8px 10px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);color:var(--txt);font-size:13px;min-width:260px;}
+.pt-grid{display:grid;grid-template-columns:1fr;gap:14px;}
+.pt-panel-open .pt-grid{grid-template-columns:minmax(0,1fr) 320px;}
+@media(max-width:900px){.pt-panel-open .pt-grid{grid-template-columns:1fr;}}
+
+.pt-plantilla-table th{white-space:nowrap;}
+.pt-plantilla-table td{white-space:nowrap;}
+.pt-row-jugador{cursor:pointer;}
+.pt-row-jugador.selected td{background:var(--gold-l);}
+.pt-stat-cell{text-align:center;font-variant-numeric:tabular-nums;}
+.pt-alsoin{display:inline-flex;align-items:center;gap:3px;margin-left:6px;}
+
+/* ---------- panel lateral ---------- */
+.pt-side{background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);padding:14px;
+  display:flex;flex-direction:column;gap:12px;align-self:start;position:sticky;top:14px;max-height:calc(100vh - 28px);overflow-y:auto;}
+.pt-side-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.pt-side-hd h3{font-family:'Bebas Neue';font-size:19px;margin:0;letter-spacing:0.5px;}
+.pt-side-close{background:none;border:none;color:var(--txt3);cursor:pointer;padding:2px;}
+.pt-side-close:hover{color:var(--txt);}
+.pt-side-sub{font-size:12px;color:var(--txt3);margin-top:-6px;}
+.pt-fieldgrp{display:flex;flex-direction:column;gap:6px;}
+.pt-fieldgrp-title{font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--txt3);margin:6px 0 2px;}
+.pt-field{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;}
+.pt-field label{color:var(--txt2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pt-field input[type=number]{width:56px;padding:3px 5px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:4px;color:var(--txt);font-size:12.5px;text-align:right;}
+.pt-field input[type=number].changed{border-color:var(--gold);color:var(--gold);}
+.pt-field select{padding:3px 5px;background:var(--card2);border:1px solid var(--brd);border-radius:4px;
+  color:var(--txt);font-size:12.5px;}
+.pt-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;}
+.pt-toggle input{accent-color:var(--gold);width:14px;height:14px;}
+.pt-chips{display:flex;flex-wrap:wrap;gap:4px;}
+.pt-chip{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--card2);border:1px solid var(--brd);
+  color:var(--txt2);}
+.pt-chip.active{background:var(--gold-l);border-color:var(--gold-b);color:var(--gold);}
+
+.pt-writebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--brd);}
+.pt-writebar label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt2);cursor:pointer;}
+.pt-writebar input[type=checkbox]{accent-color:var(--gold);}
+.pt-changes-count{font-size:12px;color:var(--gold);font-weight:600;}
+
+/* ---------- esqueletos (pedidos/publicar) ---------- */
+.pt-empty{padding:50px 20px;text-align:center;color:var(--txt3);border:1px dashed var(--brd);border-radius:var(--rl);}
+.pt-empty .icn{width:30px;height:30px;margin-bottom:8px;}
+
+.pt-log{font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;
+  background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:10px;margin-top:10px;}
+.pt-log .ok{color:#4ade80;} .pt-log .err{color:#f87171;} .pt-log .warn{color:#facc15;}
+</style>
+</head>
+<body>
+<div id="ep-auth-status"></div>
+
+<div class="pt-shell">
+  <h1 class="pt-h1">Tool PES5</h1>
+  <div class="pt-sub">Lee y edita el save de PES5 directo desde la carpeta del juego — equipos, plantillas, pedidos y publicación en un solo lugar.</div>
+  <div id="gate"></div>
+  <div id="app" style="display:none;">
+    <div id="statusbar"></div>
+    <div class="pt-tabs" id="tabs"></div>
+    <div id="tabcontent"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ICONOS (SVG inline estilo Lucide — nunca emojis, ver CLAUDE.md)
+   ============================================================ */
+const ICN = {
+  folder: '<svg class="icn" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>',
+  file: '<svg class="icn" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+  refresh: '<svg class="icn" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+  link: '<svg class="icn" viewBox="0 0 24 24"><path d="M9 17H7a5 5 0 0 1 0-10h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+  search: '<svg class="icn" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  users: '<svg class="icn lg" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  shirt: '<svg class="icn lg" viewBox="0 0 24 24"><path d="M16 3l3 4-3 3-2-2v11a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1V8l-2 2-3-3 3-4 4 2h2z"/></svg>',
+  inbox: '<svg class="icn lg" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+  upload: '<svg class="icn lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  x: '<svg class="icn" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  lock: '<svg class="icn" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  save: '<svg class="icn" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+  alert: '<svg class="icn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+};
+
+function _esc(v){
+  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function openModal(id){ document.getElementById(id)?.classList.add('open'); }
+function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
+function showToast(msg){ console.log('[toast]', msg); }
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+let EQUIPOS_TSC = [];
+let PRESIDENTES_POR_TEAM = {}; // teamId -> {displayName,email}
+let NOMBRES_PES5 = [];
+let PLANO = null;          // bytes descifrados del save actualmente cargado (en memoria)
+let SAVE_META = null;      // {nombre,tamaño,lastModified}
+let OBSERVAR_STOP = null;
+let TAB = 'equipos';
+let PLANTILLA_ACTUAL = null;    // array de leerJugadorCompleto(...) del equipo elegido
+let PLANTILLA_INDICE = null;    // indice de club PES5 elegido en la pestaña Plantilla
+let JUGADOR_SELECCIONADO = null; // id de registro seleccionado en el panel lateral
+let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habilidades:{},edad,altura,pieDominante,lesiones} }
+
+/* ============================================================
+   AUTH / GATE
+   ============================================================ */
+function renderAuthUI(){
+  const el = document.getElementById('ep-auth-status');
+  if (el){
+    if (!AUTH.user) el.innerHTML = `<button class="btn btn-sm" onclick="openAuthModal()">Iniciar sesión</button>`;
+    else el.innerHTML = `<span style="font-size:12px;color:var(--txt2);margin-right:8px;">${_esc(AUTH.profile?.displayName||AUTH.user.email)}</span><button class="btn btn-sm" onclick="authSignOut()">Salir</button>`;
+  }
+  render();
+}
+
+function render(){
+  const gate = document.getElementById('gate');
+  const app = document.getElementById('app');
+  if (!AUTH.user){
+    gate.innerHTML = `<div class="gate">${ICN.lock}<div>Iniciá sesión como admin para usar la Tool PES5.</div></div>`;
+    app.style.display = 'none';
+    return;
+  }
+  if (AUTH.role !== 'admin'){
+    gate.innerHTML = `<div class="gate">${ICN.lock}<div>Esta página es solo para el admin.</div></div>`;
+    app.style.display = 'none';
+    return;
+  }
+  gate.innerHTML = '';
+  app.style.display = '';
+  if (!window.__PT_INICIADO__){
+    window.__PT_INICIADO__ = true;
+    initApp();
+  }
+}
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+async function initApp(){
+  await PES5_CRYPT.cargarClaves('../js/pes5/');
+  await PES5_EDITOR.cargarMapa('../js/pes5/');
+  NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('../js/pes5/');
+  await cargarEquiposYPresidentes();
+
+  // intento silencioso de recuperar la carpeta ya elegida antes (no molesta
+  // si no hay ninguna guardada o si el permiso no se puede re-otorgar sin gesto)
+  if (PES5_SAVE.tieneSoporte()){
+    try {
+      const r = await PES5_SAVE.recuperarCarpeta();
+      if (r && r.ok) await cargarSaveDesdeCarpeta();
+    } catch(e) { /* sin carpeta previa o permiso denegado — el admin elige a mano */ }
+  }
+
+  renderTabs();
+  renderStatusBar();
+  switchTab('equipos');
+}
+
+async function cargarEquiposYPresidentes(){
+  EQUIPOS_TSC = await dbGetAll('teams');
+  EQUIPOS_TSC.sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  PRESIDENTES_POR_TEAM = {};
+  try {
+    const users = await firebase.firestore().collection('users').get();
+    users.docs.forEach(d => {
+      const u = d.data();
+      if (u.teamId != null) PRESIDENTES_POR_TEAM[u.teamId] = u;
+    });
+  } catch(e) { console.warn('[pes5-tool] no se pudo cargar la lista de presidentes:', e); }
+}
+
+/* ============================================================
+   BARRA DE ESTADO DEL SAVE
+   ============================================================ */
+function renderStatusBar(){
+  const el = document.getElementById('statusbar');
+  const tieneSoporte = PES5_SAVE.tieneSoporte();
+  const carpeta = PES5_SAVE.carpetaActual;
+
+  if (!tieneSoporte){
+    el.innerHTML = `
+      <div class="pt-statusbar">
+        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no soporta acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no).</div>
+        <div class="pt-status-item pt-fallback-input">${ICN.upload} <input type="file" id="fallback-input" style="font-size:12px;"></div>
+      </div>`;
+    const fi = document.getElementById('fallback-input');
+    if (fi) fi.addEventListener('change', onFallbackInput);
+    return;
+  }
+
+  if (!carpeta){
+    el.innerHTML = `
+      <div class="pt-statusbar">
+        <div class="pt-status-item"><span class="pt-dot off"></span> Sin carpeta elegida — sugerido: <code>Documents\\KONAMI\\Pro Evolution Soccer 5\\save\\folder1</code></div>
+        <div class="pt-status-actions">
+          <button class="btn btn-sm btn-primary" onclick="elegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const meta = SAVE_META;
+  const fecha = meta ? new Date(meta.lastModified).toLocaleString('es-AR') : '—';
+  el.innerHTML = `
+    <div class="pt-statusbar">
+      <div class="pt-status-item">${ICN.folder} <b>${_esc(carpeta)}</b></div>
+      <div class="pt-status-sep"></div>
+      <div class="pt-status-item">${ICN.file} ${meta ? `<b>${_esc(meta.nombre)}</b> · ${meta.tamaño.toLocaleString('es-AR')} b · ${_esc(fecha)}` : 'sin leer todavía'}</div>
+      <div class="pt-status-actions">
+        <button class="btn btn-sm" onclick="reconectarCarpetaClick()">${ICN.link} Reconectar</button>
+        <button class="btn btn-sm" onclick="recargarSaveClick()">${ICN.refresh} Recargar</button>
+      </div>
+    </div>`;
+}
+
+async function elegirCarpetaClick(){
+  try {
+    const r = await PES5_SAVE.elegirCarpeta();
+    if (!r.ok) return; // el admin cancelo el picker
+    await cargarSaveDesdeCarpeta();
+    renderStatusBar();
+    showToast('Carpeta elegida: ' + r.nombre);
+  } catch(e) { showToast('Error: ' + (e.message||e)); }
+}
+async function reconectarCarpetaClick(){
+  try {
+    const r = await PES5_SAVE.recuperarCarpeta();
+    if (!r || !r.ok){ showToast('No se pudo reconectar — elegí la carpeta de nuevo.'); return; }
+    await cargarSaveDesdeCarpeta();
+    renderStatusBar();
+  } catch(e) { showToast('Error: ' + (e.message||e)); }
+}
+async function recargarSaveClick(){
+  await cargarSaveDesdeCarpeta();
+  renderStatusBar();
+  if (TAB === 'plantilla' && PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+  if (TAB === 'equipos') renderEquiposTab();
+  showToast('Save recargado');
+}
+async function onFallbackInput(ev){
+  const file = ev.target.files[0];
+  if (!file) return;
+  const leido = await PES5_SAVE.fallbackDesdeInput(file);
+  SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
+  PLANO = PES5_CRYPT.descifrar(leido.bytes);
+  if (TAB === 'equipos') renderEquiposTab();
+  showToast('Archivo cargado: ' + leido.nombre);
+}
+
+async function cargarSaveDesdeCarpeta(){
+  const leido = await PES5_SAVE.leer();
+  SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
+  PLANO = PES5_CRYPT.descifrar(leido.bytes);
+  iniciarObservador();
+}
+function iniciarObservador(){
+  if (OBSERVAR_STOP) OBSERVAR_STOP();
+  OBSERVAR_STOP = PES5_SAVE.observar(async (meta) => {
+    showToast('El juego volvió a guardar — recargando...');
+    await cargarSaveDesdeCarpeta();
+    renderStatusBar();
+    if (TAB === 'plantilla' && PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+    if (TAB === 'equipos') renderEquiposTab();
+  }, 3000);
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+const TABS = [
+  { id: 'equipos', label: 'Equipos', icon: ICN.users },
+  { id: 'plantilla', label: 'Plantilla', icon: ICN.shirt },
+  { id: 'pedidos', label: 'Pedidos', icon: ICN.inbox },
+  { id: 'publicar', label: 'Publicar', icon: ICN.upload },
+];
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = TABS.map(t =>
+    `<button class="pt-tab${TAB===t.id?' active':''}" onclick="switchTab('${t.id}')">${t.icon}${_esc(t.label)}</button>`
+  ).join('');
+}
+function switchTab(id){
+  TAB = id;
+  renderTabs();
+  if (id === 'equipos') renderEquiposTab();
+  else if (id === 'plantilla') renderPlantillaTab();
+  else if (id === 'pedidos') renderPedidosTab();
+  else if (id === 'publicar') renderPublicarTab();
+}
+
+/* ============================================================
+   PESTAÑA 1 · EQUIPOS
+   ============================================================ */
+function renderEquiposTab(){
+  const cont = document.getElementById('tabcontent');
+  const opciones = ['<option value="">— sin asignar —</option>']
+    .concat(NOMBRES_PES5.map(n => `<option value="${_esc(n)}">${_esc(n)}</option>`)).join('');
+
+  const filas = EQUIPOS_TSC.map(t => {
+    const pres = PRESIDENTES_POR_TEAM[t.id];
+    const cupo = (PLANO && t.pes5Club) ? (() => {
+      const idx = PES5_EDITOR.buscarEquipoPorNombre(PLANO, t.pes5Club);
+      if (idx < 0) return '?/32';
+      const n = PES5_EDITOR.leerPlantillaEquipo(PLANO, idx).length;
+      return n + '/32';
+    })() : '—/32';
+    const cupoLleno = cupo === '32/32';
+    return `
+      <tr data-nombre="${_esc((t.name||'').toLowerCase())}">
+        <td>${t.logo ? `<img class="pt-escudo" src="${_esc(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
+        <td>${_esc(t.name)}</td>
+        <td>${pres ? _esc(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
+        <td><select onchange="vincularEquipo(${t.id}, this.value)">${opciones.replace(
+          `value="${_esc(t.pes5Club||'')}"`, `value="${_esc(t.pes5Club||'')}" selected`
+        )}</select></td>
+        <td class="pt-cupo${cupoLleno?' full':''}">${cupo}</td>
+      </tr>`;
+  }).join('');
+
+  cont.innerHTML = `
+    <div class="pt-toolbar">
+      <input class="pt-search" id="eq-filtro" placeholder="Filtrar equipo...">
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="eq-tabla">
+        <thead><tr><th></th><th>Equipo</th><th>Presidente</th><th>Club PES5</th><th>Cupo</th></tr></thead>
+        <tbody>${filas || `<tr><td colspan="5" style="text-align:center;color:var(--txt3);padding:20px;">No hay equipos cargados.</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  document.getElementById('eq-filtro').addEventListener('input', (e) => filtrarEquiposTabla(e.target.value));
+}
+function filtrarEquiposTabla(texto){
+  const q = texto.trim().toLowerCase();
+  document.querySelectorAll('#eq-tabla tbody tr').forEach(tr => {
+    const n = tr.getAttribute('data-nombre') || '';
+    tr.style.display = n.includes(q) ? '' : 'none';
+  });
+}
+async function vincularEquipo(teamId, club){
+  const team = EQUIPOS_TSC.find(t => t.id === teamId);
+  if (!team) return;
+  const actualizado = { ...team, pes5Club: club || null };
+  await dbPut('teams', actualizado);
+  Object.assign(team, actualizado);
+  showToast(club ? `${team.name} → ${club}` : `${team.name} sin equipo`);
+  renderEquiposTab();
+}
+
+/* ============================================================
+   PESTAÑA 2 · PLANTILLA
+   ============================================================ */
+function renderPlantillaTab(){
+  const cont = document.getElementById('tabcontent');
+  if (!PLANO){
+    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elegí la carpeta del save (o subí el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
+    return;
+  }
+  const vinculados = EQUIPOS_TSC.filter(t => t.pes5Club);
+  const optVinc = vinculados.map(t => `<option value="${_esc(t.pes5Club)}">${_esc(t.name)} (${_esc(t.pes5Club)})</option>`).join('');
+  const optTodos = NOMBRES_PES5.map(n => `<option value="${_esc(n)}">${_esc(n)}</option>`).join('');
+
+  cont.innerHTML = `
+    <div class="pt-team-select-row">
+      <select id="pl-team-select" onchange="onTeamSelectPorNombre(this.value)">
+        <option value="">— elegir club —</option>
+        <optgroup label="Equipos TSC vinculados">${optVinc}</optgroup>
+        <optgroup label="Todos los clubes PES5">${optTodos}</optgroup>
+      </select>
+    </div>
+    <div id="pl-body"></div>`;
+}
+
+async function onTeamSelectPorNombre(nombreClub){
+  if (!nombreClub){ document.getElementById('pl-body').innerHTML = ''; PLANTILLA_INDICE = null; return; }
+  const idx = PES5_EDITOR.buscarEquipoPorNombre(PLANO, nombreClub);
+  if (idx < 0){ showToast('Club no encontrado en el save: ' + nombreClub); return; }
+  await onTeamSelect(idx);
+}
+
+async function onTeamSelect(indiceClub){
+  PLANTILLA_INDICE = indiceClub;
+  PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, indiceClub);
+  JUGADOR_SELECCIONADO = null;
+  renderPlantillaBody();
+}
+
+const COLS_ATTR = ['Ataque','Defensa','Equilibrio','Resistencia','Vel. maxima','Aceleracion','Respuesta','Agilidad',
+  'Prec. conduccion','Vel. conduccion','Prec. pase corto','Vel. pase corto','Prec. pase largo','Vel. pase largo',
+  'Precision','Potencia','Tecnica de disparo','Prec. saq. falta','Efecto','Cabezazo','Salto','Tecnica','Agresividad',
+  'Mentalidad','Cualidades de portero','Trabajo en equipo'];
+
+function renderPlantillaBody(){
+  const el = document.getElementById('pl-body');
+  if (!el) return;
+  const filas = PLANTILLA_ACTUAL.map((j, slot) => {
+    const otros = PES5_EDITOR.equiposDelJugador(PLANO, j.id).filter(i => i !== PLANTILLA_INDICE);
+    const badge = otros.length ? `<span class="badge badge-warn pt-alsoin" title="tambien en otro roster">${ICN.alert} tambien en: ${otros.map(i=>_esc(PES5_EDITOR.nombreEquipo(PLANO,i))).join(', ')}</span>` : '';
+    const cambios = CAMBIOS_PENDIENTES[j.id];
+    const marcaCambio = cambios ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
+    const cols = COLS_ATTR.map(c => `<td class="pt-stat-cell">${j.atributos[c]}</td>`).join('');
+    return `
+      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" onclick="abrirPanelJugador(${j.id})">
+        <td>${slot+1}</td>
+        <td>${_esc(j.nombre)}${badge}${marcaCambio}</td>
+        <td>${_esc(j.posicionRegistrada||'—')}</td>
+        <td class="pt-stat-cell">${j.altura}</td>
+        <td class="pt-stat-cell">${j.edad}</td>
+        <td class="pt-stat-cell">${j.pieDominante==='izq'?'Izq.':'Der.'}</td>
+        ${cols}
+      </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="${JUGADOR_SELECCIONADO!=null?'pt-panel-open':''}">
+      <div class="pt-grid">
+        <div class="tbl-wrap">
+          <table class="tbl pt-plantilla-table">
+            <thead><tr>
+              <th>#</th><th>Nombre</th><th>Pos.</th><th>Alt.</th><th>Edad</th><th>Pie</th>
+              ${COLS_ATTR.map(c=>`<th>${_esc(c)}</th>`).join('')}
+            </tr></thead>
+            <tbody>${filas || `<tr><td colspan="${6+COLS_ATTR.length}" style="text-align:center;color:var(--txt3);padding:20px;">Plantel vacío.</td></tr>`}</tbody>
+          </table>
+        </div>
+        <div id="pl-side"></div>
+      </div>
+    </div>`;
+  renderPanelLateral();
+}
+
+function abrirPanelJugador(id){
+  JUGADOR_SELECCIONADO = id;
+  renderPlantillaBody();
+}
+function cerrarPanelJugador(){
+  JUGADOR_SELECCIONADO = null;
+  renderPlantillaBody();
+}
+
+function _cambiosDe(id){
+  if (!CAMBIOS_PENDIENTES[id]) CAMBIOS_PENDIENTES[id] = { atributos:{}, escala8:{}, habilidades:{} };
+  return CAMBIOS_PENDIENTES[id];
+}
+function _valorActual(j, tipo, campo){
+  const c = CAMBIOS_PENDIENTES[j.id];
+  if (tipo === 'atributos' && c?.atributos?.[campo] !== undefined) return c.atributos[campo];
+  if (tipo === 'escala8' && c?.escala8?.[campo] !== undefined) return c.escala8[campo];
+  if (tipo === 'habilidades' && c?.habilidades?.[campo] !== undefined) return c.habilidades[campo];
+  if (tipo === 'simple' && c?.[campo] !== undefined) return c[campo];
+  return tipo === 'simple' ? j[campo] : j[tipo][campo];
+}
+
+function renderPanelLateral(){
+  const cont = document.getElementById('pl-side');
+  if (!cont) return;
+  if (JUGADOR_SELECCIONADO == null){ cont.innerHTML = ''; return; }
+  const j = PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO);
+  if (!j){ cont.innerHTML = ''; return; }
+
+  const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
+
+  const filaAttr = (c) => {
+    const v = _valorActual(j, 'atributos', c);
+    const cambiado = v !== j.atributos[c];
+    return `<div class="pt-field"><label title="${_esc(c)}">${_esc(c)}</label><input type="number" min="0" max="99"
+      class="${cambiado?'changed':''}" value="${v}" onchange="onCampoAttr(${j.id},'atributos','${_esc(c)}',this.value,0,99)"></div>`;
+  };
+  const filaEscala8 = (c) => {
+    const v = _valorActual(j, 'escala8', c);
+    const cambiado = v !== j.escala8[c];
+    return `<div class="pt-field"><label title="${_esc(c)}">${_esc(c)}</label><input type="number" min="1" max="8"
+      class="${cambiado?'changed':''}" value="${v}" onchange="onCampoAttr(${j.id},'escala8','${_esc(c)}',this.value,1,8)"></div>`;
+  };
+  const filaHabilidad = (c) => {
+    const v = _valorActual(j, 'habilidades', c);
+    return `<label class="pt-toggle"><input type="checkbox" ${v?'checked':''} onchange="onCampoHabilidad(${j.id},'${_esc(c)}',this.checked)"> ${_esc(c)}</label>`;
+  };
+
+  const edadV = _valorActual(j, 'simple', 'edad');
+  const alturaV = _valorActual(j, 'simple', 'altura');
+  const pieV = _valorActual(j, 'simple', 'pieDominante');
+  const lesionesV = _valorActual(j, 'simple', 'lesiones');
+
+  cont.innerHTML = `
+    <div class="pt-side">
+      <div class="pt-side-hd">
+        <h3>${_esc(j.nombre)}</h3>
+        <button class="pt-side-close" onclick="cerrarPanelJugador()">${ICN.x}</button>
+      </div>
+      <div class="pt-side-sub">${_esc(j.nombreCamiseta||'')} · id ${j.id} · editado ${j.contadorEdiciones} veces</div>
+
+      <div class="pt-fieldgrp">
+        <div class="pt-fieldgrp-title">Ajustes básicos</div>
+        <div class="pt-field"><label>Edad</label><input type="number" min="15" max="46" value="${edadV}"
+          class="${edadV!==j.edad?'changed':''}" onchange="onCampoSimple(${j.id},'edad',this.value,15,46)"></div>
+        <div class="pt-field"><label>Altura (cm)</label><input type="number" min="148" max="211" value="${alturaV}"
+          class="${alturaV!==j.altura?'changed':''}" onchange="onCampoSimple(${j.id},'altura',this.value,148,211)"></div>
+        <div class="pt-field"><label>Pie dominante</label><select onchange="onCampoSelect(${j.id},'pieDominante',this.value)">
+          <option value="der" ${pieV==='der'?'selected':''}>Derecho</option>
+          <option value="izq" ${pieV==='izq'?'selected':''}>Izquierdo</option>
+        </select></div>
+        <div class="pt-field"><label>Resistencia lesiones</label><select onchange="onCampoSelect(${j.id},'lesiones',this.value)">
+          <option value="A" ${lesionesV==='A'?'selected':''}>A</option>
+          <option value="B" ${lesionesV==='B'?'selected':''}>B</option>
+          <option value="C" ${lesionesV==='C'?'selected':''}>C</option>
+        </select></div>
+      </div>
+
+      <div class="pt-fieldgrp">
+        <div class="pt-fieldgrp-title">Posiciones (solo lectura — fuera de este slice)</div>
+        <div class="pt-chips">${j.posiciones.map(p=>`<span class="pt-chip active">${_esc(p)}</span>`).join('') || '<span class="pt-chip">ninguna marcada</span>'}</div>
+      </div>
+
+      <div class="pt-fieldgrp">
+        <div class="pt-fieldgrp-title">Atributos 0-99</div>
+        ${COLS_ATTR.map(filaAttr).join('')}
+      </div>
+      <div class="pt-fieldgrp">
+        <div class="pt-fieldgrp-title">Escala 1-8</div>
+        ${Object.keys(j.escala8).map(filaEscala8).join('')}
+      </div>
+      <div class="pt-fieldgrp">
+        <div class="pt-fieldgrp-title">Habilidades</div>
+        ${Object.keys(j.habilidades).map(filaHabilidad).join('')}
+      </div>
+
+      <div class="pt-writebar">
+        <label><input type="checkbox" id="pes5-cerrado"> PES5 está cerrado</label>
+        <span class="pt-changes-count">${totalPendientes} jugador(es) con cambios</span>
+        <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled onclick="confirmarEscribirAlSave()">${ICN.save} Escribir al save</button>
+      </div>
+      <div class="pt-log" id="pl-log" style="display:none;"></div>
+    </div>`;
+
+  actualizarBotonEscritura();
+  document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
+}
+
+function onCampoAttr(id, tipo, campo, valor, min, max){
+  const n = Math.max(min, Math.min(max, parseInt(valor, 10) || 0));
+  _cambiosDe(id)[tipo][campo] = n;
+  renderPlantillaBody();
+}
+function onCampoHabilidad(id, campo, checked){
+  _cambiosDe(id).habilidades[campo] = !!checked;
+  renderPlantillaBody();
+}
+function onCampoSimple(id, campo, valor, min, max){
+  const n = Math.max(min, Math.min(max, parseInt(valor, 10) || 0));
+  _cambiosDe(id)[campo] = n;
+  renderPlantillaBody();
+}
+function onCampoSelect(id, campo, valor){
+  _cambiosDe(id)[campo] = valor;
+  renderPlantillaBody();
+}
+
+function actualizarBotonEscritura(){
+  const btn = document.getElementById('btn-escribir-save');
+  if (!btn) return;
+  const cerrado = document.getElementById('pes5-cerrado')?.checked;
+  const hayPendientes = Object.keys(CAMBIOS_PENDIENTES).length > 0;
+  btn.disabled = !(cerrado && hayPendientes);
+}
+
+async function confirmarEscribirAlSave(){
+  const ids = Object.keys(CAMBIOS_PENDIENTES);
+  if (!ids.length) return;
+  const resumen = ids.map(id => {
+    const j = PLANTILLA_ACTUAL.find(p => p.id == id) || { nombre: 'id ' + id };
+    const c = CAMBIOS_PENDIENTES[id];
+    const campos = [
+      ...Object.keys(c.atributos||{}), ...Object.keys(c.escala8||{}), ...Object.keys(c.habilidades||{}),
+      ...(c.edad!==undefined?['edad']:[]), ...(c.altura!==undefined?['altura']:[]),
+      ...(c.pieDominante!==undefined?['pieDominante']:[]), ...(c.lesiones!==undefined?['lesiones']:[]),
+    ];
+    return `${j.nombre}: ${campos.join(', ')}`;
+  }).join('\n');
+  if (!confirm(`Se va a escribir al save:\n\n${resumen}\n\nSe crea backup automático antes de escribir. ¿Confirmar?`)) return;
+  await escribirAlSave();
+}
+
+async function escribirAlSave(){
+  const logEl = document.getElementById('pl-log');
+  if (logEl){ logEl.style.display = ''; logEl.innerHTML = ''; }
+  const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
+  try {
+    const copia = Uint8Array.from(PLANO);
+    for (const [id, cambios] of Object.entries(CAMBIOS_PENDIENTES)){
+      const escritos = PES5_EDITOR.escribirJugadorCompleto(copia, Number(id), cambios);
+      log(`jugador ${id}: ${escritos.length} campos escritos`, 'ok');
+    }
+    const cifrado = PES5_CRYPT.cifrar(copia);
+    const res = await PES5_SAVE.escribir(cifrado);
+    log(`guardado OK — backup: ${res.backup}`, 'ok');
+    showToast('Save escrito. Backup: ' + res.backup);
+    PLANO = copia;
+    CAMBIOS_PENDIENTES = {};
+    if (PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+    renderStatusBar();
+  } catch(e) {
+    log('ERROR: ' + (e.message||e), 'err');
+    showToast('Error al escribir: ' + (e.message||e));
+  }
+}
+
+/* ============================================================
+   PESTAÑA 3 · PEDIDOS (esqueleto — slice D)
+   ============================================================ */
+function renderPedidosTab(){
+  document.getElementById('tabcontent').innerHTML =
+    `<div class="pt-empty">${ICN.inbox}<div>Pedidos de mejora de los presidentes — se conecta en el slice D.</div></div>`;
+}
+
+/* ============================================================
+   PESTAÑA 4 · PUBLICAR (esqueleto — slice D)
+   ============================================================ */
+function renderPublicarTab(){
+  document.getElementById('tabcontent').innerHTML = `
+    <div class="pt-empty">
+      ${ICN.upload}
+      <div style="margin-bottom:12px;">Publicar plantillas a Firestore para que los presidentes las vean en su editor — se conecta en el slice D.</div>
+      <button class="btn btn-primary" disabled>${ICN.upload} Publicar plantel de todos los equipos vinculados</button>
+    </div>`;
+}
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+if (typeof initDB === 'function') initDB().then(()=>{ if (typeof onAuthInit === 'function') onAuthInit(); });
+</script>
+</body>
+</html>

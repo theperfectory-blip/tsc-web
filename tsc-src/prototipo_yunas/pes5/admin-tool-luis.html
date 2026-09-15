@@ -85,8 +85,8 @@ async function onArchivo(ev){
   const file = ev.target.files[0];
   if (!file) return;
   const buf = new Uint8Array(await file.arrayBuffer());
-  await PES5_CRYPT.cargarClaves('../../js/');
-  await PES5_EDITOR.cargarMapa('../../js/');
+  await PES5_CRYPT.cargarClaves('../../js/pes5/');
+  await PES5_EDITOR.cargarMapa('../../js/pes5/');
   BYTES_PLANO = PES5_CRYPT.descifrar(buf);
   document.getElementById('btn-publicar').disabled = false;
   log(`Archivo cargado y descifrado: ${file.name} (${buf.length} b)`, 'ok');
