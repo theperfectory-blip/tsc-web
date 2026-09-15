@@ -187,6 +187,7 @@ Al mergear `main`, `android/app/build.gradle` trae el `versionCode` nuevo. La
 
 | Tema | Archivo |
 |---|---|
+| **Plan vigente: Tool PES5 unificada (slices A-E)** | `tsc-src/prototipo_yunas/MACRO_SLICE_PES5_TOOL.md` |
 | Plan del editor PES4 (slices A-E, sin implementar) | `tsc-src/prototipo_yunas/MACRO_SLICE_EDITOR_PES4.md` |
 | Cifrado y mapa del option file PES5 (resuelto) | `tsc-src/prototipo_yunas/pes5/README.md`, `pes5-map.json`, `pes5-keys.json` |
 | Editor de jugadores (prototipo funcional) | `tsc-src/prototipo_yunas/prototype-editor-jugador.html` |
