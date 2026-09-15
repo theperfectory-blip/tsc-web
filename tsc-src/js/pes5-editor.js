@@ -265,12 +265,16 @@ const PES5_EDITOR = (() => {
   // marcadas, ordenadas por bit) que se presta a corromper el dato si se
   // cambia a mitad de una escritura parcial; se deja fuera de esta funcion
   // hasta tener una spec propia (posible parte del slice C/D).
+  // Slice C1.4: saltea (no escribe) los campos cuyo valor nuevo es igual al
+  // valor actual en el save, y no incrementa el contador de ediciones si al
+  // final no escribio ningun campo real (ver macro-slice, C1.4).
   function escribirJugadorCompleto(bytes, id, cambios) {
     const escritos = [];
     if (cambios && cambios.atributos) {
       for (const [nombre, valor] of Object.entries(cambios.atributos)) {
         if (!MAPA.atributos_0_99[nombre]) throw new Error('atributo no encontrado en el mapa: ' + nombre);
         if (!Number.isInteger(valor) || valor < 0 || valor > 99) throw new Error(`${nombre}: valor fuera de rango (0-99): ${valor}`);
+        if (leerCampoJugador(bytes, id, nombre) === valor) continue;
         escribirCampoJugador(bytes, id, nombre, valor);
         escritos.push('atributos.' + nombre);
       }
@@ -279,6 +283,7 @@ const PES5_EDITOR = (() => {
       for (const [nombre, valor] of Object.entries(cambios.escala8)) {
         if (!MAPA.atributos_1_8[nombre]) throw new Error('campo de escala 1-8 no encontrado en el mapa: ' + nombre);
         if (!Number.isInteger(valor) || valor < 1 || valor > 8) throw new Error(`${nombre}: valor fuera de rango (1-8): ${valor}`);
+        if (leerCampoJugador(bytes, id, nombre) === valor) continue;
         escribirCampoJugador(bytes, id, nombre, valor);
         escritos.push('escala8.' + nombre);
       }
@@ -286,30 +291,42 @@ const PES5_EDITOR = (() => {
     if (cambios && cambios.habilidades) {
       for (const [nombre, valor] of Object.entries(cambios.habilidades)) {
         if (!MAPA.habilidades[nombre]) throw new Error('habilidad no encontrada en el mapa: ' + nombre);
-        escribirCampoJugador(bytes, id, nombre, valor ? 1 : 0);
+        const nuevo = valor ? 1 : 0;
+        if (leerCampoJugador(bytes, id, nombre) === nuevo) continue;
+        escribirCampoJugador(bytes, id, nombre, nuevo);
         escritos.push('habilidades.' + nombre);
       }
     }
     if (cambios && cambios.edad !== undefined) {
       if (!Number.isInteger(cambios.edad) || cambios.edad < 15 || cambios.edad > 46) throw new Error('edad fuera de rango (15-46): ' + cambios.edad);
-      escribirCampoJugador(bytes, id, 'Edad', cambios.edad);
-      escritos.push('edad');
+      if (leerCampoJugador(bytes, id, 'Edad') !== cambios.edad) {
+        escribirCampoJugador(bytes, id, 'Edad', cambios.edad);
+        escritos.push('edad');
+      }
     }
     if (cambios && cambios.altura !== undefined) {
       if (!Number.isInteger(cambios.altura) || cambios.altura < 148 || cambios.altura > 211) throw new Error('altura fuera de rango (148-211): ' + cambios.altura);
-      escribirCampoJugador(bytes, id, 'Altura', cambios.altura);
-      escritos.push('altura');
+      if (leerCampoJugador(bytes, id, 'Altura') !== cambios.altura) {
+        escribirCampoJugador(bytes, id, 'Altura', cambios.altura);
+        escritos.push('altura');
+      }
     }
     if (cambios && cambios.pieDominante !== undefined) {
       if (cambios.pieDominante !== 'der' && cambios.pieDominante !== 'izq') throw new Error('pieDominante debe ser "der" o "izq": ' + cambios.pieDominante);
-      escribirCampoJugador(bytes, id, 'Pie dominante', cambios.pieDominante === 'izq' ? 1 : 0);
-      escritos.push('pieDominante');
+      const actual = leerCampoJugador(bytes, id, 'Pie dominante') === 1 ? 'izq' : 'der';
+      if (actual !== cambios.pieDominante) {
+        escribirCampoJugador(bytes, id, 'Pie dominante', cambios.pieDominante === 'izq' ? 1 : 0);
+        escritos.push('pieDominante');
+      }
     }
     if (cambios && cambios.lesiones !== undefined) {
       const idx = LESIONES_POR_RAW.indexOf(cambios.lesiones);
       if (idx < 0) throw new Error('lesiones debe ser "A", "B" o "C": ' + cambios.lesiones);
-      escribirCampoJugador(bytes, id, 'Resistencia lesiones', idx);
-      escritos.push('lesiones');
+      const actual = LESIONES_POR_RAW[leerCampoJugador(bytes, id, 'Resistencia lesiones')] || 'C';
+      if (actual !== cambios.lesiones) {
+        escribirCampoJugador(bytes, id, 'Resistencia lesiones', idx);
+        escritos.push('lesiones');
+      }
     }
     if (escritos.length) _incrementarContador(bytes, id);
     return escritos;

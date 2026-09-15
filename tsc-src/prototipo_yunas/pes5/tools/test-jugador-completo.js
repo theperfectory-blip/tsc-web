@@ -112,6 +112,10 @@ async function main() {
     const escritos = PES5_EDITOR.escribirJugadorCompleto(copia, idPrueba, cambios);
     console.log(`escribirJugadorCompleto (round-trip, mismos valores) escribio ${escritos.length} campos: ${escritos.join(', ')}`);
 
+    // ---------- C1.4: con los mismos valores, no debe escribir NINGUN campo
+    // (escritos === []) ni tocar el contador de ediciones (+0x32) ----------
+    assert(Array.isArray(escritos) && escritos.length === 0, `escribirJugadorCompleto con los mismos valores devuelve [] (obtenido: ${JSON.stringify(escritos)})`);
+
     const BASE = 36872, STRIDE = 124;
     const off = BASE + idPrueba * STRIDE;
     let difs = [];
@@ -119,13 +123,12 @@ async function main() {
       const a = antes[off + i], b = copia[off + i];
       if (a !== b) difs.push(off + i);
     }
-    const soloContador = difs.every(o => o === off + 0x32 || o === off + 0x33);
     console.log(`bytes distintos en el registro tras round-trip: ${difs.length} (offsets relativos: ${difs.map(o => '0x' + (o - off).toString(16)).join(', ')})`);
-    assert(soloContador, 'los unicos bytes distintos tras el round-trip son el contador de ediciones (+0x32/+0x33)');
+    assert(difs.length === 0, 'C1.4: ningun byte del registro cambia (ni siquiera el contador +0x32) cuando no hay cambios reales');
 
     const contadorAntes = PES5_EDITOR.leerJugadorCompleto(plano, idPrueba).contadorEdiciones;
     const contadorDespues = PES5_EDITOR.leerJugadorCompleto(copia, idPrueba).contadorEdiciones;
-    assert(((contadorAntes + 1) & 0xFFFF) === contadorDespues, `contadorEdiciones incremento en 1 (${contadorAntes} -> ${contadorDespues})`);
+    assert(contadorAntes === contadorDespues, `C1.4: contadorEdiciones NO cambia cuando no se escribio nada real (${contadorAntes} -> ${contadorDespues})`);
 
     // releer con leerJugadorCompleto y comparar todos los campos (menos contador)
     const leidoDespues = PES5_EDITOR.leerJugadorCompleto(copia, idPrueba);

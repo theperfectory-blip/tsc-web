@@ -164,7 +164,10 @@ function showToast(msg){ console.log('[toast]', msg); }
    ============================================================ */
 let EQUIPOS_TSC = [];
 let PRESIDENTES_POR_TEAM = {}; // teamId -> {displayName,email}
-let NOMBRES_PES5 = [];
+let CLUBES_PES5 = [];      // Slice C1.2: nombres de los 138 clubes leidos SIEMPRE del save
+                            // cargado (nunca de pes5-teams.json); vacio sin save. indice = indice de club.
+let VINCULOS_ROTOS = new Set(); // Slice C1.3: teamIds cuyo pes5Club no resolvio a ningun
+                            // club del save cargado ("vinculo roto: revincula")
 let PLANO = null;          // bytes descifrados del save actualmente cargado (en memoria)
 let SAVE_META = null;      // {nombre,tamaño,lastModified}
 let OBSERVAR_STOP = null;
@@ -213,7 +216,8 @@ function render(){
 async function initApp(){
   await PES5_CRYPT.cargarClaves('../js/pes5/');
   await PES5_EDITOR.cargarMapa('../js/pes5/');
-  NOMBRES_PES5 = await PES5_EDITOR.cargarNombresEquipos('../js/pes5/');
+  // Slice C1.2: pes5-teams.json / cargarNombresEquipos ya NO se usan para poblar
+  // selectores en esta tool — los 138 clubes salen siempre del save cargado.
   await cargarEquiposYPresidentes();
 
   // intento silencioso de recuperar la carpeta ya elegida antes (no molesta
@@ -317,6 +321,8 @@ async function onFallbackInput(ev){
   const leido = await PES5_SAVE.fallbackDesdeInput(file);
   SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
   PLANO = PES5_CRYPT.descifrar(leido.bytes);
+  recalcularClubesDelSave();
+  await migrarPes5ClubIdx();
   if (TAB === 'equipos') renderEquiposTab();
   showToast('Archivo cargado: ' + leido.nombre);
 }
@@ -325,7 +331,44 @@ async function cargarSaveDesdeCarpeta(){
   const leido = await PES5_SAVE.leer();
   SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
   PLANO = PES5_CRYPT.descifrar(leido.bytes);
+  recalcularClubesDelSave();
+  await migrarPes5ClubIdx();
   iniciarObservador();
+}
+
+/* ============================================================
+   Slice C1.2 — los 138 clubes SIEMPRE salen del save cargado
+   ============================================================ */
+function recalcularClubesDelSave(){
+  CLUBES_PES5 = PLANO ? Array.from({ length: 138 }, (_, i) => PES5_EDITOR.nombreEquipo(PLANO, i)) : [];
+}
+
+/* ============================================================
+   Slice C1.3 — migracion automatica pes5Club (nombre) -> pes5ClubIdx (indice)
+   Escribe SOLO los equipos que ya tienen pes5Club pero todavia no tienen
+   pes5ClubIdx (hoy: FK Tupadre). Idempotente: una vez migrado un equipo,
+   pes5ClubIdx ya no es null y se salta en las corridas siguientes.
+   ============================================================ */
+async function migrarPes5ClubIdx(){
+  if (!PLANO) return { migrados: 0, rotos: 0 };
+  let migrados = 0, rotos = 0;
+  for (const t of EQUIPOS_TSC){
+    if (!t.pes5Club || t.pes5ClubIdx != null) continue;
+    const idx = PES5_EDITOR.buscarEquipoPorNombre(PLANO, t.pes5Club);
+    if (idx < 0){
+      VINCULOS_ROTOS.add(t.id);
+      rotos++;
+      console.warn(`[pes5-tool] vinculo roto: "${t.name}" -> "${t.pes5Club}" no se encontro en el save cargado — revincular a mano.`);
+      continue;
+    }
+    const actualizado = { ...t, pes5ClubIdx: idx };
+    await dbPut('teams', actualizado);
+    Object.assign(t, actualizado);
+    VINCULOS_ROTOS.delete(t.id);
+    migrados++;
+  }
+  if (migrados || rotos) console.log(`[pes5-tool] migracion pes5ClubIdx: ${migrados} migrado(s), ${rotos} roto(s)`);
+  return { migrados, rotos };
 }
 function iniciarObservador(){
   if (OBSERVAR_STOP) OBSERVAR_STOP();
@@ -366,26 +409,37 @@ function switchTab(id){
    ============================================================ */
 function renderEquiposTab(){
   const cont = document.getElementById('tabcontent');
-  const opciones = ['<option value="">— sin asignar —</option>']
-    .concat(NOMBRES_PES5.map(n => `<option value="${_esc(n)}">${_esc(n)}</option>`)).join('');
+  // Slice C1.2: los clubes solo existen si hay save cargado (nunca lista fija).
+  const hayClubes = !!(PLANO && CLUBES_PES5.length);
+  const opciones = hayClubes
+    ? ['<option value="">— sin asignar —</option>']
+        .concat(CLUBES_PES5.map((n, i) => `<option value="${i}">${_esc(n)}</option>`)).join('')
+    : '';
 
-  const filas = EQUIPOS_TSC.map(t => {
+  // Slice C1.1: solo equipos activos (status !== 'INACTIVO'; si falta el campo, cuenta como activo).
+  const equiposActivos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO');
+
+  const filas = equiposActivos.map(t => {
     const pres = PRESIDENTES_POR_TEAM[t.id];
-    const cupo = (PLANO && t.pes5Club) ? (() => {
-      const idx = PES5_EDITOR.buscarEquipoPorNombre(PLANO, t.pes5Club);
-      if (idx < 0) return '?/32';
-      const n = PES5_EDITOR.leerPlantillaEquipo(PLANO, idx).length;
-      return n + '/32';
-    })() : '—/32';
+    const cupo = (PLANO && t.pes5ClubIdx != null)
+      ? PES5_EDITOR.leerPlantillaEquipo(PLANO, t.pes5ClubIdx).length + '/32'
+      : '—/32';
     const cupoLleno = cupo === '32/32';
+    const roto = VINCULOS_ROTOS.has(t.id);
+    const valorSel = t.pes5ClubIdx != null ? String(t.pes5ClubIdx) : '';
+    const selectorHtml = hayClubes
+      ? `<select onchange="vincularEquipo(${t.id}, this.value)">${opciones.replace(
+          `value="${valorSel}"`, `value="${valorSel}" selected`
+        )}</select>`
+      : `<select disabled><option>Cargá el save para ver los clubes</option></select>${
+          t.pes5Club ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px;">vinculado: ${_esc(t.pes5Club)}</div>` : ''
+        }`;
     return `
       <tr data-nombre="${_esc((t.name||'').toLowerCase())}">
         <td>${t.logo ? `<img class="pt-escudo" src="${_esc(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
         <td>${_esc(t.name)}</td>
         <td>${pres ? _esc(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
-        <td><select onchange="vincularEquipo(${t.id}, this.value)">${opciones.replace(
-          `value="${_esc(t.pes5Club||'')}"`, `value="${_esc(t.pes5Club||'')}" selected`
-        )}</select></td>
+        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revinculá</span>` : ''}</td>
         <td class="pt-cupo${cupoLleno?' full':''}">${cupo}</td>
       </tr>`;
   }).join('');
@@ -393,11 +447,12 @@ function renderEquiposTab(){
   cont.innerHTML = `
     <div class="pt-toolbar">
       <input class="pt-search" id="eq-filtro" placeholder="Filtrar equipo...">
+      ${!hayClubes ? `<div class="pt-status-item" style="color:var(--txt3);">${ICN.alert} Cargá el save para ver los clubes</div>` : ''}
     </div>
     <div class="tbl-wrap">
       <table class="tbl" id="eq-tabla">
         <thead><tr><th></th><th>Equipo</th><th>Presidente</th><th>Club PES5</th><th>Cupo</th></tr></thead>
-        <tbody>${filas || `<tr><td colspan="5" style="text-align:center;color:var(--txt3);padding:20px;">No hay equipos cargados.</td></tr>`}</tbody>
+        <tbody>${filas || `<tr><td colspan="5" style="text-align:center;color:var(--txt3);padding:20px;">No hay equipos activos.</td></tr>`}</tbody>
       </table>
     </div>`;
   document.getElementById('eq-filtro').addEventListener('input', (e) => filtrarEquiposTabla(e.target.value));
@@ -409,13 +464,18 @@ function filtrarEquiposTabla(texto){
     tr.style.display = n.includes(q) ? '' : 'none';
   });
 }
-async function vincularEquipo(teamId, club){
+async function vincularEquipo(teamId, idxStr){
   const team = EQUIPOS_TSC.find(t => t.id === teamId);
-  if (!team) return;
-  const actualizado = { ...team, pes5Club: club || null };
+  if (!team || !PLANO) return;
+  const idx = idxStr === '' ? null : parseInt(idxStr, 10);
+  const nombreClub = idx != null ? PES5_EDITOR.nombreEquipo(PLANO, idx) : null;
+  // Slice C1.3: pes5ClubIdx es la fuente del vinculo; pes5Club sigue
+  // escribiendose como etiqueta informativa con el nombre vigente.
+  const actualizado = { ...team, pes5ClubIdx: idx, pes5Club: nombreClub };
   await dbPut('teams', actualizado);
   Object.assign(team, actualizado);
-  showToast(club ? `${team.name} → ${club}` : `${team.name} sin equipo`);
+  VINCULOS_ROTOS.delete(teamId);
+  showToast(nombreClub ? `${team.name} → ${nombreClub}` : `${team.name} sin equipo`);
   renderEquiposTab();
 }
 
@@ -424,17 +484,20 @@ async function vincularEquipo(teamId, club){
    ============================================================ */
 function renderPlantillaTab(){
   const cont = document.getElementById('tabcontent');
-  if (!PLANO){
+  // Slice C1.2: sin save cargado, la pestaña Plantilla no lista nada.
+  if (!PLANO || !CLUBES_PES5.length){
     cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elegí la carpeta del save (o subí el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
     return;
   }
-  const vinculados = EQUIPOS_TSC.filter(t => t.pes5Club);
-  const optVinc = vinculados.map(t => `<option value="${_esc(t.pes5Club)}">${_esc(t.name)} (${_esc(t.pes5Club)})</option>`).join('');
-  const optTodos = NOMBRES_PES5.map(n => `<option value="${_esc(n)}">${_esc(n)}</option>`).join('');
+  // Slice C1.1 + C1.3: "Equipos TSC vinculados" = solo equipos activos con
+  // pes5ClubIdx resuelto (la fuente del vinculo es el indice, no el nombre).
+  const vinculados = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
+  const optVinc = vinculados.map(t => `<option value="${t.pes5ClubIdx}">${_esc(t.name)} (${_esc(CLUBES_PES5[t.pes5ClubIdx] ?? t.pes5Club ?? '')})</option>`).join('');
+  const optTodos = CLUBES_PES5.map((n, i) => `<option value="${i}">${_esc(n)}</option>`).join('');
 
   cont.innerHTML = `
     <div class="pt-team-select-row">
-      <select id="pl-team-select" onchange="onTeamSelectPorNombre(this.value)">
+      <select id="pl-team-select" onchange="onTeamSelectPorIndice(this.value)">
         <option value="">— elegir club —</option>
         <optgroup label="Equipos TSC vinculados">${optVinc}</optgroup>
         <optgroup label="Todos los clubes PES5">${optTodos}</optgroup>
@@ -443,11 +506,9 @@ function renderPlantillaTab(){
     <div id="pl-body"></div>`;
 }
 
-async function onTeamSelectPorNombre(nombreClub){
-  if (!nombreClub){ document.getElementById('pl-body').innerHTML = ''; PLANTILLA_INDICE = null; return; }
-  const idx = PES5_EDITOR.buscarEquipoPorNombre(PLANO, nombreClub);
-  if (idx < 0){ showToast('Club no encontrado en el save: ' + nombreClub); return; }
-  await onTeamSelect(idx);
+function onTeamSelectPorIndice(idxStr){
+  if (idxStr === ''){ document.getElementById('pl-body').innerHTML = ''; PLANTILLA_INDICE = null; return; }
+  onTeamSelect(parseInt(idxStr, 10));
 }
 
 async function onTeamSelect(indiceClub){
