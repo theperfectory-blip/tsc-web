@@ -359,7 +359,12 @@ se actualiza por `id` (`data-jugador`/`data-campo`) sin tocar el resto;
 (c) el contador de cambios pendientes y `actualizarBotonEscribir()` se
 llaman aparte. Enter en un input no debe hacer nada más que `blur`
 (no hay `<form>`; verificar que no lo haya). El panel lateral se
-reconstruye **solo** al cambiar de jugador o de equipo.
+reconstruye **solo** al cambiar de jugador o de equipo. Además, (d) un campo
+entra en `CAMBIOS_PENDIENTES` **solo si su valor difiere del original** del
+save, y sale de ahí si vuelve al original; el diálogo del usuario (captura
+15/09) listó 11 campos para un jugador al que editó uno o dos, señal de que
+hoy se registran cambios en campos no tocados (probable disparo de
+`onchange` en la reconstrucción del panel). Verificar y pegar la causa.
 
 **C2.3 · La escritura falla en silencio: hacerla visible y robusta.**
 1. Justo antes de escribir, dentro del mismo gesto del click, pedir el
