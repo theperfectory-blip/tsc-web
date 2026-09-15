@@ -109,7 +109,7 @@ avisarlo al editar.
 
 ```
 A (fuente del save + datos estáticos)  ──┐
-B (lectura/escritura completa de jugador) ┴─> C (UI unificada) ─> D (sync bidireccional) ─> E (limpieza)
+B (lectura/escritura completa de jugador) ┴─> C (UI unificada) ─> C.1 (ajustes pre-juego) ─> [prueba B.3 en el juego] ─> D (sync bidireccional) ─> E (limpieza)
 ```
 
 A y B son independientes entre sí y pueden hacerse en cualquier orden, pero
@@ -263,15 +263,19 @@ lateral solo al abrirlo. Iconos: SVG inline, nada de emojis.
 
 ---
 
-### Slice D — sync bidireccional
+### Slice C.1 — antes de probar en el juego: equipos activos, clubes desde el save, vínculo por índice
 
-**Archivos:** `pes5-tool.html` (pestañas 3 y 4), `prototype-editor-jugador.html`
-(solo `cargarPlantillaReal` y la altura), `pes5-editor.js` si hace falta un
-helper de serialización.
+Decisión del usuario (2026-09-15): estos cuatro ajustes se hacen **antes** de
+la prueba B.3, para que esa prueba cubra las dos direcciones de una vez:
+renombrar un club dentro del juego y verlo en la tool, y editar en la tool,
+instalar la copia y verlo en el juego. Sigue sin tocarse el save real:
+copia en `test-save-copy/`.
 
-**Spec.**
+**Archivos:** `pes5-tool.html`, `pes5-editor.js` (C1.4), y `pes5-tool.html`
+para la migración de `pes5ClubIdx` (C1.3, escribe `teams` en Firestore real:
+hoy un solo documento, FK Tupadre).
 
-*D.0 · Solo equipos activos (decisión del usuario, 2026-09-15).* En la tool,
+**C1.1 · Solo equipos activos (decisión del usuario, 2026-09-15).** En la tool,
 la pestaña Equipos, el selector de la pestaña Plantilla ("Equipos TSC
 vinculados") y el bucle de Publicar consideran únicamente equipos con
 `status !== 'INACTIVO'` (si el campo falta, cuenta como activo, igual que en
@@ -281,8 +285,8 @@ listarse. **Alcance: exclusivamente esta tool.** El admin de usuarios de la
 web (`js/users-admin.js`, asignar equipo a presidente) está en producción y
 **no se toca** en este macro.
 
-*D.1 · Los clubes salen del save, nunca de una lista fija (decisión del
-usuario, 2026-09-15).* Sin save cargado, la pestaña Equipos no ofrece ningún
+**C1.2 · Los clubes salen del save, nunca de una lista fija (decisión del
+usuario, 2026-09-15).** Sin save cargado, la pestaña Equipos no ofrece ningún
 club (selector deshabilitado con el aviso "Cargá el save para ver los clubes")
 y la pestaña Plantilla no lista nada. Con save cargado, los 138 clubes se leen
 con `PES5_EDITOR.nombreEquipo(bytes, i)` **cada vez** que se carga o recarga
@@ -291,7 +295,7 @@ nombre nuevo al siguiente guardado. `pes5-teams.json` deja de usarse para
 poblar selectores (queda solo como referencia histórica; `cargarNombresEquipos`
 no se llama desde la tool).
 
-*D.1 bis · El vínculo se guarda por índice, no por nombre.* Hoy `teams.pes5Club`
+**C1.3 · El vínculo se guarda por índice, no por nombre.** Hoy `teams.pes5Club`
 guarda el nombre ("Middlesbrough") y se rompe si el club se renombra. Nuevo
 campo `teams.pes5ClubIdx` (entero 0-137) como fuente del vínculo; `pes5Club`
 se sigue escribiendo solo como etiqueta informativa con el nombre vigente al
@@ -302,9 +306,38 @@ vincular. Al cargar la tool, si un equipo tiene `pes5Club` pero no
 `pes5_plantillas` usan `pes5ClubIdx`. Hoy hay un solo vínculo (FK Tupadre),
 así que la migración es trivial.
 
-*D.0 bis · Contador de ediciones.* `escribirJugadorCompleto` debe saltar los
+**C1.4 · Contador de ediciones.** `escribirJugadorCompleto` debe saltar los
 campos cuyo valor nuevo es igual al actual y no incrementar `+0x32` si no
 escribió nada real.
+
+
+**Pruebas (eval en `localhost:3001/prototipo_yunas/pes5-tool`, logueado como admin):**
+1. Sin save: selector de clubes deshabilitado con el aviso; Plantilla vacía.
+2. Con save (copia): 138 clubes leídos del archivo. Renombrar un club en la
+   copia desde Node (escribir el nombre en la tabla de clubes, base 803608,
+   stride 140) y "Recargar": la tool muestra el nombre nuevo.
+3. Un equipo con `status:'INACTIVO'` (usar uno real que ya lo esté, o no
+   crear ninguno) no aparece en Equipos ni en Plantilla.
+4. FK Tupadre queda con `pes5ClubIdx` numérico y `pes5Club` como etiqueta;
+   leer el doc desde Firestore y pegarlo.
+5. `escribirJugadorCompleto` con valores iguales devuelve `[]` y no cambia
+   `+0x32` (agregar el caso a `test-jugador-completo.js`).
+
+**Después de C.1 → prueba B.3 ampliada (la hace el usuario):** editar la
+altura de un jugador en la tool sobre la copia, instalar la copia como save,
+abrir PES5, confirmar el valor; dentro del juego renombrar un club, guardar,
+"Recargar" en la tool y confirmar el nombre nuevo y que el vínculo de FK
+Tupadre sigue resolviendo al mismo club.
+
+---
+
+### Slice D — sync bidireccional
+
+**Archivos:** `pes5-tool.html` (pestañas 3 y 4), `prototype-editor-jugador.html`
+(solo `cargarPlantillaReal` y la altura), `pes5-editor.js` si hace falta un
+helper de serialización.
+
+**Spec.**
 
 *Juego → web (pestaña Publicar).* Para cada equipo TSC con `pes5Club`,
 escribir `pes5_plantillas/{teamId}` con
@@ -396,4 +429,4 @@ de Sonnet:
 4. Regla que no cambia: en A-C, la carpeta que se elige en `PES5_SAVE` es una
    **carpeta de prueba con una copia** del save. La del juego recién en D.
 
-D y E vuelven al protocolo normal: un slice por aprobación.
+**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). Sigue **C.1** (un slice, una aprobación), después la prueba B.3 ampliada en el juego, y recién ahí D y E, un slice por aprobación.
