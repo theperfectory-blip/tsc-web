@@ -374,7 +374,22 @@ reconstruye **solo** al cambiar de jugador o de equipo.
 3. Tras un éxito, el panel muestra ruta relativa del backup y tamaño
    escrito, y se mantiene visible (no solo toast).
 4. `renderPlantillaBody` **no** debe vaciar `#pl-log` ni el panel de error.
-5. Reproducir el fallo antes de arreglarlo: en Chrome, con la carpeta
+5. **Dato del usuario (15/09, segunda vuelta):** al aceptar no apareció
+   NINGÚN toast, ni de éxito ni de error, y `showToast` sí existe en la
+   página. Eso descarta una excepción (habría entrado al `catch`) y apunta
+   a un `await` que nunca resuelve dentro de `escribirAlSave`. Sospechoso
+   principal: `createWritable()` en `PES5_SAVE.escribir` disparando la
+   burbuja de permiso de Chrome ("¿Permitir que el sitio edite archivos?")
+   **después** del `confirm()`, cuando la activación del click ya venció:
+   la burbuja queda esperando sin que la página muestre nada. Arreglo: pedir
+   el permiso (punto 1) **antes** del `confirm()`, en el mismo click; y
+   además instrumentar `escribirAlSave` con una línea en `#pl-log` por cada
+   paso (`aplicando cambios`, `cifrando`, `pidiendo permiso`, `backup`,
+   `escribiendo`, `verificando`) para que un cuelgue diga en qué paso está.
+6. Punto menor: la barra de scroll horizontal de la tabla de Plantilla es
+   visible (captura del usuario). Regla del proyecto: ocultarla y usar fade
+   en los bordes, el contenedor sigue siendo scrolleable.
+7. Reproducir el fallo antes de arreglarlo: en Chrome, con la carpeta
    `test-save-copy/`, capturar la excepción real (`e.name`) y anotarla en el
    reporte. Sospechosos por orden: permiso `readwrite` no concedido
    (`NotAllowedError` en `createWritable`), `cifrar()` lanzando por bytes
