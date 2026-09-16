@@ -110,7 +110,7 @@ avisarlo al editar.
 ```
 A (fuente del save + datos estáticos)  ──┐
 B (lectura/escritura completa de jugador) ┴─> C (UI unificada) ─> C.1 ─> C.2 ─> [prueba en el juego: OK 15/09]
-  ─> D.R (reglas YunaCoins compartidas + cobro desde la tool) ─> D (sync: pedidos y publicar) ─> F (sección pública) ─> E (limpieza)
+  ─> D.R (reglas YunaCoins + cobro) ─> D (sync: pedidos y publicar) ─> F (sección pública) ─> E (limpieza) ─> G (nivelación configurable, pendiente de Luis)
 ```
 
 A y B son independientes entre sí y pueden hacerse en cualquier orden, pero
@@ -497,17 +497,124 @@ rastro que un pedido del presidente; si no, admin y público divergen.
      uso de Luis para preparar el juego antes de asignar presidentes.
    - El panel indica siempre en qué modo está: badge "Se cobra a <equipo>
      · saldo N" o "Sin presidente · edición libre".
-3 bis. **Nivelar plantillas (arranque de temporada).** Acción en la pestaña
-   Plantilla, disponible **solo** para equipos sin presidente: "Nivelar a N"
-   (N por defecto 80, rango 1-99) pone los 27 atributos 0-99 de todos los
-   jugadores del roster en N (no toca escala 1-8, habilidades, altura, edad,
-   pie, lesiones ni posiciones). Variante "Nivelar todos los equipos sin
-   presidente a N" desde la pestaña Equipos, con confirmación que liste los
-   equipos afectados y el total de jugadores. Genera un único
-   `PES5_SAVE.escribir` con backup. Si un equipo tiene presidente, la acción
-   no aparece para él y la masiva lo salta y lo dice en el resumen.
+3 bis. **Nivelar plantillas:** se saca de D.R y se diseña completo como
+   slice **G** (perfil de nivelación configurable), al final del plan, pendiente de que Luis confirme la regla. D.R solo
+   deja el gancho: la acción existe únicamente para equipos sin presidente.
 4. Las escrituras a `coins`/`teams` exigen `isAdmin()` en las reglas: probar
    logueado como admin y **borrar** las transacciones de prueba.
+
+---
+
+### Slice G — nivelación configurable (perfil de reglas de temporada) · PENDIENTE DE LUIS
+
+**Estado:** diseñado, **no se implementa hasta que Luis confirme cómo quiere la regla** (decisión del usuario, 15/09). Va al final, después de E.
+
+**Pedido del usuario (15/09).** Al arrancar una temporada, Luis empareja
+todos los equipos. La regla no es fija ("todo a 80"): la última idea es
+*"lo que está por encima de 80 baja a 80; lo que está por debajo queda en
+79"*, para que el presidente vea cuáles eran los jugadores destacados, y
+las habilidades especiales se pierden todas. Va a cambiar. Por eso la tool
+no implementa una regla: implementa un **editor de perfiles de nivelación**
+y un botón para aplicarlos, con previsualización obligatoria.
+
+**Archivos:** `pes5-tool.html` (pestaña nueva "Nivelación"), nuevo
+`tsc-src/js/pes5-nivelacion.js` (lógica pura, sin DOM, testeable en Node),
+test `pes5/tools/test-nivelacion.js`, reglas Firestore (colección nueva
+`pes5_reglas`, lectura pública, escritura admin) → desplegar a mano.
+
+**Modelo del perfil (JSON, guardado en `pes5_reglas/{id}`):**
+
+```
+{
+  id, nombre, actualizadoEn, actualizadoPor,
+  atributos: {                       // los 27 de escala 0-99
+    modo: 'bandas',                  // 'mantener' | 'fijo' | 'bandas'
+    fijo: 80,
+    bandas: [                        // cubren 0-99 sin huecos ni solapes
+      { desde: 81, hasta: 99, resultado: 80 },
+      { desde: 80, hasta: 80, resultado: 80 },
+      { desde: 0,  hasta: 79, resultado: 79 }
+    ],
+    excepciones: ['Cualidades de portero']   // campos que NO se nivelan
+  },
+  escala8:     { modo: 'mantener' | 'fijo', fijo: 4 },
+  habilidades: { modo: 'mantener' | 'quitar_todas' | 'conservar_lista', conservar: [] },
+  altura:      { modo: 'mantener' | 'fijo' | 'tope', valor: 180 },
+  edad:        { modo: 'mantener' },        // v1: solo mantener
+  pieDominante:{ modo: 'mantener' },        // v1: solo mantener
+  lesiones:    { modo: 'mantener' | 'fijo', valor: 'B' },
+  posiciones:  { modo: 'mantener' },        // v1: solo mantener (ver problema 3)
+  alcance: {
+    soloSinPresidente: true,               // fijo en true, no editable
+    soloClubesVinculadosATSCActivos: true, // si false: los 138 clubes
+    jugadoresCompartidos: 'saltar' | 'aplicar'   // ver problema 2
+  }
+}
+```
+
+`PES5_NIVELACION.aplicar(bytes, perfil, contexto)` es pura: recibe los
+bytes descifrados, el perfil y `{clubesObjetivo:[idx], equiposDelJugador}`,
+devuelve `{bytes, resumen}` sin escribir nada. `previsualizar(...)`
+devuelve solo el `resumen`:
+`{ clubes: n, jugadores: n, porCampo: {campo: {cambiados: n}}, compartidos: [{id, nombre, clubes:[...]}], ejemplos: [{nombre, antes, despues}] }`.
+
+**UI (pestaña Nivelación):**
+1. Lista de perfiles guardados + "Nuevo" + "Duplicar". Editor de perfil con
+   un bloque por tipo de campo. Las bandas se editan en una tabla chica con
+   validación en vivo: deben cubrir 0-99 sin huecos ni solapes, si no, no se
+   puede guardar. Perfiles precargados la primera vez: "Todo a 80" y
+   "80/79 sin habilidades" (la regla actual de Luis).
+2. "Previsualizar": muestra el resumen (clubes, jugadores, cambios por campo,
+   10 ejemplos antes → después, lista de jugadores compartidos) **sin tocar
+   el save**. Botón de exportar el resumen a CSV para que Luis lo revise
+   fuera de la tool.
+3. "Aplicar": exige previsualización hecha en esta sesión sobre el save
+   actual (si el save cambió, hay que previsualizar de nuevo), checkbox
+   "PES5 está cerrado", confirm con el resumen corto, un solo
+   `PES5_SAVE.escribir` con backup. Registra en el perfil
+   `ultimaAplicacion: {fecha, backup, resumen}`. Sin cobro: por definición
+   solo toca equipos sin presidente.
+4. El perfil aplicado queda marcado "vigente" para que F (sección pública)
+   pueda mostrar "esta temporada se niveló con: …".
+
+**Problemas que ya se ven y cómo se resuelven (decisiones tomadas):**
+1. **Cualidades de portero.** Nivelar ese atributo a 80 en todos convierte a
+   cualquiera en arquero utilizable y a los arqueros en mediocres. Por
+   defecto va en `excepciones`. Regla general: `excepciones` existe para
+   esto.
+2. **Jugadores compartidos** (club + selección, o dos clubes): un registro
+   único; nivelar el club nivela también la selección. Por defecto
+   `'saltar'` y la previsualización los lista con nombre y clubes. Luis
+   elige `'aplicar'` a conciencia.
+3. **Posiciones.** Escribir posiciones implica reindexar la posición
+   registrada (ya excluido en B). En v1 `posiciones` solo admite
+   `'mantener'`; si Luis quiere tocarlas, se abre un slice propio con spec de
+   reindexado.
+4. **Altura con cupos.** El editor del presidente tiene cupos por franja de
+   altura (`HEIGHT_CAPS`); si la nivelación fija alturas puede dejar un
+   equipo violando los cupos. La previsualización avisa por equipo si el
+   resultado viola `HEIGHT_CAPS` del módulo de reglas (D.R).
+5. **Equipos con presidente en el medio.** Se saltan siempre y aparecen en
+   el resumen como "saltado: tiene presidente". Nunca se editan por esta vía.
+6. **Reversibilidad.** El backup automático es la vuelta atrás. Además, el
+   resumen aplicado queda guardado. No hay "deshacer" dentro de la tool en
+   v1.
+7. **Bandas mal definidas.** Validación dura al guardar el perfil; el test
+   Node cubre huecos, solapes y bordes (0, 79, 80, 81, 99).
+8. **Alcance.** Por defecto solo los clubes vinculados a equipos TSC activos;
+   los 138 clubes solo si Luis lo desmarca, y el resumen lo dice en grande.
+
+**Pruebas:** test Node sobre una copia del save real con el perfil
+"80/79 sin habilidades": ningún atributo fuera de {79,80} en los clubes
+objetivo salvo `excepciones`, habilidades todas en 0, escala8/altura/edad/
+pie/lesiones/posiciones idénticas, jugadores compartidos intactos con
+`'saltar'`; `md5` del save real intacto; previsualizar no modifica bytes
+(`md5` del buffer antes y después); en el navegador, aplicar sobre
+`test-save-copy/` crea el backup y `leerPlantillaCompleta` devuelve los
+valores nivelados.
+
+**Orden:** D.R → D → F → E → **G**. Depende de D.R (`HEIGHT_CAPS`) y de las
+reglas Firestore de `pes5_reglas`.
 
 ---
 
@@ -630,4 +737,4 @@ de Sonnet:
 4. Regla que no cambia: en A-C, la carpeta que se elige en `PES5_SAVE` es una
    **carpeta de prueba con una copia** del save. La del juego recién en D.
 
-**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). C.1 commiteado (`23e3d37`) y probado en el juego: juego → tool OK; tool → juego falló (ver C.2). C.2 commiteado (`4787c0b`) y prueba tool → juego OK (15/09). Sigue **D.R** (reglas compartidas + cobro), luego **D**, luego **F** (sección pública), y **E** al final. Un slice por aprobación.
+**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). C.1 commiteado (`23e3d37`) y probado en el juego: juego → tool OK; tool → juego falló (ver C.2). C.2 commiteado (`4787c0b`) y prueba tool → juego OK (15/09). Sigue **D.R** (reglas compartidas + cobro), luego **D**, luego **F** (sección pública), **E**, y **G** (nivelación configurable) cuando Luis confirme la regla. Un slice por aprobación.
