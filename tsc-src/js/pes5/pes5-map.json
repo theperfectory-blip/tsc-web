@@ -273,7 +273,8 @@
    "off": "+0x58.0",
    "ancho_bits": 6,
    "enc": "valor almacenado + 148. CORREGIDO 2026-08-31: el ancho real es 6 bits, no 7 - el bit +0x58.6 (710) es un flag sin relacion que se colaba en la lectura y generaba una distribucion bimodal (alturas de 100-250cm). Verificado con el save real completo (4894 jugadores): con 6 bits + 148 la distribucion es una campana limpia centrada en ~180cm, sin gap. Puskas=172, Romario=169, Berbatov=188 (coinciden con su altura real conocida).",
-   "pendiente_menor": "+0x58.6 (bit 710) queda sin identificar - no es parte de la altura."
+   "pendiente_menor": "+0x58.6 (bit 710) queda sin identificar - no es parte de la altura.",
+   "rango_juego": "148-205 — slice C2.2 bis (2026-09-15): los 6 bits crudos permiten representar hasta 211, pero el editor de altura de PES5 solo admite hasta 205 cm; ese es el tope que debe validar cualquier escritura, no el limite del campo. El save real (4894 jugadores) hoy tiene max=203. Minimo del juego confirmado en 148 (dato del usuario)."
   }
  },
  "posiciones": {

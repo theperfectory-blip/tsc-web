@@ -255,7 +255,10 @@ const PES5_EDITOR = (() => {
   }
 
   // Aplica solo las claves presentes en `cambios` (parcial). Valida rangos
-  // (atributos 0-99, escala8 1-8, altura 148-211cm, edad 15-46), incrementa
+  // (atributos 0-99, escala8 1-8, altura 148-205cm — el campo permite hasta
+  // 211 en los 6 bits crudos, pero el editor de PES5 solo admite hasta 205
+  // y ese es el tope real del juego (slice C2.2 bis, dato del usuario
+  // 15/09) —, edad 15-46), incrementa
   // el contador de ediciones (+0x32) una sola vez si escribio algo, y
   // devuelve la lista de campos escritos.
   //
@@ -305,7 +308,7 @@ const PES5_EDITOR = (() => {
       }
     }
     if (cambios && cambios.altura !== undefined) {
-      if (!Number.isInteger(cambios.altura) || cambios.altura < 148 || cambios.altura > 211) throw new Error('altura fuera de rango (148-211): ' + cambios.altura);
+      if (!Number.isInteger(cambios.altura) || cambios.altura < 148 || cambios.altura > 205) throw new Error('altura fuera de rango (148-205): ' + cambios.altura);
       if (leerCampoJugador(bytes, id, 'Altura') !== cambios.altura) {
         escribirCampoJugador(bytes, id, 'Altura', cambios.altura);
         escritos.push('altura');

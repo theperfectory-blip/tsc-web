@@ -116,6 +116,22 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .pt-log{font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;
   background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:10px;margin-top:10px;}
 .pt-log .ok{color:#4ade80;} .pt-log .err{color:#f87171;} .pt-log .warn{color:#facc15;}
+
+/* ---------- paneles persistentes de error / exito de escritura (C2.3) ---------- */
+.pt-panel-msg{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:10px 12px;
+  border-radius:var(--r);font-size:12.5px;line-height:1.5;}
+.pt-panel-msg .icn{margin-top:1px;}
+.pt-panel-msg-body{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;}
+.pt-panel-msg-close{background:none;border:none;color:inherit;cursor:pointer;padding:2px;flex:none;opacity:0.8;}
+.pt-panel-msg-close:hover{opacity:1;}
+.pt-panel-err{background:rgba(248,113,113,0.1);border:1px solid #f87171;color:#f87171;}
+.pt-panel-ok{background:rgba(74,222,128,0.1);border:1px solid #4ade80;color:#4ade80;}
+
+/* ---------- fade horizontal + sin scrollbar visible (regla no-scroll del proyecto) ---------- */
+.pt-tbl-wrap{overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;
+  -webkit-mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);}
+.pt-tbl-wrap::-webkit-scrollbar{display:none;height:0;}
 </style>
 </head>
 <body>
@@ -157,7 +173,27 @@ function _esc(v){
 }
 function openModal(id){ document.getElementById(id)?.classList.add('open'); }
 function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
-function showToast(msg){ console.log('[toast]', msg); }
+
+// Slice C2.3, punto 5: showToast era un stub (solo console.log) — ningun
+// aviso de exito ni de error se mostraba jamas en pantalla, causa
+// confirmada del silencio al escribir. Reemplazado por un toast real
+// (mismo estilo que showMiniToast de prototype-editor-jugador.html).
+let _ptToastTimer = null;
+function showToast(msg){
+  console.log('[toast]', msg);
+  let el = document.getElementById('pt-toast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'pt-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--card3);'+
+      'border:1px solid var(--gold-b);color:var(--txt);padding:9px 18px;border-radius:999px;font-size:13px;z-index:970;max-width:min(90vw,480px);text-align:center;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(_ptToastTimer);
+  _ptToastTimer = setTimeout(()=>{ el.style.transition = 'opacity .4s'; el.style.opacity = '0'; }, 1600);
+}
 
 /* ============================================================
    ESTADO
@@ -256,9 +292,13 @@ function renderStatusBar(){
   const carpeta = PES5_SAVE.carpetaActual;
 
   if (!tieneSoporte){
+    // Slice C2.3, punto 6b: causa raiz confirmada — Brave desactiva de
+    // fabrica la File System Access API (typeof window.showDirectoryPicker
+    // === 'undefined' aun en contexto seguro). La deteccion sigue siendo
+    // SIEMPRE tieneSoporte() — nunca userAgent — esto solo aclara el aviso.
     el.innerHTML = `
       <div class="pt-statusbar">
-        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no soporta acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no).</div>
+        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no soporta acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usás <b>Brave</b>, suele venir desactivado: activalo en <code>brave://flags/#file-system-access-api</code> (Enabled) y reiniciá el navegador, o usá Chrome/Edge para esta tool. Mientras tanto podés seguir con el archivo de abajo: "Escribir al save" va a <b>descargar</b> el save editado.</div>
         <div class="pt-status-item pt-fallback-input">${ICN.upload} <input type="file" id="fallback-input" style="font-size:12px;"></div>
       </div>`;
     const fi = document.getElementById('fallback-input');
@@ -503,7 +543,16 @@ function renderPlantillaTab(){
         <optgroup label="Todos los clubes PES5">${optTodos}</optgroup>
       </select>
     </div>
-    <div id="pl-body"></div>`;
+    <div id="pl-body"></div>
+    <div id="pl-write-status">
+      <div class="pt-log" id="pl-log" style="display:none;"></div>
+      <div class="pt-panel-msg pt-panel-err" id="pl-error-panel" style="display:none;"></div>
+      <div class="pt-panel-msg pt-panel-ok" id="pl-success-panel" style="display:none;"></div>
+    </div>`;
+  // Slice C2.3, punto 4: #pl-write-status vive FUERA de #pl-body a proposito
+  // — renderPlantillaBody() solo reescribe #pl-body, asi que el log y los
+  // paneles de error/exito nunca se vacian por editar un campo, cambiar de
+  // jugador o de equipo (solo se pierden si se sale de la pestaña Plantilla).
 }
 
 function onTeamSelectPorIndice(idxStr){
@@ -529,17 +578,21 @@ function renderPlantillaBody(){
   const filas = PLANTILLA_ACTUAL.map((j, slot) => {
     const otros = PES5_EDITOR.equiposDelJugador(PLANO, j.id).filter(i => i !== PLANTILLA_INDICE);
     const badge = otros.length ? `<span class="badge badge-warn pt-alsoin" title="tambien en otro roster">${ICN.alert} tambien en: ${otros.map(i=>_esc(PES5_EDITOR.nombreEquipo(PLANO,i))).join(', ')}</span>` : '';
-    const cambios = CAMBIOS_PENDIENTES[j.id];
-    const marcaCambio = cambios ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
-    const cols = COLS_ATTR.map(c => `<td class="pt-stat-cell">${j.atributos[c]}</td>`).join('');
+    // C2.2 (c): la marca "editado" vive en un <span data-marca-editado> propio
+    // para poder actualizarla in-place (_actualizarFilaEditado) sin tocar el
+    // resto de la celda del nombre.
+    const marcaCambio = _tieneAlgunCambio(j.id) ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
+    // C2.2 (b): cada celda de atributo lleva data-campo="<nombre exacto>"
+    // para poder actualizarla por jugador/campo sin re-renderizar la fila.
+    const cols = COLS_ATTR.map(c => `<td class="pt-stat-cell" data-campo="${_esc(c)}">${j.atributos[c]}</td>`).join('');
     return `
-      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" onclick="abrirPanelJugador(${j.id})">
+      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" data-jugador="${j.id}" onclick="abrirPanelJugador(${j.id})">
         <td>${slot+1}</td>
-        <td>${_esc(j.nombre)}${badge}${marcaCambio}</td>
+        <td>${_esc(j.nombre)}${badge}<span data-marca-editado>${marcaCambio}</span></td>
         <td>${_esc(j.posicionRegistrada||'—')}</td>
-        <td class="pt-stat-cell">${j.altura}</td>
-        <td class="pt-stat-cell">${j.edad}</td>
-        <td class="pt-stat-cell">${j.pieDominante==='izq'?'Izq.':'Der.'}</td>
+        <td class="pt-stat-cell" data-campo="altura">${j.altura}</td>
+        <td class="pt-stat-cell" data-campo="edad">${j.edad}</td>
+        <td class="pt-stat-cell" data-campo="pieDominante">${j.pieDominante==='izq'?'Izq.':'Der.'}</td>
         ${cols}
       </tr>`;
   }).join('');
@@ -547,7 +600,7 @@ function renderPlantillaBody(){
   el.innerHTML = `
     <div class="${JUGADOR_SELECCIONADO!=null?'pt-panel-open':''}">
       <div class="pt-grid">
-        <div class="tbl-wrap">
+        <div class="tbl-wrap pt-tbl-wrap">
           <table class="tbl pt-plantilla-table">
             <thead><tr>
               <th>#</th><th>Nombre</th><th>Pos.</th><th>Alt.</th><th>Edad</th><th>Pie</th>
@@ -583,6 +636,37 @@ function _valorActual(j, tipo, campo){
   if (tipo === 'simple' && c?.[campo] !== undefined) return c[campo];
   return tipo === 'simple' ? j[campo] : j[tipo][campo];
 }
+// ¿Tiene el jugador `id` algun cambio pendiente REAL (distinto del save)?
+// Unica fuente de verdad para "cuantos jugadores con cambios" y para la
+// marca "editado" — ver _limpiarSiVacio.
+function _tieneAlgunCambio(id){
+  const c = CAMBIOS_PENDIENTES[id];
+  if (!c) return false;
+  return !!(Object.keys(c.atributos||{}).length || Object.keys(c.escala8||{}).length || Object.keys(c.habilidades||{}).length
+    || c.edad !== undefined || c.altura !== undefined || c.pieDominante !== undefined || c.lesiones !== undefined);
+}
+// C2.2 (d): un jugador sin ningun campo pendiente real no debe quedar
+// ocupando una entrada vacia en CAMBIOS_PENDIENTES (contaminaria el contador
+// "N jugador(es) con cambios" y el resumen del confirm()).
+function _limpiarSiVacio(id){
+  if (!_tieneAlgunCambio(id)) delete CAMBIOS_PENDIENTES[id];
+}
+// Busca la <td data-campo="..."> de un jugador en la tabla de Plantilla sin
+// re-renderizar la fila (C2.2, punto b). Comparacion por dataset.campo, no
+// por selector CSS, para no tener que escapar nombres de campo con espacios
+// o puntos (ej. "Vel. maxima").
+function _celdaTabla(jugadorId, campo){
+  const fila = document.querySelector(`#pl-body tr[data-jugador="${jugadorId}"]`);
+  if (!fila) return null;
+  return Array.from(fila.children).find(td => td.dataset.campo === campo) || null;
+}
+function _actualizarFilaEditado(id){
+  const fila = document.querySelector(`#pl-body tr[data-jugador="${id}"]`);
+  if (!fila) return;
+  const marca = fila.querySelector('[data-marca-editado]');
+  if (!marca) return;
+  marca.innerHTML = _tieneAlgunCambio(id) ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
+}
 
 function renderPanelLateral(){
   const cont = document.getElementById('pl-side');
@@ -592,18 +676,26 @@ function renderPanelLateral(){
   if (!j){ cont.innerHTML = ''; return; }
 
   const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
+  // C2.3, punto 6: sin File System Access API el flujo termina en una
+  // descarga, no en una escritura directa — el boton lo dice.
+  const modoDescarga = !PES5_SAVE.tieneSoporte();
+  // C2.2: Enter en un input no hace nada mas que blur (no hay <form> en esta
+  // pagina — confirmado — asi que Enter no puede "enviar" nada; esto solo
+  // asegura que confirme el valor y saque el foco, en vez de quedar
+  // esperando otra tecla).
+  const ENTER_BLUR = `onkeydown="if(event.key==='Enter'){this.blur();}"`;
 
   const filaAttr = (c) => {
     const v = _valorActual(j, 'atributos', c);
     const cambiado = v !== j.atributos[c];
     return `<div class="pt-field"><label title="${_esc(c)}">${_esc(c)}</label><input type="number" min="0" max="99"
-      class="${cambiado?'changed':''}" value="${v}" onchange="onCampoAttr(${j.id},'atributos','${_esc(c)}',this.value,0,99)"></div>`;
+      class="${cambiado?'changed':''}" value="${v}" ${ENTER_BLUR} onchange="onCampoAttr(${j.id},'atributos','${_esc(c)}',this.value,0,99,this)"></div>`;
   };
   const filaEscala8 = (c) => {
     const v = _valorActual(j, 'escala8', c);
     const cambiado = v !== j.escala8[c];
     return `<div class="pt-field"><label title="${_esc(c)}">${_esc(c)}</label><input type="number" min="1" max="8"
-      class="${cambiado?'changed':''}" value="${v}" onchange="onCampoAttr(${j.id},'escala8','${_esc(c)}',this.value,1,8)"></div>`;
+      class="${cambiado?'changed':''}" value="${v}" ${ENTER_BLUR} onchange="onCampoAttr(${j.id},'escala8','${_esc(c)}',this.value,1,8,this)"></div>`;
   };
   const filaHabilidad = (c) => {
     const v = _valorActual(j, 'habilidades', c);
@@ -625,15 +717,15 @@ function renderPanelLateral(){
 
       <div class="pt-fieldgrp">
         <div class="pt-fieldgrp-title">Ajustes básicos</div>
-        <div class="pt-field"><label>Edad</label><input type="number" min="15" max="46" value="${edadV}"
-          class="${edadV!==j.edad?'changed':''}" onchange="onCampoSimple(${j.id},'edad',this.value,15,46)"></div>
-        <div class="pt-field"><label>Altura (cm)</label><input type="number" min="148" max="211" value="${alturaV}"
-          class="${alturaV!==j.altura?'changed':''}" onchange="onCampoSimple(${j.id},'altura',this.value,148,211)"></div>
-        <div class="pt-field"><label>Pie dominante</label><select onchange="onCampoSelect(${j.id},'pieDominante',this.value)">
+        <div class="pt-field"><label>Edad</label><input type="number" min="15" max="46" value="${edadV}" ${ENTER_BLUR}
+          class="${edadV!==j.edad?'changed':''}" onchange="onCampoSimple(${j.id},'edad',this.value,15,46,this)"></div>
+        <div class="pt-field"><label>Altura (cm)</label><input type="number" min="148" max="205" value="${alturaV}" ${ENTER_BLUR}
+          class="${alturaV!==j.altura?'changed':''}" onchange="onCampoSimple(${j.id},'altura',this.value,148,205,this)"></div>
+        <div class="pt-field"><label>Pie dominante</label><select onchange="onCampoSelect(${j.id},'pieDominante',this.value,this)">
           <option value="der" ${pieV==='der'?'selected':''}>Derecho</option>
           <option value="izq" ${pieV==='izq'?'selected':''}>Izquierdo</option>
         </select></div>
-        <div class="pt-field"><label>Resistencia lesiones</label><select onchange="onCampoSelect(${j.id},'lesiones',this.value)">
+        <div class="pt-field"><label>Resistencia lesiones</label><select onchange="onCampoSelect(${j.id},'lesiones',this.value,this)">
           <option value="A" ${lesionesV==='A'?'selected':''}>A</option>
           <option value="B" ${lesionesV==='B'?'selected':''}>B</option>
           <option value="C" ${lesionesV==='C'?'selected':''}>C</option>
@@ -661,80 +753,240 @@ function renderPanelLateral(){
       <div class="pt-writebar">
         <label><input type="checkbox" id="pes5-cerrado"> PES5 está cerrado</label>
         <span class="pt-changes-count">${totalPendientes} jugador(es) con cambios</span>
-        <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled onclick="confirmarEscribirAlSave()">${ICN.save} Escribir al save</button>
+        <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled onclick="confirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
       </div>
-      <div class="pt-log" id="pl-log" style="display:none;"></div>
     </div>`;
 
   actualizarBotonEscritura();
   document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
 }
 
-function onCampoAttr(id, tipo, campo, valor, min, max){
+// ============================================================
+// C2.2 · edicion de campos SIN re-renderizar tabla/panel (punto central del
+// slice): cada handler (a) actualiza CAMBIOS_PENDIENTES comparando contra el
+// valor ORIGINAL del save — si vuelve a coincidir, borra la entrada en vez
+// de dejarla pisada con el mismo valor (esta comparacion es la causa real
+// del bug reportado, ver nota mas abajo); (b) toca solo el input editado
+// (clase `changed`) y la celda de tabla correspondiente por
+// data-jugador/data-campo; (c) actualiza contador + boton aparte. Nunca
+// llama a renderPlantillaBody() ni renderPanelLateral() — eso se reserva
+// para abrirPanelJugador/cerrarPanelJugador/onTeamSelect (cambio de jugador
+// o de equipo), como pide el slice.
+//
+// CAUSA REAL del bug "se registran cambios en campos no tocados" (C2.2,
+// punto d — investigado en este slice): antes de este cambio, los cuatro
+// handlers (onCampoAttr/onCampoSimple/onCampoHabilidad/onCampoSelect)
+// escribian el valor recibido en CAMBIOS_PENDIENTES de forma INCONDICIONAL,
+// sin comparar contra el valor original del jugador, y ninguna funcion del
+// archivo borraba nunca una entrada. No hace falta ningun re-render
+// disparando onchange por arte de magia (no hay <form>, y reemplazar el
+// innerHTML de un <input> no reconstruido no dispara 'change' en el
+// navegador): alcanza con que el usuario dispare onchange en un campo sin
+// intencion real de cambiarlo — p. ej. tocar las flechitas de un
+// <input type=number> y volver al valor original, o usar la rueda del mouse
+// sobre un numero con foco (Chrome incrementa/decrementa el valor de un
+// input numerico enfocado al scrollear encima, algo muy facil de gatillar
+// en un panel con scroll como este) — para que ese campo quedara grabado
+// como "cambio pendiente" PARA SIEMPRE, incluso si el valor final coincidia
+// con el original. Con 26 atributos + 8 campos de escala + N habilidades
+// visibles en un panel scrolleable, revisar varios campos durante una
+// sesion es exactamente el escenario que produjo los 11 campos listados en
+// el confirm() para un jugador que el usuario dice haber tocado 1 o 2
+// veces. El arreglo (comparar contra el original y borrar si coincide) es
+// necesario Y suficiente.
+function onCampoAttr(id, tipo, campo, valor, min, max, inputEl){
+  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
+  if (!j) return;
   const n = Math.max(min, Math.min(max, parseInt(valor, 10) || 0));
-  _cambiosDe(id)[tipo][campo] = n;
-  renderPlantillaBody();
+  const original = j[tipo][campo];
+  const c = _cambiosDe(id);
+  if (n === original) delete c[tipo][campo]; else c[tipo][campo] = n;
+  _limpiarSiVacio(id);
+  if (inputEl){ inputEl.value = n; inputEl.classList.toggle('changed', n !== original); }
+  if (tipo === 'atributos'){ const td = _celdaTabla(id, campo); if (td) td.textContent = n; }
+  _actualizarFilaEditado(id);
+  actualizarBotonEscritura();
 }
 function onCampoHabilidad(id, campo, checked){
-  _cambiosDe(id).habilidades[campo] = !!checked;
-  renderPlantillaBody();
+  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
+  if (!j) return;
+  const nuevo = !!checked;
+  const original = !!j.habilidades[campo];
+  const c = _cambiosDe(id);
+  if (nuevo === original) delete c.habilidades[campo]; else c.habilidades[campo] = nuevo;
+  _limpiarSiVacio(id);
+  _actualizarFilaEditado(id);
+  actualizarBotonEscritura();
 }
-function onCampoSimple(id, campo, valor, min, max){
+function onCampoSimple(id, campo, valor, min, max, inputEl){
+  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
+  if (!j) return;
   const n = Math.max(min, Math.min(max, parseInt(valor, 10) || 0));
-  _cambiosDe(id)[campo] = n;
-  renderPlantillaBody();
+  const original = j[campo];
+  const c = _cambiosDe(id);
+  if (n === original) delete c[campo]; else c[campo] = n;
+  _limpiarSiVacio(id);
+  if (inputEl){ inputEl.value = n; inputEl.classList.toggle('changed', n !== original); }
+  const td = _celdaTabla(id, campo); if (td) td.textContent = n;
+  _actualizarFilaEditado(id);
+  actualizarBotonEscritura();
 }
-function onCampoSelect(id, campo, valor){
-  _cambiosDe(id)[campo] = valor;
-  renderPlantillaBody();
+function onCampoSelect(id, campo, valor, selectEl){
+  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
+  if (!j) return;
+  const original = j[campo];
+  const c = _cambiosDe(id);
+  if (valor === original) delete c[campo]; else c[campo] = valor;
+  _limpiarSiVacio(id);
+  if (selectEl) selectEl.classList.toggle('changed', valor !== original);
+  if (campo === 'pieDominante'){ const td = _celdaTabla(id, 'pieDominante'); if (td) td.textContent = valor === 'izq' ? 'Izq.' : 'Der.'; }
+  _actualizarFilaEditado(id);
+  actualizarBotonEscritura();
 }
 
 function actualizarBotonEscritura(){
   const btn = document.getElementById('btn-escribir-save');
-  if (!btn) return;
   const cerrado = document.getElementById('pes5-cerrado')?.checked;
-  const hayPendientes = Object.keys(CAMBIOS_PENDIENTES).length > 0;
-  btn.disabled = !(cerrado && hayPendientes);
+  const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
+  const countEl = document.querySelector('.pt-changes-count');
+  if (countEl) countEl.textContent = `${totalPendientes} jugador(es) con cambios`;
+  if (btn) btn.disabled = !(cerrado && totalPendientes);
 }
 
+// ============================================================
+// C2.3 · paneles persistentes de error/exito + toast real (helpers)
+// ============================================================
+function _ocultarErrorEscritura(){
+  const el = document.getElementById('pl-error-panel');
+  if (el){ el.style.display = 'none'; el.innerHTML = ''; }
+}
+function _mostrarErrorEscritura(e){
+  const el = document.getElementById('pl-error-panel');
+  if (!el) return;
+  const carpeta = PES5_SAVE.carpetaActual || '(sin carpeta elegida — modo archivo/descarga)';
+  el.innerHTML = `${ICN.alert}<div class="pt-panel-msg-body"><b>Error al escribir al save</b><br>${_esc(e && e.name || 'Error')}: ${_esc(e && e.message || String(e))}<br>Carpeta activa: ${_esc(carpeta)}</div>
+    <button class="pt-panel-msg-close" onclick="_ocultarErrorEscritura()" title="Cerrar">${ICN.x}</button>`;
+  el.style.display = 'flex';
+}
+function _ocultarExitoEscritura(){
+  const el = document.getElementById('pl-success-panel');
+  if (el){ el.style.display = 'none'; el.innerHTML = ''; }
+}
+function _mostrarExitoEscritura({ backup, bytes }){
+  const el = document.getElementById('pl-success-panel');
+  if (!el) return;
+  const carpeta = PES5_SAVE.carpetaActual;
+  const rutaBackup = carpeta ? `${carpeta}/backups-tsc/${backup}` : backup;
+  el.innerHTML = `${ICN.save}<div class="pt-panel-msg-body"><b>Save escrito correctamente</b><br>Backup: ${_esc(rutaBackup)}<br>Tamaño escrito: ${bytes.toLocaleString('es-AR')} b</div>
+    <button class="pt-panel-msg-close" onclick="_ocultarExitoEscritura()" title="Cerrar">${ICN.x}</button>`;
+  el.style.display = 'flex';
+}
+
+// Vuelve a leer la plantilla actual desde PLANO (ya actualizado) sin cerrar
+// el panel del jugador que estaba abierto — a diferencia de onTeamSelect(),
+// que siempre limpia JUGADOR_SELECCIONADO. Se usa tras un guardado exitoso
+// para que el panel de exito y el jugador que se estaba editando sigan
+// visibles (C2.3, punto 3).
+async function _recargarPlantillaTrasEscritura(){
+  const seleccionAnterior = JUGADOR_SELECCIONADO;
+  PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
+  JUGADOR_SELECCIONADO = PLANTILLA_ACTUAL.some(p => p.id === seleccionAnterior) ? seleccionAnterior : null;
+  renderPlantillaBody();
+}
+
+// C2.1 · el confirm() antes de escribir muestra SOLO equipo + nombres de
+// jugadores afectados — el detalle campo por campo ya se ve en el panel
+// (clase `changed`).
 async function confirmarEscribirAlSave(){
   const ids = Object.keys(CAMBIOS_PENDIENTES);
   if (!ids.length) return;
-  const resumen = ids.map(id => {
-    const j = PLANTILLA_ACTUAL.find(p => p.id == id) || { nombre: 'id ' + id };
-    const c = CAMBIOS_PENDIENTES[id];
-    const campos = [
-      ...Object.keys(c.atributos||{}), ...Object.keys(c.escala8||{}), ...Object.keys(c.habilidades||{}),
-      ...(c.edad!==undefined?['edad']:[]), ...(c.altura!==undefined?['altura']:[]),
-      ...(c.pieDominante!==undefined?['pieDominante']:[]), ...(c.lesiones!==undefined?['lesiones']:[]),
-    ];
-    return `${j.nombre}: ${campos.join(', ')}`;
-  }).join('\n');
-  if (!confirm(`Se va a escribir al save:\n\n${resumen}\n\nSe crea backup automático antes de escribir. ¿Confirmar?`)) return;
+  const nombreEquipo = PLANTILLA_INDICE != null ? PES5_EDITOR.nombreEquipo(PLANO, PLANTILLA_INDICE) : '(equipo desconocido)';
+  const nombresJugadores = ids.map(id => {
+    const j = PLANTILLA_ACTUAL.find(p => p.id == id);
+    return j ? j.nombre : ('id ' + id);
+  }).join(', ');
+
+  // C2.3, punto 1 y 7 · pedir el permiso de escritura EXPLICITAMENTE aca,
+  // antes del confirm() y dentro del mismo gesto de click que lo dispara —
+  // es la causa raiz confirmada del cuelgue silencioso (ver nota en
+  // pes5-save.js > asegurarEscritura). En modo fallback (sin soporte de
+  // File System Access) esto devuelve true sin pedir nada: no hace falta
+  // permiso para generar una descarga.
+  const permitido = await PES5_SAVE.asegurarEscritura();
+  if (!permitido){
+    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconectá la carpeta (botón "Reconectar" en la barra de arriba) o elegila de nuevo.' });
+    return;
+  }
+
+  const nota = PES5_SAVE.tieneSoporte()
+    ? 'Se crea backup automático.'
+    : 'Se va a descargar el archivo editado (el original de tu carpeta no se toca).';
+  const ok = confirm(`Equipo: ${nombreEquipo}\nJugadores: ${nombresJugadores}\n\n${nota} ¿Confirmar?`);
+  if (!ok) return;
   await escribirAlSave();
 }
 
+// C2.3 · la escritura ya no falla en silencio: paso a paso en #pl-log
+// (punto 7 — para saber en que etapa queda colgado un intento fallido),
+// panel de error persistente si algo lanza (punto 2), panel de exito
+// persistente si termina bien (punto 3), y en modo fallback (sin File
+// System Access, ej. Brave) termina en una DESCARGA del save reescrito en
+// vez de intentar escribir en disco (punto 6a).
 async function escribirAlSave(){
   const logEl = document.getElementById('pl-log');
+  // Cada intento nuevo arranca limpio de AMBOS paneles — si el intento
+  // anterior habia terminado bien y este vuelve a fallar (o viceversa), no
+  // deben quedar un exito y un error persistentes superpuestos.
+  _ocultarErrorEscritura();
+  _ocultarExitoEscritura();
   if (logEl){ logEl.style.display = ''; logEl.innerHTML = ''; }
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
   try {
+    log('aplicando cambios...');
     const copia = Uint8Array.from(PLANO);
     for (const [id, cambios] of Object.entries(CAMBIOS_PENDIENTES)){
       const escritos = PES5_EDITOR.escribirJugadorCompleto(copia, Number(id), cambios);
-      log(`jugador ${id}: ${escritos.length} campos escritos`, 'ok');
+      log(`jugador ${id}: ${escritos.length} campo(s) escrito(s)`, 'ok');
     }
+    log('cifrando...');
     const cifrado = PES5_CRYPT.cifrar(copia);
-    const res = await PES5_SAVE.escribir(cifrado);
+
+    if (!PES5_SAVE.tieneSoporte()){
+      // C2.3, punto 6a: modo fallback — no hay acceso directo a la carpeta,
+      // asi que "escribir" es generar una descarga del archivo reescrito.
+      // El original en la carpeta del juego queda intacto y sirve de backup.
+      log('generando descarga (sin acceso directo a la carpeta)...');
+      PES5_SAVE.descargar(cifrado, 'KONAMI-WIN32PES5OPT');
+      log('descarga generada', 'ok');
+      showToast('Save editado descargado — copialo a mano a la carpeta del juego.');
+      _mostrarExitoEscritura({ backup: '(sin backup automático — no se tocó el archivo en la carpeta del juego, solo se descargó la version editada)', bytes: cifrado.length });
+      PLANO = copia;
+      CAMBIOS_PENDIENTES = {};
+      if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
+      return;
+    }
+
+    log('pidiendo permiso...');
+    const permitido = await PES5_SAVE.asegurarEscritura();
+    if (!permitido) throw new Error('permiso de escritura no concedido sobre la carpeta del save');
+
+    const res = await PES5_SAVE.escribir(cifrado, (paso) => {
+      if (paso === 'backup') log('haciendo backup...');
+      if (paso === 'escribiendo') log('escribiendo...');
+      if (paso === 'verificando') log('verificando...');
+    });
     log(`guardado OK — backup: ${res.backup}`, 'ok');
     showToast('Save escrito. Backup: ' + res.backup);
+    _mostrarExitoEscritura({ backup: res.backup, bytes: cifrado.length });
     PLANO = copia;
     CAMBIOS_PENDIENTES = {};
-    if (PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+    if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
     renderStatusBar();
   } catch(e) {
     log('ERROR: ' + (e.message||e), 'err');
+    console.error('[pes5-tool] escribirAlSave:', e);
     showToast('Error al escribir: ' + (e.message||e));
+    _mostrarErrorEscritura(e);
   }
 }
 

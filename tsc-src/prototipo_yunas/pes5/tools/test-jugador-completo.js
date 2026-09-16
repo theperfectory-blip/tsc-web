@@ -73,6 +73,9 @@ async function main() {
   }
 
   // ---------- 2) distribucion de alturas de los 4894 jugadores con nombre ----------
+  // Slice C2.2 bis (2026-09-15): el tope real del juego es 205, no 211 (los
+  // 211 son el limite crudo de los 6 bits, pero el editor de PES5 no deja
+  // pasar de 205). El save real hoy da max=203, dentro del rango del juego.
   let conNombre = 0, minAltura = Infinity, maxAltura = -Infinity, fueraDeRango = 0;
   for (let id = 0; id < 5000; id++) {
     const nombre = PES5_EDITOR.nombreDeRegistro(plano, id);
@@ -81,14 +84,14 @@ async function main() {
     const j = PES5_EDITOR.leerJugadorCompleto(plano, id);
     if (j.altura < minAltura) minAltura = j.altura;
     if (j.altura > maxAltura) maxAltura = j.altura;
-    if (j.altura < 148 || j.altura > 211) fueraDeRango++;
+    if (j.altura < 148 || j.altura > 205) fueraDeRango++;
   }
   console.log(`jugadores con nombre: ${conNombre} (esperado ~4894)`);
-  console.log(`altura min=${minAltura} max=${maxAltura} fuera_de_rango(148-211)=${fueraDeRango}`);
+  console.log(`altura min=${minAltura} max=${maxAltura} fuera_de_rango(148-205)=${fueraDeRango}`);
   assert(conNombre === 4894, `4894 jugadores con nombre (obtenido: ${conNombre})`);
   assert(minAltura >= 148, `altura minima >= 148 (obtenido: ${minAltura})`);
-  assert(maxAltura <= 211, `altura maxima <= 211 (obtenido: ${maxAltura})`);
-  assert(fueraDeRango === 0, `0 jugadores con altura fuera de 148-211 (obtenido: ${fueraDeRango})`);
+  assert(maxAltura <= 205, `altura maxima <= 205 (obtenido: ${maxAltura})`);
+  assert(fueraDeRango === 0, `0 jugadores con altura fuera de 148-205 (obtenido: ${fueraDeRango})`);
 
   // ---------- 3) round-trip: escribirJugadorCompleto con los mismos valores
   // que devolvio leer deja los bytes identicos salvo +0x32 (contador) ----------

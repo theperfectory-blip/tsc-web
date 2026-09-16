@@ -107,6 +107,33 @@ const PES5_SAVE = (() => {
     return { nombre: file.name, tamaño: file.size, lastModified: file.lastModified };
   }
 
+  // ---------- permiso de escritura, pedido EXPLICITAMENTE dentro del mismo
+  // gesto de click que dispara la escritura (slice C2.3, punto 1 y 7) ----------
+  // Causa raiz del cuelgue silencioso (verificada 15/09): createWritable()
+  // dentro de escribir() podia disparar la burbuja de permiso de Chrome
+  // recien ahi, despues de que el usuario ya habia aceptado un confirm()
+  // previo — para ese momento la activacion del click original ya vencio y
+  // la burbuja quedaba esperando sin que la pagina mostrara nada (el error
+  // real nunca llegaba a un catch porque no HABIA excepcion: el await de
+  // createWritable() nunca resolvia sin una respuesta del usuario a esa
+  // burbuja, que en Brave/Chromium con el foco perdido puede no aparecer
+  // como se espera). Arreglo: pedir el permiso ACA, antes de cualquier
+  // confirm(), para que quede resuelto (granted o denied) dentro del mismo
+  // gesto. En modo fallback (sin File System Access API, ej. Brave con el
+  // flag desactivado) no hace falta ningun permiso — la escritura termina
+  // en una descarga — por eso devuelve true sin pedir nada.
+  async function asegurarEscritura() {
+    if (!tieneSoporte()) return true; // fallback: se descarga el archivo, no hace falta permiso de carpeta
+    if (!CARPETA) return false; // no hay carpeta elegida todavia
+    try {
+      let permiso = await CARPETA.queryPermission({ mode: 'readwrite' });
+      if (permiso !== 'granted') permiso = await CARPETA.requestPermission({ mode: 'readwrite' });
+      return permiso === 'granted';
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ---------- escritura (con backup + verificacion) ----------
   function _timestamp() {
     const d = new Date();
@@ -124,10 +151,15 @@ const PES5_SAVE = (() => {
     for (let i = 0; i < sobran; i++) await backupDirHandle.removeEntry(nombres[i]);
   }
 
-  async function escribir(bytesCifrados) {
+  // `onProgress(paso)` es opcional — se llama con 'backup' / 'escribiendo' /
+  // 'verificando' en cada etapa (slice C2.3, punto 7: instrumentar la
+  // escritura para saber en que paso queda colgado un intento fallido).
+  async function escribir(bytesCifrados, onProgress) {
+    const emit = (paso) => { if (typeof onProgress === 'function') { try { onProgress(paso); } catch (e) { /* no debe cortar la escritura */ } } };
     const fileHandle = await _fileHandleDelSave();
 
     // 1) backup del estado ACTUAL (antes de pisarlo)
+    emit('backup');
     const actual = await fileHandle.getFile();
     const actualBytes = new Uint8Array(await actual.arrayBuffer());
     const backupDirHandle = await CARPETA.getDirectoryHandle(BACKUP_DIR, { create: true });
@@ -139,11 +171,13 @@ const PES5_SAVE = (() => {
     await _podarBackups(backupDirHandle);
 
     // 2) escribir el save nuevo
+    emit('escribiendo');
     const w = await fileHandle.createWritable();
     await w.write(bytesCifrados);
     await w.close();
 
     // 3) releer y comparar byte a byte contra lo que se pidio escribir
+    emit('verificando');
     const releido = await fileHandle.getFile();
     const releidoBytes = new Uint8Array(await releido.arrayBuffer());
     if (releidoBytes.length !== bytesCifrados.length) {
@@ -202,7 +236,7 @@ const PES5_SAVE = (() => {
 
   return {
     tieneSoporte, elegirCarpeta, recuperarCarpeta,
-    leer, escribir, observar,
+    leer, escribir, observar, asegurarEscritura,
     fallbackDesdeInput, descargar,
     get carpetaActual() { return CARPETA ? CARPETA.name : null; },
   };
