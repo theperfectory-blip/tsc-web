@@ -502,6 +502,39 @@ rastro que un pedido del presidente; si no, admin y público divergen.
    deja el gancho: la acción existe únicamente para equipos sin presidente.
 4. Las escrituras a `coins`/`teams` exigen `isAdmin()` en las reglas: probar
    logueado como admin y **borrar** las transacciones de prueba.
+5. **Mapeo de los dos presupuestos del editor a datos reales (hueco detectado
+   por el supervisor, 15/09).** El editor maneja `presidentWallet`
+   (coins acumuladas), `budgetGeneral` (tope de gasto general por temporada)
+   y `budgetSubscribers` (bono exclusivo para jugadores suscriptores, se
+   habilita al agotar el general). En la web solo existe un saldo real:
+   `teams.yunacoin`. Mapeo fijado:
+   - `presidentWallet` = `teams.yunacoin` (dato real, nunca hardcodeado);
+   - `budgetGeneral` y `budgetSubscribers` son **constantes de regla** (hoy
+     50000/25000 en el módulo); quedan en `DEFAULT_RULES` hasta F, donde
+     pasan a configuración editable por el admin;
+   - **PUNTO ABIERTO para el usuario:** ¿el bono de suscriptores descuenta
+     coins reales del saldo del equipo, o es una asignación extra que no
+     sale de `teams.yunacoin`? De eso depende qué `amount` lleva la
+     transacción en `coins` (solo `fromGeneral`, o `fromGeneral + fromSub`).
+     Hasta que se responda, la tool cobra **solo `fromGeneral`** y registra
+     `fromSub` en `note`.
+
+**Pruebas (Node + eval en `localhost:3001`, admin):**
+1. `test-yunacoins-rules.js`: 5 casos calculados a mano desde el editor
+   viejo (costo de subir un atributo dentro de banda, cruzando banda, una
+   habilidad, una altura dentro de cupo, y un caso que no alcanza el saldo).
+2. Editor del presidente sobre la copia del save: los mismos 5 casos dan
+   los mismos números antes y después del cambio (pegar valores).
+3. Tool, equipo **con** presidente (FK Tupadre): editar un atributo →
+   panel muestra costo, total y saldo; escribir → aparece una transacción
+   `sub` en `coins` con `reason:'mejora PES5 (admin)'`, `teams.yunacoin`
+   baja exactamente `total`, y el badge dice "Se cobra a …". Borrar la
+   transacción y restaurar el saldo al terminar (producción).
+4. Tool, saldo insuficiente (bajar `yunacoin` a 0 en la prueba): no escribe,
+   aviso con el faltante, save de la copia con md5 intacto.
+5. Tool, club **sin** presidente: badge "edición libre", escribir no crea
+   ninguna transacción (`coins` cuenta igual antes y después).
+6. `users-admin.js`, `firebase-config.js`, `cloudinary.js` sin diff.
 
 ---
 
