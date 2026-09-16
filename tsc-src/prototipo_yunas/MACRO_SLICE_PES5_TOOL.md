@@ -538,8 +538,12 @@ rastro que un pedido del presidente; si no, admin y público divergen.
      fromSub, lineas}` para poder recomputar los topes y mostrar el
      historial en F. Los valores de los topes (`budgetGeneral`,
      `budgetSubscribers`) siguen como constantes de regla hasta F.
-   - El flag `subscriber` de un jugador viene de la plantilla publicada
-     (`pes5_plantillas`), como hoy en el editor; D define cómo se marca.
+   - **Flag `subscriber` (dato del usuario, 15/09): un jugador es suscriptor
+     si su nombre en el save empieza con `$`** (ej. `$TheRationalUser`). Es
+     la convención que Luis ya usa dentro del juego. `leerJugadorCompleto`
+     expone `subscriber: nombre.startsWith('$')` y la tool y el editor lo
+     leen de ahí (la plantilla publicada lo hereda). El `$` se muestra tal
+     cual en nombres, nunca se recorta ni se escribe de vuelta modificado.
 
 **Pruebas (Node + eval en `localhost:3001`, admin):**
 1. `test-yunacoins-rules.js`: 5 casos calculados a mano desde el editor
