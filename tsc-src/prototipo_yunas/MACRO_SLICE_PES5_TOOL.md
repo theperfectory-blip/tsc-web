@@ -512,12 +512,34 @@ rastro que un pedido del presidente; si no, admin y público divergen.
    - `budgetGeneral` y `budgetSubscribers` son **constantes de regla** (hoy
      50000/25000 en el módulo); quedan en `DEFAULT_RULES` hasta F, donde
      pasan a configuración editable por el admin;
-   - **PUNTO ABIERTO para el usuario:** ¿el bono de suscriptores descuenta
-     coins reales del saldo del equipo, o es una asignación extra que no
-     sale de `teams.yunacoin`? De eso depende qué `amount` lleva la
-     transacción en `coins` (solo `fromGeneral`, o `fromGeneral + fromSub`).
-     Hasta que se responda, la tool cobra **solo `fromGeneral`** y registra
-     `fromSub` en `note`.
+   - **RESUELTO por el usuario (15/09): el bono es parte del saldo.** Modelo
+     definitivo, con su ejemplo: el presidente tiene 400.000 yunas
+     acumuladas (`teams.yunacoin`). Por temporada puede gastar en mejoras
+     hasta un **tope general** (ej. 100.000) sobre cualquier jugador, más un
+     **bono de suscriptores** (ej. 20.000) que solo se puede gastar en
+     jugadores suscriptores. **Todo descuenta del saldo real**: la
+     transacción en `coins` lleva `amount = fromGeneral + fromSub`.
+     Orden de consumo:
+       · jugador **suscriptor**: primero el bono; agotado el bono, sigue
+         con el tope general sin problema;
+       · jugador **no suscriptor**: solo el tope general.
+     Así un suscriptor puede terminar por encima del nivel base del resto:
+     es el incentivo buscado.
+     **Esto invierte la lógica actual del editor** (`fromGeneral = min(cost,
+     general)` primero y el bono "cuando el general llega a 0"): el módulo
+     compartido implementa el orden nuevo y el editor lo hereda; el test
+     de 5 casos se calcula con la regla nueva, no con la vieja.
+     `puedePagar` = saldo real ≥ total **y** los topes de temporada no se
+     exceden (general para todos; bono solo para suscriptores).
+   - **Dónde vive lo gastado en la temporada:** no se agregan campos a
+     `teams`; se deriva del libro `coins` filtrando `season` actual y
+     `reason` que empiece con `'mejora PES5'`. Cada transacción de mejora
+     lleva además `pes5: {playerId, playerName, subscriber, fromGeneral,
+     fromSub, lineas}` para poder recomputar los topes y mostrar el
+     historial en F. Los valores de los topes (`budgetGeneral`,
+     `budgetSubscribers`) siguen como constantes de regla hasta F.
+   - El flag `subscriber` de un jugador viene de la plantilla publicada
+     (`pes5_plantillas`), como hoy en el editor; D define cómo se marca.
 
 **Pruebas (Node + eval en `localhost:3001`, admin):**
 1. `test-yunacoins-rules.js`: 5 casos calculados a mano desde el editor
