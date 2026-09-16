@@ -109,7 +109,8 @@ avisarlo al editar.
 
 ```
 A (fuente del save + datos estáticos)  ──┐
-B (lectura/escritura completa de jugador) ┴─> C (UI unificada) ─> C.1 (ajustes pre-juego) ─> [prueba B.3 en el juego] ─> D (sync bidireccional) ─> E (limpieza)
+B (lectura/escritura completa de jugador) ┴─> C (UI unificada) ─> C.1 ─> C.2 ─> [prueba en el juego: OK 15/09]
+  ─> D.R (reglas YunaCoins compartidas + cobro desde la tool) ─> D (sync: pedidos y publicar) ─> F (sección pública) ─> E (limpieza)
 ```
 
 A y B son independientes entre sí y pueden hacerse en cualquier orden, pero
@@ -454,6 +455,48 @@ reescrita como save, abrir PES5, ver la altura editada).
 
 ---
 
+### Slice D.R — reglas YunaCoins compartidas y cobro desde la tool (pregunta del usuario, 15/09)
+
+**Por qué antes de D.** Las reglas de costo viven hoy **solo** en
+`prototype-editor-jugador.html` (`bandCost99`, `costRange99`, `HEIGHT_CAPS`,
+bono suscriptores, `canAfford`). El saldo vive por equipo en `teams.yunacoin`
+y cada movimiento se registra en la colección `coins`
+(`{teamId, teamName, mode:'add'|'sub', amount, reason, note, before, after, season, date}`,
+ver `js/coins.js > saveCoinsTransaction`). Si Luis edita un jugador desde la
+tool, el cobro tiene que salir de las **mismas** reglas y dejar el **mismo**
+rastro que un pedido del presidente; si no, admin y público divergen.
+
+**Archivos:** nuevo `tsc-src/js/yunacoins-rules.js`; `prototype-editor-jugador.html`
+(pasa a usar el módulo, sin cambiar comportamiento); `pes5-tool.html`.
+
+**Spec.**
+1. `YUNACOINS_RULES` (módulo global, sin DOM): `costoAtributo(desde, hasta)`,
+   `costoHabilidad(nombre)`, `costoAltura(...)` si aplica, `HEIGHT_CAPS`,
+   `bonoSuscriptor(...)`, `costoCambios(jugadorOriginal, cambios)` → `{total, lineas:[{campo, de, a, costo}]}`,
+   y `puedePagar(saldo, total)`. Los valores son **exactamente** los del
+   editor de hoy: portarlos, no reinterpretarlos. Test Node
+   `pes5/tools/test-yunacoins-rules.js` con 5 casos calculados a mano desde
+   el editor actual.
+2. El editor del presidente llama al módulo y **no cambia ningún número**
+   (verificar con los mismos 5 casos en el navegador).
+3. En la tool, al editar jugadores de un equipo TSC **vinculado y activo**,
+   el panel muestra el costo por campo y el total con `costoCambios`, y el
+   saldo actual del equipo (`teams.yunacoin`). Al escribir el save:
+   - se registra en `coins` una transacción `mode:'sub'`, `reason:'mejora PES5 (admin)'`,
+     `note:` = resumen de líneas, y se actualiza `teams.yunacoin`, **igual que
+     `saveCoinsTransaction`** (mismo esquema, misma colección);
+   - si el saldo no alcanza, no se escribe: aviso con faltante;
+   - checkbox "Sin cobro (ajuste del admin)" **desmarcado por defecto**: si se
+     marca, no descuenta pero igual deja una transacción `amount:0` con
+     `reason:'ajuste PES5 sin cobro'` para que quede rastro. *(Decisión
+     pendiente del usuario: ¿existe el caso "sin cobro"? Si no, se quita.)*
+   - clubes PES5 **no vinculados** a un equipo TSC: edición libre, sin cobro
+     y sin transacción (no hay cuenta a la que descontar).
+4. Las escrituras a `coins`/`teams` exigen `isAdmin()` en las reglas: probar
+   logueado como admin y **borrar** las transacciones de prueba.
+
+---
+
 ### Slice D — sync bidireccional
 
 **Archivos:** `pes5-tool.html` (pestañas 3 y 4), `prototype-editor-jugador.html`
@@ -498,6 +541,27 @@ publicado (ya no un valor estimado) y el bloqueo de altura sigue igual.
 **Riesgos:** `localhost:3001` escribe en el Firestore **real**; usar equipo y
 pedidos de prueba y limpiarlos. Las reglas exigen `isAdmin()` para
 `pes5_plantillas` y para `update` de pedidos: probar logueado como admin.
+
+---
+
+### Slice F — sección pública: el presidente mejora a sus jugadores
+
+**Cuándo.** Después de D, cuando el circuito admin cierra de punta a punta
+(pedido → aplicar → save → publicar). Es la respuesta a "¿en qué momento
+pasamos a la sección pública?": **F, antes de la limpieza E.**
+
+**Qué es.** El editor del presidente deja de ser un prototipo suelto y se
+integra como sección de la web 2.0 (overlay/página dentro de `index.html`,
+misma navegación y auth que el resto), usando `YUNACOINS_RULES` (D.R) y
+`pes5_plantillas`/`pedidos_pes5` (D). Contenido mínimo:
+- saldo del equipo, bono de suscriptores y **reglas visibles** (tabla de
+  precios por banda, cupos por altura, qué se puede y qué no);
+- plantilla real con altura y estadísticas actuales, edición con costo en
+  vivo y envío del pedido;
+- historial del equipo: pedidos pendientes/aplicados/rechazados y las
+  transacciones de `coins` (incluidas las hechas por el admin desde la tool,
+  que aparecen con su `reason`).
+Spec detallada se escribe al cerrar D, con lo aprendido.
 
 ---
 
@@ -552,4 +616,4 @@ de Sonnet:
 4. Regla que no cambia: en A-C, la carpeta que se elige en `PES5_SAVE` es una
    **carpeta de prueba con una copia** del save. La del juego recién en D.
 
-**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). C.1 commiteado (`23e3d37`) y probado en el juego: juego → tool OK; tool → juego falló (ver C.2). Sigue **C.2**, después repetir la prueba tool → juego, y recién ahí D y E, un slice por aprobación.
+**Estado 2026-09-15:** A+B+C commiteados (`ce25234`). C.1 commiteado (`23e3d37`) y probado en el juego: juego → tool OK; tool → juego falló (ver C.2). C.2 commiteado (`4787c0b`) y prueba tool → juego OK (15/09). Sigue **D.R** (reglas compartidas + cobro), luego **D**, luego **F** (sección pública), y **E** al final. Un slice por aprobación.
