@@ -505,6 +505,87 @@ rastro que un pedido del presidente; si no, admin y público divergen.
 
 ---
 
+### Slice D — sync bidireccional
+
+**Archivos:** `pes5-tool.html` (pestañas 3 y 4), `prototype-editor-jugador.html`
+(solo `cargarPlantillaReal` y la altura), `pes5-editor.js` si hace falta un
+helper de serialización.
+
+**Spec.**
+
+*Juego → web (pestaña Publicar).* Para cada equipo TSC con `pes5Club`,
+escribir `pes5_plantillas/{teamId}` con
+`{ teamId, pes5Club, indiceClub, publicadoEn, hash: md5 del save, jugadores: [leerJugadorCompleto…] }`.
+Incluye altura real. Toggle "auto-publicar al detectar guardado del juego"
+(off por defecto). Mostrar por equipo la fecha de la última publicación y si
+está desactualizada respecto del save actual (comparar `hash`).
+
+*Web → juego (pestaña Pedidos).* Lista de `pedidos_pes5` con `estado ==
+'pendiente'`, agrupados por equipo: jugador, líneas `label from → to`, costo,
+fecha, presidente. Botón "Aplicar seleccionados": para cada pedido,
+`escribirJugadorCompleto` con los cambios; un solo `PES5_SAVE.escribir` al
+final; luego `update({estado:'aplicado', aplicadoEn, aplicadoPor: uid,
+backup})` en cada pedido. Si un pedido no se puede aplicar (jugador ya no
+está en el roster, valor fuera de rango), se marca `estado:'rechazado'` con
+`motivo` y no se toca el save por ese pedido. Después de aplicar, ofrecer
+"Publicar ahora" para cerrar el ciclo.
+
+*Editor del presidente.* `cargarPlantillaReal` toma `altura` del documento
+publicado (ya no un valor estimado) y el bloqueo de altura sigue igual.
+
+**Pruebas:**
+1. Publicar FK TUPADRE → leer el doc desde el editor del presidente
+   (`localhost:3001/prototipo_yunas/prototype-editor-jugador`, cuenta con
+   `teamId` 61) y ver la misma altura que la tool.
+2. Crear un pedido de prueba desde el editor (cuenta presidente), aplicarlo
+   desde la tool sobre una **copia** del save, verificar en la tool el valor
+   nuevo y en Firestore `estado:'aplicado'`. Borrar el pedido de prueba al
+   final (es producción).
+3. Un pedido con jugador inexistente → `rechazado` con motivo, save intacto
+   (md5 igual).
+4. Cambiar el save desde Node mientras la tool está abierta → aviso de
+   "guardado detectado"; con auto-publicar on, el doc se actualiza solo.
+
+**Riesgos:** `localhost:3001` escribe en el Firestore **real**; usar equipo y
+pedidos de prueba y limpiarlos. Las reglas exigen `isAdmin()` para
+`pes5_plantillas` y para `update` de pedidos: probar logueado como admin.
+
+---
+
+### Slice F — sección pública: el presidente mejora a sus jugadores
+
+**Cuándo.** Después de D, cuando el circuito admin cierra de punta a punta
+(pedido → aplicar → save → publicar). Es la respuesta a "¿en qué momento
+pasamos a la sección pública?": **F, antes de la limpieza E.**
+
+**Qué es.** El editor del presidente deja de ser un prototipo suelto y se
+integra como sección de la web 2.0 (overlay/página dentro de `index.html`,
+misma navegación y auth que el resto), usando `YUNACOINS_RULES` (D.R) y
+`pes5_plantillas`/`pedidos_pes5` (D). Contenido mínimo:
+- saldo del equipo, bono de suscriptores y **reglas visibles** (tabla de
+  precios por banda, cupos por altura, qué se puede y qué no);
+- plantilla real con altura y estadísticas actuales, edición con costo en
+  vivo y envío del pedido;
+- historial del equipo: pedidos pendientes/aplicados/rechazados y las
+  transacciones de `coins` (incluidas las hechas por el admin desde la tool,
+  que aparecen con su `reason`).
+Spec detallada se escribe al cerrar D, con lo aprendido.
+
+---
+
+### Slice E — limpieza
+
+**Archivos:** borrar `pes5/admin-pes5.html`, `pes5/admin-tool-luis.html`,
+`pes5/admin-vincular-equipos.html`, `pes5/test-browser-crypto.html`
+(mover el test de round-trip a un botón "Diagnóstico" en la barra de estado
+de la tool). Actualizar `pes5/README.md` (sección "Cómo se usa ahora" que
+apunte a `pes5-tool.html`) y la tabla §7 de `WORKFLOW_2.0.md`.
+
+**Pruebas:** `grep -r 'admin-pes5\|admin-tool-luis\|admin-vincular' tsc-src`
+sin resultados; la tool sigue pasando las pruebas de C y D; `graphify update .`.
+
+---
+
 ### Slice G — nivelación configurable (perfil de reglas de temporada) · PENDIENTE DE LUIS
 
 **Estado:** diseñado, **no se implementa hasta que Luis confirme cómo quiere la regla** (decisión del usuario, 15/09). Va al final, después de E.
@@ -615,87 +696,6 @@ valores nivelados.
 
 **Orden:** D.R → D → F → E → **G**. Depende de D.R (`HEIGHT_CAPS`) y de las
 reglas Firestore de `pes5_reglas`.
-
----
-
-### Slice D — sync bidireccional
-
-**Archivos:** `pes5-tool.html` (pestañas 3 y 4), `prototype-editor-jugador.html`
-(solo `cargarPlantillaReal` y la altura), `pes5-editor.js` si hace falta un
-helper de serialización.
-
-**Spec.**
-
-*Juego → web (pestaña Publicar).* Para cada equipo TSC con `pes5Club`,
-escribir `pes5_plantillas/{teamId}` con
-`{ teamId, pes5Club, indiceClub, publicadoEn, hash: md5 del save, jugadores: [leerJugadorCompleto…] }`.
-Incluye altura real. Toggle "auto-publicar al detectar guardado del juego"
-(off por defecto). Mostrar por equipo la fecha de la última publicación y si
-está desactualizada respecto del save actual (comparar `hash`).
-
-*Web → juego (pestaña Pedidos).* Lista de `pedidos_pes5` con `estado ==
-'pendiente'`, agrupados por equipo: jugador, líneas `label from → to`, costo,
-fecha, presidente. Botón "Aplicar seleccionados": para cada pedido,
-`escribirJugadorCompleto` con los cambios; un solo `PES5_SAVE.escribir` al
-final; luego `update({estado:'aplicado', aplicadoEn, aplicadoPor: uid,
-backup})` en cada pedido. Si un pedido no se puede aplicar (jugador ya no
-está en el roster, valor fuera de rango), se marca `estado:'rechazado'` con
-`motivo` y no se toca el save por ese pedido. Después de aplicar, ofrecer
-"Publicar ahora" para cerrar el ciclo.
-
-*Editor del presidente.* `cargarPlantillaReal` toma `altura` del documento
-publicado (ya no un valor estimado) y el bloqueo de altura sigue igual.
-
-**Pruebas:**
-1. Publicar FK TUPADRE → leer el doc desde el editor del presidente
-   (`localhost:3001/prototipo_yunas/prototype-editor-jugador`, cuenta con
-   `teamId` 61) y ver la misma altura que la tool.
-2. Crear un pedido de prueba desde el editor (cuenta presidente), aplicarlo
-   desde la tool sobre una **copia** del save, verificar en la tool el valor
-   nuevo y en Firestore `estado:'aplicado'`. Borrar el pedido de prueba al
-   final (es producción).
-3. Un pedido con jugador inexistente → `rechazado` con motivo, save intacto
-   (md5 igual).
-4. Cambiar el save desde Node mientras la tool está abierta → aviso de
-   "guardado detectado"; con auto-publicar on, el doc se actualiza solo.
-
-**Riesgos:** `localhost:3001` escribe en el Firestore **real**; usar equipo y
-pedidos de prueba y limpiarlos. Las reglas exigen `isAdmin()` para
-`pes5_plantillas` y para `update` de pedidos: probar logueado como admin.
-
----
-
-### Slice F — sección pública: el presidente mejora a sus jugadores
-
-**Cuándo.** Después de D, cuando el circuito admin cierra de punta a punta
-(pedido → aplicar → save → publicar). Es la respuesta a "¿en qué momento
-pasamos a la sección pública?": **F, antes de la limpieza E.**
-
-**Qué es.** El editor del presidente deja de ser un prototipo suelto y se
-integra como sección de la web 2.0 (overlay/página dentro de `index.html`,
-misma navegación y auth que el resto), usando `YUNACOINS_RULES` (D.R) y
-`pes5_plantillas`/`pedidos_pes5` (D). Contenido mínimo:
-- saldo del equipo, bono de suscriptores y **reglas visibles** (tabla de
-  precios por banda, cupos por altura, qué se puede y qué no);
-- plantilla real con altura y estadísticas actuales, edición con costo en
-  vivo y envío del pedido;
-- historial del equipo: pedidos pendientes/aplicados/rechazados y las
-  transacciones de `coins` (incluidas las hechas por el admin desde la tool,
-  que aparecen con su `reason`).
-Spec detallada se escribe al cerrar D, con lo aprendido.
-
----
-
-### Slice E — limpieza
-
-**Archivos:** borrar `pes5/admin-pes5.html`, `pes5/admin-tool-luis.html`,
-`pes5/admin-vincular-equipos.html`, `pes5/test-browser-crypto.html`
-(mover el test de round-trip a un botón "Diagnóstico" en la barra de estado
-de la tool). Actualizar `pes5/README.md` (sección "Cómo se usa ahora" que
-apunte a `pes5-tool.html`) y la tabla §7 de `WORKFLOW_2.0.md`.
-
-**Pruebas:** `grep -r 'admin-pes5\|admin-tool-luis\|admin-vincular' tsc-src`
-sin resultados; la tool sigue pasando las pruebas de C y D; `graphify update .`.
 
 ---
 
