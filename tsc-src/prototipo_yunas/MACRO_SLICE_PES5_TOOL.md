@@ -479,19 +479,33 @@ rastro que un pedido del presidente; si no, admin y público divergen.
    el editor actual.
 2. El editor del presidente llama al módulo y **no cambia ningún número**
    (verificar con los mismos 5 casos en el navegador).
-3. En la tool, al editar jugadores de un equipo TSC **vinculado y activo**,
-   el panel muestra el costo por campo y el total con `costoCambios`, y el
-   saldo actual del equipo (`teams.yunacoin`). Al escribir el save:
-   - se registra en `coins` una transacción `mode:'sub'`, `reason:'mejora PES5 (admin)'`,
-     `note:` = resumen de líneas, y se actualiza `teams.yunacoin`, **igual que
-     `saveCoinsTransaction`** (mismo esquema, misma colección);
-   - si el saldo no alcanza, no se escribe: aviso con faltante;
-   - checkbox "Sin cobro (ajuste del admin)" **desmarcado por defecto**: si se
-     marca, no descuenta pero igual deja una transacción `amount:0` con
-     `reason:'ajuste PES5 sin cobro'` para que quede rastro. *(Decisión
-     pendiente del usuario: ¿existe el caso "sin cobro"? Si no, se quita.)*
-   - clubes PES5 **no vinculados** a un equipo TSC: edición libre, sin cobro
-     y sin transacción (no hay cuenta a la que descontar).
+3. **Regla de cobro (decisión del usuario, 15/09): se cobra si y solo si el
+   equipo tiene presidente.** "Tiene presidente" = existe un usuario con
+   `users.teamId == team.id` (lo que la tool ya muestra en la columna
+   Presidente). No depende de que el club esté vinculado ni de que el equipo
+   esté activo.
+   - **Con presidente:** el panel muestra costo por campo, total
+     (`costoCambios`) y saldo del equipo (`teams.yunacoin`). Al escribir el
+     save se registra en `coins` una transacción `mode:'sub'`,
+     `reason:'mejora PES5 (admin)'`, `note:` = resumen de líneas, y se
+     actualiza `teams.yunacoin`, **igual que `saveCoinsTransaction`**. Si el
+     saldo no alcanza, no se escribe: aviso con el faltante. No existe
+     "sin cobro": todo cambio a un equipo con presidente sale de su
+     presupuesto.
+   - **Sin presidente** (club PES5 sin equipo TSC, o equipo TSC sin usuario
+     asignado): edición libre, sin cobro y sin transacción. Es el caso de
+     uso de Luis para preparar el juego antes de asignar presidentes.
+   - El panel indica siempre en qué modo está: badge "Se cobra a <equipo>
+     · saldo N" o "Sin presidente · edición libre".
+3 bis. **Nivelar plantillas (arranque de temporada).** Acción en la pestaña
+   Plantilla, disponible **solo** para equipos sin presidente: "Nivelar a N"
+   (N por defecto 80, rango 1-99) pone los 27 atributos 0-99 de todos los
+   jugadores del roster en N (no toca escala 1-8, habilidades, altura, edad,
+   pie, lesiones ni posiciones). Variante "Nivelar todos los equipos sin
+   presidente a N" desde la pestaña Equipos, con confirmación que liste los
+   equipos afectados y el total de jugadores. Genera un único
+   `PES5_SAVE.escribir` con backup. Si un equipo tiene presidente, la acción
+   no aparece para él y la masiva lo salta y lo dice en el resumen.
 4. Las escrituras a `coins`/`teams` exigen `isAdmin()` en las reglas: probar
    logueado como admin y **borrar** las transacciones de prueba.
 
