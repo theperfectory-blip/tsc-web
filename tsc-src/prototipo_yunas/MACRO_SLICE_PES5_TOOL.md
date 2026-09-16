@@ -366,6 +366,15 @@ save, y sale de ahí si vuelve al original; el diálogo del usuario (captura
 hoy se registran cambios en campos no tocados (probable disparo de
 `onchange` en la reconstrucción del panel). Verificar y pegar la causa.
 
+**C2.2 bis · Rango real de altura: 148–205 cm (dato del usuario, 15/09).**
+Los 6 bits del campo permiten hasta 211, pero el editor de PES5 solo admite
+hasta 205 y ese es el tope que vale: la tool no debe poder escribir un valor
+que el juego no permite. Cambiar el máximo a 205 en `escribirJugadorCompleto`
+(`pes5-editor.js`), en los inputs de altura de `pes5-tool.html`, en el test
+Node (`altura maxima <= 205` sobre el save real, que hoy da 203) y anotar en
+`pes5-map.json > ajustes_basicos.Altura` una nota `rango_juego: "148-205"`.
+Confirmar con el usuario si el mínimo del juego también es 148 o es mayor.
+
 **C2.3 · La escritura falla en silencio: hacerla visible y robusta.**
 1. Justo antes de escribir, dentro del mismo gesto del click, pedir el
    permiso de escritura explícitamente: `PES5_SAVE.asegurarEscritura()`
