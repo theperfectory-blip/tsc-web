@@ -324,7 +324,6 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   .ep-modal-body{scrollbar-width:none;padding:14px 16px calc(14px + env(safe-area-inset-bottom));}
   .ep-modal-body::-webkit-scrollbar{display:none;}
   .ep-modal-close{min-width:44px;min-height:44px;font-size:26px;}
-  #ep-otros-sel{width:100%;min-height:44px;font-size:16px;}
 }
 </style>
 </head>
@@ -353,10 +352,6 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
       <div class="ep-hero-val small"><b id="ep-balance-sub">0</b></div>
     </div>
     <div class="ep-hero-actions">
-      <button class="ep-histbtn" onclick="openOtrosEquiposModal()">
-        <svg class="icn" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Otros equipos
-      </button>
       <button class="ep-histbtn formation" onclick="openFormationModal()">
         <span class="ep-pitch-cta-icon"><i></i><i></i><i></i></span>
         Formacion
@@ -419,7 +414,6 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 
 <div id="ep-confirm-wrap"></div>
 <div id="ep-audit-wrap"></div>
-<div id="ep-otros-wrap"></div>
 <div id="ep-rules-wrap"></div>
 <div id="ep-pitch-wrap"></div>
 
@@ -1368,51 +1362,6 @@ async function cancelarPedidoDesdeHistorial(id){
 function actualizarBadgeHistorial(pedidos){
   const el = document.getElementById('ep-hist-badge');
   if (el) el.textContent = (pedidos || []).filter(p => p.estado === 'pendiente').length;
-}
-async function openOtrosEquiposModal(){
-  const wrap = document.getElementById('ep-otros-wrap');
-  wrap.innerHTML = `<div class="ep-overlay"><div class="ep-modal wide"><div class="ep-modal-body">Cargando equipos…</div></div></div>`;
-  let docs = [];
-  try {
-    const q = await firebase.firestore().collection('pes5_plantillas').get();
-    docs = q.docs.map(d => d.data()).filter(d => String(d.teamId) !== String(AUTH.teamId) && d.pes5ClubIdx != null); // solo plantillas publicadas con la Tool PES5 (formato con indice de club)
-  } catch (e) {
-    wrap.innerHTML = '';
-    showMiniToast('No se pudieron leer las plantillas: ' + (e && e.message ? e.message : e));
-    return;
-  }
-  docs.sort((a, b) => String(a.teamName || '').localeCompare(String(b.teamName || '')));
-  window.__OTROS_EQUIPOS__ = docs;
-  const opciones = docs.map((d, i) => `<option value="${i}">${_esc(d.teamName || String(d.teamId))} &middot; ${_esc(d.pes5Club || '')}</option>`).join('');
-  wrap.innerHTML = `
-  <div class="ep-overlay" onclick="if(event.target===this) closeOtrosEquiposModal()">
-    <div class="ep-modal wide">
-      <div class="ep-modal-hd">
-        <h2>Plantillas de otros equipos</h2>
-        <button class="ep-modal-close" onclick="closeOtrosEquiposModal()">&times;</button>
-      </div>
-      <div class="ep-modal-body">
-        ${docs.length ? `<select id="ep-otros-sel" onchange="renderOtroEquipo(this.value)">${opciones}</select>
-        <div id="ep-otros-tabla" style="margin-top:12px;overflow-x:auto;scrollbar-width:none;"></div>` : '<div class="sum">Todavía no hay otras plantillas publicadas.</div>'}
-      </div>
-    </div>
-  </div>`;
-  if (docs.length) renderOtroEquipo(0);
-}
-function closeOtrosEquiposModal(){ document.getElementById('ep-otros-wrap').innerHTML = ''; }
-function renderOtroEquipo(i){
-  const d = (window.__OTROS_EQUIPOS__ || [])[Number(i)];
-  const el = document.getElementById('ep-otros-tabla');
-  if (!d || !el) return;
-  const cols = [['atk','ATA'],['def','DEF'],['res','RES'],['vm','VEL'],['ace','ACE'],['ppc','PAS'],['pre','PRE'],['pot','POT'],['tec','TEC']];
-  const filas = (d.jugadores || []).map(j => `<tr>
-    <td>${_esc(j.name || '')}${j.subscriber ? ' <span class="badge">$</span>' : ''}</td>
-    <td>${_esc(j.tag || '')}</td><td>${Number(j.height || 0)}</td><td>${Number(j.age || 0)}</td>
-    ${cols.map(c => `<td style="text-align:right;">${Number((j.stats || {})[c[0]] || 0)}</td>`).join('')}
-  </tr>`).join('');
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead><tr><th style="text-align:left;">Jugador</th><th style="text-align:left;">Pos.</th><th>Alt.</th><th>Edad</th>${cols.map(c => `<th style="text-align:right;">${c[1]}</th>`).join('')}</tr></thead>
-    <tbody>${filas}</tbody></table>`;
 }
 function closeAuditModal(){ document.getElementById('ep-audit-wrap').innerHTML=''; }
 function clearAuditLog(){
