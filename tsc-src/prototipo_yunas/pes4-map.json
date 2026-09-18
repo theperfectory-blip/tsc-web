@@ -1,0 +1,69 @@
+{
+  "_comment": "Mapa de atributos de jugador en el Option File de PES4 (SLES-52760, PAL). Ver tsc-src/MACRO_SLICE_EDITOR_PES4.md",
+  "_verificado": "2026-07-27",
+  "_validacion": "Los 26 atributos validados EN LOS DOS SENTIDOS: lectura contra calibracion in-game con 24 valores unicos, y escritura contra una prueba con patron discriminante confirmada en la pantalla Modo Editar del juego.",
+  "_correccion": "cualidadesDePortero y trabajoEnEquipo estaban invertidos en la primera version. La calibracion de lectura no podia distinguirlos porque ambos valian 80; se asignaron suponiendo el orden de la pantalla y la suposicion era falsa. La prueba de escritura con valores distintos (99 y 10) lo detecto. Leccion: un campo solo esta mapeado si algun dato lo distingue de sus vecinos.",
+
+  "playerTable": {
+    "base": 31568,
+    "baseHex": "0x7B50",
+    "stride": 124,
+    "records": 4923,
+    "nameOffset": 0,
+    "nameBytes": 32,
+    "nameEncoding": "utf-16le",
+    "shirtNameOffset": 32,
+    "shirtNameBytes": 16,
+    "shirtNameEncoding": "ascii",
+    "_shirtNameNota": "el caracter '_' representa un espacio"
+  },
+
+  "sectionChecksum": {
+    "offset": 31564,
+    "offsetHex": "0x7B4C",
+    "width": 1,
+    "algoritmo": "suma de bytes mod 256",
+    "rangeStart": 31565,
+    "rangeStartHex": "0x7B4D",
+    "rangeEndAprox": 641936,
+    "rangeEndAproxHex": "0x9CB90",
+    "_nota": "el final exacto es indiferente: la cola es padding en ceros y 510 limites distintos dan la misma suma. Para escribir usar el metodo de delta: checksum_nuevo = checksum_viejo + (suma_nueva - suma_vieja) mod 256"
+  },
+
+  "attributes": {
+    "_formato": "campos de 7 bits, LSB-first, bit de inicio relativo al comienzo del registro de 124 bytes. Escala 0-99.",
+    "_orden": "las claves estan en el orden en que las muestra la pantalla Modo Editar del juego",
+    "ataque":              { "bit": 420, "off": "+0x34.4" },
+    "defensa":             { "bit": 427, "off": "+0x35.3" },
+    "equilibrio":          { "bit": 434, "off": "+0x36.2" },
+    "resistencia":         { "bit": 441, "off": "+0x37.1" },
+    "velMaxima":           { "bit": 448, "off": "+0x38.0" },
+    "aceleracion":         { "bit": 455, "off": "+0x38.7" },
+    "respuesta":           { "bit": 462, "off": "+0x39.6" },
+    "agilidad":            { "bit": 615, "off": "+0x4C.7" },
+    "precConduccion":      { "bit": 469, "off": "+0x3A.5" },
+    "velConduccion":       { "bit": 480, "off": "+0x3C.0" },
+    "precPaseCorto":       { "bit": 487, "off": "+0x3C.7" },
+    "velPaseCorto":        { "bit": 494, "off": "+0x3D.6" },
+    "precPaseLargo":       { "bit": 501, "off": "+0x3E.5" },
+    "velPaseLargo":        { "bit": 512, "off": "+0x40.0" },
+    "precision":           { "bit": 526, "off": "+0x41.6" },
+    "potencia":            { "bit": 519, "off": "+0x40.7" },
+    "tecnicaDeDisparo":    { "bit": 533, "off": "+0x42.5" },
+    "precSaqFalta":        { "bit": 596, "off": "+0x4A.4" },
+    "efecto":              { "bit": 565, "off": "+0x46.5" },
+    "cabezazo":            { "bit": 551, "off": "+0x44.7" },
+    "salto":               { "bit": 544, "off": "+0x44.0" },
+    "tecnica":             { "bit": 558, "off": "+0x45.6" },
+    "agresividad":         { "bit": 576, "off": "+0x48.0" },
+    "mentalidad":          { "bit": 583, "off": "+0x48.7" },
+    "cualidadesDePortero": { "bit": 622, "off": "+0x4D.6" },
+    "trabajoEnEquipo":     { "bit": 608, "off": "+0x4C.0" }
+  },
+
+  "sinMapear": {
+    "_comment": "campos de la pantalla del juego que NO estan ubicados todavia. Son de escala 1-8, no 0-99. NO escribir a ciegas.",
+    "pendientes": ["Regularidad en el juego", "Estabilidad", "Prec. pie malo", "Frec. pie malo"],
+    "_nota": "tambien hay campos de 7 bits en +0x49.6 y +0x4E.5 que valen 27 y 108 en un jugador base de 80: no son atributos 0-99 y deben quedar intactos"
+  }
+}

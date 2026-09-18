@@ -76,6 +76,42 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- Pedidos de mejora PES5 (YunaCoins) --- lo crea quien tiene equipo asignado; lo aplica o rechaza el admin; el autor puede cancelarlo mientras esta pendiente.
+    match /pedidos_pes5/{id} {
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+
+      // Crea quien tenga equipo asignado, para SU equipo (no se mira el rol:
+      // un admin que preside un club tambien pide).
+      allow create: if signedIn() && meExists()
+                    && me().teamId != null
+                    && request.resource.data.uid == request.auth.uid
+                    && string(me().teamId) == request.resource.data.teamId
+                    && request.resource.data.estado == 'pendiente';
+
+      // El admin lo aplica/rechaza. El autor solo puede cancelarlo mientras
+      // esta pendiente, y solo tocando estado y canceladoEn.
+      allow update: if isAdmin()
+                    || (signedIn()
+                        && resource.data.uid == request.auth.uid
+                        && resource.data.estado == 'pendiente'
+                        && request.resource.data.estado == 'cancelado'
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'canceladoEn']));
+      allow delete: if isAdmin();
+    }
+
+    // --- Reglas de precio YunaCoins / topes de temporada (slice R) ---
+    // Cualquier usuario logueado las lee; solo el admin las escribe.
+    match /pes5_config/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- Plantillas PES5 publicadas por el admin --- las escribe solo el admin; cada presidente lee solo la de su equipo.
+    match /pes5_plantillas/{teamId} {
+      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null && string(me().teamId) == teamId);
+      allow write: if isAdmin();
+    }
+
     // --- Notificaciones push (Fase 8, backend FCM) ---
     // Solo el Admin SDK (Cloud Functions) escribe acá — las reglas de
     // cliente no importan para esas escrituras, pero se dejan explícitas

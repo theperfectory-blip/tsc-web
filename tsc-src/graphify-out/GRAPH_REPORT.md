@@ -1,12 +1,12 @@
-# Graph Report - C:\Users\Administrator\Downloads\tsc.web\tsc-src  (2026-09-06)
+# Graph Report - C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src  (2026-09-18)
 
 ## Corpus Check
-- 44 files · ~938,207 words
+- 64 files · ~1,334,099 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2809 nodes · 7227 edges · 45 communities detected
-- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 1326 edges (avg confidence: 0.8)
+- 2849 nodes · 7320 edges · 36 communities detected
+- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 1322 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -46,175 +46,152 @@
 - [[_COMMUNITY_Community 33|Community 33]]
 - [[_COMMUNITY_Community 34|Community 34]]
 - [[_COMMUNITY_Community 35|Community 35]]
-- [[_COMMUNITY_Community 36|Community 36]]
-- [[_COMMUNITY_Community 37|Community 37]]
-- [[_COMMUNITY_Community 38|Community 38]]
-- [[_COMMUNITY_Community 39|Community 39]]
-- [[_COMMUNITY_Community 40|Community 40]]
-- [[_COMMUNITY_Community 41|Community 41]]
-- [[_COMMUNITY_Community 42|Community 42]]
-- [[_COMMUNITY_Community 43|Community 43]]
-- [[_COMMUNITY_Community 44|Community 44]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `copy()` - 167 edges
+1. `copy()` - 171 edges
 2. `set()` - 134 edges
-3. `dbGetAll()` - 124 edges
-4. `dbGet()` - 88 edges
-5. `add()` - 85 edges
+3. `dbGetAll()` - 123 edges
+4. `dbGet()` - 87 edges
+5. `add()` - 84 edges
 6. `re` - 75 edges
-7. `showToast()` - 75 edges
+7. `showToast()` - 74 edges
 8. `qt` - 70 edges
 9. `ne` - 63 edges
 10. `dbPut()` - 61 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `add()` --calls--> `_fxHideLoader()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\fixture-gen.js
-- `remove()` --calls--> `_fxShowLoader()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\fixture-gen.js
-- `set()` --calls--> `_emscripten_memcpy_big()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js
+  C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\js\fixture-gen.js
+- `add()` --calls--> `writeField()`  [INFERRED]
+  C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\prototipo_yunas\tools\write-attrs.js
+- `copy()` --calls--> `ensureInt8()`  [INFERRED]
+  C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\assets\vendor\three\three.min.js → C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\assets\vendor\three\draco\draco_decoder.js
 - `locateFile()` --calls--> `v()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_decoder.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\assets\vendor\three\draco\draco_wasm_wrapper.js
+  C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\assets\vendor\three\draco\draco_decoder.js → C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\assets\vendor\three\draco\draco_wasm_wrapper.js
 - `_calInitHeroCountdown()` --calls--> `countdown()`  [INFERRED]
-  C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\calendar.js → C:\Users\Administrator\Downloads\tsc.web\tsc-src\js\motion.js
-
-## Hyperedges (group relationships)
-- **All Public Pages in index.html** — index_html_pub_page_palmares, index_html_pub_page_panel, index_html_pub_page_equipos, index_html_pub_page_historial, index_html_pub_page_sorteo [EXTRACTED 1.00]
-- **All Admin Pages in index.html** — index_html_adm_page_dashboard, index_html_adm_page_equipos, index_html_adm_page_usuarios, index_html_adm_page_competiciones, index_html_adm_page_fases, index_html_adm_page_partidos, index_html_adm_page_sorteo, index_html_adm_page_coins, index_html_adm_page_temporadas, index_html_adm_page_datos, index_html_adm_page_historial, index_html_adm_page_historial_tabla, index_html_adm_page_palmares [EXTRACTED 1.00]
-- **8-Frame Chibi Sorteo Animation (draw reveal sequence)** — chibi_01_idle, chibi_02_reach, chibi_03_grab, chibi_04_hold, chibi_05_show, chibi_06_crack, chibi_07_open, chibi_08_celebrate [EXTRACTED 1.00]
-- **Top 5 God Nodes (most connected functions)** — audit_report_dbGetAll, audit_report_dbGet, audit_report_showToast, audit_report_dbPut, audit_report_dbAdd [EXTRACTED 1.00]
-- **Global Modals in index.html** — index_html_settings_modal, index_html_confirm_overlay, index_html_toast [EXTRACTED 1.00]
-- **Tournament Phase Type â†’ Config Schema â†’ Render Function Pipeline** — phase_type_liga, data_phase_config_liga, fn_renderligastandings [EXTRACTED 0.95]
-- **IndexedDB CRUD Layer: dbAdd/dbPut/dbGet/dbDelete** — fn_dbadd, fn_dbput, fn_dbget, fn_dbdelete, fn_dbgetall [EXTRACTED 1.00]
-- **App Initialization: initDB â†’ seedData â†’ loadSeasons â†’ setMode** — fn_initdb, fn_seedinitialdata, fn_loadseasons, fn_setmode [EXTRACTED 1.00]
-- **Gold-toned Trophy Group** — trophy_01_classica, trophy_02_imperial, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica [EXTRACTED 0.95]
-- **Silver/Chrome Trophy Group** — trophy_04_orejona, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula [EXTRACTED 0.95]
-- **Football Ball Design Trophy Group** — trophy_03_konami, trophy_09_geometrica [EXTRACTED 0.90]
-- **All Palmares Trophy Assets** — trophy_01_classica, trophy_02_imperial, trophy_03_konami, trophy_04_orejona, trophy_05_sobria, trophy_06_moderno, trophy_07_celtica, trophy_08_barroca, trophy_09_geometrica, trophy_10_minimalista, trophy_11_nebula, concept_palmares_module [INFERRED 0.95]
+  C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\js\calendar.js → C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src\js\motion.js
 
 ## Communities
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
-Nodes (53): ensureInt8(), _a, an, ao, bc, cc, clone(), cn (+45 more)
+Nodes (73): _emscripten_memcpy_big(), histShowPrev(), _a, an, applyMatrix4(), cc, clampPoint(), clone() (+65 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.02
-Nodes (283): buildBracketRounds(), buildBracketSlots(), closeBracketMatchModal(), deleteBracketMatch(), fixBracketSlotHeights(), getClassifiedFromPhase(), getPlayoffMatchupsCount(), getStandingsForPhase() (+275 more)
+Nodes (332): authForgotPassword(), buildBracketRounds(), buildBracketSlots(), closeBracketMatchModal(), deleteBracketMatch(), fixBracketSlotHeights(), getClassifiedFromPhase(), getPlayoffMatchupsCount() (+324 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (120): getBombos(), ac, _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), as(), bind() (+112 more)
+Nodes (121): getBombos(), _activateAction(), _addInactiveAction(), _addInactiveBinding(), al(), ao, as(), bind() (+113 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.01
-Nodes (49): _cleanup(), loop(), resize(), scaleBracket(), spawnRocket(), resize(), _fxSetLoaderProgress(), _pubHCount() (+41 more)
+Nodes (49): _cleanup(), loop(), scaleBracket(), spawnRocket(), _fxSetLoaderProgress(), _pubHCount(), _palmLayoutSala(), _palmOpenSala() (+41 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.03
-Nodes (26): teamLogoHtml(), computeBounds(), toTrianglesDrawMode(), _injectHistHeader(), _pubMakeCarousel(), applyMatrix4(), bi, constructor() (+18 more)
+Cohesion: 0.02
+Nodes (37): addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), createAttributesKey(), createDefaultMaterial(), createPrimitiveKey() (+29 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.02
-Nodes (34): addMorphTargets(), addPrimitiveAttributes(), addUnknownExtensionsToUserData(), assignExtrasToUserData(), buildNodeHierarchy(), createAttributesKey(), createDefaultMaterial(), createPrimitiveKey() (+26 more)
+Cohesion: 0.03
+Nodes (135): _apkAlreadyDownloaded(), _apkClosedRecently(), _apkHideOverlay(), _apkInit(), _apkIsNativeApp(), _apkShouldOffer(), closeApkPromo(), openApkPromo() (+127 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.03
-Nodes (129): _pubBindHistCarouselResize(), _initChrome(), onScroll(), _play(), _initPubSidebarHover(), _esc(), _escAttr(), getAllPalmaresRecords() (+121 more)
+Nodes (112): _initChrome(), onScroll(), _play(), _initPubSidebarHover(), _esc(), _escAttr(), getAllPalmaresRecords(), getPalmaresMedia() (+104 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.02
-Nodes (15): bl, bt(), co, Ga, gc, jt(), Na, Oa (+7 more)
+Cohesion: 0.03
+Nodes (109): _authErrorMsg(), _authEsc(), authSignOut(), authSubmit(), _injectAuthModal(), _loadProfile(), onAuthInit(), openAuthModal() (+101 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.03
-Nodes (122): _apkAlreadyDownloaded(), _apkClosedRecently(), _apkHideOverlay(), _apkInit(), _apkIsNativeApp(), _apkShouldOffer(), closeApkPromo(), openApkPromo() (+114 more)
+Cohesion: 0.04
+Nodes (54): A(), B(), C(), D(), e(), F(), G(), h() (+46 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.04
-Nodes (56): _getAudioCtx(), Particle, resume(), rgbStr(), Rocket, _soundExplosion(), _soundRocketLaunch(), closeFixtureGenModal() (+48 more)
+Cohesion: 0.03
+Nodes (37): teamLogoHtml(), diff(), openCard(), chain(), fatNext(), readCluster(), readClusterPhys(), readEntries() (+29 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.04
-Nodes (50): A(), B(), C(), D(), e(), F(), G(), h() (+42 more)
+Nodes (52): _getAudioCtx(), resume(), _soundExplosion(), _soundRocketLaunch(), closeFixtureGenModal(), fxBuildLuisRoute(), _fxBuildLuisRouteForLegs(), fxBuildRoundRobin() (+44 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.03
 Nodes (74): notifyStreamTodayClick(), abort(), addFunctionWasm(), addOnPostRun(), addOnPreRun(), addRunDependency(), alignUp(), assert() (+66 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.04
-Nodes (10): stopDrumroll(), dh, ic, kl, _lendControlInterpolant(), rh, stopAllAction(), _takeBackControlInterpolant() (+2 more)
+Cohesion: 0.06
+Nodes (67): _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), _computeHistoricalStandings(), computeResultado(), _currentHistContainer(), _esc() (+59 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.07
-Nodes (62): _applyFilters(), _bindHtTable(), _buildH2HPanel(), _classifyOutcomeFIFA(), computeResultado(), _currentHistContainer(), _esc(), exportHistoryToExcel() (+54 more)
+Cohesion: 0.05
+Nodes (8): dh, kl, _lendControlInterpolant(), rh, stopAllAction(), _takeBackControlInterpolant(), yl, zl
 
 ### Community 14 - "Community 14"
-Cohesion: 0.08
-Nodes (57): hexToRgb(), lighten(), renderAdmSorteo(), activeBombo(), addBombo(), _applySorteoStateRefreshNow(), _bindChibiRig(), broadcast() (+49 more)
+Cohesion: 0.05
+Nodes (8): Particle, rgbStr(), Rocket, OptionFile, equals(), lineTo(), moveTo(), Rt
 
 ### Community 15 - "Community 15"
-Cohesion: 0.04
-Nodes (10): es, ia, je, setUsage(), setValue(), ss, _t(), ts (+2 more)
+Cohesion: 0.05
+Nodes (8): ac, ia, jl(), Na, setUsage(), _t(), wl, yn()
 
 ### Community 16 - "Community 16"
-Cohesion: 0.06
-Nodes (54): openAuthModal(), cloudReady(), uploadImageToCloud(), _champPhotosBodyHTML(), _champPhotosModalClose(), closeCropModal(), _clubDossierClose(), _cropApply() (+46 more)
+Cohesion: 0.07
+Nodes (39): frame(), getVariant(), init(), resize(), setVariant(), stop(), wake(), _bindPageReveals() (+31 more)
 
 ### Community 17 - "Community 17"
 Cohesion: 0.07
-Nodes (46): _bindListeners(), _clearPendingTokenRemoval(), _clearToken(), clearUserToken(), _currentTimezone(), disable(), _disableLocalPushFlagAndToken(), enable() (+38 more)
+Nodes (6): es, je, setValue(), ss, ts, xi
 
 ### Community 18 - "Community 18"
-Cohesion: 0.06
-Nodes (41): frame(), getVariant(), init(), setVariant(), stop(), wake(), _bindPageReveals(), countdown() (+33 more)
+Cohesion: 0.09
+Nodes (4): computeBounds(), bi, Et(), expandByVector()
 
 ### Community 19 - "Community 19"
+Cohesion: 0.11
+Nodes (3): bc, In, on
+
+### Community 20 - "Community 20"
 Cohesion: 0.17
 Nodes (6): Gn, hn, jn(), qn(), Vn(), Wn()
 
-### Community 20 - "Community 20"
-Cohesion: 0.16
-Nodes (15): Change: competitions.js COMP_TYPES reduced 6 to 4, PHASE_TYPES reduced 5 to 4, Change: history.js _teamCellHTML() shows historical name tooltip, Change: phases.js removed derived phase type logic, Change: teams.js auto-backup of historical names in saveTeam(), Change: ui-utils.js notifyTeamChanged() calls refreshHistoryForSeason(), dbAdd (16 edges God Node), dbGet (51 edges God Node), dbGetAll (77 edges God Node) (+7 more)
-
 ### Community 21 - "Community 21"
 Cohesion: 0.16
-Nodes (14): Football Ball Topper Design Pattern, Silver/Chrome Trophy Visual Style, Trophy 03 - Konami, Trophy 03 - Konami (PNG), Trophy 04 - Orejona, Trophy 04 - Orejona (PNG), Trophy 08 - Barroca, Trophy 08 - Barroca (PNG) (+6 more)
+Nodes (14): bloques(), capaPC(), checksums(), cifrar(), descifrar(), cambiosDesdeEditor(), plantillaParaEditor(), registroDeId() (+6 more)
 
 ### Community 22 - "Community 22"
-Cohesion: 0.23
-Nodes (12): Chibi Character Frame 01: Idle Stance, Chibi Character Frame 02: Reaching into Draw Bowl, Chibi Character Frame 03: Grabbing Ball from Bowl, Chibi Character Frame 04: Holding Ball Up, Chibi Character Frame 05: Showing/Presenting Ball, Chibi Character Frame 06: Cracking Ball Open, Chibi Character Frame 07: Ball Opened Reveal Moment, Chibi Character Frame 08: Celebration thumbs up (+4 more)
+Cohesion: 0.38
+Nodes (9): addToTeam(), findPlayerId(), findTeamIndex(), playerName(), readRoster(), removeFromTeam(), rosterOffset(), teamName() (+1 more)
 
 ### Community 23 - "Community 23"
-Cohesion: 0.2
-Nodes (11): Gold Trophy Visual Style, Trophy 01 - Classica, Trophy 01 - Classica (PNG), Trophy 02 - Imperial, Trophy 02 - Imperial (PNG), Trophy 05 - Sobria, Trophy 05 - Sobria (PNG), Trophy 06 - Moderno (+3 more)
+Cohesion: 0.47
+Nodes (4): bitsOf(), findByName(), setField(), writeBits()
 
 ### Community 24 - "Community 24"
-Cohesion: 0.5
-Nodes (4): Team Data Schema, YuNaCoin Virtual Currency, Dual Team Colors Feature (v1.9), Rationale: Dual Team Colors Added in v1.9
+Cohesion: 0.6
+Nodes (4): bitsOf(), findByName(), setField(), writeBits()
 
 ### Community 25 - "Community 25"
 Cohesion: 1.0
 Nodes (2): cloudReady(), uploadImageToCloud()
 
 ### Community 26 - "Community 26"
-Cohesion: 0.67
-Nodes (3): TSC Admin Code Map v1.9, Rationale: Single-File Monolithic Architecture, TSC Tournament Administration App
+Cohesion: 1.0
+Nodes (0): 
 
 ### Community 27 - "Community 27"
 Cohesion: 1.0
-Nodes (2): LIGA Phase Config Schema, LIGA Phase Type (Group Stage)
+Nodes (0): 
 
 ### Community 28 - "Community 28"
 Cohesion: 1.0
-Nodes (2): BRACKET Phase Config Schema, BRACKET Phase Type (Elimination)
+Nodes (0): 
 
 ### Community 29 - "Community 29"
 Cohesion: 1.0
-Nodes (2): PLAYOFF Phase Config Schema, PLAYOFF Phase Type (Aggregate Two-Leg)
+Nodes (0): 
 
 ### Community 30 - "Community 30"
 Cohesion: 1.0
@@ -234,102 +211,50 @@ Nodes (0):
 
 ### Community 34 - "Community 34"
 Cohesion: 1.0
-Nodes (1): Graphify Knowledge Graph Instructions
+Nodes (0): 
 
 ### Community 35 - "Community 35"
 Cohesion: 1.0
-Nodes (1): npx serve Launch Command
-
-### Community 36 - "Community 36"
-Cohesion: 1.0
-Nodes (1): Match Data Schema
-
-### Community 37 - "Community 37"
-Cohesion: 1.0
-Nodes (1): Admin Password Guard Feature (v1.91)
-
-### Community 38 - "Community 38"
-Cohesion: 1.0
-Nodes (1): Google Fonts (Bebas Neue, Barlow, Barlow Condensed)
-
-### Community 39 - "Community 39"
-Cohesion: 1.0
-Nodes (1): equipos_tsc_60.csv Seed Data
-
-### Community 40 - "Community 40"
-Cohesion: 1.0
-Nodes (1): HISTORIAL_TSC_v2.1.xlsx Historical Data
-
-### Community 41 - "Community 41"
-Cohesion: 1.0
-Nodes (1): Rationale: IndexedDB Browser-Native (No Backend)
-
-### Community 42 - "Community 42"
-Cohesion: 1.0
-Nodes (1): Rationale: Draft Phase Status Hides from Public
-
-### Community 43 - "Community 43"
-Cohesion: 1.0
-Nodes (1): Rationale: Window Load Order is Critical
-
-### Community 44 - "Community 44"
-Cohesion: 1.0
-Nodes (1): Drumroll Sound Effect
+Nodes (0): 
 
 ## Knowledge Gaps
-- **44 isolated node(s):** `tc`, `Graph Statistics (291 nodes, 727 edges, 28 communities)`, `dbGetAll (77 edges God Node)`, `dbGet (51 edges God Node)`, `showToast (34 edges God Node)` (+39 more)
+- **1 isolated node(s):** `tc`
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 27`** (2 nodes): `LIGA Phase Config Schema`, `LIGA Phase Type (Group Stage)`
+- **Thin community `Community 26`** (2 nodes): `test-yunacoins-rules.js`, `assert()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 28`** (2 nodes): `BRACKET Phase Config Schema`, `BRACKET Phase Type (Elimination)`
+- **Thin community `Community 27`** (1 nodes): `firebase-config.example.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 29`** (2 nodes): `PLAYOFF Phase Config Schema`, `PLAYOFF Phase Type (Aggregate Two-Leg)`
+- **Thin community `Community 28`** (1 nodes): `firebase-config.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (1 nodes): `firebase-config.example.js`
+- **Thin community `Community 29`** (1 nodes): `pes5-crypt.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 31`** (1 nodes): `firebase-config.js`
+- **Thin community `Community 30`** (1 nodes): `pes5-editor.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 31`** (1 nodes): `pes5-save.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 32`** (1 nodes): `state.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 33`** (1 nodes): `convert.mjs`
+- **Thin community `Community 33`** (1 nodes): `snapshot.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 34`** (1 nodes): `Graphify Knowledge Graph Instructions`
+- **Thin community `Community 34`** (1 nodes): `xor-diff.js`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 35`** (1 nodes): `npx serve Launch Command`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 36`** (1 nodes): `Match Data Schema`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 37`** (1 nodes): `Admin Password Guard Feature (v1.91)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 38`** (1 nodes): `Google Fonts (Bebas Neue, Barlow, Barlow Condensed)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 39`** (1 nodes): `equipos_tsc_60.csv Seed Data`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 40`** (1 nodes): `HISTORIAL_TSC_v2.1.xlsx Historical Data`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 41`** (1 nodes): `Rationale: IndexedDB Browser-Native (No Backend)`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 42`** (1 nodes): `Rationale: Draft Phase Status Hides from Public`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (1 nodes): `Rationale: Window Load Order is Critical`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (1 nodes): `Drumroll Sound Effect`
+- **Thin community `Community 35`** (1 nodes): `convert.mjs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 18`, `Community 19`?**
-  _High betweenness centrality (0.149) - this node is a cross-community bridge._
-- **Why does `add()` connect `Community 8` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 9`, `Community 10`, `Community 13`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 18`?**
-  _High betweenness centrality (0.103) - this node is a cross-community bridge._
-- **Why does `copy()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 7`, `Community 10`, `Community 11`, `Community 12`, `Community 15`, `Community 19`?**
-  _High betweenness centrality (0.073) - this node is a cross-community bridge._
-- **Are the 4 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
-  _`copy()` has 4 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `set()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 11`, `Community 12`, `Community 14`, `Community 15`, `Community 16`, `Community 17`, `Community 18`, `Community 20`?**
+  _High betweenness centrality (0.147) - this node is a cross-community bridge._
+- **Why does `add()` connect `Community 5` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 6`, `Community 7`, `Community 8`, `Community 9`, `Community 10`, `Community 12`, `Community 16`, `Community 17`, `Community 18`?**
+  _High betweenness centrality (0.093) - this node is a cross-community bridge._
+- **Why does `copy()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 8`, `Community 9`, `Community 11`, `Community 13`, `Community 14`, `Community 15`, `Community 17`, `Community 18`, `Community 19`, `Community 20`?**
+  _High betweenness centrality (0.066) - this node is a cross-community bridge._
+- **Are the 8 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
+  _`copy()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 28 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**
   _`set()` has 28 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 121 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
-  _`dbGetAll()` has 121 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 86 inferred relationships involving `dbGet()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
-  _`dbGet()` has 86 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 120 inferred relationships involving `dbGetAll()` (e.g. with `getTeamLogo()` and `renderBracket()`) actually correct?**
+  _`dbGetAll()` has 120 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 85 inferred relationships involving `dbGet()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
+  _`dbGet()` has 85 INFERRED edges - model-reasoned connections that need verification._
