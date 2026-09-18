@@ -322,6 +322,36 @@
     return (saldo || 0) >= total;
   }
 
+  // Slice R: valida un objeto de reglas. Devuelve [] si esta bien, o una
+  // lista de mensajes de error en castellano.
+  function validarReglas(r) {
+    const errores = [];
+    const entero = (v) => Number.isInteger(v) && v >= 0;
+    if (!r || typeof r !== 'object') return ['reglas vacias'];
+    if (!Array.isArray(r.bandCosts) || r.bandCosts.length !== 5) errores.push('bandCosts debe tener 5 valores');
+    else {
+      r.bandCosts.forEach((v, i) => { if (!entero(v)) errores.push('banda ' + (i + 1) + ': entero >= 0'); });
+      for (let i = 1; i < r.bandCosts.length; i++) {
+        if (entero(r.bandCosts[i]) && entero(r.bandCosts[i - 1]) && r.bandCosts[i] < r.bandCosts[i - 1]) errores.push('las bandas no pueden bajar: banda ' + (i + 1) + ' < banda ' + i);
+      }
+    }
+    ['scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers'].forEach((k) => {
+      if (!entero(r[k])) errores.push(k + ': entero >= 0');
+    });
+    return errores;
+  }
+
+  // Slice R: mezcla lo que venga de Firestore sobre DEFAULT_RULES. Si data es
+  // null/invalida, devuelve una copia de DEFAULT_RULES. Nunca lanza.
+  function normalizarReglas(data) {
+    const base = JSON.parse(JSON.stringify(DEFAULT_RULES));
+    if (!data || typeof data !== 'object') return base;
+    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers'];
+    const candidato = Object.assign({}, base);
+    campos.forEach((k) => { if (data[k] !== undefined) candidato[k] = Array.isArray(data[k]) ? data[k].slice() : data[k]; });
+    return validarReglas(candidato).length ? base : candidato;
+  }
+
   return {
     DEFAULT_RULES: DEFAULT_RULES,
     BAND_MAX: BAND_MAX,
@@ -340,5 +370,7 @@
     evaluarPago: evaluarPago,
     costoCambios: costoCambios,
     puedePagar: puedePagar,
+    validarReglas: validarReglas,
+    normalizarReglas: normalizarReglas,
   };
 });

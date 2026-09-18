@@ -193,5 +193,20 @@ assert(YUNACOINS_RULES.puedePagar(1500, r6.total) === true, 'puedePagar(1500,150
 assert(YUNACOINS_RULES.puedePagar(1499, r6.total) === false, 'puedePagar(1499,1500) === false');
 console.log('');
 
+/* ============================================================
+   SLICE R — validarReglas y normalizarReglas (nuevas funciones)
+   ============================================================ */
+console.log('--- Slice R: validarReglas / normalizarReglas ---');
+assert(YUNACOINS_RULES.validarReglas(R).length === 0, 'validarReglas(DEFAULT_RULES) devuelve []');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, {bandCosts:[50,100,90,500,1000]})).length > 0, 'validarReglas con banda decreciente devuelve error(es)');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, {abilityCost:-1})).length > 0, 'validarReglas con abilityCost negativo devuelve error(es)');
+const norm1 = YUNACOINS_RULES.normalizarReglas(null);
+assert(JSON.stringify(norm1) === JSON.stringify(R), 'normalizarReglas(null) === DEFAULT_RULES');
+const norm2 = YUNACOINS_RULES.normalizarReglas({budgetGeneral:100000, budgetSubscribers:20000});
+assert(norm2.budgetGeneral === 100000 && norm2.budgetSubscribers === 20000, 'normalizarReglas mezcla campos validos');
+const norm3 = YUNACOINS_RULES.normalizarReglas({bandCosts:[1,2]});
+assert(JSON.stringify(norm3) === JSON.stringify(R), 'normalizarReglas con dato inválido devuelve DEFAULT_RULES');
+console.log('');
+
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

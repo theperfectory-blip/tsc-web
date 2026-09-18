@@ -253,7 +253,20 @@ let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habil
        cada vez que se elige un club en la pestaña Plantilla — ver
        GASTO_TEMPORADA_CACHE / _refrescarGastoTemporadaEquipo.
    ============================================================ */
-const YC_RULES = YUNACOINS_RULES.DEFAULT_RULES;
+let YC_RULES = YUNACOINS_RULES.normalizarReglas(null);
+let YC_RULES_META = null; // {actualizadoEn, actualizadoPor} del doc pes5_config/reglas
+
+async function cargarReglasFirestore(){
+  try {
+    const snap = await firebase.firestore().collection('pes5_config').doc('reglas').get();
+    const data = snap.exists ? snap.data() : null;
+    YC_RULES_META = data ? { actualizadoEn: data.actualizadoEn || null, actualizadoPor: data.actualizadoPor || null } : null;
+    return YUNACOINS_RULES.normalizarReglas(data);
+  } catch (e) {
+    console.warn('[pes5-tool] no se pudieron leer las reglas de Firestore, uso las de codigo:', e);
+    return YUNACOINS_RULES.normalizarReglas(null);
+  }
+}
 
 // Cache de lo ya gastado esta temporada por el equipo cuyo plantel esta
 // abierto ahora mismo (derivado del libro `coins`, punto 5c del macro-slice
@@ -418,6 +431,7 @@ function render(){
 async function initApp(){
   await PES5_CRYPT.cargarClaves('../js/pes5/');
   await PES5_EDITOR.cargarMapa('../js/pes5/');
+  YC_RULES = await cargarReglasFirestore();
   // Slice C1.2: pes5-teams.json / cargarNombresEquipos ya NO se usan para poblar
   // selectores en esta tool — los 138 clubes salen siempre del save cargado.
   await cargarEquiposYPresidentes();
@@ -595,6 +609,7 @@ const TABS = [
   { id: 'plantilla', label: 'Plantilla', icon: ICN.shirt },
   { id: 'pedidos', label: 'Pedidos', icon: ICN.inbox },
   { id: 'publicar', label: 'Publicar', icon: ICN.upload },
+  { id: 'reglas', label: 'Reglas', icon: ICN.wallet },
 ];
 function renderTabs(){
   document.getElementById('tabs').innerHTML = TABS.map(t =>
@@ -608,6 +623,7 @@ function switchTab(id){
   else if (id === 'plantilla') renderPlantillaTab();
   else if (id === 'pedidos') renderPedidosTab();
   else if (id === 'publicar') renderPublicarTab();
+  else if (id === 'reglas') renderReglasTab();
 }
 
 /* ============================================================
@@ -1317,6 +1333,113 @@ function renderPublicarTab(){
       <div style="margin-bottom:12px;">Publicar plantillas a Firestore para que los presidentes las vean en su editor — se conecta en el slice D.</div>
       <button class="btn btn-primary" disabled>${ICN.upload} Publicar plantel de todos los equipos vinculados</button>
     </div>`;
+}
+
+/* ============================================================
+   PESTAÑA 5 · REGLAS (Slice R)
+   ============================================================ */
+function renderReglasTab(){
+  const cont = document.getElementById('tabcontent');
+  const r = YC_RULES;
+  cont.innerHTML = `
+    <div style="max-width:600px;">
+      <h2 class="pt-h1">Reglas de YunaCoins</h2>
+      <div class="pt-sub">Las leen la tool y el editor del presidente. Solo el admin las cambia.</div>
+
+      ${YC_RULES_META ? `
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:14px;">
+          Última actualización: ${new Date(YC_RULES_META.actualizadoEn).toLocaleString('es-CL')} por ${_esc(YC_RULES_META.actualizadoPor)}
+        </div>
+      ` : `
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:14px;">
+          Todavía no se guardaron: se usan los valores por defecto.
+        </div>
+      `}
+
+      <div class="pt-fieldgrp" style="margin-bottom:18px;">
+        <div class="pt-fieldgrp-title">Topes por temporada</div>
+        <div class="pt-field">
+          <label>Tope general</label>
+          <input type="number" min="0" step="500" id="rg-budgetGeneral" value="${r.budgetGeneral}" style="width:100px;">
+        </div>
+        <div class="pt-field">
+          <label>Bono suscriptores</label>
+          <input type="number" min="0" step="500" id="rg-budgetSubscribers" value="${r.budgetSubscribers}" style="width:100px;">
+        </div>
+      </div>
+
+      <div class="pt-fieldgrp" style="margin-bottom:18px;">
+        <div class="pt-fieldgrp-title">Costo por punto (atributos 0-99)</div>
+        ${['Menos de 80','80 a 85','86 a 90','91 a 95','96 a 99'].map((label, i) => `
+          <div class="pt-field">
+            <label>${label}</label>
+            <input type="number" min="0" step="10" id="rg-band-${i}" value="${r.bandCosts[i]}" style="width:100px;">
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="pt-fieldgrp" style="margin-bottom:18px;">
+        <div class="pt-fieldgrp-title">Otros costos</div>
+        <div class="pt-field">
+          <label>Atributo escala 1-8, por punto</label>
+          <input type="number" min="0" step="10" id="rg-scale8Cost" value="${r.scale8Cost}" style="width:100px;">
+        </div>
+        <div class="pt-field">
+          <label>Habilidad especial</label>
+          <input type="number" min="0" step="10" id="rg-abilityCost" value="${r.abilityCost}" style="width:100px;">
+        </div>
+        <div class="pt-field">
+          <label>Resistencia a lesiones, por nivel</label>
+          <input type="number" min="0" step="10" id="rg-injuryCost" value="${r.injuryCost}" style="width:100px;">
+        </div>
+      </div>
+
+      <div id="rg-errores"></div>
+
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-primary btn-sm" onclick="guardarReglas()">${ICN.save} Guardar</button>
+        <button class="btn btn-sm" onclick="restaurarReglasDefault()">Restaurar valores por defecto</button>
+      </div>
+    </div>
+  `;
+}
+
+function _leerFormReglas(){
+  const n = (id) => { const v = parseInt(document.getElementById(id).value, 10); return Number.isFinite(v) ? v : NaN; };
+  return {
+    bandCosts: [0,1,2,3,4].map(i => n('rg-band-' + i)),
+    scale8Cost: n('rg-scale8Cost'), abilityCost: n('rg-abilityCost'), injuryCost: n('rg-injuryCost'),
+    budgetGeneral: n('rg-budgetGeneral'), budgetSubscribers: n('rg-budgetSubscribers'),
+  };
+}
+
+function restaurarReglasDefault(){
+  const d = YUNACOINS_RULES.DEFAULT_RULES;
+  d.bandCosts.forEach((v, i) => { document.getElementById('rg-band-' + i).value = v; });
+  ['scale8Cost','abilityCost','injuryCost','budgetGeneral','budgetSubscribers'].forEach(k => { document.getElementById('rg-' + k).value = d[k]; });
+  showToast('Valores por defecto cargados en el formulario. Falta Guardar.');
+}
+
+async function guardarReglas(){
+  const r = _leerFormReglas();
+  const errores = YUNACOINS_RULES.validarReglas(r);
+  const box = document.getElementById('rg-errores');
+  if (errores.length){
+    box.innerHTML = errores.map(e => `<div style="color:var(--red,#f87171);font-size:12px;">${_esc(e)}</div>`).join('');
+    return;
+  }
+  box.innerHTML = '';
+  try {
+    const doc = Object.assign({}, r, { actualizadoEn: new Date().toISOString(), actualizadoPor: AUTH.user.email });
+    await firebase.firestore().collection('pes5_config').doc('reglas').set(doc);
+    YC_RULES = YUNACOINS_RULES.normalizarReglas(r);
+    YC_RULES_META = { actualizadoEn: doc.actualizadoEn, actualizadoPor: doc.actualizadoPor };
+    showToast('Reglas guardadas.');
+    renderReglasTab();
+  } catch (e) {
+    console.error('[pes5-tool] error guardando reglas', e);
+    box.innerHTML = `<div style="color:var(--red,#f87171);font-size:12px;">No se pudo guardar: ${_esc(e.message || String(e))}</div>`;
+  }
 }
 
 /* ============================================================

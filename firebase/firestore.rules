@@ -94,6 +94,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- Reglas de precio YunaCoins / topes de temporada (slice R) ---
+    // Cualquier usuario logueado las lee; solo el admin las escribe.
+    match /pes5_config/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     // --- Plantillas PES5 publicadas por Luis (foto del equipo real) ---
     // Solo el admin las escribe (con la tool, leyendo su option file). El
     // presidente de ese equipo puede leer la suya; nadie mas.

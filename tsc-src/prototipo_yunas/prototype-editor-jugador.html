@@ -412,6 +412,7 @@ async function renderAuthUI(){
   if (_gateTeamId !== AUTH.teamId){
     _gateTeamId = AUTH.teamId;
     try { EQUIPO_TSC = await dbGet('teams', AUTH.teamId); } catch(e){ EQUIPO_TSC = null; }
+    RULES = await cargarReglasFirestore();
     // Slice D.R punto 5a: recalcular el techo de presupuesto con el saldo
     // REAL del equipo recien cargado (teams.yunacoin), nunca un numero fijo.
     APP.budget = YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES);
@@ -638,19 +639,19 @@ let FORMATION = loadFormation();
    (editable desde el modal de reglas, persistida en localStorage) que ya
    existia. */
 
-const RULES_KEY = 'tsc_ep_rules';
 const DEFAULT_RULES = YUNACOINS_RULES.DEFAULT_RULES;
-function loadRules(){
-  try{
-    const saved = JSON.parse(localStorage.getItem(RULES_KEY)||'null');
-    if(saved && Array.isArray(saved.bandCosts)) return Object.assign({}, DEFAULT_RULES, saved);
-  }catch(e){}
-  return JSON.parse(JSON.stringify(DEFAULT_RULES));
+// Slice R: las reglas vienen de Firestore (pes5_config/reglas), las edita solo
+// el admin desde la Tool PES5. Aca son de solo lectura.
+let RULES = YUNACOINS_RULES.normalizarReglas(null);
+async function cargarReglasFirestore(){
+  try {
+    const snap = await firebase.firestore().collection('pes5_config').doc('reglas').get();
+    return YUNACOINS_RULES.normalizarReglas(snap.exists ? snap.data() : null);
+  } catch (e) {
+    console.warn('[editor] no se pudieron leer las reglas de Firestore, uso las de codigo:', e);
+    return YUNACOINS_RULES.normalizarReglas(null);
+  }
 }
-function saveRulesToStorage(){
-  try{ localStorage.setItem(RULES_KEY, JSON.stringify(RULES)); }catch(e){}
-}
-let RULES = loadRules();
 
 const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
 function bandCost99(dest){ return YUNACOINS_RULES.bandCost99(dest, RULES); }
@@ -1247,23 +1248,23 @@ function rulesFormHTML(r){
     <div class="ep-diffline"><div class="lbl">YunaCoins del equipo (saldo real, <code>teams.yunacoin</code> — no editable aca)</div>
       <b>${(EQUIPO_TSC?.yunacoin || 0).toLocaleString('es-CL')}</b></div>
     <div class="ep-diffline"><div class="lbl">Tope de la regla (mejoras generales)</div>
-      <input type="number" min="0" step="500" id="rule-budget-general" value="${r.budgetGeneral}" class="ep-rule-input"></div>
+      <input type="number" min="0" step="500" id="rule-budget-general" value="${r.budgetGeneral}" class="ep-rule-input" disabled></div>
     <div class="ep-diffline"><div class="lbl">Bono exclusivo suscriptores</div>
-      <input type="number" min="0" step="500" id="rule-budget-subs" value="${r.budgetSubscribers}" class="ep-rule-input"></div>
+      <input type="number" min="0" step="500" id="rule-budget-subs" value="${r.budgetSubscribers}" class="ep-rule-input" disabled></div>
 
     <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
       text-transform:uppercase;color:var(--txt3);margin:14px 0 8px;">Costo por punto — stats (escala 1-99)</div>
     ${BAND_LABELS.map((lbl,i)=>`<div class="ep-diffline"><div class="lbl">${lbl}</div>
-      <input type="number" min="0" step="10" id="rule-band-${i}" value="${r.bandCosts[i]}" class="ep-rule-input"></div>`).join('')}
+      <input type="number" min="0" step="10" id="rule-band-${i}" value="${r.bandCosts[i]}" class="ep-rule-input" disabled></div>`).join('')}
 
     <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
       text-transform:uppercase;color:var(--txt3);margin:14px 0 8px;">Otros costos</div>
     <div class="ep-diffline"><div class="lbl">Atributo escala 4-8 (Consistency/Condition/pie malo)</div>
-      <input type="number" min="0" step="10" id="rule-scale8" value="${r.scale8Cost}" class="ep-rule-input"></div>
+      <input type="number" min="0" step="10" id="rule-scale8" value="${r.scale8Cost}" class="ep-rule-input" disabled></div>
     <div class="ep-diffline"><div class="lbl">Habilidad especial (estrella)</div>
-      <input type="number" min="0" step="10" id="rule-ability" value="${r.abilityCost}" class="ep-rule-input"></div>
+      <input type="number" min="0" step="10" id="rule-ability" value="${r.abilityCost}" class="ep-rule-input" disabled></div>
     <div class="ep-diffline"><div class="lbl">Res. lesion, por nivel (C&rarr;B&rarr;A)</div>
-      <input type="number" min="0" step="10" id="rule-injury" value="${r.injuryCost}" class="ep-rule-input"></div>
+      <input type="number" min="0" step="10" id="rule-injury" value="${r.injuryCost}" class="ep-rule-input" disabled></div>
   `;
 }
 
@@ -1273,43 +1274,17 @@ function openRulesModal(){
   <div class="ep-overlay" onclick="if(event.target===this) closeRulesModal()">
     <div class="ep-modal wide">
       <div class="ep-modal-hd">
-        <h2>Reglas de mejora &middot; admin</h2>
+        <h2>Reglas de mejora</h2>
         <button class="ep-modal-close" onclick="closeRulesModal()">&times;</button>
       </div>
       <div class="ep-modal-body" id="ep-rules-form">${rulesFormHTML(RULES)}</div>
       <div class="ep-modal-foot">
-        <button class="ep-btn" onclick="resetRulesForm()">Restablecer valores oficiales</button>
-        <button class="ep-btn primary" onclick="saveRulesFromForm()">Guardar</button>
+        <div style="font-size:12px;color:var(--txt3);">Las reglas las define el admin en la Tool PES5.</div>
       </div>
     </div>
   </div>`;
 }
 function closeRulesModal(){ document.getElementById('ep-rules-wrap').innerHTML=''; }
-function resetRulesForm(){
-  document.getElementById('ep-rules-form').innerHTML = rulesFormHTML(DEFAULT_RULES);
-}
-function saveRulesFromForm(){
-  const num = (id,fallback)=>{ const v = parseInt(document.getElementById(id).value,10); return Number.isFinite(v) && v>=0 ? v : fallback; };
-  // Slice D.R punto 5a: presidentWallet ya no es un campo de regla editable
-  // — el saldo real siempre sale de teams.yunacoin (ver rulesFormHTML, que
-  // ahora lo muestra de solo lectura).
-  RULES.budgetGeneral = num('rule-budget-general', RULES.budgetGeneral);
-  RULES.budgetSubscribers = num('rule-budget-subs', RULES.budgetSubscribers);
-  RULES.bandCosts = BAND_LABELS.map((_,i)=> num('rule-band-'+i, RULES.bandCosts[i]));
-  RULES.scale8Cost = num('rule-scale8', RULES.scale8Cost);
-  RULES.abilityCost = num('rule-ability', RULES.abilityCost);
-  RULES.injuryCost = num('rule-injury', RULES.injuryCost);
-  saveRulesToStorage();
-
-  /* guardar reglas reinicia el saldo disponible a los nuevos montos
-     configurados — el wallet sigue siendo SIEMPRE el real (punto 5a). */
-  APP.budget = YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES);
-
-  closeRulesModal();
-  renderHero();
-  renderCart();
-  showMiniToast('Reglas guardadas — saldo reiniciado a los nuevos montos.');
-}
 
 /* ================= MODULO APARTE: formacion / estrategia =================
    No comparte estado con el editor de jugadores: tiene su propio borrador y
