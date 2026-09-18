@@ -20,6 +20,7 @@
 <script src="../js/pes5-save.js"></script>
 <!-- Slice D.R: mismas reglas de costo YunaCoins que usa el editor del presidente -->
 <script src="../js/yunacoins-rules.js"></script>
+<script src="../js/pes5-plantilla.js"></script>
 <style>
 html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
 *{box-sizing:border-box;}
@@ -1327,12 +1328,102 @@ function renderPedidosTab(){
    PESTAÑA 4 · PUBLICAR (esqueleto — slice D)
    ============================================================ */
 function renderPublicarTab(){
-  document.getElementById('tabcontent').innerHTML = `
-    <div class="pt-empty">
-      ${ICN.upload}
-      <div style="margin-bottom:12px;">Publicar plantillas a Firestore para que los presidentes las vean en su editor — se conecta en el slice D.</div>
-      <button class="btn btn-primary" disabled>${ICN.upload} Publicar plantel de todos los equipos vinculados</button>
-    </div>`;
+  const cont = document.getElementById('tabcontent');
+  if (!PLANO) {
+    cont.innerHTML = `<div class="pt-empty">${ICN.upload}<div>Cargá el save para publicar plantillas.</div></div>`;
+    return;
+  }
+  const objetivo = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
+  const filas = objetivo.map(t => {
+    const clubNombre = CLUBES_PES5[t.pes5ClubIdx] || '?';
+    const cantJugadores = PES5_EDITOR.leerPlantillaEquipo(PLANO, t.pes5ClubIdx).length;
+    return `
+      <tr>
+        <td style="padding:10px;">${_esc(t.name)}</td>
+        <td style="padding:10px;font-size:12.5px;color:var(--txt3);">${_esc(clubNombre)}</td>
+        <td style="padding:10px;text-align:center;font-size:12.5px;">${cantJugadores}</td>
+        <td style="padding:10px;font-size:12.5px;"><span id="pub-estado-${t.id}">…</span></td>
+        <td style="padding:10px;text-align:right;"><button class="btn btn-sm" onclick="publicarPlantillas([${t.id}])">${ICN.upload} Publicar</button></td>
+      </tr>
+    `;
+  }).join('');
+  cont.innerHTML = `
+    <div style="max-width:900px;">
+      <h2 class="pt-h1">Publicar plantillas</h2>
+      <div class="pt-sub">Copia la plantilla actual del save a la web para que cada presidente la vea en su editor.</div>
+      <button class="btn btn-primary btn-sm" id="btn-publicar-todos" onclick="publicarPlantillas()">${ICN.upload} Publicar todos (${objetivo.length})</button>
+      <table style="width:100%;margin-top:14px;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--brd);color:var(--txt3);">
+            <th style="padding:8px;text-align:left;font-weight:600;">Equipo TSC</th>
+            <th style="padding:8px;text-align:left;font-weight:600;">Club PES5</th>
+            <th style="padding:8px;text-align:center;font-weight:600;">Jugadores</th>
+            <th style="padding:8px;text-align:left;font-weight:600;">Última publicación</th>
+            <th style="padding:8px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filas}
+        </tbody>
+      </table>
+      <div class="pt-log" id="pub-log"></div>
+    </div>
+  `;
+  cargarEstadoPublicacion(objetivo);
+}
+
+async function _hashPlano(){
+  const buf = await crypto.subtle.digest('SHA-256', PLANO);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function cargarEstadoPublicacion(equipos){
+  const hashActual = await _hashPlano();
+  for (const t of equipos){
+    const el = document.getElementById('pub-estado-' + t.id);
+    if (!el) continue;
+    try {
+      const snap = await firebase.firestore().collection('pes5_plantillas').doc(String(t.id)).get();
+      if (!snap.exists){ el.textContent = 'Nunca'; continue; }
+      const d = snap.data();
+      const cuando = d.publicadoEn && d.publicadoEn.toDate ? d.publicadoEn.toDate().toLocaleString('es-CL') : 'fecha desconocida';
+      const vieja = d.saveHash !== hashActual || d.pes5ClubIdx !== t.pes5ClubIdx;
+      el.innerHTML = `${_esc(cuando)}${vieja ? ' <span class="badge badge-warn">desactualizada</span>' : ' <span class="badge badge-green">al día</span>'}`;
+    } catch (e) {
+      el.textContent = 'error al leer';
+      console.error('[pes5-tool] estado publicacion', t.id, e);
+    }
+  }
+}
+
+async function publicarPlantillas(ids){
+  const log = document.getElementById('pub-log');
+  const linea = (msg, cls) => { if (!log) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; log.appendChild(d); };
+  if (!PLANO){ showToast('Cargá el save primero.'); return; }
+  const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null && (!ids || ids.includes(t.id)));
+  if (!equipos.length){ showToast('No hay equipos para publicar.'); return; }
+  const btn = document.getElementById('btn-publicar-todos'); if (btn) btn.disabled = true;
+  if (log) log.innerHTML = '';
+  try {
+    const saveHash = await _hashPlano();
+    for (const t of equipos){
+      const jugadores = PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, t.pes5ClubIdx);
+      await firebase.firestore().collection('pes5_plantillas').doc(String(t.id)).set({
+        teamId: t.id, teamName: t.name, pes5ClubIdx: t.pes5ClubIdx, pes5Club: CLUBES_PES5[t.pes5ClubIdx] || null,
+        jugadores, saveHash, publicadoPor: AUTH.user.email,
+        publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      linea(`${t.name}: ${jugadores.length} jugadores publicados`, 'ok');
+    }
+    showToast(`Publicado: ${equipos.length} equipo(s).`);
+  } catch (e) {
+    console.error('[pes5-tool] publicar', e);
+    linea('ERROR: ' + (e.message || e), 'err');
+    showToast('Error al publicar: ' + (e.message || e));
+  } finally {
+    if (btn) btn.disabled = false;
+    cargarEstadoPublicacion(equipos);
+  }
 }
 
 /* ============================================================

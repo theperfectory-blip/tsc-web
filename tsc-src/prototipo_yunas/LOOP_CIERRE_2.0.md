@@ -53,7 +53,7 @@ está en §3. En esos casos el loop se detiene y avisa; nunca improvisa.
 | 2 | Cuándo se cobra un pedido | **Cuando el admin lo aplica.** Al enviarlo no se descuenta nada |
 | 3 | Pedido rechazado | Se devuelve lo cobrado. Como el cobro es al aplicar, un rechazo nunca cobró: no hay nada que devolver. Si un pedido **aplicado** se revierte, se registra una transacción `add` de devolución |
 | 4 | Cancelar pedido | **El presidente puede cancelar** sus pedidos mientras estén `pendiente` |
-| 5 | Auto-publicar | **ABIERTO**: el usuario pidió explicación. Bloquea solo la pestaña Publicar del slice D |
+| 5 | Auto-publicar | **Manual** (17/09): la tool marca las plantillas como desactualizadas y Luis publica con un botón. Sin publicación automática |
 | 6 | Dónde vive la sección del presidente | **Página propia** (URL aparte, no dentro de `index.html`), con un enlace desde el perfil del presidente |
 | 7 | Quién ve plantillas | **Cualquier presidente** ve las plantillas de todos los equipos. Editar y pedir, solo en la suya |
 | 8 | Reglas de precio | **Editables por el admin** (mismo lugar que el punto 1) |

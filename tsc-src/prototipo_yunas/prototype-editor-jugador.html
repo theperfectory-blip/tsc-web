@@ -17,6 +17,7 @@
 <script src="../js/auth.js"></script>
 <!-- Slice D.R: reglas de costo compartidas con pes5-tool.html (modulo puro, sin DOM) -->
 <script src="../js/yunacoins-rules.js"></script>
+<script src="../js/pes5-plantilla.js"></script>
 <style>
 :root{
   --tier-n:#EDEFF3;   /* 0-79  normal */
@@ -417,21 +418,21 @@ async function renderAuthUI(){
     // REAL del equipo recien cargado (teams.yunacoin), nunca un numero fijo.
     APP.budget = YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES);
   }
-  if (!EQUIPO_TSC || !EQUIPO_TSC.pes5Club){
+  if (!EQUIPO_TSC || EQUIPO_TSC.pes5ClubIdx == null){
     gate.style.display = ''; shell.style.display = 'none';
     gate.innerHTML = `<p>Tu equipo (<b>${_esc(EQUIPO_TSC?.name||'')}</b>) todavía no tiene un club de PES5 vinculado. Esperá a que Luis lo asigne.</p>`;
     return;
   }
-  if (!PLAYERS.length || _gatePlantillaClub !== EQUIPO_TSC.pes5Club){
+  if (!PLAYERS.length || _gatePlantillaClub !== EQUIPO_TSC.pes5ClubIdx){
     let hayPlantilla = false;
-    try { hayPlantilla = await cargarPlantillaReal(AUTH.teamId, EQUIPO_TSC.pes5Club); } catch(e){}
+    try { hayPlantilla = await cargarPlantillaReal(AUTH.teamId, EQUIPO_TSC.pes5ClubIdx); } catch(e){}
     if (!hayPlantilla){
       PLAYERS = []; PLAYER_BY_ID = {}; _gatePlantillaClub = undefined;
       gate.style.display = ''; shell.style.display = 'none';
       gate.innerHTML = `<p>Tu equipo (<b>${_esc(EQUIPO_TSC.name)}</b> · ${_esc(EQUIPO_TSC.pes5Club)}) todavía no fue publicado por Luis. Esperá a que corra la tool.</p>`;
       return;
     }
-    _gatePlantillaClub = EQUIPO_TSC.pes5Club;
+    _gatePlantillaClub = EQUIPO_TSC.pes5ClubIdx;
     APP.playerId = PLAYERS[0].id;
     loadDraft();
   }
@@ -439,7 +440,7 @@ async function renderAuthUI(){
   renderAll();
 }
 /* gate: recien se puede aplicar un pedido real con sesion + equipo + club PES5 asignados */
-function puedeMandarPedido(){ return !!(AUTH.user && AUTH.teamId && EQUIPO_TSC?.pes5Club); }
+function puedeMandarPedido(){ return !!(AUTH.user && AUTH.teamId && EQUIPO_TSC?.pes5ClubIdx != null); }
 
 /* ================= tema claro/oscuro (comparte clave con el resto de la app) ================= */
 
@@ -828,7 +829,7 @@ let PLAYER_BY_ID = {};
 function jugadorDesdePlantillaReal(raw, equipo){
   return {
     id: raw.id, slot: raw.slot, name: raw.name, dorsal: raw.dorsal || '', tag: raw.tag, bucket: raw.bucket,
-    heightFixed: false, subscriber: false, country: equipo.teamName || 'TSC',
+    heightFixed: false, subscriber: !!raw.subscriber, country: equipo.teamName || 'TSC',
     height: raw.height, age: raw.age, foot: raw.foot,
     primaryPos: raw.primaryPos, stats: raw.stats, sec: raw.sec,
     abilities: raw.abilities, positions: raw.positions, favfoot: raw.favfoot,
@@ -842,7 +843,7 @@ function jugadorDesdePlantillaReal(raw, equipo){
 async function cargarPlantillaReal(teamId, pes5ClubActual){
   const snap = await firebase.firestore().collection('pes5_plantillas').doc(String(teamId)).get();
   if (!snap.exists) return false;
-  if (snap.data().pes5Club !== pes5ClubActual) return false;
+  if (snap.data().pes5ClubIdx == null || snap.data().pes5ClubIdx !== pes5ClubActual) return false;
   const equipo = snap.data();
   PLAYERS = (equipo.jugadores || []).map(j => jugadorDesdePlantillaReal(j, equipo));
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p=>[p.id,p]));
