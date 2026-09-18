@@ -365,7 +365,7 @@ function _resumenLineas(lineas){
 // puedan sumar despues por jugador en el historial de F. `reparto` es el
 // resultado de repartoPendienteEquipo(). Se llama SOLO despues de que el
 // save ya se escribio con exito (macro-slice D.R, punto 3).
-async function cobrarMejorasEquipo(team, reparto){
+async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'){
   let current = team.yunacoin || 0;
   for (const id of Object.keys(reparto.porJugador)){
     const info = reparto.porJugador[id];
@@ -373,11 +373,12 @@ async function cobrarMejorasEquipo(team, reparto){
     const newTotal = Math.max(0, current - info.total);
     await dbAdd('coins', {
       teamId: team.id, teamName: team.name, mode: 'sub', amount: info.total,
-      reason: 'mejora PES5 (admin)', note: _resumenLineas(info.lineas),
+      reason, note: _resumenLineas(info.lineas),
       before: current, after: newTotal, season: STATE.season, date: new Date().toISOString(),
       pes5: {
         playerId: info.playerId, playerName: info.playerName, subscriber: info.subscriber,
         fromGeneral: info.fromGeneral, fromSub: info.fromSub, lineas: info.lineas,
+        pedidoId: info.pedidoId || null,
       },
     });
     current = newTotal;
@@ -1317,11 +1318,178 @@ async function escribirAlSave(){
 }
 
 /* ============================================================
-   PESTAÑA 3 · PEDIDOS (esqueleto — slice D)
+   PESTAÑA 3 · PEDIDOS
    ============================================================ */
-function renderPedidosTab(){
-  document.getElementById('tabcontent').innerHTML =
-    `<div class="pt-empty">${ICN.inbox}<div>Pedidos de mejora de los presidentes — se conecta en el slice D.</div></div>`;
+let PEDIDOS_PENDIENTES = [];
+async function renderPedidosTab(){
+  const cont = document.getElementById('tabcontent');
+  cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>Cargando pedidos…</div></div>`;
+  try {
+    const q = await firebase.firestore().collection('pedidos_pes5').where('estado', '==', 'pendiente').get();
+    PEDIDOS_PENDIENTES = q.docs.map(d => Object.assign({ _id: d.id }, d.data()));
+  } catch (e) {
+    console.error('[pes5-tool] leer pedidos', e);
+    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>No se pudieron leer los pedidos: ${_esc(e.message || String(e))}</div></div>`;
+    return;
+  }
+  PEDIDOS_PENDIENTES.sort((a, b) => String(a.teamName || '').localeCompare(String(b.teamName || '')));
+  if (!PEDIDOS_PENDIENTES.length){
+    cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>No hay pedidos pendientes.</div></div>`;
+    return;
+  }
+  const filas = PEDIDOS_PENDIENTES.map(p => {
+    const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
+    const lineas = (p.lines || []).map(l => `${_esc(l.label)} ${_esc(l.from)} → ${_esc(l.to)}`).join('<br>');
+    const aplicable = !!(p.cambios && p.registro != null);
+    return `<tr>
+      <td><input type="checkbox" class="ped-sel" value="${_esc(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>
+      <td>${_esc(p.teamName || String(p.teamId))}</td>
+      <td>${_esc(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}</td>
+      <td style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${aplicable ? '' : '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>'}</td>
+      <td style="text-align:right;">${Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
+      <td style="font-size:12px;">${_esc(fecha)}</td>
+      <td><button class="btn btn-sm" onclick="rechazarPedido('${_esc(p._id)}')">Rechazar</button></td>
+    </tr>`;
+  }).join('');
+  cont.innerHTML = `
+    <div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
+    ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Cargá el save para poder aplicar.</div>`}
+    <div class="pt-tbl-wrap"><table class="pt-tbl"><thead><tr>
+      <th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>
+    </tr></thead><tbody>${filas}</tbody></table></div>
+    <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
+      <input type="checkbox" id="ped-cerrado" onchange="document.getElementById('btn-aplicar-pedidos').disabled = !(this.checked && PLANO)"> PES5 está cerrado
+    </label>
+    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled onclick="aplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>
+    <div class="pt-log" id="ped-log"></div>`;
+}
+
+async function rechazarPedido(id){
+  const motivo = prompt('Motivo del rechazo (lo ve el presidente):');
+  if (motivo === null) return;
+  try {
+    await firebase.firestore().collection('pedidos_pes5').doc(id).update({
+      estado: 'rechazado', motivo: motivo.trim() || 'sin motivo', rechazadoEn: new Date().toISOString(), rechazadoPor: AUTH.user.email,
+    });
+    showToast('Pedido rechazado.');
+  } catch (e) {
+    console.error('[pes5-tool] rechazar', e);
+    showToast('No se pudo rechazar: ' + (e.message || e));
+  }
+  renderPedidosTab();
+}
+
+async function aplicarPedidosSeleccionados(){
+  const logEl = document.getElementById('ped-log');
+  const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
+  if (logEl) logEl.innerHTML = '';
+  if (!PLANO){ showToast('Cargá el save primero.'); return; }
+  const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
+  const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
+  if (!pedidos.length){ showToast('No hay pedidos seleccionados.'); return; }
+  if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
+
+  // 1) evaluar y aplicar sobre una copia, equipo por equipo
+  const copia = Uint8Array.from(PLANO);
+  const aplicados = [];   // {pedido, team, info}
+  const rechazados = [];  // {pedido, motivo}
+  const porEquipo = {};
+  pedidos.forEach(p => { (porEquipo[p.teamId] = porEquipo[p.teamId] || []).push(p); });
+  for (const teamId of Object.keys(porEquipo)){
+    const team = EQUIPOS_TSC.find(t => String(t.id) === String(teamId));
+    if (!team){ porEquipo[teamId].forEach(p => rechazados.push({ pedido: p, motivo: 'el equipo ya no existe' })); continue; }
+    await _refrescarGastoTemporadaEquipo(team, true);
+    const restantes = _restantesTemporada();
+    let usadoGeneral = 0, usadoSub = 0, usadoTotal = 0;
+    for (const p of porEquipo[teamId]){
+      if (!p.cambios || p.registro == null){ rechazados.push({ pedido: p, motivo: 'pedido viejo sin datos aplicables' }); continue; }
+      if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
+      if (!PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx).includes(p.registro)){ rechazados.push({ pedido: p, motivo: 'el jugador ya no está en el plantel' }); continue; }
+      const j = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
+      const { total, lineas } = YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES);
+      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
+      const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
+      if (!pago.ok){ rechazados.push({ pedido: p, motivo: pago.excedeSaldo ? 'saldo insuficiente' : 'se superó el tope de temporada' }); continue; }
+      try {
+        PES5_EDITOR.escribirJugadorCompleto(copia, p.registro, p.cambios);
+      } catch (e) {
+        rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
+      }
+      usadoGeneral += reparto.fromGeneral; usadoSub += reparto.fromSub; usadoTotal += total;
+      aplicados.push({ pedido: p, team, info: {
+        pedidoId: p._id, playerId: p.registro, playerName: j.nombre, subscriber: !!j.subscriber,
+        total, lineas, fromGeneral: reparto.fromGeneral, fromSub: reparto.fromSub,
+      } });
+      log(`${team.name} · ${j.nombre}: aplicado en la copia (${total.toLocaleString('es-CL')})`, 'ok');
+    }
+  }
+
+  // 2) escribir el save (solo si hubo algo aplicado)
+  let backup = null;
+  if (aplicados.length){
+    try {
+      log('cifrando...');
+      const cifrado = PES5_CRYPT.cifrar(copia);
+      if (!PES5_SAVE.tieneSoporte()){
+        PES5_SAVE.descargar(cifrado, 'KONAMI-WIN32PES5OPT');
+        backup = '(descarga manual)';
+        log('save editado descargado: copialo a la carpeta del juego', 'ok');
+      } else {
+        log('pidiendo permiso...');
+        if (!(await PES5_SAVE.asegurarEscritura())) throw new Error('permiso de escritura no concedido');
+        const res = await PES5_SAVE.escribir(cifrado);
+        backup = res.backup;
+        log('save escrito. backup: ' + res.backup, 'ok');
+      }
+      PLANO = copia;
+    } catch (e) {
+      console.error('[pes5-tool] escribir save de pedidos', e);
+      log('ERROR al escribir el save, no se cobró ni se marcó nada: ' + (e.message || e), 'err');
+      showToast('Error al escribir el save: ' + (e.message || e));
+      return;
+    }
+  }
+
+  // 3) cobrar por equipo y marcar pedidos
+  const porEquipoAplicado = {};
+  aplicados.forEach(a => { (porEquipoAplicado[a.team.id] = porEquipoAplicado[a.team.id] || []).push(a); });
+  for (const teamId of Object.keys(porEquipoAplicado)){
+    const lista = porEquipoAplicado[teamId];
+    const team = lista[0].team;
+    const reparto = { totalCosto: 0, fromGeneral: 0, fromSub: 0, porJugador: {} };
+    lista.forEach(a => {
+      reparto.totalCosto += a.info.total; reparto.fromGeneral += a.info.fromGeneral; reparto.fromSub += a.info.fromSub;
+      reparto.porJugador[a.pedido._id] = a.info;
+    });
+    await _refrescarGastoTemporadaEquipo(team, true);
+    try {
+      const saldo = await cobrarMejorasEquipo(team, reparto, 'mejora PES5 (pedido)');
+      log(`${team.name}: cobrado ${reparto.totalCosto.toLocaleString('es-CL')}, saldo ${saldo.toLocaleString('es-CL')}`, 'ok');
+    } catch (e) {
+      console.error('[pes5-tool] cobro pedidos', e);
+      log(`ERROR cobrando a ${team.name} (el save SÍ se escribió): ${e.message || e}`, 'err');
+    }
+    for (const a of lista){
+      try {
+        await firebase.firestore().collection('pedidos_pes5').doc(a.pedido._id).update({
+          estado: 'aplicado', aplicadoEn: new Date().toISOString(), aplicadoPor: AUTH.user.email,
+          costoFinal: a.info.total, fromGeneral: a.info.fromGeneral, fromSub: a.info.fromSub, backup,
+        });
+      } catch (e) { log(`ERROR marcando pedido ${a.pedido._id}: ${e.message || e}`, 'err'); }
+    }
+  }
+  for (const r of rechazados){
+    try {
+      await firebase.firestore().collection('pedidos_pes5').doc(r.pedido._id).update({
+        estado: 'rechazado', motivo: r.motivo, rechazadoEn: new Date().toISOString(), rechazadoPor: AUTH.user.email,
+      });
+      log(`${r.pedido.teamName || r.pedido.teamId} · ${r.pedido.playerName || ''}: rechazado (${r.motivo})`, 'err');
+    } catch (e) { log(`ERROR marcando rechazo ${r.pedido._id}: ${e.message || e}`, 'err'); }
+  }
+  GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
+  showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
+  if (aplicados.length) log('Recordá publicar las plantillas para que los presidentes vean los cambios (pestaña Publicar).');
+  setTimeout(renderPedidosTab, 1500);
 }
 
 /* ============================================================

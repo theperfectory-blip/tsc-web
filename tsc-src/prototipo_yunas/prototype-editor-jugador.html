@@ -414,9 +414,8 @@ async function renderAuthUI(){
     _gateTeamId = AUTH.teamId;
     try { EQUIPO_TSC = await dbGet('teams', AUTH.teamId); } catch(e){ EQUIPO_TSC = null; }
     RULES = await cargarReglasFirestore();
-    // Slice D.R punto 5a: recalcular el techo de presupuesto con el saldo
-    // REAL del equipo recien cargado (teams.yunacoin), nunca un numero fijo.
-    APP.budget = YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES);
+    // Slice D2: recalcular el presupuesto disponible (topes - gastado - pedidos pendientes)
+    await recalcularPresupuestoReal();
   }
   if (!EQUIPO_TSC || EQUIPO_TSC.pes5ClubIdx == null){
     gate.style.display = ''; shell.style.display = 'none';
@@ -652,6 +651,30 @@ async function cargarReglasFirestore(){
     console.warn('[editor] no se pudieron leer las reglas de Firestore, uso las de codigo:', e);
     return YUNACOINS_RULES.normalizarReglas(null);
   }
+}
+
+// Slice D2: presupuesto disponible = topes de temporada (reglas) menos lo ya
+// cobrado esta temporada (libro coins) menos lo reservado en pedidos
+// pendientes propios; el general nunca supera el saldo real del equipo.
+async function recalcularPresupuestoReal(){
+  const wallet = EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0;
+  let gastado = { general: 0, sub: 0 };
+  try {
+    const tx = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId) && c.season === STATE.season
+      && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
+    gastado = YUNACOINS_RULES.gastoTemporada(tx);
+  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); }
+  let pendG = 0, pendS = 0, pendTotal = 0;
+  try {
+    const q = await firebase.firestore().collection('pedidos_pes5')
+      .where('uid', '==', AUTH.user.uid).where('estado', '==', 'pendiente').get();
+    q.forEach(d => { const p = d.data(); pendG += p.fromGeneral || 0; pendS += p.fromSub || 0; pendTotal += p.totalCost || 0; });
+  } catch (e) { console.warn('[editor] no se pudieron leer los pedidos pendientes', e); }
+  const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES);
+  APP.budget = {
+    general: Math.max(0, Math.min(wallet - pendTotal, rest.general - pendG)),
+    subscribers: Math.max(0, rest.subscribers - pendS),
+  };
 }
 
 const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
@@ -1091,6 +1114,27 @@ async function commitChanges(){
     return;
   }
 
+  // Slice D2: las posiciones todavia no se pueden escribir en el save.
+  const cambiaPosiciones = Object.keys(APP.draft.positions || {}).some(k => !!APP.draft.positions[k] !== !!(p.positions || {})[k]);
+  if (cambiaPosiciones){
+    closeApplyConfirm();
+    showMiniToast('Las posiciones todavía no se pueden pedir. Deshacé ese cambio para mandar el pedido.');
+    return;
+  }
+  const draftJugador = {
+    stats: Object.assign({}, p.stats, APP.draft.stats),
+    sec: Object.assign({}, p.sec, APP.draft.sec),
+    abilities: Object.assign({}, p.abilities, APP.draft.abilities),
+    height: APP.draft.height, favfoot: APP.draft.favfoot,
+  };
+  const cambios = PES5_PLANTILLA.cambiosDesdeEditor(p, draftJugador);
+  const registro = PES5_PLANTILLA.registroDeId(p.id);
+  if (registro == null || !Object.keys(cambios).length){
+    closeApplyConfirm();
+    showMiniToast('No hay cambios aplicables para mandar.');
+    return;
+  }
+
   /* Slice D.R punto 5b (orden INVERTIDO, 15/09): si es suscriptor, primero
      se gasta el bono exclusivo; agotado el bono, el resto sigue con el
      general. Si no es suscriptor, todo sale del general. */
@@ -1099,8 +1143,7 @@ async function commitChanges(){
   const btn = document.getElementById('ep-apply');
   if (btn) btn.disabled = true;
   try {
-    /* el pedido a Firestore es lo que Luis va a procesar con la tool —
-       queda inmutable para el presidente (ver firebase/firestore.rules). */
+    /* el pedido a Firestore es lo que el admin aplica con la tool; el presidente solo puede cancelarlo mientras esta pendiente (ver firebase/firestore.rules). */
     await firebase.firestore().collection('pedidos_pes5').add({
       uid: AUTH.user.uid,
       teamId: String(AUTH.teamId),
@@ -1108,6 +1151,9 @@ async function commitChanges(){
       pes5Club: EQUIPO_TSC?.pes5Club || null,
       playerId: p.id,
       playerName: p.name,
+      registro,
+      pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
+      cambios,
       dorsal: p.dorsal,
       subscriber: !!p.subscriber,
       lines,
@@ -1636,6 +1682,15 @@ function renderAll(){
   renderRows();
   renderCart();
   document.getElementById('ep-hint').textContent = APP.hint;
+}
+
+// Slice D2: el presidente cancela un pedido propio mientras esta pendiente.
+// La UI que la llama llega en el slice F.
+async function cancelarPedido(pedidoId){
+  await firebase.firestore().collection('pedidos_pes5').doc(pedidoId).update({
+    estado: 'cancelado', canceladoEn: new Date().toISOString(),
+  });
+  await recalcularPresupuestoReal();
 }
 
 /* no hay dataset local que renderizar al arrancar — renderAuthUI() hace

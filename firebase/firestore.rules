@@ -76,21 +76,26 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // --- Pedidos de mejora PES5 (YunaCoins) ---
-    // El presidente crea pedidos para SU equipo; son inmutables para el
-    // (no puede editarlos ni marcarlos como aplicados el mismo). Solo el
-    // admin (Luis) los lee todos, los aplica en la tool y los marca.
+    // --- Pedidos de mejora PES5 (YunaCoins) --- lo crea quien tiene equipo asignado; lo aplica o rechaza el admin; el autor puede cancelarlo mientras esta pendiente.
     match /pedidos_pes5/{id} {
       allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
 
-      allow create: if isPresident()
+      // Crea quien tenga equipo asignado, para SU equipo (no se mira el rol:
+      // un admin que preside un club tambien pide).
+      allow create: if signedIn() && meExists()
+                    && me().teamId != null
                     && request.resource.data.uid == request.auth.uid
-                    && me().teamId != null && string(me().teamId) == request.resource.data.teamId
+                    && string(me().teamId) == request.resource.data.teamId
                     && request.resource.data.estado == 'pendiente';
 
-      // Solo el admin puede tocar un pedido despues de creado (marcarlo
-      // aplicado). El presidente no puede modificar ni borrar su pedido.
-      allow update: if isAdmin();
+      // El admin lo aplica/rechaza. El autor solo puede cancelarlo mientras
+      // esta pendiente, y solo tocando estado y canceladoEn.
+      allow update: if isAdmin()
+                    || (signedIn()
+                        && resource.data.uid == request.auth.uid
+                        && resource.data.estado == 'pendiente'
+                        && request.resource.data.estado == 'cancelado'
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'canceladoEn']));
       allow delete: if isAdmin();
     }
 
