@@ -60,6 +60,8 @@ está en §3. En esos casos el loop se detiene y avisa; nunca improvisa.
 | 9 | Editor viejo del 26/07 | Se borra en E |
 | 10 | Streamlabs | **Pospuesto**, igual que G |
 
+| 11 | Diseño | **Mobile-first** (17/09): la página del presidente (`mejoras.html`) se diseña primero para el teléfono, porque se usa dentro de la APK y mucha gente no tiene PC. La Tool PES5 es de escritorio (necesita el archivo del juego en la PC de Luis): solo debe no romperse en pantalla chica. Se agrega el slice **F.M** (auditoría y ajuste móvil) después de F |
+
 ## 3 bis. Modo de ejecución (decisión del usuario, 17/09)
 
 - **Implementa Haiku**, con instrucciones cerradas por slice. Opus supervisa y verifica.

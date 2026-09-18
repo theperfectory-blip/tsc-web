@@ -1,6 +1,6 @@
 // Prueba de Slice D1: pes5-plantilla.js
 // Modulo compartido que lee jugadores del save y los convierte al formato
-// que espera el editor del presidente (prototype-editor-jugador.html).
+// que espera el editor del presidente (mejoras.html).
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const { TextDecoder } = require('util');
 const { descifrar } = require('./pes5-crypt.js');

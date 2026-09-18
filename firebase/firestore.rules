@@ -107,10 +107,9 @@ service cloud.firestore {
     }
 
     // --- Plantillas PES5 publicadas por Luis (foto del equipo real) ---
-    // Solo el admin las escribe (con la tool, leyendo su option file). El
-    // presidente de ese equipo puede leer la suya; nadie mas.
+    // --- Plantillas PES5 publicadas por el admin --- las escribe solo el admin; las lee cualquier usuario con equipo asignado (los presidentes ven las de todos los equipos).
     match /pes5_plantillas/{teamId} {
-      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null && string(me().teamId) == teamId);
+      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null);
       allow write: if isAdmin();
     }
 

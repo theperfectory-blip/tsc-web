@@ -7,15 +7,15 @@
    test tools/test-yunacoins-rules.js, via module.exports).
 
    Origen: hasta este slice las reglas de costo vivian SOLO dentro
-   de prototype-editor-jugador.html. Este modulo las porta EXACTAMENTE
+   de mejoras.html. Este modulo las porta EXACTAMENTE
    (mismos numeros, misma logica) para que:
-     - prototype-editor-jugador.html (editor del presidente) las use
+     - mejoras.html (editor del presidente) las use
        en vez de su copia local (sin cambiar ningun costo mostrado).
      - pes5-tool.html (Slice D.R, admin) pueda cobrar desde la tool
        con las MISMAS reglas y dejar el MISMO rastro en `coins`/`teams`
        que un pedido del presidente (ver macro-slice D.R).
 
-   Referencias de linea = prototype-editor-jugador.html ANTES de este
+   Referencias de linea = mejoras.html ANTES de este
    slice (ver commit previo a este cambio):
      - DEFAULT_RULES      ~linea 630
      - BAND_MAX            linea 639
