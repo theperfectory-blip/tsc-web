@@ -236,10 +236,11 @@ const PES5_EDITOR = (() => {
     }
     const pieRaw = leerCampoJugador(bytes, id, 'Pie dominante');
     const lesionesRaw = leerCampoJugador(bytes, id, 'Resistencia lesiones');
+    const nombre = nombreDeRegistro(bytes, id);
 
     return {
       id,
-      nombre: nombreDeRegistro(bytes, id),
+      nombre,
       nombreCamiseta: nombreCamisetaDeRegistro(bytes, id),
       atributos,
       escala8,
@@ -251,6 +252,12 @@ const PES5_EDITOR = (() => {
       posiciones: posicionesMarcadas(bytes, id),
       posicionRegistrada: posicionRegistrada(bytes, id),
       contadorEdiciones: _leerContador(bytes, id),
+      // Slice D.R, punto 5e (dato del usuario, 15/09): un jugador es
+      // suscriptor si su nombre en el save empieza con "$" (convencion que
+      // Luis ya usa dentro del juego, ej. "$TheRationalUser"). Flag de
+      // SOLO LECTURA: el "$" se muestra tal cual en `nombre`, nunca se
+      // recorta ni se escribe de vuelta modificado.
+      subscriber: nombre.startsWith('$'),
     };
   }
 

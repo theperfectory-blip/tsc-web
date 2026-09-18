@@ -18,6 +18,8 @@
 <script src="../js/pes5-crypt.js"></script>
 <script src="../js/pes5-editor.js"></script>
 <script src="../js/pes5-save.js"></script>
+<!-- Slice D.R: mismas reglas de costo YunaCoins que usa el editor del presidente -->
+<script src="../js/yunacoins-rules.js"></script>
 <style>
 html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
 *{box-sizing:border-box;}
@@ -109,6 +111,24 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .pt-writebar input[type=checkbox]{accent-color:var(--gold);}
 .pt-changes-count{font-size:12px;color:var(--gold);font-weight:600;}
 
+/* ---------- cobro YunaCoins (Slice D.R) ---------- */
+.pt-cobro{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:var(--r);background:var(--card2);
+  border:1px solid var(--brd);}
+.pt-cobro-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;
+  letter-spacing:0.3px;padding:3px 9px;border-radius:999px;width:fit-content;}
+.pt-cobro-badge.pagando{background:var(--gold-l);border:1px solid var(--gold-b);color:var(--gold);}
+.pt-cobro-badge.libre{background:var(--card3);border:1px solid var(--brd);color:var(--txt2);}
+.pt-cobro-badge .icn{width:12px;height:12px;}
+.pt-cobro-lineas{display:flex;flex-direction:column;gap:2px;font-size:12px;}
+.pt-cobro-line{display:flex;justify-content:space-between;gap:8px;color:var(--txt2);}
+.pt-cobro-line b{color:var(--txt);font-weight:600;}
+.pt-cobro-line .costo{font-family:'Bebas Neue';font-size:13px;color:var(--gold);white-space:nowrap;}
+.pt-cobro-line .costo.gratis{color:var(--txt3);font-family:inherit;font-size:12px;}
+.pt-cobro-total{display:flex;justify-content:space-between;align-items:center;padding-top:6px;
+  border-top:1px solid var(--brd);font-size:12.5px;color:var(--txt2);}
+.pt-cobro-total b{font-family:'Bebas Neue';font-size:18px;color:var(--gold);}
+.pt-cobro-faltante{font-size:11.5px;color:#f87171;}
+
 /* ---------- esqueletos (pedidos/publicar) ---------- */
 .pt-empty{padding:50px 20px;text-align:center;color:var(--txt3);border:1px dashed var(--brd);border-radius:var(--rl);}
 .pt-empty .icn{width:30px;height:30px;margin-bottom:8px;}
@@ -164,6 +184,8 @@ const ICN = {
   upload: '<svg class="icn lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
   x: '<svg class="icn" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   lock: '<svg class="icn" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  unlock: '<svg class="icn" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>',
+  wallet: '<svg class="icn" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
   save: '<svg class="icn" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   alert: '<svg class="icn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
 };
@@ -212,6 +234,150 @@ let PLANTILLA_ACTUAL = null;    // array de leerJugadorCompleto(...) del equipo 
 let PLANTILLA_INDICE = null;    // indice de club PES5 elegido en la pestaña Plantilla
 let JUGADOR_SELECCIONADO = null; // id de registro seleccionado en el panel lateral
 let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habilidades:{},edad,altura,pieDominante,lesiones} }
+
+/* ============================================================
+   Slice D.R — cobro condicional (mismas reglas que el editor del
+   presidente, ver js/yunacoins-rules.js). La tool no tiene UI propia de
+   edicion de reglas: usa YUNACOINS_RULES.DEFAULT_RULES tal cual.
+
+   Punto 5 (mapeo de presupuestos, resuelto 15/09):
+     - el wallet real de cada equipo es SIEMPRE `team.yunacoin` (nunca un
+       numero de regla — `techoPresupuesto`/`presidentWallet` del editor no
+       se usan aca, la tool ya tenia el saldo real).
+     - orden de consumo INVERTIDO: un jugador suscriptor (`j.subscriber`,
+       viene de `leerJugadorCompleto` — nombre que empieza con "$") gasta
+       primero el bono de suscriptores; el resto (o el total si no es
+       suscriptor) sale del tope general. Ver YUNACOINS_RULES.distribuirCosto.
+     - los topes de TEMPORADA no se guardan en `teams`: se derivan del
+       libro `coins` (season actual + reason que empieza con 'mejora PES5')
+       cada vez que se elige un club en la pestaña Plantilla — ver
+       GASTO_TEMPORADA_CACHE / _refrescarGastoTemporadaEquipo.
+   ============================================================ */
+const YC_RULES = YUNACOINS_RULES.DEFAULT_RULES;
+
+// Cache de lo ya gastado esta temporada por el equipo cuyo plantel esta
+// abierto ahora mismo (derivado del libro `coins`, punto 5c del macro-slice
+// — no se persiste nada nuevo en `teams`). Se recalcula cada vez que cambia
+// el club elegido (onTeamSelect) y se fuerza de nuevo justo antes de cobrar
+// de verdad (confirmarEscribirAlSave) para no confiar en una foto vieja si
+// otra sesion ya gasto presupuesto de este equipo mientras tanto.
+let GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
+
+async function _refrescarGastoTemporadaEquipo(team, forzar){
+  if (!team){ GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 }; return; }
+  if (!forzar && GASTO_TEMPORADA_CACHE.teamId === team.id && GASTO_TEMPORADA_CACHE.season === STATE.season) return;
+  const transacciones = await dbGetAll('coins', c =>
+    String(c.teamId) === String(team.id) && c.season === STATE.season &&
+    typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
+  const gastado = YUNACOINS_RULES.gastoTemporada(transacciones);
+  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: STATE.season, general: gastado.general, sub: gastado.sub };
+}
+
+// Equipo TSC (si existe) al que pertenece el club actualmente abierto en la
+// pestaña Plantilla. null si el admin eligio un club de "Todos los clubes
+// PES5" que ningun equipo TSC tiene vinculado (pes5ClubIdx).
+function equipoTSCActual(){
+  return EQUIPOS_TSC.find(t => t.pes5ClubIdx === PLANTILLA_INDICE) || null;
+}
+// "Tiene presidente" = existe un users.teamId == team.id (ver
+// cargarEquiposYPresidentes / PRESIDENTES_POR_TEAM, la MISMA fuente que ya
+// pinta la columna Presidente en la pestaña Equipos — no se recalcula
+// distinto, punto 3 del macro-slice D.R).
+function tienePresidente(team){
+  return !!(team && PRESIDENTES_POR_TEAM[team.id]);
+}
+// Cuanto queda del tope general/bono de temporada AHORA MISMO (regla menos
+// lo ya gastado, cache de GASTO_TEMPORADA_CACHE — ver _refrescarGastoTemporadaEquipo).
+function _restantesTemporada(){
+  return YUNACOINS_RULES.topesRestantes(
+    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, YC_RULES);
+}
+// Reparte TODOS los cambios pendientes del plantel abierto entre bono de
+// suscriptores y tope general, con el orden nuevo (punto 5b): itera
+// PLANTILLA_ACTUAL en orden de roster y va descontando el bono restante
+// jugador por jugador — el orden de asignacion del bono entre varios
+// suscriptores editados en un mismo lote no esta especificado en el doc,
+// es una decision de esta implementacion (documentada tambien en
+// distribuirCosto, js/yunacoins-rules.js). Devuelve
+// {totalCosto, fromGeneral, fromSub, porJugador:{[id]:{playerId,playerName,
+// subscriber,total,lineas,fromGeneral,fromSub}}}.
+function repartoPendienteEquipo(){
+  const restantes = _restantesTemporada();
+  let subUsadoAcum = 0, totalGeneral = 0, totalSub = 0, totalCosto = 0;
+  const porJugador = {};
+  (PLANTILLA_ACTUAL || []).forEach(j => {
+    if (!CAMBIOS_PENDIENTES[j.id]) return;
+    const { total, lineas } = YUNACOINS_RULES.costoCambios(j, CAMBIOS_PENDIENTES[j.id], YC_RULES);
+    if (total <= 0) return;
+    const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
+    const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
+    subUsadoAcum += reparto.fromSub;
+    totalGeneral += reparto.fromGeneral;
+    totalSub += reparto.fromSub;
+    totalCosto += total;
+    porJugador[j.id] = {
+      playerId: j.id, playerName: j.nombre, subscriber: !!j.subscriber,
+      total, lineas, fromGeneral: reparto.fromGeneral, fromSub: reparto.fromSub,
+    };
+  });
+  return { totalCosto, fromGeneral: totalGeneral, fromSub: totalSub, porJugador };
+}
+// Costo de los cambios pendientes de UN jugador (para la linea a linea del
+// panel). cambios puede no existir todavia (jugador sin tocar) -> costo 0.
+function costoJugador(j){
+  return YUNACOINS_RULES.costoCambios(j, CAMBIOS_PENDIENTES[j.id] || {}, YC_RULES);
+}
+// Costo total (sin desglose) de TODOS los jugadores con cambios pendientes
+// — atajo sobre repartoPendienteEquipo() para los lugares que solo
+// necesitan el numero total (ej. el conteo del boton).
+function costoTotalPendienteEquipo(){
+  return repartoPendienteEquipo().totalCosto;
+}
+// Resumen legible de las lineas de costo de UN jugador, para el campo
+// `note` de su transaccion en `coins` (macro-slice D.R, punto 3: "note:
+// resumen de lineas" — ahora una transaccion POR JUGADOR, ver punto 5d y
+// cobrarMejorasEquipo).
+function _resumenLineas(lineas){
+  const conCosto = (lineas || []).filter(l => l.costo > 0);
+  if (!conCosto.length) return '(sin costo)';
+  return conCosto.map(l => `${l.campo} ${l.de}→${l.a} (+${l.costo})`).join(', ');
+}
+// Registra el cobro real en `coins`/`teams` — mismo patron de
+// saveCoinsTransaction (tsc-src/js/coins.js): una transaccion mode:'sub' +
+// actualizacion de teams.yunacoin, pero UNA TRANSACCION POR JUGADOR (no una
+// sola para todo el lote) — decision tomada para que la metadata `pes5`
+// del punto 5d (shape singular: playerId/playerName/subscriber/fromGeneral/
+// fromSub/lineas, uno por jugador) sea exacta y estas transacciones se
+// puedan sumar despues por jugador en el historial de F. `reparto` es el
+// resultado de repartoPendienteEquipo(). Se llama SOLO despues de que el
+// save ya se escribio con exito (macro-slice D.R, punto 3).
+async function cobrarMejorasEquipo(team, reparto){
+  let current = team.yunacoin || 0;
+  for (const id of Object.keys(reparto.porJugador)){
+    const info = reparto.porJugador[id];
+    if (!info || info.total <= 0) continue;
+    const newTotal = Math.max(0, current - info.total);
+    await dbAdd('coins', {
+      teamId: team.id, teamName: team.name, mode: 'sub', amount: info.total,
+      reason: 'mejora PES5 (admin)', note: _resumenLineas(info.lineas),
+      before: current, after: newTotal, season: STATE.season, date: new Date().toISOString(),
+      pes5: {
+        playerId: info.playerId, playerName: info.playerName, subscriber: info.subscriber,
+        fromGeneral: info.fromGeneral, fromSub: info.fromSub, lineas: info.lineas,
+      },
+    });
+    current = newTotal;
+  }
+  await dbPut('teams', { ...team, yunacoin: current });
+  team.yunacoin = current; // reflejar en el objeto cacheado en EQUIPOS_TSC (mismo patron que vincularEquipo)
+  // lo recien cobrado ya cuenta para los topes de temporada de este equipo
+  GASTO_TEMPORADA_CACHE = {
+    teamId: team.id, season: STATE.season,
+    general: GASTO_TEMPORADA_CACHE.general + reparto.fromGeneral,
+    sub: GASTO_TEMPORADA_CACHE.sub + reparto.fromSub,
+  };
+  return current;
+}
 
 /* ============================================================
    AUTH / GATE
@@ -564,6 +730,10 @@ async function onTeamSelect(indiceClub){
   PLANTILLA_INDICE = indiceClub;
   PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, indiceClub);
   JUGADOR_SELECCIONADO = null;
+  // Slice D.R punto 5c: refrescar lo ya gastado esta temporada por el
+  // equipo TSC recien elegido (si lo hay) ANTES de renderizar, para que el
+  // panel de cobro ya muestre los topes restantes correctos.
+  await _refrescarGastoTemporadaEquipo(equipoTSCActual());
   renderPlantillaBody();
 }
 
@@ -668,6 +838,74 @@ function _actualizarFilaEditado(id){
   marca.innerHTML = _tieneAlgunCambio(id) ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
 }
 
+// Slice D.R: arma el contenido del recuadro de cobro (badge + lineas + total
+// + faltante) para el jugador `j` actualmente abierto en el panel. Funcion
+// aparte (no inline en renderPanelLateral) para poder refrescarla SOLA desde
+// los handlers de edicion (onCampoAttr y cia) sin re-renderizar el panel
+// entero — misma logica que ya usa C2.2 para no perder foco/scroll.
+function cobroBoxHTML(j){
+  const equipoTSC = equipoTSCActual();
+  const presidente = tienePresidente(equipoTSC);
+
+  if (!equipoTSC) {
+    return `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
+  }
+  if (!presidente) {
+    return `<span class="pt-cobro-badge libre">${ICN.unlock} Sin presidente · edición libre</span>
+      <!-- Slice G (pendiente de confirmacion de Luis, ver macro-slice D.R punto 3bis):
+           aca va el gancho de la accion "Nivelar a N" para arranque de temporada —
+           disponible SOLO para equipos sin presidente como este. No se implementa
+           en este slice. -->`;
+  }
+
+  // Slice D.R punto 5: costo/reparto de ESTE jugador + del plantel entero
+  // (el bono de suscriptores se reparte en orden de roster, ver
+  // repartoPendienteEquipo), saldo real, y topes de temporada restantes
+  // (derivados del libro `coins`, GASTO_TEMPORADA_CACHE).
+  const costoJ = costoJugador(j);
+  const reparto = repartoPendienteEquipo();
+  const infoJ = reparto.porJugador[j.id];
+  const saldoEquipo = equipoTSC.yunacoin || 0;
+  const restantes = _restantesTemporada();
+  const evalPago = YUNACOINS_RULES.evaluarPago(saldoEquipo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
+
+  const lineasHtml = costoJ.lineas.length
+    ? costoJ.lineas.map(l => `<div class="pt-cobro-line"><span><b>${_esc(l.campo)}</b> ${_esc(String(l.de))} → ${_esc(String(l.a))}</span><span class="costo${l.costo>0?'':' gratis'}">${l.costo>0?'+'+l.costo.toLocaleString('es-AR'):'gratis'}</span></div>`).join('')
+    : `<div class="pt-cobro-line" style="color:var(--txt3);">sin cambios pendientes en este jugador</div>`;
+
+  // Desglose fromGeneral/fromSub de ESTE jugador (decision de UI, no
+  // especificada al detalle en el doc: se muestra solo si el jugador tiene
+  // costo pendiente, y solo se menciona el bono si efectivamente se usa —
+  // un no-suscriptor nunca lo ve, un suscriptor con costo chico que entra
+  // entero en el bono no ve la parte "general").
+  const desgloseJHtml = (infoJ && infoJ.total > 0)
+    ? `<div class="pt-cobro-line" style="color:var(--txt3);"><span>${j.subscriber ? 'Suscriptor — gasta primero el bono' : 'No suscriptor — solo tope general'}</span><span>${infoJ.fromSub > 0 ? `bono ${infoJ.fromSub.toLocaleString('es-AR')} + ` : ''}general ${infoJ.fromGeneral.toLocaleString('es-AR')}</span></div>`
+    : '';
+
+  let avisoHtml = '';
+  if (evalPago.excedeSaldo) {
+    avisoHtml = `<div class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente — faltan ${(reparto.totalCosto - saldoEquipo).toLocaleString('es-AR')} YunaCoins</div>`;
+  } else if (evalPago.excedeTopeGeneral) {
+    avisoHtml = `<div class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada — quedan ${restantes.general.toLocaleString('es-AR')}, hacen falta ${reparto.fromGeneral.toLocaleString('es-AR')}</div>`;
+  }
+
+  return `
+    <span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${_esc(equipoTSC.name)} · saldo ${saldoEquipo.toLocaleString('es-AR')}</span>
+    <div class="pt-cobro-lineas">${lineasHtml}</div>
+    ${desgloseJHtml}
+    <div class="pt-cobro-total"><span>Total del equipo (todos los pendientes) · tope gral. restante ${restantes.general.toLocaleString('es-AR')} · bono restante ${restantes.subscribers.toLocaleString('es-AR')}</span><b>${reparto.totalCosto.toLocaleString('es-AR')}</b></div>
+    ${avisoHtml}`;
+}
+// Refresca SOLO el recuadro de cobro del panel abierto (llamado desde los
+// handlers de edicion de campo) — no toca inputs ni tabla.
+function _actualizarCobroPanel(){
+  const box = document.getElementById('pt-cobro-box');
+  if (!box || JUGADOR_SELECCIONADO == null) return;
+  const j = PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO);
+  if (!j) return;
+  box.innerHTML = cobroBoxHTML(j);
+}
+
 function renderPanelLateral(){
   const cont = document.getElementById('pl-side');
   if (!cont) return;
@@ -714,6 +952,7 @@ function renderPanelLateral(){
         <button class="pt-side-close" onclick="cerrarPanelJugador()">${ICN.x}</button>
       </div>
       <div class="pt-side-sub">${_esc(j.nombreCamiseta||'')} · id ${j.id} · editado ${j.contadorEdiciones} veces</div>
+      <div class="pt-cobro" id="pt-cobro-box">${cobroBoxHTML(j)}</div>
 
       <div class="pt-fieldgrp">
         <div class="pt-fieldgrp-title">Ajustes básicos</div>
@@ -805,6 +1044,7 @@ function onCampoAttr(id, tipo, campo, valor, min, max, inputEl){
   if (inputEl){ inputEl.value = n; inputEl.classList.toggle('changed', n !== original); }
   if (tipo === 'atributos'){ const td = _celdaTabla(id, campo); if (td) td.textContent = n; }
   _actualizarFilaEditado(id);
+  _actualizarCobroPanel(); // Slice D.R: el costo por campo/total depende de este cambio
   actualizarBotonEscritura();
 }
 function onCampoHabilidad(id, campo, checked){
@@ -816,6 +1056,7 @@ function onCampoHabilidad(id, campo, checked){
   if (nuevo === original) delete c.habilidades[campo]; else c.habilidades[campo] = nuevo;
   _limpiarSiVacio(id);
   _actualizarFilaEditado(id);
+  _actualizarCobroPanel();
   actualizarBotonEscritura();
 }
 function onCampoSimple(id, campo, valor, min, max, inputEl){
@@ -829,6 +1070,7 @@ function onCampoSimple(id, campo, valor, min, max, inputEl){
   if (inputEl){ inputEl.value = n; inputEl.classList.toggle('changed', n !== original); }
   const td = _celdaTabla(id, campo); if (td) td.textContent = n;
   _actualizarFilaEditado(id);
+  _actualizarCobroPanel(); // altura/edad no tienen costo hoy, pero pueden generar linea informativa
   actualizarBotonEscritura();
 }
 function onCampoSelect(id, campo, valor, selectEl){
@@ -841,6 +1083,7 @@ function onCampoSelect(id, campo, valor, selectEl){
   if (selectEl) selectEl.classList.toggle('changed', valor !== original);
   if (campo === 'pieDominante'){ const td = _celdaTabla(id, 'pieDominante'); if (td) td.textContent = valor === 'izq' ? 'Izq.' : 'Der.'; }
   _actualizarFilaEditado(id);
+  _actualizarCobroPanel(); // pieDominante gratis, lesiones tiene costo (injuryCost)
   actualizarBotonEscritura();
 }
 
@@ -850,7 +1093,20 @@ function actualizarBotonEscritura(){
   const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
   const countEl = document.querySelector('.pt-changes-count');
   if (countEl) countEl.textContent = `${totalPendientes} jugador(es) con cambios`;
-  if (btn) btn.disabled = !(cerrado && totalPendientes);
+  // Slice D.R punto 5: si el equipo del club abierto tiene presidente, el
+  // saldo real (teams.yunacoin) tiene que alcanzar el total de TODOS los
+  // cambios pendientes de este plantel Y el tope general de temporada no
+  // se puede exceder (evaluarPago) — si no, no se puede escribir
+  // (macro-slice D.R punto 3: "si el saldo no alcanza, no se escribe").
+  const equipoTSC = equipoTSCActual();
+  let sinSaldo = false;
+  if (equipoTSC && tienePresidente(equipoTSC)){
+    const reparto = repartoPendienteEquipo();
+    const restantes = _restantesTemporada();
+    const evalPago = YUNACOINS_RULES.evaluarPago(equipoTSC.yunacoin || 0, reparto.totalCosto, reparto.fromGeneral, restantes.general);
+    sinSaldo = !evalPago.ok;
+  }
+  if (btn) btn.disabled = !(cerrado && totalPendientes) || sinSaldo;
 }
 
 // ============================================================
@@ -906,6 +1162,31 @@ async function confirmarEscribirAlSave(){
     return j ? j.nombre : ('id ' + id);
   }).join(', ');
 
+  // Slice D.R · defensa en profundidad: el boton "Escribir al save" ya
+  // queda deshabilitado por actualizarBotonEscritura() cuando el saldo o
+  // el tope general de temporada no alcanzan, pero se revalida aca por si
+  // CAMBIOS_PENDIENTES cambio de otra forma entre el ultimo render y el
+  // click. Se fuerza un refresco de GASTO_TEMPORADA_CACHE (bypass del
+  // cache) para no confiar en una foto vieja si otra sesion ya gasto
+  // presupuesto de este equipo mientras tanto. "Si el saldo no alcanza, no
+  // se escribe" (macro-slice D.R, punto 3).
+  const equipoTSCConfirm = equipoTSCActual();
+  if (equipoTSCConfirm && tienePresidente(equipoTSCConfirm)){
+    await _refrescarGastoTemporadaEquipo(equipoTSCConfirm, true);
+    const repartoConfirm = repartoPendienteEquipo();
+    const restantesConfirm = _restantesTemporada();
+    const saldoConfirm = equipoTSCConfirm.yunacoin || 0;
+    const evalConfirm = YUNACOINS_RULES.evaluarPago(saldoConfirm, repartoConfirm.totalCosto, repartoConfirm.fromGeneral, restantesConfirm.general);
+    if (!evalConfirm.ok){
+      const msg = evalConfirm.excedeSaldo
+        ? `${equipoTSCConfirm.name} necesita ${repartoConfirm.totalCosto.toLocaleString('es-AR')} YunaCoins para estos cambios pero tiene ${saldoConfirm.toLocaleString('es-AR')} (faltan ${(repartoConfirm.totalCosto-saldoConfirm).toLocaleString('es-AR')}). No se escribio nada.`
+        : `${equipoTSCConfirm.name} supera el tope general de temporada (quedan ${restantesConfirm.general.toLocaleString('es-AR')}, hacen falta ${repartoConfirm.fromGeneral.toLocaleString('es-AR')}). No se escribio nada.`;
+      _mostrarErrorEscritura({ name: 'SaldoInsuficiente', message: msg });
+      actualizarBotonEscritura();
+      return;
+    }
+  }
+
   // C2.3, punto 1 y 7 · pedir el permiso de escritura EXPLICITAMENTE aca,
   // antes del confirm() y dentro del mismo gesto de click que lo dispara —
   // es la causa raiz confirmada del cuelgue silencioso (ver nota en
@@ -941,6 +1222,32 @@ async function escribirAlSave(){
   _ocultarExitoEscritura();
   if (logEl){ logEl.style.display = ''; logEl.innerHTML = ''; }
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
+
+  // Slice D.R · saco la "foto" del reparto (bono/general por jugador) ANTES
+  // de tocar nada (CAMBIOS_PENDIENTES se vacia al final si todo sale bien)
+  // — el cobro real se aplica DESPUES de que el save (o la descarga de
+  // fallback) se confirmo con exito.
+  const equipoCobro = equipoTSCActual();
+  const debeCobrar = !!(equipoCobro && tienePresidente(equipoCobro));
+  const repartoCobro = debeCobrar ? repartoPendienteEquipo() : null;
+  async function _aplicarCobroSiCorresponde(){
+    if (!debeCobrar || !repartoCobro || repartoCobro.totalCosto <= 0) return;
+    try {
+      log(`cobrando ${repartoCobro.totalCosto.toLocaleString('es-AR')} YunaCoins a ${equipoCobro.name} (general ${repartoCobro.fromGeneral.toLocaleString('es-AR')} + bono ${repartoCobro.fromSub.toLocaleString('es-AR')})...`);
+      const nuevoSaldo = await cobrarMejorasEquipo(equipoCobro, repartoCobro);
+      log(`cobro OK — nuevo saldo de ${equipoCobro.name}: ${nuevoSaldo.toLocaleString('es-AR')}`, 'ok');
+      showToast(`-${repartoCobro.totalCosto.toLocaleString('es-AR')} YunaCoins a ${equipoCobro.name} (mejora PES5)`);
+      if (TAB === 'equipos') renderEquiposTab();
+    } catch(eCobro){
+      // El save YA se escribio con exito en este punto — no lo deshacemos
+      // (no hay forma segura de "des-escribir"). Se avisa fuerte para que
+      // Luis cobre a mano y no quede la mejora gratis sin que se note.
+      log('ERROR AL COBRAR (el save SI se escribio): ' + (eCobro.message||eCobro), 'err');
+      console.error('[pes5-tool] cobrarMejorasEquipo:', eCobro);
+      showToast(`Save escrito pero el cobro a ${equipoCobro.name} FALLO — cobralo a mano (ver log).`);
+    }
+  }
+
   try {
     log('aplicando cambios...');
     const copia = Uint8Array.from(PLANO);
@@ -960,6 +1267,7 @@ async function escribirAlSave(){
       log('descarga generada', 'ok');
       showToast('Save editado descargado — copialo a mano a la carpeta del juego.');
       _mostrarExitoEscritura({ backup: '(sin backup automático — no se tocó el archivo en la carpeta del juego, solo se descargó la version editada)', bytes: cifrado.length });
+      await _aplicarCobroSiCorresponde();
       PLANO = copia;
       CAMBIOS_PENDIENTES = {};
       if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
@@ -978,6 +1286,7 @@ async function escribirAlSave(){
     log(`guardado OK — backup: ${res.backup}`, 'ok');
     showToast('Save escrito. Backup: ' + res.backup);
     _mostrarExitoEscritura({ backup: res.backup, bytes: cifrado.length });
+    await _aplicarCobroSiCorresponde();
     PLANO = copia;
     CAMBIOS_PENDIENTES = {};
     if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();

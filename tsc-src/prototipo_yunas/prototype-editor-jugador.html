@@ -15,6 +15,8 @@
 <script src="../js/state.js"></script>
 <script src="../js/db.js"></script>
 <script src="../js/auth.js"></script>
+<!-- Slice D.R: reglas de costo compartidas con pes5-tool.html (modulo puro, sin DOM) -->
+<script src="../js/yunacoins-rules.js"></script>
 <style>
 :root{
   --tier-n:#EDEFF3;   /* 0-79  normal */
@@ -410,6 +412,9 @@ async function renderAuthUI(){
   if (_gateTeamId !== AUTH.teamId){
     _gateTeamId = AUTH.teamId;
     try { EQUIPO_TSC = await dbGet('teams', AUTH.teamId); } catch(e){ EQUIPO_TSC = null; }
+    // Slice D.R punto 5a: recalcular el techo de presupuesto con el saldo
+    // REAL del equipo recien cargado (teams.yunacoin), nunca un numero fijo.
+    APP.budget = YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES);
   }
   if (!EQUIPO_TSC || !EQUIPO_TSC.pes5Club){
     gate.style.display = ''; shell.style.display = 'none';
@@ -624,19 +629,17 @@ function loadFormation(){
 }
 let FORMATION = loadFormation();
 
-/* ================= reglas de mejora (editables por el admin) ================= */
+/* ================= reglas de mejora (editables por el admin) =================
+   Slice D.R: los NUMEROS y la logica de costo se movieron a
+   js/yunacoins-rules.js (YUNACOINS_RULES) para compartirlos con
+   pes5-tool.html. Nada de esto cambia de comportamiento: DEFAULT_RULES,
+   bandCost99, costRange99, INJURY_ORDER, HEIGHT_CAPS y heightBracket(Count)
+   pasan a delegar en el modulo; RULES sigue siendo la copia mutable local
+   (editable desde el modal de reglas, persistida en localStorage) que ya
+   existia. */
 
 const RULES_KEY = 'tsc_ep_rules';
-const DEFAULT_RULES = {
-  bandCosts: [50,100,250,500,1000],   // <80, 80-85, 86-90, 91-95, 96-99
-  scale8Cost: 250,                    // Consistency/Condition/Weak foot (escala 4-8)
-  abilityCost: 500,                   // habilidad especial (estrella)
-  injuryCost: 250,                    // por nivel de Res. lesion (C->B->A)
-  budgetGeneral: 50000,               // tope de la regla: lo maximo que se puede gastar en mejoras generales
-  budgetSubscribers: 25000,           // bono exclusivo, se habilita cuando el general llega a 0
-  presidentWallet: 48733,             // YunaCoins que el presidente realmente tiene acumuladas (Streamlabs)
-};
-const BAND_MAX = [79,85,90,95,99];
+const DEFAULT_RULES = YUNACOINS_RULES.DEFAULT_RULES;
 function loadRules(){
   try{
     const saved = JSON.parse(localStorage.getItem(RULES_KEY)||'null');
@@ -649,16 +652,10 @@ function saveRulesToStorage(){
 }
 let RULES = loadRules();
 
-function bandCost99(dest){
-  for(let i=0;i<BAND_MAX.length;i++) if(dest<=BAND_MAX[i]) return RULES.bandCosts[i];
-  return RULES.bandCosts[RULES.bandCosts.length-1];
-}
-function costRange99(from,to){
-  let sum=0;
-  for(let v=from+1; v<=to; v++) sum += bandCost99(v);
-  return sum;
-}
-const INJURY_ORDER = ['C','B','A'];
+const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
+function bandCost99(dest){ return YUNACOINS_RULES.bandCost99(dest, RULES); }
+function costRange99(from,to){ return YUNACOINS_RULES.costRange99(from, to, RULES); }
+const INJURY_ORDER = YUNACOINS_RULES.INJURY_ORDER;
 
 function tierClass99(v){
   if(v<=79) return 'n';
@@ -688,16 +685,11 @@ const BUCKET_PHOTO = {PT:'1.webp', DE:'2.webp', ME:'3.webp', DC:'4.webp'};
    Cupo del PLANTEL COMPLETO (fichajes reales incluidos en el conteo, pero su
    altura no se puede tocar). Solo suscriptores y jugadores base pueden editar
    su altura, y solo si el tramo destino todavia tiene cupo entre los demas. */
-const HEIGHT_CAPS = {hi:2, mid:7, lo:8};
-const HEIGHT_BRACKET_LABEL = {hi:'≥198 cm', mid:'190-197 cm', lo:'186-189 cm'};
-function heightBracket(h){
-  if(h>=198) return 'hi';
-  if(h>=190) return 'mid';
-  if(h>=186) return 'lo';
-  return null;
-}
+const HEIGHT_CAPS = YUNACOINS_RULES.HEIGHT_CAPS;
+const HEIGHT_BRACKET_LABEL = YUNACOINS_RULES.HEIGHT_BRACKET_LABEL;
+function heightBracket(h){ return YUNACOINS_RULES.heightBracket(h); }
 function heightBracketCount(bracket, excludeId){
-  return PLAYERS.filter(pl=>pl.id!==excludeId && heightBracket(pl.height)===bracket).length;
+  return YUNACOINS_RULES.heightBracketCount(PLAYERS, bracket, excludeId);
 }
 
 function mkPlayer(o){
@@ -861,7 +853,11 @@ async function cargarPlantillaReal(teamId, pes5ClubActual){
 const APP = {
   playerId: null, // se fija en cargarPlantillaReal() -> renderAuthUI(), no hay dataset local
   page: 1,
-  budget: { general: Math.min(RULES.presidentWallet, RULES.budgetGeneral), subscribers: RULES.budgetSubscribers },
+  // Slice D.R punto 5a: el wallet real es SIEMPRE teams.yunacoin, nunca
+  // hardcodeado. Aca EQUIPO_TSC todavia no cargo (arranca en null antes de
+  // loguearse) — se recalcula con el valor real apenas carga, ver
+  // renderAuthUI() > "if (_gateTeamId !== AUTH.teamId)".
+  budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES),
   draft: null,
   hint: 'Selecciona un atributo para ver su descripcion.',
 };
@@ -891,10 +887,12 @@ function pendingCost(){
   return total;
 }
 /* techo de gasto del jugador: los suscriptores suman el bono exclusivo una vez
-   agotado el presupuesto general; el resto del plantel solo ve el general. */
+   agotado el presupuesto general; el resto del plantel solo ve el general.
+   Slice D.R: misma formula, ahora vive en YUNACOINS_RULES.bonoSuscriptor
+   (ver comentario "PUNTO ABIERTO" en yunacoins-rules.js). */
 function remainingForPlayer(p){
   if(!p) return 0;
-  return p.subscriber ? APP.budget.general + APP.budget.subscribers : APP.budget.general;
+  return YUNACOINS_RULES.bonoSuscriptor(APP.budget, !!p.subscriber);
 }
 /* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual */
 function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCost(); }
@@ -993,8 +991,11 @@ function setHint(text){
    cambia cuando el admin guarda reglas nuevas. */
 function renderHero(){
   const cost = pendingCost();
-  const fromGeneral = Math.min(cost, APP.budget.general);
-  const fromSub = cost - fromGeneral;
+  // Slice D.R punto 5b: orden INVERTIDO — un suscriptor gasta primero el
+  // bono, el resto (o todo, si no es suscriptor) sale del general. Mismo
+  // YUNACOINS_RULES.distribuirCosto que usa la tool (pes5-tool.html).
+  const p = currentPlayer();
+  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!(p && p.subscriber));
   document.getElementById('ep-hero-general-cap').textContent = RULES.budgetGeneral.toLocaleString('es-CL');
   document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
   document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
@@ -1088,10 +1089,10 @@ async function commitChanges(){
     return;
   }
 
-  /* el general se gasta primero (compartido); si sobra costo y es suscriptor,
-     el resto sale del bono exclusivo — nunca al reves. */
-  const fromGeneral = Math.min(cost, APP.budget.general);
-  const fromSub = cost - fromGeneral;
+  /* Slice D.R punto 5b (orden INVERTIDO, 15/09): si es suscriptor, primero
+     se gasta el bono exclusivo; agotado el bono, el resto sigue con el
+     general. Si no es suscriptor, todo sale del general. */
+  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!p.subscriber);
 
   const btn = document.getElementById('ep-apply');
   if (btn) btn.disabled = true;
@@ -1243,8 +1244,8 @@ function rulesFormHTML(r){
   return `
     <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
       text-transform:uppercase;color:var(--txt3);margin-bottom:8px;">Presupuesto</div>
-    <div class="ep-diffline"><div class="lbl">YunaCoins del presidente (saldo real)</div>
-      <input type="number" min="0" step="500" id="rule-wallet" value="${r.presidentWallet}" class="ep-rule-input"></div>
+    <div class="ep-diffline"><div class="lbl">YunaCoins del equipo (saldo real, <code>teams.yunacoin</code> — no editable aca)</div>
+      <b>${(EQUIPO_TSC?.yunacoin || 0).toLocaleString('es-CL')}</b></div>
     <div class="ep-diffline"><div class="lbl">Tope de la regla (mejoras generales)</div>
       <input type="number" min="0" step="500" id="rule-budget-general" value="${r.budgetGeneral}" class="ep-rule-input"></div>
     <div class="ep-diffline"><div class="lbl">Bono exclusivo suscriptores</div>
@@ -1289,7 +1290,9 @@ function resetRulesForm(){
 }
 function saveRulesFromForm(){
   const num = (id,fallback)=>{ const v = parseInt(document.getElementById(id).value,10); return Number.isFinite(v) && v>=0 ? v : fallback; };
-  RULES.presidentWallet = num('rule-wallet', RULES.presidentWallet);
+  // Slice D.R punto 5a: presidentWallet ya no es un campo de regla editable
+  // — el saldo real siempre sale de teams.yunacoin (ver rulesFormHTML, que
+  // ahora lo muestra de solo lectura).
   RULES.budgetGeneral = num('rule-budget-general', RULES.budgetGeneral);
   RULES.budgetSubscribers = num('rule-budget-subs', RULES.budgetSubscribers);
   RULES.bandCosts = BAND_LABELS.map((_,i)=> num('rule-band-'+i, RULES.bandCosts[i]));
@@ -1298,9 +1301,9 @@ function saveRulesFromForm(){
   RULES.injuryCost = num('rule-injury', RULES.injuryCost);
   saveRulesToStorage();
 
-  /* guardar reglas reinicia el saldo disponible a los nuevos montos configurados */
-  APP.budget.general = Math.min(RULES.presidentWallet, RULES.budgetGeneral);
-  APP.budget.subscribers = RULES.budgetSubscribers;
+  /* guardar reglas reinicia el saldo disponible a los nuevos montos
+     configurados — el wallet sigue siendo SIEMPRE el real (punto 5a). */
+  APP.budget = YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES);
 
   closeRulesModal();
   renderHero();
