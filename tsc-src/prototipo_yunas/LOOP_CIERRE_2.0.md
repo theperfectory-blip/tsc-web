@@ -7,16 +7,20 @@
 
 ---
 
-## 1. Estado al 17/09
+## 1. Estado final del loop (18/09)
 
-| Slice | Estado |
-|---|---|
-| A, B, C, C.1, C.2 | Commiteados y probados en el juego |
-| D.R | **En curso, sin commitear desde el 15/09 22:30.** Hay `js/yunacoins-rules.js`, su test (pasa) y cambios en `pes5-editor.js`, `pes5-tool.html` y el editor. Ya implementa el orden nuevo del bono. **Falta:** la tool y el editor todavía no usan el flag `$` de suscriptor (solo `pes5-editor.js` lo tiene) |
-| D, F, E | Sin empezar. F sin spec detallada |
-| main → rama | Al día, 0 commits pendientes |
+| Slice | Commit | Qué quedó |
+|---|---|---|
+| D.R | `586a319` | Reglas de costo compartidas y cobro desde la tool |
+| R | `36dcfa1` | Reglas y topes editables por el admin (`pes5_config/reglas`) |
+| D1 | `c52e932` | Publicar plantillas del save a la web (manual) |
+| D2 | `f218be5` | Pedidos: cobro al aplicar, rechazo, cancelación |
+| F | `e73aa1c` | `mejoras.html`, página propia del presidente, con enlace desde el perfil |
+| F.M | `ebd4b78` | Mobile-first de `mejoras.html` + restauración del prototipo |
+| E + F.2 | `04e3f49` | Documentación, sin borrados; ajustes finales |
+| PR | [#3](https://github.com/theperfectory-blip/tsc-web/pull/3) | Borrador, **sin mergear** |
 
----
+Pendiente: G (Luis), Streamlabs, versión 2.0.0 de la APK y decidir el borrado del prototipo.
 
 ## 2. Cómo corre el loop
 
