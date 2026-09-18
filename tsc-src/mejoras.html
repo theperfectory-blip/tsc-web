@@ -303,6 +303,7 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   /* navegacion y botones */
   .ep-pgbtn{min-height:40px;padding:0 14px;}
   .ep-theme-btn{min-height:40px;padding:0 12px;}
+  .ep-crumb a{min-height:44px;}
   .ep-hero-actions{flex-wrap:wrap;justify-content:stretch;gap:6px;}
   .ep-hero-actions .ep-histbtn{flex:1 1 calc(50% - 6px);justify-content:center;min-height:44px;}
   .ep-btn{min-height:44px;}
@@ -1374,7 +1375,7 @@ async function openOtrosEquiposModal(){
   let docs = [];
   try {
     const q = await firebase.firestore().collection('pes5_plantillas').get();
-    docs = q.docs.map(d => d.data()).filter(d => String(d.teamId) !== String(AUTH.teamId));
+    docs = q.docs.map(d => d.data()).filter(d => String(d.teamId) !== String(AUTH.teamId) && d.pes5ClubIdx != null); // solo plantillas publicadas con la Tool PES5 (formato con indice de club)
   } catch (e) {
     wrap.innerHTML = '';
     showMiniToast('No se pudieron leer las plantillas: ' + (e && e.message ? e.message : e));

@@ -16,9 +16,10 @@ Las dos carpetas son *worktrees* del mismo repo (`git worktree list`). Comparten
 historial; un commit hecho en una se ve en la otra al instante.
 
 Lo que la 2.0 tiene de más respecto de `main`:
-- `tsc-src/prototipo_yunas/` (editor, tools PES4/PES5, documentación).
-- `tsc-src/js/pes5-crypt.js` y `tsc-src/js/pes5-editor.js`.
-- Reglas de Firestore `pedidos_pes5` y `pes5_plantillas` (ya desplegadas el 30/08/2026).
+- `tsc-src/mejoras.html` (página del presidente, enlazada desde su perfil) y `tsc-src/assets/mejoras/`.
+- `tsc-src/prototipo_yunas/pes5-tool.html` (Tool PES5 del admin) y la documentación de investigación en `tsc-src/prototipo_yunas/`.
+- Módulos `tsc-src/js/pes5-crypt.js`, `pes5-editor.js`, `pes5-save.js`, `pes5-plantilla.js`, `yunacoins-rules.js` y los JSON de `tsc-src/js/pes5/`.
+- Reglas de Firestore `pedidos_pes5`, `pes5_plantillas` y `pes5_config` (desplegadas).
 - `tsc-src/_material-diseno/`.
 
 ---
@@ -196,3 +197,5 @@ Al mergear `main`, `android/app/build.gradle` trae el `versionCode` nuevo. La
 | Módulos de navegador PES5 | `tsc-src/js/pes5-crypt.js`, `tsc-src/js/pes5-editor.js` |
 | YunaCoins / Streamlabs (decisión abierta) | `tsc-src/prototipo_yunas/STREAMLABS_YUNACOINS.md` |
 | Reglas Firestore nuevas | `firebase/firestore.rules` (`pedidos_pes5`, `pes5_plantillas`) |
+| Tool del admin (save, pedidos, publicar, reglas) | `tsc-src/prototipo_yunas/pes5-tool.html` |
+| Página del presidente (mejoras con YunaCoins) | `tsc-src/mejoras.html` |

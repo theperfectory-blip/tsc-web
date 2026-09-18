@@ -209,7 +209,19 @@ distribucion bimodal de 100-250cm).
 
 ## Como se usa ahora
 
-Los 3 JSON estaticos (`pes5-keys.json`, `pes5-map.json`, `pes5-teams.json`) se
-movieron a `tsc-src/js/pes5/` (antes vivian en esta misma carpeta) — es la
-unica ubicacion; las paginas de `pes5/` y las tools de Node de esta carpeta
-los cargan desde ahi.
+Todo el trabajo con el save se hace desde **`tsc-src/prototipo_yunas/pes5-tool.html`**
+(servida en `http://localhost:3001/prototipo_yunas/pes5-tool` desde la carpeta
+`tsc.web-yunacoins`), solo con la cuenta admin:
+
+- **Equipos**: vincular cada equipo TSC activo con su club del save (por indice).
+- **Plantilla**: ver y editar jugadores; si el equipo tiene presidente, se cobra
+  en YunaCoins con las reglas vigentes.
+- **Pedidos**: aplicar o rechazar los pedidos de los presidentes; se cobran al aplicar.
+- **Publicar**: copiar las plantillas del save a la web (manual).
+- **Reglas**: precios por banda y topes de temporada.
+
+Los presidentes usan **`tsc-src/mejoras.html`**, enlazada desde su perfil.
+
+Los 3 JSON estaticos (`pes5-keys.json`, `pes5-map.json`, `pes5-teams.json`)
+viven en `tsc-src/js/pes5/`. Las tools de Node de `tools/` siguen sirviendo
+para investigacion y tests (`test-*.js`).
