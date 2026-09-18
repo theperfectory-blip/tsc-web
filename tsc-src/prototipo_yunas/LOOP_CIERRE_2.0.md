@@ -59,7 +59,7 @@ está en §3. En esos casos el loop se detiene y avisa; nunca improvisa.
 | 4 | Cancelar pedido | **El presidente puede cancelar** sus pedidos mientras estén `pendiente` |
 | 5 | Auto-publicar | **Manual** (17/09): la tool marca las plantillas como desactualizadas y Luis publica con un botón. Sin publicación automática |
 | 6 | Dónde vive la sección del presidente | **Página propia** (URL aparte, no dentro de `index.html`), con un enlace desde el perfil del presidente |
-| 7 | Quién ve plantillas | **Cualquier presidente** ve las plantillas de todos los equipos. Editar y pedir, solo en la suya |
+| 7 | Quién ve plantillas | Primero "cualquier presidente"; **revertido el 18/09**: se quitó "Otros equipos" y cada presidente ve solo la suya |
 | 8 | Reglas de precio | **Editables por el admin** (mismo lugar que el punto 1) |
 | 9 | Editor viejo del 26/07 | Se borraba en E. **Revertido (17/09): no se borra nada del prototipo hasta nuevo aviso.** E solo actualiza documentación. El editor movido a `mejoras.html` en F se restauró también en su ruta original |
 | 10 | Streamlabs | **Pospuesto**, igual que G |
