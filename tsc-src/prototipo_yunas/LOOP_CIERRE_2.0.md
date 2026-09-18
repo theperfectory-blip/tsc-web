@@ -57,7 +57,7 @@ está en §3. En esos casos el loop se detiene y avisa; nunca improvisa.
 | 6 | Dónde vive la sección del presidente | **Página propia** (URL aparte, no dentro de `index.html`), con un enlace desde el perfil del presidente |
 | 7 | Quién ve plantillas | **Cualquier presidente** ve las plantillas de todos los equipos. Editar y pedir, solo en la suya |
 | 8 | Reglas de precio | **Editables por el admin** (mismo lugar que el punto 1) |
-| 9 | Editor viejo del 26/07 | Se borra en E |
+| 9 | Editor viejo del 26/07 | Se borraba en E. **Revertido (17/09): no se borra nada del prototipo hasta nuevo aviso.** E solo actualiza documentación. El editor movido a `mejoras.html` en F se restauró también en su ruta original |
 | 10 | Streamlabs | **Pospuesto**, igual que G |
 
 | 11 | Diseño | **Mobile-first** (17/09): la página del presidente (`mejoras.html`) se diseña primero para el teléfono, porque se usa dentro de la APK y mucha gente no tiene PC. La Tool PES5 es de escritorio (necesita el archivo del juego en la PC de Luis): solo debe no romperse en pantalla chica. Se agrega el slice **F.M** (auditoría y ajuste móvil) después de F |

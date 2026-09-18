@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mejoras de jugadores · TSC</title>
+<title>PROTOTIPO · Editar Jugador (estilo PES5)</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/variables.css">
-<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="../css/variables.css">
+<link rel="stylesheet" href="../css/components.css">
 <!-- Firebase (compat) — debe cargar antes de firebase-config.js / auth.js -->
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
-<script src="js/firebase-config.js"></script>
-<script src="js/state.js"></script>
-<script src="js/db.js"></script>
-<script src="js/auth.js"></script>
+<script src="../js/firebase-config.js"></script>
+<script src="../js/state.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/auth.js"></script>
 <!-- Slice D.R: reglas de costo compartidas con pes5-tool.html (modulo puro, sin DOM) -->
-<script src="js/yunacoins-rules.js"></script>
-<script src="js/pes5-plantilla.js"></script>
+<script src="../js/yunacoins-rules.js"></script>
+<script src="../js/pes5-plantilla.js"></script>
 <style>
 :root{
   --tier-n:#EDEFF3;   /* 0-79  normal */
@@ -48,6 +48,10 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 *{box-sizing:border-box;}
 ::-webkit-scrollbar{display:none;}
 *{scrollbar-width:none;}
+
+#proto-badge{position:fixed;bottom:16px;right:16px;z-index:900;background:var(--card2);
+  border:1px solid var(--gold-b);color:var(--gold);font-family:'Barlow Condensed';font-weight:700;
+  font-size:12px;letter-spacing:2px;text-transform:uppercase;padding:6px 12px;border-radius:999px;}
 
 .icn{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
 .icn.star.on{fill:currentColor;}
@@ -271,68 +275,15 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .ep-pitch-info-name{font-family:'Bebas Neue';font-size:16px;color:var(--txt);display:flex;align-items:center;gap:8px;}
 .ep-pitch-info-zone{font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
 .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-
-/* ================= Slice F.M — mobile-first (<= 860px) =================
-   La pagina se usa sobre todo dentro de la APK. Objetivos tactiles >= 40px,
-   editor visible sin scrollear la lista de jugadores, boton de pedido
-   siempre a mano, textos >= 12px, sin barras de scroll visibles. */
-@media (max-width: 860px){
-  /* lista de jugadores: tira horizontal compacta en vez de columna de 640px */
-  .ep-roster{max-height:none;}
-  .ep-roster-list{display:flex;flex-direction:row;align-items:stretch;gap:6px;
-    overflow-x:auto;overflow-y:hidden;padding:8px;scrollbar-width:none;
-    -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent);
-    mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent);}
-  .ep-roster-list::-webkit-scrollbar{display:none;}
-  .ep-roster-list .ep-bkt-hd{flex:0 0 auto;margin:0;padding:0 10px;display:flex;align-items:center;
-    border-radius:var(--r);font-size:12px;}
-  .ep-roster-list .ep-pitem{flex:0 0 auto;min-height:48px;max-width:168px;padding:6px 10px;
-    border:1px solid var(--brd);}
-  .ep-roster-list .ep-pitem .av{width:26px;height:26px;}
-  .ep-roster-hd input{min-height:40px;font-size:16px;} /* 16px evita el zoom automatico de iOS/Android */
-
-  /* filas de atributos: controles tactiles */
-  .ep-row{padding:6px 8px;gap:8px;min-height:48px;}
-  .ep-rbar{display:none;}
-  .ep-rstep{gap:6px;}
-  .ep-rstep button{width:40px;height:40px;font-size:20px;border-radius:8px;}
-  .ep-rfoot button{min-height:36px;padding:6px 12px;font-size:12px;}
-  .ep-rcost{font-size:12px;}
-  .ep-rcost-row{font-size:12px;}
-
-  /* navegacion y botones */
-  .ep-pgbtn{min-height:40px;padding:0 14px;}
-  .ep-theme-btn{min-height:40px;padding:0 12px;}
-  .ep-hero-actions{flex-wrap:wrap;justify-content:stretch;gap:6px;}
-  .ep-hero-actions .ep-histbtn{flex:1 1 calc(50% - 6px);justify-content:center;min-height:44px;}
-  .ep-btn{min-height:44px;}
-
-  /* barra de pedido siempre visible abajo */
-  .ep-cart{position:sticky;bottom:0;z-index:50;border-radius:var(--rl) var(--rl) 0 0;
-    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
-    box-shadow:0 -8px 24px rgba(0,0,0,0.35);}
-  .ep-cart-actions{flex:1;justify-content:flex-end;}
-
-  /* textos minimos */
-  .ep-pitem-tag,.ep-hero-lbl,.ep-height-note,.ep-cart-tot span,.ep-audit-entry-hd span{font-size:12px;}
-  .ep-histbtn .badge{font-size:11px;min-width:18px;text-align:center;}
-
-  /* modales a pantalla completa, sin barra de scroll visible */
-  .ep-overlay{padding:0;align-items:stretch;}
-  .ep-modal,.ep-modal.wide{max-width:none;max-height:none;height:100%;border-radius:0;border:none;}
-  .ep-modal-body{scrollbar-width:none;padding:14px 16px calc(14px + env(safe-area-inset-bottom));}
-  .ep-modal-body::-webkit-scrollbar{display:none;}
-  .ep-modal-close{min-width:44px;min-height:44px;font-size:26px;}
-  #ep-otros-sel{width:100%;min-height:44px;font-size:16px;}
-}
 </style>
 </head>
 <body>
+<div id="proto-badge">PROTOTIPO &middot; EDITOR JUGADOR</div>
 
 <div id="ep-gate" style="display:none;max-width:480px;margin:60px auto;padding:24px;text-align:center;color:var(--txt2);"></div>
 <div class="ep-shell" id="ep-shell" style="display:none;">
   <div class="ep-crumb">
-    <a href="index.html" style="display:flex;align-items:center;gap:6px;color:inherit;text-decoration:none;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>TSC &middot; Copa Suscriptores <b>&rsaquo; Mejoras de jugadores</b></span></a>
+    <span>TSC &middot; Copa Suscriptores <b>&rsaquo; Editar Jugador (mock)</b></span>
     <div style="display:flex;align-items:center;gap:8px;">
       <span id="ep-auth-status" style="font-size:12px;"></span>
       <button class="ep-theme-btn" id="ep-theme-btn" onclick="toggleTheme()"></button>
@@ -352,10 +303,6 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
       <div class="ep-hero-val small"><b id="ep-balance-sub">0</b></div>
     </div>
     <div class="ep-hero-actions">
-      <button class="ep-histbtn" onclick="openOtrosEquiposModal()">
-        <svg class="icn" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Otros equipos
-      </button>
       <button class="ep-histbtn formation" onclick="openFormationModal()">
         <span class="ep-pitch-cta-icon"><i></i><i></i><i></i></span>
         Formacion
@@ -418,7 +365,6 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 
 <div id="ep-confirm-wrap"></div>
 <div id="ep-audit-wrap"></div>
-<div id="ep-otros-wrap"></div>
 <div id="ep-rules-wrap"></div>
 <div id="ep-pitch-wrap"></div>
 
@@ -447,13 +393,6 @@ async function renderAuthUI(){
     if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" onclick="openAuthModal()">Iniciar sesion</button>`;
     else if (!AUTH.teamId) el.textContent = `${_esc(AUTH.profile?.displayName||AUTH.user.email)} · sin equipo asignado`;
     else el.innerHTML = `${_esc(AUTH.profile?.displayName||AUTH.user.email)} <button class="ep-theme-btn" onclick="authSignOut()">Salir</button>`;
-  }
-
-  if (AUTH.user){
-    try {
-      const q = await firebase.firestore().collection('pedidos_pes5').where('uid', '==', AUTH.user.uid).get();
-      actualizarBadgeHistorial(q.docs.map(d => d.data()));
-    } catch (e) {}
   }
 
   const gate = document.getElementById('ep-gate'), shell = document.getElementById('ep-shell');
@@ -764,8 +703,8 @@ const SQUAD_SECTIONS = [
   {key:'suplente', label:'Suplentes', color:'var(--bkt-me)', from:11, to:23},
   {key:'reserva',  label:'Reserva',   color:'var(--bkt-de)', from:23, to:Infinity},
 ];
-/* silueta de accion por bucket (assets/mejoras/1..4.webp) */
-const BUCKET_PHOTO = {PT:'assets/mejoras/1.webp', DE:'assets/mejoras/2.webp', ME:'assets/mejoras/3.webp', DC:'assets/mejoras/4.webp'};
+/* silueta de accion por bucket (prototipo_yunas/1..4.webp) */
+const BUCKET_PHOTO = {PT:'1.webp', DE:'2.webp', ME:'3.webp', DC:'4.webp'};
 
 /* ================= reglas de altura (Categoria 2, MD seccion 2) =================
    Cupo del PLANTEL COMPLETO (fichajes reales incluidos en el conteo, pero su
@@ -1011,9 +950,6 @@ function renderRoster(){
     html += players.map(item).join('');
   });
   list.innerHTML = html || '<div style="padding:8px;color:var(--txt3);font-size:12px;">Sin resultados.</div>';
-  // Slice F.M: en movil la lista es una tira horizontal; traer el jugador activo a la vista.
-  const activo = list.querySelector('.ep-pitem.active');
-  if (activo && window.matchMedia('(max-width: 860px)').matches) activo.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 function selectPlayer(id){
@@ -1088,6 +1024,7 @@ function renderHero(){
   document.getElementById('ep-hero-general-cap').textContent = RULES.budgetGeneral.toLocaleString('es-CL');
   document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
   document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
+  document.getElementById('ep-hist-badge').textContent = AUDIT_LOG.length;
 }
 function renderCart(){
   const cost = pendingCost();
@@ -1302,116 +1239,42 @@ function saveAuditLog(){
 }
 const AUDIT_LOG = loadAuditLog();
 
-async function openAuditModal(){
+function openAuditModal(){
   const wrap = document.getElementById('ep-audit-wrap');
-  wrap.innerHTML = `<div class="ep-overlay"><div class="ep-modal wide"><div class="ep-modal-body">Cargando historial…</div></div></div>`;
-  let pedidos = [], movimientos = [];
-  try {
-    const q = await firebase.firestore().collection('pedidos_pes5').where('uid', '==', AUTH.user.uid).get();
-    pedidos = q.docs.map(d => Object.assign({ _id: d.id }, d.data()));
-  } catch (e) { console.warn('[mejoras] pedidos', e); }
-  try {
-    movimientos = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId)
-      && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
-  } catch (e) { console.warn('[mejoras] coins', e); }
-  const ms = v => v && v.toDate ? v.toDate().getTime() : (v ? new Date(v).getTime() : 0);
-  pedidos.sort((a, b) => ms(b.creadoEn) - ms(a.creadoEn));
-  movimientos.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  const ESTADO = { pendiente: 'Pendiente', aplicado: 'Aplicado', rechazado: 'Rechazado', cancelado: 'Cancelado' };
-  const fecha = v => { const t = ms(v); return t ? new Date(t).toLocaleString('es-CL') : ''; };
-  const filasPedidos = pedidos.length ? pedidos.map(p => `
-    <div class="ep-audit-entry">
-      <div class="ep-audit-entry-hd"><b>${_esc(p.playerName || '')}</b><span>${_esc(fecha(p.creadoEn))}</span></div>
-      <div class="sum">${(p.lines || []).map(l => `${_esc(l.label)} ${_esc(l.from)}&rarr;${_esc(l.to)}`).join(', ')}</div>
-      <div class="sum" style="margin-top:4px;">
-        <span class="badge">${_esc(ESTADO[p.estado] || p.estado || '')}</span>
-        &middot; ${Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0)).toLocaleString('es-CL')} YunaCoins
-        ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${_esc(p.motivo)}` : ''}
-        ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" onclick="cancelarPedidoDesdeHistorial('${_esc(p._id)}')">Cancelar pedido</button>` : ''}
-      </div>
-    </div>`).join('') : '<div class="sum">Todavía no mandaste pedidos.</div>';
-  const filasMov = movimientos.length ? movimientos.map(m => `
-    <div class="ep-diffline">
-      <div class="lbl">${_esc((m.pes5 && m.pes5.playerName) || '')} &middot; ${_esc(m.note || '')}</div>
-      <div class="chg">${_esc(m.date ? new Date(m.date).toLocaleString('es-CL') : '')}</div>
-      <div class="cost">-${Number(m.amount || 0).toLocaleString('es-CL')}</div>
-    </div>`).join('') : '<div class="sum">Sin cobros de mejoras esta temporada.</div>';
+  const entries = [...AUDIT_LOG].reverse();
   wrap.innerHTML = `
   <div class="ep-overlay" onclick="if(event.target===this) closeAuditModal()">
     <div class="ep-modal wide">
       <div class="ep-modal-hd">
-        <h2>Historial de mejoras</h2>
+        <h2>Historial de mejoras &middot; para notificar al admin</h2>
         <button class="ep-modal-close" onclick="closeAuditModal()">&times;</button>
       </div>
       <div class="ep-modal-body">
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin-bottom:8px;">Mis pedidos</div>
-        ${filasPedidos}
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin:16px 0 8px;">Cobros al equipo</div>
-        ${filasMov}
+        ${!entries.length ? '<div style="text-align:center;color:var(--txt3);padding:20px 0;">Aun no se aplicaron mejoras en este navegador.</div>' :
+          entries.map(e=>{
+            const d = new Date(e.ts);
+            const fecha = d.toLocaleDateString('es-CL')+' '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+            const lines = Array.isArray(e.lines) ? e.lines : [];
+            const resumen = lines.map(l=>`${_esc(l.label)} ${_esc(l.from)}&rarr;${_esc(l.to)}`).join(', ');
+            const totalCost = Number(e.totalCost||0);
+            const fromGeneral = e.fromGeneral!=null ? Number(e.fromGeneral) : totalCost;
+            const fromSub = Number(e.fromSub||0);
+            const after = e.budgetAfter || {general:Number(e.balanceAfter||0), subscribers:0};
+            const subLine = fromSub>0 ? ` (general: ${fromGeneral.toLocaleString('es-CL')} + bono suscriptores: ${fromSub.toLocaleString('es-CL')})` : '';
+            return `<div class="ep-audit-entry">
+              <div class="ep-audit-entry-hd"><b>${_esc(e.playerName)} <span style="color:var(--txt3);font-weight:400;">#${_esc(e.dorsal)}</span>${e.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</b><span>${fecha}</span></div>
+              <div class="sum">${resumen}</div>
+              <div class="sum" style="margin-top:4px;">Costo total: <span class="cost">${totalCost.toLocaleString('es-CL')} YunaCoins</span>${subLine} &middot; saldo restante general/bono: ${Number(after.general||0).toLocaleString('es-CL')} / ${Number(after.subscribers||0).toLocaleString('es-CL')}</div>
+            </div>`;
+          }).join('')
+        }
+      </div>
+      <div class="ep-modal-foot">
+        <button class="ep-btn" onclick="clearAuditLog()">Limpiar historial (solo prueba)</button>
+        <button class="ep-btn primary" onclick="closeAuditModal()">Cerrar</button>
       </div>
     </div>
   </div>`;
-  actualizarBadgeHistorial(pedidos);
-}
-async function cancelarPedidoDesdeHistorial(id){
-  if (!confirm('¿Cancelar este pedido? No se cobra nada.')) return;
-  try {
-    await cancelarPedido(id);
-    showMiniToast('Pedido cancelado.');
-  } catch (e) {
-    showMiniToast('No se pudo cancelar: ' + (e && e.message ? e.message : e));
-  }
-  renderAll();
-  openAuditModal();
-}
-function actualizarBadgeHistorial(pedidos){
-  const el = document.getElementById('ep-hist-badge');
-  if (el) el.textContent = (pedidos || []).filter(p => p.estado === 'pendiente').length;
-}
-async function openOtrosEquiposModal(){
-  const wrap = document.getElementById('ep-otros-wrap');
-  wrap.innerHTML = `<div class="ep-overlay"><div class="ep-modal wide"><div class="ep-modal-body">Cargando equipos…</div></div></div>`;
-  let docs = [];
-  try {
-    const q = await firebase.firestore().collection('pes5_plantillas').get();
-    docs = q.docs.map(d => d.data()).filter(d => String(d.teamId) !== String(AUTH.teamId));
-  } catch (e) {
-    wrap.innerHTML = '';
-    showMiniToast('No se pudieron leer las plantillas: ' + (e && e.message ? e.message : e));
-    return;
-  }
-  docs.sort((a, b) => String(a.teamName || '').localeCompare(String(b.teamName || '')));
-  window.__OTROS_EQUIPOS__ = docs;
-  const opciones = docs.map((d, i) => `<option value="${i}">${_esc(d.teamName || String(d.teamId))} &middot; ${_esc(d.pes5Club || '')}</option>`).join('');
-  wrap.innerHTML = `
-  <div class="ep-overlay" onclick="if(event.target===this) closeOtrosEquiposModal()">
-    <div class="ep-modal wide">
-      <div class="ep-modal-hd">
-        <h2>Plantillas de otros equipos</h2>
-        <button class="ep-modal-close" onclick="closeOtrosEquiposModal()">&times;</button>
-      </div>
-      <div class="ep-modal-body">
-        ${docs.length ? `<select id="ep-otros-sel" onchange="renderOtroEquipo(this.value)">${opciones}</select>
-        <div id="ep-otros-tabla" style="margin-top:12px;overflow-x:auto;scrollbar-width:none;"></div>` : '<div class="sum">Todavía no hay otras plantillas publicadas.</div>'}
-      </div>
-    </div>
-  </div>`;
-  if (docs.length) renderOtroEquipo(0);
-}
-function closeOtrosEquiposModal(){ document.getElementById('ep-otros-wrap').innerHTML = ''; }
-function renderOtroEquipo(i){
-  const d = (window.__OTROS_EQUIPOS__ || [])[Number(i)];
-  const el = document.getElementById('ep-otros-tabla');
-  if (!d || !el) return;
-  const cols = [['atk','ATA'],['def','DEF'],['res','RES'],['vm','VEL'],['ace','ACE'],['ppc','PAS'],['pre','PRE'],['pot','POT'],['tec','TEC']];
-  const filas = (d.jugadores || []).map(j => `<tr>
-    <td>${_esc(j.name || '')}${j.subscriber ? ' <span class="badge">$</span>' : ''}</td>
-    <td>${_esc(j.tag || '')}</td><td>${Number(j.height || 0)}</td><td>${Number(j.age || 0)}</td>
-    ${cols.map(c => `<td style="text-align:right;">${Number((j.stats || {})[c[0]] || 0)}</td>`).join('')}
-  </tr>`).join('');
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px;">
-    <thead><tr><th style="text-align:left;">Jugador</th><th style="text-align:left;">Pos.</th><th>Alt.</th><th>Edad</th>${cols.map(c => `<th style="text-align:right;">${c[1]}</th>`).join('')}</tr></thead>
-    <tbody>${filas}</tbody></table>`;
 }
 function closeAuditModal(){ document.getElementById('ep-audit-wrap').innerHTML=''; }
 function clearAuditLog(){
