@@ -216,8 +216,6 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .ep-diffline .lbl{color:var(--txt);}
 .ep-diffline .chg{color:var(--txt3);white-space:nowrap;}
 .ep-diffline .cost{color:var(--gold);font-family:'Bebas Neue';font-size:14px;min-width:56px;text-align:right;}
-.ep-rule-input{width:90px;padding:5px 8px;background:var(--card2);border:1px solid var(--brd2);
-  border-radius:var(--r);color:var(--txt);font-size:13px;text-align:right;flex:none;}
 .ep-modal-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;
   border-top:1px solid var(--brd2);font-size:14px;color:var(--txt);}
 .ep-modal-total b{font-family:'Bebas Neue';font-size:20px;color:var(--gold);}
@@ -365,10 +363,6 @@ body.admin-libre .ep-hero,body.admin-libre .ep-cart-tot{display:none;}
         <span class="ep-pitch-cta-icon"><i></i><i></i><i></i></span>
         Formacion
       </button>
-      <button class="ep-histbtn" onclick="openRulesModal()">
-        <svg class="icn" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-        Reglas
-      </button>
       <button class="ep-histbtn" onclick="openAuditModal()">
         <svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
         Historial <span class="badge" id="ep-hist-badge">0</span>
@@ -423,7 +417,6 @@ body.admin-libre .ep-hero,body.admin-libre .ep-cart-tot{display:none;}
 
 <div id="ep-confirm-wrap"></div>
 <div id="ep-audit-wrap"></div>
-<div id="ep-rules-wrap"></div>
 <div id="ep-pitch-wrap"></div>
 
 <script>
@@ -1408,55 +1401,6 @@ function clearAuditLog(){
   renderCart();
   openAuditModal();
 }
-
-/* ================= modal: reglas de mejora (admin) ================= */
-
-const BAND_LABELS = ['0 a 79','80 a 85','86 a 90','91 a 95','96 a 99'];
-
-function rulesFormHTML(r){
-  return `
-    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
-      text-transform:uppercase;color:var(--txt3);margin-bottom:8px;">Presupuesto</div>
-    <div class="ep-diffline"><div class="lbl">YunaCoins del equipo (saldo real, <code>teams.yunacoin</code> — no editable aca)</div>
-      <b>${(EQUIPO_TSC?.yunacoin || 0).toLocaleString('es-CL')}</b></div>
-    <div class="ep-diffline"><div class="lbl">Tope de la regla (mejoras generales)</div>
-      <input type="number" min="0" step="500" id="rule-budget-general" value="${r.budgetGeneral}" class="ep-rule-input" disabled></div>
-    <div class="ep-diffline"><div class="lbl">Bono exclusivo suscriptores</div>
-      <input type="number" min="0" step="500" id="rule-budget-subs" value="${r.budgetSubscribers}" class="ep-rule-input" disabled></div>
-
-    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
-      text-transform:uppercase;color:var(--txt3);margin:14px 0 8px;">Costo por punto — stats (escala 1-99)</div>
-    ${BAND_LABELS.map((lbl,i)=>`<div class="ep-diffline"><div class="lbl">${lbl}</div>
-      <input type="number" min="0" step="10" id="rule-band-${i}" value="${r.bandCosts[i]}" class="ep-rule-input" disabled></div>`).join('')}
-
-    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
-      text-transform:uppercase;color:var(--txt3);margin:14px 0 8px;">Otros costos</div>
-    <div class="ep-diffline"><div class="lbl">Atributo escala 4-8 (Consistency/Condition/pie malo)</div>
-      <input type="number" min="0" step="10" id="rule-scale8" value="${r.scale8Cost}" class="ep-rule-input" disabled></div>
-    <div class="ep-diffline"><div class="lbl">Habilidad especial (estrella)</div>
-      <input type="number" min="0" step="10" id="rule-ability" value="${r.abilityCost}" class="ep-rule-input" disabled></div>
-    <div class="ep-diffline"><div class="lbl">Res. lesion, por nivel (C&rarr;B&rarr;A)</div>
-      <input type="number" min="0" step="10" id="rule-injury" value="${r.injuryCost}" class="ep-rule-input" disabled></div>
-  `;
-}
-
-function openRulesModal(){
-  const wrap = document.getElementById('ep-rules-wrap');
-  wrap.innerHTML = `
-  <div class="ep-overlay" onclick="if(event.target===this) closeRulesModal()">
-    <div class="ep-modal wide">
-      <div class="ep-modal-hd">
-        <h2>Reglas de mejora</h2>
-        <button class="ep-modal-close" onclick="closeRulesModal()">&times;</button>
-      </div>
-      <div class="ep-modal-body" id="ep-rules-form">${rulesFormHTML(RULES)}</div>
-      <div class="ep-modal-foot">
-        <div style="font-size:12px;color:var(--txt3);">Las reglas las define el admin en la Tool PES5.</div>
-      </div>
-    </div>
-  </div>`;
-}
-function closeRulesModal(){ document.getElementById('ep-rules-wrap').innerHTML=''; }
 
 /* ================= MODULO APARTE: formacion / estrategia =================
    No comparte estado con el editor de jugadores: tiene su propio borrador y
