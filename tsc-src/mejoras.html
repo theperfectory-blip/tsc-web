@@ -1622,9 +1622,13 @@ function adjustInjury(delta){
 }
 function toggleAbility(key){
   const p = currentPlayer();
-  if(p.abilities[key]) return; // ya comprada antes, no se puede "vender"
+  // Marca la fila como seleccionada igual que adjustMain/adjustSec: la fila activa
+  // se decide comparando APP.hint con la descripcion de la fila.
+  const ab = ABILITY_BY_KEY[key];
+  if(ab){ APP.hint = ab.d; document.getElementById('ep-hint').textContent = ab.d; }
+  if(p.abilities[key]){ renderRows(); return; } // ya comprada antes, no se puede "vender"
   if(!APP.draft.abilities[key] && !canAfford(RULES.abilityCost)){
-    showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); return;
+    showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return;
   }
   APP.draft.abilities[key] = !APP.draft.abilities[key];
   renderRows(); renderCart();
