@@ -109,3 +109,8 @@ mergear el PR.
 **Reglas Firestore desplegadas:** `pes5_bloqueos` (lectura para logueados; escribe el admin o el presidente de ese equipo sobre su propio documento).
 
 **Implementación:** Haiku, con instrucciones y parches con verificación previa. Verificado por el supervisor en el navegador con la sesión real: flujo completo con cobro (sin escribir), modo libre con escritura simulada del save, y los siete escenarios del bloqueo en ambos lados con documentos de prueba, ya borrados.
+
+
+## 7. Slice P — Posiciones y Banda/pie (20/09)
+
+Spec completa en `SLICE_POSICIONES_BANDA.md`. Descubierto: la posición registrada (O) es un código fijo de 4 bits (428–431), no un rango; Carrilero=SB y Lateral=WB (estaban cruzados); Banda/pie son dos campos (pie bit 416; banda 2 bits 542–543, relativa al pie). El tope de 5 posiciones es regla de la TSC (`maxPositions`).

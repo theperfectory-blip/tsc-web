@@ -262,6 +262,12 @@
    "ancho_bits": 1,
    "enc": "0 = derecho, 1 = izquierdo. Verificado: Daerden izq->der (1->0)"
   },
+  "Banda": {
+   "bit": 542,
+   "off": "+0x43.6",
+   "ancho_bits": 2,
+   "enc": "RELATIVA AL PIE. 0 = banda del mismo lado que el pie (PD/BD o PI/BI), 1 = banda del lado contrario (PD/BI o PI/BD), 2 = ambas; el valor 3 no aparece. Se lee como bit542 + 2*bit543 (bit 542 = LSB). Es el segundo tramo de Banda/pie del editor; el pie es el bit 416. Verificado con Stranzl (registro 2): Ambas (b542=0,b543=1) -> PD/BD (0,0) -> PD/BI (1,0) -> al cambiar SOLO el pie a izquierdo el juego pasa a PI/BD con los mismos bits (1,0). Confirmado el 2026-09-20 con Stranzl: PI/BI = (0,0), PI/BD = (1,0), PI/Ambas = (0,1), PD/Ambas = (0,1). Son 3 valores; el juego solo cambia el rotulo (PD/PI) segun el pie. Save real (4893 jugadores): 60% ambas."
+  },
   "Resistencia lesiones": {
    "bit": 659,
    "off": "+0x52.3",
