@@ -1641,9 +1641,9 @@ function togglePosition(key){
   const on = d.positions[key];
   const marcadasCount = Object.values(d.positions).filter(Boolean).length;
 
-  // El tope reglamentario de la TSC rige para todos: el presidente y tambien el admin cuando edita
-  // un equipo con presidente (en edicion libre la tool manda maxPositions 12). Quitar siempre se puede.
-  if(!on && marcadasCount >= RULES.maxPositions) {
+  // El tope reglamentario de la TSC (maxPositions) es solo del presidente: el admin edita libre
+  // (por ejemplo al nivelar plantillas). Quitar posiciones siempre se puede.
+  if(!ADMIN_EMBED && !on && marcadasCount >= RULES.maxPositions) {
     showMiniToast('Tope de ' + RULES.maxPositions + ' posiciones.');
     return;
   }
