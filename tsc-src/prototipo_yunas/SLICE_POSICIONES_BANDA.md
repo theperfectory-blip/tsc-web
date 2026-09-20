@@ -16,11 +16,11 @@ de sus marcadas). Confirmado en el juego con Stranzl (O en Carrilero = código 4
 | Código | Nombre en el mapa (`pes5-map.json > posiciones`) | Clave inglesa | Jugadores de 1 posición que lo respaldan |
 |---|---|---|---|
 | 0 | Portero | GK | 548 |
-| 2 | Libero | CWP | **1** (más 29 con varias) |
+| 2 | Libero | CWP | 1 (más 29 con varias) |
 | 3 | Central | CB | 384 |
 | 4 | Carrilero | **SB** | 222 |
 | 5 | Centrocampista defensivo (MCD) | DMF | 158 |
-| 6 | Lateral | **WB** | **3** (más 53 con varias) |
+| 6 | Lateral | **WB** | 3 (más 53 con varias) |
 | 7 | Centrocampista central (MC) | CMF | 39 |
 | 8 | Volante | SMF | 111 |
 | 9 | Mediapunta | AMF | 65 |
@@ -28,7 +28,10 @@ de sus marcadas). Confirmado en el juego con Stranzl (O en Carrilero = código 4
 | 11 | Segundo delantero (SD) | SS | 9 |
 | 12 | Delantero centro (DC) | CF | 507 |
 
-Líbero y Lateral tienen poca evidencia directa: se cierran en el juego con la prueba de escritura del punto 5.
+**Verificación en el juego (20/09, Vastic, registro 10, 12 posiciones marcadas):** el usuario movió la O por las 12
+posiciones en el editor de PES5 y guardó cada vez; el save dio exactamente los códigos de la tabla en las 12
+(DC 12, SD 11, Extremo 10, Mediapunta 9, Volante 8, MC 7, Lateral 6, MCD 5, Carrilero 4, Central 3, Líbero 2, Portero 0).
+Solo cambiaron los bits 428–431 del registro; el bit 427 no se movió.
 El código 1 y los ≥13 no aparecen. El bit 427 vale 1 en 71 jugadores (campo desconocido): **no tocarlo**.
 
 **B. Carrilero/Lateral estaban cruzados en la tool.** En el juego: **Carrilero = SB** (grupo DE, con Central y
@@ -153,9 +156,9 @@ Todos los tests existentes siguen verdes (`test-pes5-plantilla.js`, `test-jugado
 ## 5. Verificación del supervisor (UI real, sin tocar el save ni Firestore reales)
 - Tool: abrir un jugador; página Posiciones: marcar/desmarcar, mover la O (modo admin), cambiar pie y banda; ver el
   carrito y "Guardar en la tool"; escribir contra una COPIA del save y descifrar el resultado.
-- **Prueba en el juego (cierra Líbero y Lateral):** el supervisor escribe en una COPIA del save una O en Líbero y otra
-  en Lateral, y el usuario carga esa copia en PES5 y confirma que el círculo quedó donde corresponde. Es la misma
-  vía de escritura que usa la tool, así que valida lectura y escritura a la vez.
+- **Prueba en el juego de la ESCRITURA:** la lectura ya está verificada con las 12 posiciones. Lo que falta cerrar es escribir: el
+  supervisor escribe en una COPIA del save una O nueva (y una banda y un pie), el usuario carga la copia en PES5 y confirma lo que ve.
+  La regla del juego es que la O solo puede ir a una posición ya marcada del jugador, y la escritura de la tool la respeta.
 - Presidente (375 px, sin scroll horizontal): tope de 5, natural fija, sin botón "Registrar".
 - Las plantillas ya publicadas siguen con los `primaryPos`/`bucket` viejos hasta que se republiquen (decisión del usuario).
 
