@@ -1641,14 +1641,15 @@ function togglePosition(key){
   const on = d.positions[key];
   const marcadasCount = Object.values(d.positions).filter(Boolean).length;
 
+  // El tope reglamentario de la TSC rige para todos: el presidente y tambien el admin cuando edita
+  // un equipo con presidente (en edicion libre la tool manda maxPositions 12). Quitar siempre se puede.
+  if(!on && marcadasCount >= RULES.maxPositions) {
+    showMiniToast('Tope de ' + RULES.maxPositions + ' posiciones.');
+    return;
+  }
   if(!ADMIN_EMBED){
     // Presidente: no puede desmarcar la registrada
     if(on && key === d.primaryPos) return;
-    // Presidente: no puede pasar de maxPositions
-    if(!on && marcadasCount >= RULES.maxPositions) {
-      showMiniToast('Tope de ' + RULES.maxPositions + ' posiciones.');
-      return;
-    }
   } else {
     // Admin: no puede desmarcar todas
     if(on && marcadasCount === 1) {
