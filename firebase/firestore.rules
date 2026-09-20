@@ -99,6 +99,19 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- Bloqueo por equipo (un solo editor a la vez): lo toman el admin o el presidente de ese equipo ---
+    match /pes5_bloqueos/{teamId} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin()
+                            || (signedIn() && meExists() && me().teamId != null
+                                && string(me().teamId) == teamId
+                                && request.resource.data.uid == request.auth.uid);
+      allow delete: if isAdmin()
+                    || (signedIn() && meExists() && me().teamId != null
+                        && string(me().teamId) == teamId
+                        && resource.data.uid == request.auth.uid);
+    }
+
     // --- Reglas de precio YunaCoins / topes de temporada (slice R) ---
     // Cualquier usuario logueado las lee; solo el admin las escribe.
     match /pes5_config/{id} {

@@ -86,3 +86,26 @@ mergear el PR.
 - **Slice G**, a la espera de Luis.
 - **Build y release de la APK 2.0**: se hace después del PR.
 - **Streamlabs**, si se pospone a 2.1 (decisión 10).
+
+## 6. Ampliación del 20/09 — editor embebido, bloqueo por equipo y arreglos
+
+**Pedido del usuario:** eliminar el panel lateral de la pestaña Plantilla de la Tool PES5 y reemplazarlo por la vista pública de mejoras ("mucho más intuitivo también para el modo admin"); arreglar el bug de las habilidades especiales; y que un equipo solo lo edite una persona a la vez.
+
+| Qué | Cómo quedó |
+|---|---|
+| Bug habilidades especiales | `toggleAbility` fija el texto de ayuda igual que `adjustMain`/`adjustSec`; la fila queda marcada al comprar |
+| Panel lateral | Eliminado (`pes5-tool.html`). Al clickear un jugador se abre un modal con `mejoras.html#admin` en un iframe |
+| Modo admin de `mejoras.html` | Se activa con el fragmento `#admin` y solo dentro de un iframe. Los datos llegan por `postMessage` y el borrador vuelve a la tool: la página no escribe nada. El admin puede bajar valores por debajo del original, quitar habilidades, editar edad y altura sin cupos. Sin lista de jugadores ni Formación/Reglas/Historial. Equipo sin presidente: edición libre, sin costos ni saldo |
+| Barra de escritura | Debajo de la tabla: se cobra a quién, total, saldo, "PES5 está cerrado", escribir/descargar y "Descartar cambios" |
+| Cambio de club con cambios pendientes | Ahora pide confirmación y los descarta. Antes se podía escribir cambios de un club cobrándole a otro |
+| Bloqueo por equipo | Colección `pes5_bloqueos/{teamId}`: `{por, uid, nombre, desde, latido}`. Latido cada 30 s, vence a los 3 min. Toma transaccional. Solo aplica a equipos con presidente. El mismo usuario no se bloquea a sí mismo |
+| Cuándo se libera (admin) | Al cerrar el editor sin cambios pendientes, al descartar, al cambiar de club, o al escribir el save y publicar la plantilla del equipo |
+| Publicación tras escribir | Si el equipo tiene presidente, la tool publica su plantilla justo después de escribir el save y recién ahí libera el bloqueo, para que el presidente no vea números viejos. Es un agregado sobre la decisión 5 (publicar sigue siendo manual para el resto) |
+| Presidente | Al entrar toma el bloqueo. Si el admin lo tiene, ve "Luis está editando tu equipo" y la pantalla se actualiza sola (sondeo cada 15 s y observador en tiempo real) |
+| Bug público | El subtítulo decía "FK Tupadre" fijo para cualquier equipo; ahora usa el equipo real |
+
+**Gotcha:** el servidor local (`serve`) redirige `/mejoras.html?admin=1` a `/mejoras` y **pierde el query string**, pero conserva el fragmento. Por eso el modo admin usa `#admin`.
+
+**Reglas Firestore desplegadas:** `pes5_bloqueos` (lectura para logueados; escribe el admin o el presidente de ese equipo sobre su propio documento).
+
+**Implementación:** Haiku, con instrucciones y parches con verificación previa. Verificado por el supervisor en el navegador con la sesión real: flujo completo con cobro (sin escribir), modo libre con escritura simulada del save, y los siete escenarios del bloqueo en ambos lados con documentos de prueba, ya borrados.

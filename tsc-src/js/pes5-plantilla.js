@@ -104,11 +104,40 @@
       if (draft.abilities && draft.abilities[k] !== undefined && !!draft.abilities[k] !== !!original.abilities[k]) c.habilidades[campo] = !!draft.abilities[k];
     }
     if (draft.height !== undefined && draft.height !== original.height) c.altura = draft.height;
+    if (draft.age !== undefined && draft.age !== original.age) c.edad = draft.age;
     if (draft.favfoot !== undefined && draft.favfoot !== original.favfoot) c.pieDominante = draft.favfoot === 'I' ? 'izq' : 'der';
     if (!Object.keys(c.atributos).length) delete c.atributos;
     if (!Object.keys(c.escala8).length) delete c.escala8;
     if (!Object.keys(c.habilidades).length) delete c.habilidades;
     return c;
+  }
+
+  // Slice Q2: inversa de cambiosDesdeEditor. Recibe un jugador en formato editor y
+  // "cambios" en formato de la tool ({atributos, escala8, habilidades, altura, edad,
+  // pieDominante, lesiones}) y devuelve una COPIA del jugador con esos cambios aplicados.
+  // No muta el original. Con cambios null/undefined devuelve una copia igual.
+  function aplicarCambiosAlJugador(jugador, cambios) {
+    const j = JSON.parse(JSON.stringify(jugador));
+    if (!cambios) return j;
+    const ESCALA8 = { cons: 'Regularidad en el juego', cond: 'Estabilidad', wff: 'Frec. pie malo', wfa: 'Prec. pie malo' };
+    for (const [k, campo] of Object.entries(STAT_MAP)) {
+      if (cambios.atributos && cambios.atributos[campo] !== undefined) j.stats[k] = cambios.atributos[campo];
+    }
+    for (const [k, campo] of Object.entries(SEC_MAP)) {
+      const src = ESCALA8[k] ? cambios.escala8 : cambios.atributos;
+      if (src && src[campo] !== undefined) j.sec[k] = src[campo];
+    }
+    if (cambios.lesiones !== undefined) j.sec.inj = cambios.lesiones;
+    for (const [k, campo] of Object.entries(ABILITY_MAP)) {
+      if (cambios.habilidades && cambios.habilidades[campo] !== undefined) j.abilities[k] = !!cambios.habilidades[campo];
+    }
+    if (cambios.altura !== undefined) j.height = cambios.altura;
+    if (cambios.edad !== undefined) j.age = cambios.edad;
+    if (cambios.pieDominante !== undefined) {
+      j.favfoot = cambios.pieDominante === 'izq' ? 'I' : 'D';
+      j.foot = cambios.pieDominante === 'izq' ? 'Izq.' : 'Der.';
+    }
+    return j;
   }
 
   return {
@@ -123,5 +152,6 @@
     plantillaParaEditor: plantillaParaEditor,
     registroDeId: registroDeId,
     cambiosDesdeEditor: cambiosDesdeEditor,
+    aplicarCambiosAlJugador: aplicarCambiosAlJugador,
   };
 });

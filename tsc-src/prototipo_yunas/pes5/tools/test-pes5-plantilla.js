@@ -127,6 +127,48 @@ async function main() {
     }
   }
 
+  // ---------- 8) aplicarCambiosAlJugador — casos Slice Q2 ----------
+  if (iBolton >= 0) {
+    const pl = P.plantillaParaEditor(PES5_EDITOR, bytes, iBolton);
+    if (pl.length > 0) {
+      const o = pl[0];
+
+      // Caso 1: crear cambios complejos desde editor y verificar
+      const dd = JSON.parse(JSON.stringify(o));
+      dd.age = o.age + 1;
+      dd.sec.inj = o.sec.inj === 'A' ? 'B' : 'A';
+      dd.favfoot = o.favfoot === 'I' ? 'D' : 'I';
+      dd.stats.atk = o.stats.atk === 99 ? 98 : o.stats.atk + 1;
+      dd.abilities.dribbling = !o.abilities.dribbling;
+      dd.height = o.height === 205 ? 204 : o.height + 1;
+      dd.sec.cons = o.sec.cons === 8 ? 7 : o.sec.cons + 1;
+
+      const cc = P.cambiosDesdeEditor(o, dd);
+      assert(cc.edad === dd.age, `cc.edad === ${dd.age}`);
+      assert(cc.lesiones === dd.sec.inj, `cc.lesiones === ${dd.sec.inj}`);
+      assert(cc.pieDominante === (dd.favfoot === 'I' ? 'izq' : 'der'), `cc.pieDominante === ${dd.favfoot === 'I' ? 'izq' : 'der'}`);
+
+      // Caso 2: aplicar cambios y verificar que no muta original
+      const antes = JSON.stringify(o);
+      const xx = P.aplicarCambiosAlJugador(o, cc);
+      assert(JSON.stringify(o) === antes, 'aplicarCambiosAlJugador no muta el original');
+      assert(xx.age === dd.age, `xx.age === ${dd.age}`);
+      assert(xx.sec.inj === dd.sec.inj, `xx.sec.inj === ${dd.sec.inj}`);
+      assert(xx.favfoot === dd.favfoot, `xx.favfoot === ${dd.favfoot}`);
+      assert(xx.stats.atk === dd.stats.atk, `xx.stats.atk === ${dd.stats.atk}`);
+      assert(xx.abilities.dribbling === dd.abilities.dribbling, `xx.abilities.dribbling === ${dd.abilities.dribbling}`);
+      assert(xx.height === dd.height, `xx.height === ${dd.height}`);
+      assert(xx.sec.cons === dd.sec.cons, `xx.sec.cons === ${dd.sec.cons}`);
+
+      // Caso 3: cambios null/undefined devuelven copia igual
+      assert(JSON.stringify(P.aplicarCambiosAlJugador(o, null)) === antes, 'aplicarCambiosAlJugador(o, null) === copia');
+      assert(JSON.stringify(P.aplicarCambiosAlJugador(o, {})) === antes, 'aplicarCambiosAlJugador(o, {}) === copia');
+
+      // Caso 4: ida y vuelta
+      assert(JSON.stringify(P.cambiosDesdeEditor(o, xx)) === JSON.stringify(cc), 'cambiosDesdeEditor(o, aplicar(o, cc)) === cc');
+    }
+  }
+
   console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
   process.exit(fallas === 0 ? 0 : 1);
 }

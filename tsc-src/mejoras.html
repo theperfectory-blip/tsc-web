@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -18,6 +18,7 @@
 <!-- Slice D.R: reglas de costo compartidas con pes5-tool.html (modulo puro, sin DOM) -->
 <script src="js/yunacoins-rules.js"></script>
 <script src="js/pes5-plantilla.js"></script>
+<script src="js/pes5-bloqueo.js"></script>
 <style>
 :root{
   --tier-n:#EDEFF3;   /* 0-79  normal */
@@ -325,6 +326,14 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   .ep-modal-body::-webkit-scrollbar{display:none;}
   .ep-modal-close{min-width:44px;min-height:44px;font-size:26px;}
 }
+/* ================= Slice Q2 — modo admin embebido (iframe de la Tool PES5) ================= */
+body.admin-embed .ep-roster{display:none;}
+body.admin-embed .ep-app{grid-template-columns:1fr;}
+body.admin-embed .ep-hero-actions{display:none;}
+body.admin-embed .ep-crumb > div{display:none !important;}
+body.admin-embed .ep-cart{position:sticky;bottom:0;z-index:50;box-shadow:0 -8px 24px rgba(0,0,0,0.35);}
+body.admin-embed .ep-admin-tag{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:0.5px;}
+body.admin-libre .ep-hero,body.admin-libre .ep-cart-tot{display:none;}
 </style>
 </head>
 <body>
@@ -432,11 +441,17 @@ function showToast(msg){ showMiniToast(msg); }
 /* Sobreescribe el renderAuthUI() generico de auth.js (pensado para la topbar
    real) con uno propio para este mock: actualiza el badge de estado y
    controla el gate duro de acceso (ep-gate vs ep-shell). */
+/* Slice Q2: modo admin embebido. La Tool PES5 abre esta misma pagina dentro de un iframe
+   (mejoras.html#admin), le pasa los datos por postMessage y recibe el borrador de vuelta.
+   En este modo la pagina NO escribe nada en Firestore. */
+const ADMIN_EMBED = location.hash === '#admin' && window.parent !== window;
+let ADMIN_PENDIENTE = null; // cambios ya guardados en la tool para el jugador abierto (formato de la tool)
 let EQUIPO_TSC = null; // doc de tsc-src/js/teams.js para AUTH.teamId, con .pes5Club
 let _gateTeamId = undefined; // evita refetch repetido del mismo equipo
 let _gatePlantillaClub = undefined; // club PES5 con el que se cargo PLAYERS actualmente
 
 async function renderAuthUI(){
+  if (ADMIN_EMBED) return; // modo admin: no hay gate, los datos los manda la tool
   const el = document.getElementById('ep-auth-status');
   if (el){
     if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" onclick="openAuthModal()">Iniciar sesion</button>`;
@@ -491,6 +506,10 @@ async function renderAuthUI(){
     APP.playerId = PLAYERS[0].id;
     loadDraft();
   }
+  // Slice Q4: un solo editor a la vez por equipo. Si el admin lo esta editando, se muestra el aviso.
+  const bq = await tomarBloqueoPresidente();
+  if (!bq.ok){ mostrarBloqueoActivo(bq.de); return; }
+  iniciarLatidoPresidente();
   gate.style.display = 'none'; shell.style.display = '';
   renderAll();
 }
@@ -946,8 +965,10 @@ const APP = {
 function currentPlayer(){ return PLAYER_BY_ID[APP.playerId]; }
 function loadDraft(){
   const p = currentPlayer();
+  // Modo admin: el borrador arranca desde el original + lo ya guardado en la tool.
+  const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : p;
   APP.draft = JSON.parse(JSON.stringify({
-    stats:p.stats, sec:p.sec, abilities:p.abilities, positions:p.positions, favfoot:p.favfoot, height:p.height,
+    stats:src.stats, sec:src.sec, abilities:src.abilities, positions:p.positions, favfoot:src.favfoot, height:src.height, age:src.age,
   }));
 }
 
@@ -1033,6 +1054,12 @@ function renderCard(){
         <button onclick="adjustHeight(-1)">&minus;</button>
         <button onclick="adjustHeight(1)">+</button>
       </div></div>`;
+  const ageRow = ADMIN_EMBED
+    ? `<div class="ep-info-height"><span>Edad</span><div class="ep-info-height-val"><b>${d.age}</b><div class="ep-rstep">
+        <button onclick="adjustAge(-1)">&minus;</button>
+        <button onclick="adjustAge(1)">+</button>
+      </div></div></div>`
+    : `<div><span>Edad</span><b>${p.age}</b></div>`;
   document.getElementById('ep-card').innerHTML = `
     <div class="ep-photo"><img src="${photo}" alt=""></div>
     <div>
@@ -1041,13 +1068,13 @@ function renderCard(){
     </div>
     <div class="ep-info">
       <div class="ep-info-height"><span>Altura</span>${heightRow}</div>
-      <div><span>Edad</span><b>${p.age}</b></div>
+      ${ageRow}
       <div><span>Nacionalidad</span><b>${_esc(p.country)}</b></div>
       <div><span>Pie</span><b>${_esc(p.foot)}</b></div>
     </div>
     ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
   `;
-  document.getElementById('ep-subtitle').textContent = 'FK Tupadre · ' +
+  document.getElementById('ep-subtitle').textContent = ((EQUIPO_TSC && EQUIPO_TSC.name) || 'Mi equipo') + ' · ' +
     (p.subscriber ? 'Suscriptor' : p.heightFixed ? 'Fichaje real' : 'Plantilla base');
 }
 
@@ -1089,7 +1116,7 @@ function renderCart(){
   document.getElementById('ep-cost').textContent = cost.toLocaleString('es-CL');
   renderHero();
   const applyBtn = document.getElementById('ep-apply');
-  applyBtn.disabled = pendingChangeLines().length===0;
+  applyBtn.disabled = pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
   document.getElementById('ep-warn').textContent = '';
 }
 
@@ -1109,10 +1136,10 @@ function pendingChangeLines(){
   });
   SEC_NEW.forEach(s=>{
     if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costRange99(p.sec[s.k],d.sec[s.k])}); }
-    else if(s.sc===8){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:(d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost}); }
+    else if(s.sc===8){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:Math.max(0,d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost}); }
     else if(d.sec.inj!==p.sec.inj){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
-      lines.push({label:s.l, from:p.sec.inj, to:d.sec.inj, cost:(to-from)*RULES.injuryCost});
+      lines.push({label:s.l, from:p.sec.inj, to:d.sec.inj, cost:Math.max(0,to-from)*RULES.injuryCost});
     }
   });
   ALL_ABILITY_KEYS.forEach(k=>{
@@ -1121,6 +1148,12 @@ function pendingChangeLines(){
   POSITIONS.forEach(pos=>{
     if(d.positions[pos.k] && !p.positions[pos.k]) lines.push({label:'Posicion: '+pos.l, from:'—', to:'agregada', cost:0});
   });
+  if(ADMIN_EMBED){
+    ALL_ABILITY_KEYS.forEach(k=>{
+      if(!d.abilities[k] && p.abilities[k]) lines.push({label:ABILITY_BY_KEY[k].l, from:'habilidad', to:'quitada', cost:0});
+    });
+    if(d.age!==p.age) lines.push({label:'Edad', from:p.age, to:d.age, cost:0});
+  }
   if(d.favfoot!==p.favfoot) lines.push({label:'Pie favorito', from:p.favfoot, to:d.favfoot, cost:0});
   if(d.height!==p.height) lines.push({label:'Altura', from:p.height+' cm', to:d.height+' cm', cost:0});
   return lines;
@@ -1131,7 +1164,11 @@ function pendingChangeLines(){
 function openApplyConfirm(){
   const p = currentPlayer();
   const lines = pendingChangeLines();
-  if(lines.length===0) return;
+  if(lines.length===0){
+    // Modo admin: si el borrador volvio al original pero habia cambios guardados, "aplicar" los limpia.
+    if(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length) commitChangesAdmin();
+    return;
+  }
   const cost = pendingCost();
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
@@ -1162,6 +1199,7 @@ function openApplyConfirm(){
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
 async function commitChanges(){
+  if (ADMIN_EMBED) return commitChangesAdmin();
   const p = currentPlayer();
   const lines = pendingChangeLines();
   const cost = pendingCost();
@@ -1559,7 +1597,7 @@ function adjustHeight(delta){
   if(next<148 || next>205) return;
   const curBracket = heightBracket(cur);
   const nextBracket = heightBracket(next);
-  if(nextBracket && nextBracket!==curBracket){
+  if(!ADMIN_EMBED && nextBracket && nextBracket!==curBracket){
     const count = heightBracketCount(nextBracket, p.id);
     if(count >= HEIGHT_CAPS[nextBracket]){
       showMiniToast(`Cupo lleno para altura ${HEIGHT_BRACKET_LABEL[nextBracket]} (max ${HEIGHT_CAPS[nextBracket]} jugadores).`);
@@ -1581,7 +1619,7 @@ function adjustMain(key,delta){
     if(!canAfford(bandCost99(cur+1))){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.stats[key] = cur+1;
   }else{
-    if(cur<=p.stats[key]){ renderRows(); return; }
+    if(cur<=(ADMIN_EMBED ? 0 : p.stats[key])){ renderRows(); return; }
     APP.draft.stats[key] = cur-1;
   }
   renderRows(); renderCart();
@@ -1599,7 +1637,7 @@ function adjustSec(key,delta){
     if(!canAfford(nextCost)){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.sec[key] = cur+1;
   }else{
-    if(cur<=p.sec[key]){ renderRows(); return; }
+    if(cur<=(ADMIN_EMBED ? (def.sc===99 ? 0 : 1) : p.sec[key])){ renderRows(); return; }
     APP.draft.sec[key] = cur-1;
   }
   renderRows(); renderCart();
@@ -1615,7 +1653,7 @@ function adjustInjury(delta){
     if(!canAfford(RULES.injuryCost)){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.sec.inj = INJURY_ORDER[curIdx+1];
   }else{
-    if(curIdx<=baseIdx){ renderRows(); return; }
+    if(curIdx<=(ADMIN_EMBED ? 0 : baseIdx)){ renderRows(); return; }
     APP.draft.sec.inj = INJURY_ORDER[curIdx-1];
   }
   renderRows(); renderCart();
@@ -1626,8 +1664,8 @@ function toggleAbility(key){
   // se decide comparando APP.hint con la descripcion de la fila.
   const ab = ABILITY_BY_KEY[key];
   if(ab){ APP.hint = ab.d; document.getElementById('ep-hint').textContent = ab.d; }
-  if(p.abilities[key]){ renderRows(); return; } // ya comprada antes, no se puede "vender"
-  if(!APP.draft.abilities[key] && !canAfford(RULES.abilityCost)){
+  if(p.abilities[key] && !ADMIN_EMBED){ renderRows(); return; } // ya comprada antes, no se puede "vender" (el admin si puede quitarla)
+  if(!APP.draft.abilities[key] && !p.abilities[key] && !canAfford(RULES.abilityCost)){
     showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return;
   }
   APP.draft.abilities[key] = !APP.draft.abilities[key];
@@ -1654,7 +1692,7 @@ function starSvg(on){
 function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affordNext,costSoFar){
   const color = colorFn(value);
   const pct = Math.round(value/max*100);
-  const decDisabled = locked || value<=min;
+  const decDisabled = locked || value<=(ADMIN_EMBED ? (max===8 ? 1 : 0) : min);
   const incDisabled = locked || value>=max || !affordNext;
   const costBadge = costSoFar>0 ? `<div class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</div>` : '';
   return `<div class="ep-row ${APP.hint===desc?'sel':''} ${locked?'locked':''}" onclick="setHint('${jsq(desc)}')">
@@ -1784,10 +1822,147 @@ async function cancelarPedido(pedidoId){
   await recalcularPresupuestoReal();
 }
 
+/* ================= Slice Q2: modo admin embebido ================= */
+
+function adjustAge(delta){
+  if(!ADMIN_EMBED) return;
+  const next = APP.draft.age + delta;
+  if(next<15 || next>46) return;
+  APP.draft.age = next;
+  renderCard(); renderCart();
+}
+
+// Barra superior del modo admin: titulo con el equipo y si se cobra o es edicion libre.
+function renderAdminBar(){
+  const crumb = document.querySelector('.ep-crumb');
+  if(!crumb || !crumb.firstElementChild) return;
+  const e = EQUIPO_TSC;
+  const estado = e.cobra
+    ? `Se cobra a ${_esc(e.name)} · saldo ${Number(e.yunacoin||0).toLocaleString('es-CL')}`
+    : 'Sin presidente · edición libre, sin cobro';
+  const titulo = document.createElement('span');
+  titulo.innerHTML = `Editando <b>&rsaquo; ${_esc(e.name)}</b> &middot; ${_esc(e.pes5Club||'')}`;
+  crumb.firstElementChild.replaceWith(titulo);
+  let tag = crumb.querySelector('.ep-admin-tag');
+  if(!tag){ tag = document.createElement('span'); tag.className = 'ep-admin-tag'; crumb.appendChild(tag); }
+  tag.textContent = estado;
+}
+
+function iniciarModoAdmin(m){
+  RULES = m.reglas;
+  EQUIPO_TSC = m.equipo;
+  PLAYERS = (m.jugadores || []).map(j => jugadorDesdePlantillaReal(j, { teamName: m.equipo.name }));
+  PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p => [p.id, p]));
+  APP.budget = { general: m.presupuesto.general, subscribers: m.presupuesto.subscribers };
+  APP.playerId = m.jugadorId;
+  APP.page = 1;
+  APP.hint = 'Selecciona un atributo para ver su descripcion.';
+  ADMIN_PENDIENTE = m.pendiente || null;
+  loadDraft();
+  document.body.classList.add('admin-embed');
+  if(!m.equipo.cobra) document.body.classList.add('admin-libre');
+  document.getElementById('ep-gate').style.display = 'none';
+  document.getElementById('ep-shell').style.display = '';
+  const ap = document.getElementById('ep-apply');
+  if(ap) ap.lastChild.textContent = 'Guardar en la tool';
+  renderAdminBar();
+  renderAll();
+}
+
+function onMensajeDeLaTool(ev){
+  if(!ADMIN_EMBED || ev.origin !== location.origin || ev.source !== window.parent) return;
+  const m = ev.data;
+  if(!m || m.tipo !== 'pt-init') return;
+  iniciarModoAdmin(m);
+}
+
+// "Aplicar" en modo admin: no escribe nada, le devuelve el borrador a la tool.
+function commitChangesAdmin(){
+  const p = currentPlayer();
+  const cambiaPosiciones = Object.keys(APP.draft.positions || {}).some(k => !!APP.draft.positions[k] !== !!(p.positions || {})[k]);
+  if(cambiaPosiciones){
+    closeApplyConfirm();
+    showMiniToast('Las posiciones todavía no se pueden escribir en el save. Deshacé ese cambio para guardar.');
+    return;
+  }
+  closeApplyConfirm();
+  window.parent.postMessage({
+    tipo: 'pt-aplicar',
+    jugadorId: p.id,
+    draft: { stats: APP.draft.stats, sec: APP.draft.sec, abilities: APP.draft.abilities, height: APP.draft.height, favfoot: APP.draft.favfoot, age: APP.draft.age },
+    costo: pendingCost(),
+  }, location.origin);
+}
+
+/* ================= Slice Q4: bloqueo por equipo (un solo editor a la vez) ================= */
+let _bloqLatido = null, _bloqObs = null, _bloqSondeo = null;
+
+function _bloqNombre(){
+  return (AUTH.profile && AUTH.profile.displayName) || (AUTH.user && AUTH.user.email && AUTH.user.email.split('@')[0]) || 'Presidente';
+}
+
+// Toma el bloqueo del equipo como presidente. Si el admin lo tiene vigente devuelve { ok:false, de }.
+// Si Firestore falla (reglas, red), no se bloquea al usuario: se sigue sin bloqueo.
+async function tomarBloqueoPresidente(){
+  try { return await PES5_BLOQUEO.tomar(AUTH.teamId, 'presidente', AUTH.user.uid, _bloqNombre()); }
+  catch (e){ console.warn('[mejoras] no se pudo tomar el bloqueo, se sigue sin bloqueo:', e); return { ok: true }; }
+}
+
+function iniciarLatidoPresidente(){
+  if (_bloqLatido) return;
+  // mientras la pagina esta visible se renueva el bloqueo; oculta, vence solo a los 3 minutos
+  _bloqLatido = setInterval(async () => {
+    if (document.visibilityState !== 'visible' || !AUTH.user || AUTH.teamId == null) return;
+    try {
+      const r = await PES5_BLOQUEO.latir(AUTH.teamId, 'presidente', AUTH.user.uid, _bloqNombre());
+      if (!r.ok) mostrarBloqueoActivo(r.de);
+    } catch (e) {}
+  }, PES5_BLOQUEO.LATIDO_MS);
+  window.addEventListener('pagehide', () => {
+    if (AUTH.user && AUTH.teamId != null) PES5_BLOQUEO.liberar(AUTH.teamId, AUTH.user.uid);
+  });
+  // si el admin toma el equipo mientras el presidente esta adentro, se lo bloquea al instante
+  try {
+    _bloqObs = PES5_BLOQUEO.observar(AUTH.teamId, (d) => {
+      if (d && PES5_BLOQUEO.vivo(d) && d.uid !== AUTH.user.uid) mostrarBloqueoActivo(d);
+    });
+  } catch (e) {}
+}
+
+// Pantalla de espera: el admin esta editando el equipo. Se resetea el estado cargado para que,
+// cuando se libere, se vuelva a leer la plantilla publicada, las reglas y el saldo actualizados.
+function mostrarBloqueoActivo(d){
+  const gate = document.getElementById('ep-gate'), shell = document.getElementById('ep-shell');
+  if (!gate || !shell) return;
+  PLAYERS = []; PLAYER_BY_ID = {}; _gatePlantillaClub = undefined; _gateTeamId = undefined;
+  const hora = d && d.desde ? new Date(d.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
+  shell.style.display = 'none';
+  gate.style.display = '';
+  gate.innerHTML = `<p><b>${_esc((d && d.nombre) || 'El admin')}</b> está editando tu equipo en este momento${hora ? ` (desde las ${_esc(hora)})` : ''}.</p>
+    <p>Vas a poder mejorar tus jugadores cuando termine y publique los cambios. Esta pantalla se actualiza sola.</p>`;
+  if (!_bloqSondeo){
+    _bloqSondeo = setInterval(async () => {
+      try {
+        const actual = await PES5_BLOQUEO.leer(AUTH.teamId);
+        if (!actual || !PES5_BLOQUEO.vivo(actual) || actual.uid === AUTH.user.uid){
+          clearInterval(_bloqSondeo); _bloqSondeo = null;
+          renderAuthUI();
+        }
+      } catch (e) {}
+    }, 15000);
+  }
+}
+
 /* no hay dataset local que renderizar al arrancar — renderAuthUI() hace
+
+
    cargarPlantillaReal() + loadDraft() + renderAll() una vez que el gate
    (sesion + equipo + club PES5 + plantilla publicada) esta completo. */
 if (typeof initDB === 'function') initDB().then(()=>{ if (typeof onAuthInit === 'function') onAuthInit(); });
+if (ADMIN_EMBED){
+  window.addEventListener('message', onMensajeDeLaTool);
+  window.parent.postMessage({ tipo: 'pt-listo' }, location.origin);
+}
 </script>
 </body>
 </html>

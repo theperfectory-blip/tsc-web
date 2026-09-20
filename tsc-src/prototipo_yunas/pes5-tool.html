@@ -21,6 +21,7 @@
 <!-- Slice D.R: mismas reglas de costo YunaCoins que usa el editor del presidente -->
 <script src="../js/yunacoins-rules.js"></script>
 <script src="../js/pes5-plantilla.js"></script>
+<script src="../js/pes5-bloqueo.js"></script>
 <style>
 html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
 *{box-sizing:border-box;}
@@ -153,6 +154,19 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   -webkit-mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);
   mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);}
 .pt-tbl-wrap::-webkit-scrollbar{display:none;height:0;}
+/* ================= Editor embebido (modal con mejoras.html en modo admin) ================= */
+.pt-ed-overlay{position:fixed;inset:0;z-index:960;background:rgba(4,6,10,0.72);display:flex;align-items:center;justify-content:center;padding:16px;}
+.pt-ed-box{width:min(1240px,100%);height:min(94vh,100%);background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);display:flex;flex-direction:column;overflow:hidden;}
+.pt-ed-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;border-bottom:1px solid var(--brd);font-family:'Bebas Neue';font-size:19px;letter-spacing:0.5px;}
+.pt-ed-close{background:none;border:none;color:var(--txt3);cursor:pointer;padding:4px;}
+.pt-ed-close:hover{color:var(--txt);}
+.pt-ed-frame{flex:1;width:100%;border:0;background:var(--card);}
+.pt-cell-changed{color:var(--gold);font-weight:700;}
+.pt-cobro-txt{font-size:12px;color:var(--txt2);}
+.pt-hint-click{margin-top:8px;font-size:12px;color:var(--txt3);}
+#pl-writebar{position:sticky;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--brd);padding:10px 14px;margin-top:10px;}
+#pl-writebar:empty{display:none;}
+#pl-writebar .pt-writebar{border-top:none;padding-top:0;}
 </style>
 </head>
 <body>
@@ -728,11 +742,19 @@ function renderPlantillaTab(){
       </select>
     </div>
     <div id="pl-body"></div>
+    <div id="pl-writebar"></div>
     <div id="pl-write-status">
       <div class="pt-log" id="pl-log" style="display:none;"></div>
       <div class="pt-panel-msg pt-panel-err" id="pl-error-panel" style="display:none;"></div>
       <div class="pt-panel-msg pt-panel-ok" id="pl-success-panel" style="display:none;"></div>
     </div>`;
+  // Si ya habia un club abierto (volvimos a esta pestana), restaurarlo con sus cambios pendientes.
+  if (PLANTILLA_INDICE != null && PLANTILLA_ACTUAL){
+    const sel = document.getElementById('pl-team-select');
+    if (sel) sel.value = String(PLANTILLA_INDICE);
+    renderPlantillaBody();
+    renderWriteBar();
+  }
   // Slice C2.3, punto 4: #pl-write-status vive FUERA de #pl-body a proposito
   // — renderPlantillaBody() solo reescribe #pl-body, asi que el log y los
   // paneles de error/exito nunca se vacian por editar un campo, cambiar de
@@ -740,8 +762,25 @@ function renderPlantillaTab(){
 }
 
 function onTeamSelectPorIndice(idxStr){
-  if (idxStr === ''){ document.getElementById('pl-body').innerHTML = ''; PLANTILLA_INDICE = null; return; }
-  onTeamSelect(parseInt(idxStr, 10));
+  const nuevo = idxStr === '' ? null : parseInt(idxStr, 10);
+  // Los cambios pendientes pertenecen al club abierto: cambiar de club los perderia
+  // (y el cobro solo se aplica al club abierto), asi que se pide confirmacion.
+  if (Object.keys(CAMBIOS_PENDIENTES).length && nuevo !== PLANTILLA_INDICE){
+    if (!confirm('Hay cambios sin escribir en el club actual. Si cambiás de club se descartan. ¿Descartarlos y cambiar?')){
+      const sel = document.getElementById('pl-team-select');
+      if (sel) sel.value = PLANTILLA_INDICE != null ? String(PLANTILLA_INDICE) : '';
+      return;
+    }
+    CAMBIOS_PENDIENTES = {};
+    liberarBloqueoEquipo();
+  }
+  if (nuevo === null){
+    document.getElementById('pl-body').innerHTML = '';
+    PLANTILLA_INDICE = null;
+    renderWriteBar();
+    return;
+  }
+  onTeamSelect(nuevo);
 }
 
 async function onTeamSelect(indiceClub){
@@ -753,6 +792,7 @@ async function onTeamSelect(indiceClub){
   // panel de cobro ya muestre los topes restantes correctos.
   await _refrescarGastoTemporadaEquipo(equipoTSCActual());
   renderPlantillaBody();
+  renderWriteBar();
 }
 
 const COLS_ATTR = ['Ataque','Defensa','Equilibrio','Resistencia','Vel. maxima','Aceleracion','Respuesta','Agilidad',
@@ -766,50 +806,243 @@ function renderPlantillaBody(){
   const filas = PLANTILLA_ACTUAL.map((j, slot) => {
     const otros = PES5_EDITOR.equiposDelJugador(PLANO, j.id).filter(i => i !== PLANTILLA_INDICE);
     const badge = otros.length ? `<span class="badge badge-warn pt-alsoin" title="tambien en otro roster">${ICN.alert} tambien en: ${otros.map(i=>_esc(PES5_EDITOR.nombreEquipo(PLANO,i))).join(', ')}</span>` : '';
-    // C2.2 (c): la marca "editado" vive en un <span data-marca-editado> propio
-    // para poder actualizarla in-place (_actualizarFilaEditado) sin tocar el
-    // resto de la celda del nombre.
     const marcaCambio = _tieneAlgunCambio(j.id) ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
-    // C2.2 (b): cada celda de atributo lleva data-campo="<nombre exacto>"
-    // para poder actualizarla por jugador/campo sin re-renderizar la fila.
-    const cols = COLS_ATTR.map(c => `<td class="pt-stat-cell" data-campo="${_esc(c)}">${j.atributos[c]}</td>`).join('');
+    const celda = (campo, valor, original) => `<td class="pt-stat-cell${valor !== original ? ' pt-cell-changed' : ''}" data-campo="${_esc(campo)}">${valor}</td>`;
+    const cols = COLS_ATTR.map(c => celda(c, _valorActual(j, 'atributos', c), j.atributos[c])).join('');
+    const pieV = _valorActual(j, 'simple', 'pieDominante');
     return `
-      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" data-jugador="${j.id}" onclick="abrirPanelJugador(${j.id})">
+      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" data-jugador="${j.id}" onclick="abrirEditorJugador(${j.id})">
         <td>${slot+1}</td>
         <td>${_esc(j.nombre)}${badge}<span data-marca-editado>${marcaCambio}</span></td>
         <td>${_esc(j.posicionRegistrada||'—')}</td>
-        <td class="pt-stat-cell" data-campo="altura">${j.altura}</td>
-        <td class="pt-stat-cell" data-campo="edad">${j.edad}</td>
-        <td class="pt-stat-cell" data-campo="pieDominante">${j.pieDominante==='izq'?'Izq.':'Der.'}</td>
+        ${celda('altura', _valorActual(j, 'simple', 'altura'), j.altura)}
+        ${celda('edad', _valorActual(j, 'simple', 'edad'), j.edad)}
+        <td class="pt-stat-cell${pieV !== j.pieDominante ? ' pt-cell-changed' : ''}" data-campo="pieDominante">${pieV==='izq'?'Izq.':'Der.'}</td>
         ${cols}
       </tr>`;
   }).join('');
 
   el.innerHTML = `
-    <div class="${JUGADOR_SELECCIONADO!=null?'pt-panel-open':''}">
-      <div class="pt-grid">
-        <div class="tbl-wrap pt-tbl-wrap">
-          <table class="tbl pt-plantilla-table">
-            <thead><tr>
-              <th>#</th><th>Nombre</th><th>Pos.</th><th>Alt.</th><th>Edad</th><th>Pie</th>
-              ${COLS_ATTR.map(c=>`<th>${_esc(c)}</th>`).join('')}
-            </tr></thead>
-            <tbody>${filas || `<tr><td colspan="${6+COLS_ATTR.length}" style="text-align:center;color:var(--txt3);padding:20px;">Plantel vacío.</td></tr>`}</tbody>
-          </table>
-        </div>
-        <div id="pl-side"></div>
-      </div>
-    </div>`;
-  renderPanelLateral();
+    <div class="tbl-wrap pt-tbl-wrap">
+      <table class="tbl pt-plantilla-table">
+        <thead><tr>
+          <th>#</th><th>Nombre</th><th>Pos.</th><th>Alt.</th><th>Edad</th><th>Pie</th>
+          ${COLS_ATTR.map(c=>`<th>${_esc(c)}</th>`).join('')}
+        </tr></thead>
+        <tbody>${filas || `<tr><td colspan="${6+COLS_ATTR.length}" style="text-align:center;color:var(--txt3);padding:20px;">Plantel vacío.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="pt-hint-click">Tocá un jugador para editarlo con el mismo editor que usan los presidentes.</div>`;
 }
 
-function abrirPanelJugador(id){
+// ============================================================
+// Bloqueo por equipo (Slice Q4): mientras Luis edita un equipo que TIENE presidente, ese presidente
+// no puede usar la pagina de mejoras; y si el presidente esta adentro, Luis no puede abrir el editor
+// de ese equipo. Se toma al abrir el editor y se mantiene (latido cada 30 s) mientras haya cambios
+// pendientes; se libera al descartar, o al escribir el save y publicar la plantilla del equipo.
+// Equipos sin presidente no se bloquean. Si nadie renueva el latido, vence a los 3 minutos.
+// ============================================================
+let BLOQUEO_EQUIPO = null;     // teamId del equipo bloqueado por esta tool
+let _bloqLatidoAdmin = null;
+
+function _bloqNombreAdmin(){ return (AUTH.profile && AUTH.profile.displayName) || 'Luis'; }
+
+async function asegurarBloqueoEquipo(team){
+  if (!team || !tienePresidente(team)) return true;      // sin presidente no hay a quien bloquear
+  if (BLOQUEO_EQUIPO === team.id) return true;
+  let r;
+  try { r = await PES5_BLOQUEO.tomar(team.id, 'admin', AUTH.user.uid, _bloqNombreAdmin()); }
+  catch (e){ console.warn('[pes5-tool] no se pudo tomar el bloqueo, se sigue sin bloqueo:', e); return true; }
+  if (!r.ok){
+    const hora = r.de && r.de.desde ? new Date(r.de.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
+    alert(`${(r.de && r.de.nombre) || 'El presidente'} está mejorando ${team.name} ahora${hora ? ' (desde las ' + hora + ')' : ''}. Esperá a que salga para editarlo.`);
+    return false;
+  }
+  BLOQUEO_EQUIPO = team.id;
+  if (!_bloqLatidoAdmin){
+    _bloqLatidoAdmin = setInterval(() => {
+      if (BLOQUEO_EQUIPO == null) return;
+      PES5_BLOQUEO.latir(BLOQUEO_EQUIPO, 'admin', AUTH.user.uid, _bloqNombreAdmin()).catch(() => {});
+    }, PES5_BLOQUEO.LATIDO_MS);
+  }
+  renderWriteBar();
+  return true;
+}
+
+async function liberarBloqueoEquipo(){
+  if (_bloqLatidoAdmin){ clearInterval(_bloqLatidoAdmin); _bloqLatidoAdmin = null; }
+  const t = BLOQUEO_EQUIPO;
+  BLOQUEO_EQUIPO = null;
+  if (t != null){ try { await PES5_BLOQUEO.liberar(t, AUTH.user.uid); } catch (e) {} }
+  renderWriteBar();
+}
+
+// Despues de escribir el save: publicar la plantilla del equipo (para que el presidente vea los
+// numeros nuevos) y recien ahi liberar el bloqueo. Si la publicacion falla, el bloqueo sigue.
+async function _publicarEquipoTrasEscritura(team){
+  if (!team || !tienePresidente(team) || team.status === 'INACTIVO' || team.pes5ClubIdx == null){
+    await liberarBloqueoEquipo();
+    return;
+  }
+  const ok = await publicarPlantillas([team.id]);   // libera el bloqueo si publica bien y no quedan pendientes
+  if (!ok) showToast(`No se pudo publicar la plantilla de ${team.name}. El bloqueo sigue activo: publicala desde la pestaña Publicar.`);
+}
+
+window.addEventListener('pagehide', () => {
+  if (BLOQUEO_EQUIPO != null && AUTH.user) PES5_BLOQUEO.liberar(BLOQUEO_EQUIPO, AUTH.user.uid);
+});
+
+// ============================================================
+// Editor embebido: al clickear un jugador se abre mejoras.html en modo admin
+// (mejoras.html#admin) dentro de un iframe, en un modal. La pagina no escribe
+// nada por su cuenta: le devuelve el borrador a la tool (mensaje pt-aplicar) y la
+// tool lo guarda en CAMBIOS_PENDIENTES. Solo la tool escribe el save.
+// ============================================================
+async function abrirEditorJugador(id){
+  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
+  if (!j) return;
+  if (!(await asegurarBloqueoEquipo(equipoTSCActual()))) return;
+  const previo = document.getElementById('pt-ed-overlay');
+  if (previo) previo.remove();
   JUGADOR_SELECCIONADO = id;
+  const ov = document.createElement('div');
+  ov.id = 'pt-ed-overlay';
+  ov.className = 'pt-ed-overlay';
+  ov.onclick = (e) => { if (e.target === ov) cerrarEditorJugador(); };
+  ov.innerHTML = `
+    <div class="pt-ed-box">
+      <div class="pt-ed-hd"><span>${_esc(j.nombre)}</span>
+        <button class="pt-ed-close" onclick="cerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
+      <iframe id="pt-ed-frame" class="pt-ed-frame" title="Editor de jugador" src="../mejoras.html#admin"></iframe>
+    </div>`;
+  document.body.appendChild(ov);
   renderPlantillaBody();
 }
-function cerrarPanelJugador(){
-  JUGADOR_SELECCIONADO = null;
+function cerrarEditorJugador(){
+  const ov = document.getElementById('pt-ed-overlay');
+  if (ov) ov.remove();
+  if (JUGADOR_SELECCIONADO != null){ JUGADOR_SELECCIONADO = null; renderPlantillaBody(); }
+  if (BLOQUEO_EQUIPO != null && !Object.keys(CAMBIOS_PENDIENTES).length) liberarBloqueoEquipo();
+}
+
+// Datos que necesita el editor embebido para el jugador abierto. Si el equipo tiene
+// presidente se cobra (reglas y presupuesto reales, descontando lo ya pendiente de
+// OTROS jugadores); si no, edicion libre: reglas en cero y presupuesto enorme.
+function enviarInitEditor(){
+  const fr = document.getElementById('pt-ed-frame');
+  const j = PLANTILLA_ACTUAL ? PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO) : null;
+  if (!fr || !j) return;
+  const team = equipoTSCActual();
+  const cobra = !!(team && tienePresidente(team));
+  let reglas, presupuesto;
+  if (cobra){
+    reglas = Object.assign({}, YC_RULES);
+    const reparto = repartoPendienteEquipo();
+    const info = reparto.porJugador[j.id];
+    const otrosTotal = reparto.totalCosto - (info ? info.total : 0);
+    const otrosGeneral = reparto.fromGeneral - (info ? info.fromGeneral : 0);
+    const otrosSub = reparto.fromSub - (info ? info.fromSub : 0);
+    const restantes = _restantesTemporada();
+    presupuesto = {
+      general: Math.max(0, Math.min((team.yunacoin || 0) - otrosTotal, restantes.general - otrosGeneral)),
+      subscribers: Math.max(0, restantes.subscribers - otrosSub),
+    };
+  } else {
+    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0 });
+    presupuesto = { general: 1e9, subscribers: 1e9 };
+  }
+  const pres = cobra ? PRESIDENTES_POR_TEAM[team.id] : null;
+  fr.contentWindow.postMessage({
+    tipo: 'pt-init',
+    equipo: {
+      id: team ? team.id : null,
+      name: team ? team.name : (CLUBES_PES5[PLANTILLA_INDICE] || 'Club'),
+      pes5Club: CLUBES_PES5[PLANTILLA_INDICE] || null,
+      pes5ClubIdx: PLANTILLA_INDICE,
+      yunacoin: team ? (team.yunacoin || 0) : 0,
+      cobra: cobra,
+      presidente: pres ? (pres.displayName || pres.email || null) : null,
+    },
+    reglas: reglas,
+    presupuesto: presupuesto,
+    jugadores: PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, PLANTILLA_INDICE),
+    jugadorId: 'r' + j.id,
+    pendiente: CAMBIOS_PENDIENTES[j.id] || null,
+  }, location.origin);
+}
+
+// El editor devolvio el borrador de un jugador: se calcula el diff contra el save
+// actual y se guarda como cambio pendiente (o se limpia si volvio al original).
+function recibirAplicarDelEditor(m){
+  const registro = PES5_PLANTILLA.registroDeId(m.jugadorId);
+  const j = PLANTILLA_ACTUAL ? PLANTILLA_ACTUAL.find(p => p.id === registro) : null;
+  if (registro == null || !j) return;
+  const original = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, PLANO, registro, PLANTILLA_ACTUAL.indexOf(j));
+  const cambios = PES5_PLANTILLA.cambiosDesdeEditor(original, m.draft || {});
+  if (Object.keys(cambios).length){
+    CAMBIOS_PENDIENTES[registro] = Object.assign({ atributos: {}, escala8: {}, habilidades: {} }, cambios);
+    showToast(`Cambios de ${j.nombre} guardados en la tool. Falta escribir el save.`);
+  } else {
+    delete CAMBIOS_PENDIENTES[registro];
+    showToast(`${j.nombre}: sin cambios pendientes.`);
+  }
+  cerrarEditorJugador();
+  renderWriteBar();
+}
+
+window.addEventListener('message', function onMensajeDelEditor(ev){
+  const fr = document.getElementById('pt-ed-frame');
+  if (!fr || ev.origin !== location.origin || ev.source !== fr.contentWindow) return;
+  const m = ev.data || {};
+  if (m.tipo === 'pt-listo') enviarInitEditor();
+  else if (m.tipo === 'pt-aplicar') recibirAplicarDelEditor(m);
+});
+
+// Barra de escritura del plantel abierto: estado de cobro, cambios pendientes,
+// checkbox "PES5 esta cerrado" y botones. Vive en #pl-writebar, fuera de #pl-body.
+function renderWriteBar(){
+  const el = document.getElementById('pl-writebar');
+  if (!el) return;
+  if (PLANTILLA_INDICE == null || !PLANTILLA_ACTUAL){ el.innerHTML = ''; return; }
+  const cerrado = !!document.getElementById('pes5-cerrado')?.checked;
+  const equipoTSC = equipoTSCActual();
+  const presidente = tienePresidente(equipoTSC);
+  const total = Object.keys(CAMBIOS_PENDIENTES).length;
+  const modoDescarga = !PES5_SAVE.tieneSoporte();
+  let cobroHtml;
+  if (!equipoTSC){
+    cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
+  } else if (!presidente){
+    cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${_esc(equipoTSC.name)} · sin presidente · edición libre</span>`;
+  } else {
+    const reparto = repartoPendienteEquipo();
+    const restantes = _restantesTemporada();
+    const saldo = equipoTSC.yunacoin || 0;
+    const ev = YUNACOINS_RULES.evaluarPago(saldo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
+    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${_esc(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-AR')}</span>
+      <span class="pt-cobro-txt">Total a cobrar: ${reparto.totalCosto.toLocaleString('es-AR')} · tope gral. restante ${restantes.general.toLocaleString('es-AR')} · bono restante ${restantes.subscribers.toLocaleString('es-AR')}</span>
+      ${ev.excedeSaldo ? `<span class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente: faltan ${(reparto.totalCosto - saldo).toLocaleString('es-AR')}</span>` : ''}
+      ${(!ev.excedeSaldo && ev.excedeTopeGeneral) ? `<span class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada</span>` : ''}`;
+  }
+  el.innerHTML = `
+    <div class="pt-writebar">
+      ${cobroHtml}
+      ${BLOQUEO_EQUIPO != null ? `<span class="pt-cobro-txt">${ICN.lock} Bloqueo activo: el presidente no puede usar Mejoras hasta que escribas y publiques.</span>` : ''}
+      <span class="pt-changes-count">${total} jugador(es) con cambios</span>
+      <label><input type="checkbox" id="pes5-cerrado" ${cerrado ? 'checked' : ''}> PES5 está cerrado</label>
+      <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled onclick="confirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
+      <button class="btn btn-sm" ${total ? '' : 'disabled'} onclick="descartarTodo()">Descartar cambios</button>
+    </div>`;
+  document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
+  actualizarBotonEscritura();
+}
+function descartarTodo(){
+  if (!Object.keys(CAMBIOS_PENDIENTES).length) return;
+  if (!confirm('¿Descartar todos los cambios sin escribir?')) return;
+  CAMBIOS_PENDIENTES = {};
+  liberarBloqueoEquipo();
   renderPlantillaBody();
+  renderWriteBar();
 }
 
 function _cambiosDe(id){
@@ -839,272 +1072,6 @@ function _tieneAlgunCambio(id){
 function _limpiarSiVacio(id){
   if (!_tieneAlgunCambio(id)) delete CAMBIOS_PENDIENTES[id];
 }
-// Busca la <td data-campo="..."> de un jugador en la tabla de Plantilla sin
-// re-renderizar la fila (C2.2, punto b). Comparacion por dataset.campo, no
-// por selector CSS, para no tener que escapar nombres de campo con espacios
-// o puntos (ej. "Vel. maxima").
-function _celdaTabla(jugadorId, campo){
-  const fila = document.querySelector(`#pl-body tr[data-jugador="${jugadorId}"]`);
-  if (!fila) return null;
-  return Array.from(fila.children).find(td => td.dataset.campo === campo) || null;
-}
-function _actualizarFilaEditado(id){
-  const fila = document.querySelector(`#pl-body tr[data-jugador="${id}"]`);
-  if (!fila) return;
-  const marca = fila.querySelector('[data-marca-editado]');
-  if (!marca) return;
-  marca.innerHTML = _tieneAlgunCambio(id) ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
-}
-
-// Slice D.R: arma el contenido del recuadro de cobro (badge + lineas + total
-// + faltante) para el jugador `j` actualmente abierto en el panel. Funcion
-// aparte (no inline en renderPanelLateral) para poder refrescarla SOLA desde
-// los handlers de edicion (onCampoAttr y cia) sin re-renderizar el panel
-// entero — misma logica que ya usa C2.2 para no perder foco/scroll.
-function cobroBoxHTML(j){
-  const equipoTSC = equipoTSCActual();
-  const presidente = tienePresidente(equipoTSC);
-
-  if (!equipoTSC) {
-    return `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
-  }
-  if (!presidente) {
-    return `<span class="pt-cobro-badge libre">${ICN.unlock} Sin presidente · edición libre</span>
-      <!-- Slice G (pendiente de confirmacion de Luis, ver macro-slice D.R punto 3bis):
-           aca va el gancho de la accion "Nivelar a N" para arranque de temporada —
-           disponible SOLO para equipos sin presidente como este. No se implementa
-           en este slice. -->`;
-  }
-
-  // Slice D.R punto 5: costo/reparto de ESTE jugador + del plantel entero
-  // (el bono de suscriptores se reparte en orden de roster, ver
-  // repartoPendienteEquipo), saldo real, y topes de temporada restantes
-  // (derivados del libro `coins`, GASTO_TEMPORADA_CACHE).
-  const costoJ = costoJugador(j);
-  const reparto = repartoPendienteEquipo();
-  const infoJ = reparto.porJugador[j.id];
-  const saldoEquipo = equipoTSC.yunacoin || 0;
-  const restantes = _restantesTemporada();
-  const evalPago = YUNACOINS_RULES.evaluarPago(saldoEquipo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
-
-  const lineasHtml = costoJ.lineas.length
-    ? costoJ.lineas.map(l => `<div class="pt-cobro-line"><span><b>${_esc(l.campo)}</b> ${_esc(String(l.de))} → ${_esc(String(l.a))}</span><span class="costo${l.costo>0?'':' gratis'}">${l.costo>0?'+'+l.costo.toLocaleString('es-AR'):'gratis'}</span></div>`).join('')
-    : `<div class="pt-cobro-line" style="color:var(--txt3);">sin cambios pendientes en este jugador</div>`;
-
-  // Desglose fromGeneral/fromSub de ESTE jugador (decision de UI, no
-  // especificada al detalle en el doc: se muestra solo si el jugador tiene
-  // costo pendiente, y solo se menciona el bono si efectivamente se usa —
-  // un no-suscriptor nunca lo ve, un suscriptor con costo chico que entra
-  // entero en el bono no ve la parte "general").
-  const desgloseJHtml = (infoJ && infoJ.total > 0)
-    ? `<div class="pt-cobro-line" style="color:var(--txt3);"><span>${j.subscriber ? 'Suscriptor — gasta primero el bono' : 'No suscriptor — solo tope general'}</span><span>${infoJ.fromSub > 0 ? `bono ${infoJ.fromSub.toLocaleString('es-AR')} + ` : ''}general ${infoJ.fromGeneral.toLocaleString('es-AR')}</span></div>`
-    : '';
-
-  let avisoHtml = '';
-  if (evalPago.excedeSaldo) {
-    avisoHtml = `<div class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente — faltan ${(reparto.totalCosto - saldoEquipo).toLocaleString('es-AR')} YunaCoins</div>`;
-  } else if (evalPago.excedeTopeGeneral) {
-    avisoHtml = `<div class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada — quedan ${restantes.general.toLocaleString('es-AR')}, hacen falta ${reparto.fromGeneral.toLocaleString('es-AR')}</div>`;
-  }
-
-  return `
-    <span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${_esc(equipoTSC.name)} · saldo ${saldoEquipo.toLocaleString('es-AR')}</span>
-    <div class="pt-cobro-lineas">${lineasHtml}</div>
-    ${desgloseJHtml}
-    <div class="pt-cobro-total"><span>Total del equipo (todos los pendientes) · tope gral. restante ${restantes.general.toLocaleString('es-AR')} · bono restante ${restantes.subscribers.toLocaleString('es-AR')}</span><b>${reparto.totalCosto.toLocaleString('es-AR')}</b></div>
-    ${avisoHtml}`;
-}
-// Refresca SOLO el recuadro de cobro del panel abierto (llamado desde los
-// handlers de edicion de campo) — no toca inputs ni tabla.
-function _actualizarCobroPanel(){
-  const box = document.getElementById('pt-cobro-box');
-  if (!box || JUGADOR_SELECCIONADO == null) return;
-  const j = PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO);
-  if (!j) return;
-  box.innerHTML = cobroBoxHTML(j);
-}
-
-function renderPanelLateral(){
-  const cont = document.getElementById('pl-side');
-  if (!cont) return;
-  if (JUGADOR_SELECCIONADO == null){ cont.innerHTML = ''; return; }
-  const j = PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO);
-  if (!j){ cont.innerHTML = ''; return; }
-
-  const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
-  // C2.3, punto 6: sin File System Access API el flujo termina en una
-  // descarga, no en una escritura directa — el boton lo dice.
-  const modoDescarga = !PES5_SAVE.tieneSoporte();
-  // C2.2: Enter en un input no hace nada mas que blur (no hay <form> en esta
-  // pagina — confirmado — asi que Enter no puede "enviar" nada; esto solo
-  // asegura que confirme el valor y saque el foco, en vez de quedar
-  // esperando otra tecla).
-  const ENTER_BLUR = `onkeydown="if(event.key==='Enter'){this.blur();}"`;
-
-  const filaAttr = (c) => {
-    const v = _valorActual(j, 'atributos', c);
-    const cambiado = v !== j.atributos[c];
-    return `<div class="pt-field"><label title="${_esc(c)}">${_esc(c)}</label><input type="number" min="0" max="99"
-      class="${cambiado?'changed':''}" value="${v}" ${ENTER_BLUR} onchange="onCampoAttr(${j.id},'atributos','${_esc(c)}',this.value,0,99,this)"></div>`;
-  };
-  const filaEscala8 = (c) => {
-    const v = _valorActual(j, 'escala8', c);
-    const cambiado = v !== j.escala8[c];
-    return `<div class="pt-field"><label title="${_esc(c)}">${_esc(c)}</label><input type="number" min="1" max="8"
-      class="${cambiado?'changed':''}" value="${v}" ${ENTER_BLUR} onchange="onCampoAttr(${j.id},'escala8','${_esc(c)}',this.value,1,8,this)"></div>`;
-  };
-  const filaHabilidad = (c) => {
-    const v = _valorActual(j, 'habilidades', c);
-    return `<label class="pt-toggle"><input type="checkbox" ${v?'checked':''} onchange="onCampoHabilidad(${j.id},'${_esc(c)}',this.checked)"> ${_esc(c)}</label>`;
-  };
-
-  const edadV = _valorActual(j, 'simple', 'edad');
-  const alturaV = _valorActual(j, 'simple', 'altura');
-  const pieV = _valorActual(j, 'simple', 'pieDominante');
-  const lesionesV = _valorActual(j, 'simple', 'lesiones');
-
-  cont.innerHTML = `
-    <div class="pt-side">
-      <div class="pt-side-hd">
-        <h3>${_esc(j.nombre)}</h3>
-        <button class="pt-side-close" onclick="cerrarPanelJugador()">${ICN.x}</button>
-      </div>
-      <div class="pt-side-sub">${_esc(j.nombreCamiseta||'')} · id ${j.id} · editado ${j.contadorEdiciones} veces</div>
-      <div class="pt-cobro" id="pt-cobro-box">${cobroBoxHTML(j)}</div>
-
-      <div class="pt-fieldgrp">
-        <div class="pt-fieldgrp-title">Ajustes básicos</div>
-        <div class="pt-field"><label>Edad</label><input type="number" min="15" max="46" value="${edadV}" ${ENTER_BLUR}
-          class="${edadV!==j.edad?'changed':''}" onchange="onCampoSimple(${j.id},'edad',this.value,15,46,this)"></div>
-        <div class="pt-field"><label>Altura (cm)</label><input type="number" min="148" max="205" value="${alturaV}" ${ENTER_BLUR}
-          class="${alturaV!==j.altura?'changed':''}" onchange="onCampoSimple(${j.id},'altura',this.value,148,205,this)"></div>
-        <div class="pt-field"><label>Pie dominante</label><select onchange="onCampoSelect(${j.id},'pieDominante',this.value,this)">
-          <option value="der" ${pieV==='der'?'selected':''}>Derecho</option>
-          <option value="izq" ${pieV==='izq'?'selected':''}>Izquierdo</option>
-        </select></div>
-        <div class="pt-field"><label>Resistencia lesiones</label><select onchange="onCampoSelect(${j.id},'lesiones',this.value,this)">
-          <option value="A" ${lesionesV==='A'?'selected':''}>A</option>
-          <option value="B" ${lesionesV==='B'?'selected':''}>B</option>
-          <option value="C" ${lesionesV==='C'?'selected':''}>C</option>
-        </select></div>
-      </div>
-
-      <div class="pt-fieldgrp">
-        <div class="pt-fieldgrp-title">Posiciones (solo lectura — fuera de este slice)</div>
-        <div class="pt-chips">${j.posiciones.map(p=>`<span class="pt-chip active">${_esc(p)}</span>`).join('') || '<span class="pt-chip">ninguna marcada</span>'}</div>
-      </div>
-
-      <div class="pt-fieldgrp">
-        <div class="pt-fieldgrp-title">Atributos 0-99</div>
-        ${COLS_ATTR.map(filaAttr).join('')}
-      </div>
-      <div class="pt-fieldgrp">
-        <div class="pt-fieldgrp-title">Escala 1-8</div>
-        ${Object.keys(j.escala8).map(filaEscala8).join('')}
-      </div>
-      <div class="pt-fieldgrp">
-        <div class="pt-fieldgrp-title">Habilidades</div>
-        ${Object.keys(j.habilidades).map(filaHabilidad).join('')}
-      </div>
-
-      <div class="pt-writebar">
-        <label><input type="checkbox" id="pes5-cerrado"> PES5 está cerrado</label>
-        <span class="pt-changes-count">${totalPendientes} jugador(es) con cambios</span>
-        <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled onclick="confirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
-      </div>
-    </div>`;
-
-  actualizarBotonEscritura();
-  document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
-}
-
-// ============================================================
-// C2.2 · edicion de campos SIN re-renderizar tabla/panel (punto central del
-// slice): cada handler (a) actualiza CAMBIOS_PENDIENTES comparando contra el
-// valor ORIGINAL del save — si vuelve a coincidir, borra la entrada en vez
-// de dejarla pisada con el mismo valor (esta comparacion es la causa real
-// del bug reportado, ver nota mas abajo); (b) toca solo el input editado
-// (clase `changed`) y la celda de tabla correspondiente por
-// data-jugador/data-campo; (c) actualiza contador + boton aparte. Nunca
-// llama a renderPlantillaBody() ni renderPanelLateral() — eso se reserva
-// para abrirPanelJugador/cerrarPanelJugador/onTeamSelect (cambio de jugador
-// o de equipo), como pide el slice.
-//
-// CAUSA REAL del bug "se registran cambios en campos no tocados" (C2.2,
-// punto d — investigado en este slice): antes de este cambio, los cuatro
-// handlers (onCampoAttr/onCampoSimple/onCampoHabilidad/onCampoSelect)
-// escribian el valor recibido en CAMBIOS_PENDIENTES de forma INCONDICIONAL,
-// sin comparar contra el valor original del jugador, y ninguna funcion del
-// archivo borraba nunca una entrada. No hace falta ningun re-render
-// disparando onchange por arte de magia (no hay <form>, y reemplazar el
-// innerHTML de un <input> no reconstruido no dispara 'change' en el
-// navegador): alcanza con que el usuario dispare onchange en un campo sin
-// intencion real de cambiarlo — p. ej. tocar las flechitas de un
-// <input type=number> y volver al valor original, o usar la rueda del mouse
-// sobre un numero con foco (Chrome incrementa/decrementa el valor de un
-// input numerico enfocado al scrollear encima, algo muy facil de gatillar
-// en un panel con scroll como este) — para que ese campo quedara grabado
-// como "cambio pendiente" PARA SIEMPRE, incluso si el valor final coincidia
-// con el original. Con 26 atributos + 8 campos de escala + N habilidades
-// visibles en un panel scrolleable, revisar varios campos durante una
-// sesion es exactamente el escenario que produjo los 11 campos listados en
-// el confirm() para un jugador que el usuario dice haber tocado 1 o 2
-// veces. El arreglo (comparar contra el original y borrar si coincide) es
-// necesario Y suficiente.
-function onCampoAttr(id, tipo, campo, valor, min, max, inputEl){
-  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
-  if (!j) return;
-  const n = Math.max(min, Math.min(max, parseInt(valor, 10) || 0));
-  const original = j[tipo][campo];
-  const c = _cambiosDe(id);
-  if (n === original) delete c[tipo][campo]; else c[tipo][campo] = n;
-  _limpiarSiVacio(id);
-  if (inputEl){ inputEl.value = n; inputEl.classList.toggle('changed', n !== original); }
-  if (tipo === 'atributos'){ const td = _celdaTabla(id, campo); if (td) td.textContent = n; }
-  _actualizarFilaEditado(id);
-  _actualizarCobroPanel(); // Slice D.R: el costo por campo/total depende de este cambio
-  actualizarBotonEscritura();
-}
-function onCampoHabilidad(id, campo, checked){
-  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
-  if (!j) return;
-  const nuevo = !!checked;
-  const original = !!j.habilidades[campo];
-  const c = _cambiosDe(id);
-  if (nuevo === original) delete c.habilidades[campo]; else c.habilidades[campo] = nuevo;
-  _limpiarSiVacio(id);
-  _actualizarFilaEditado(id);
-  _actualizarCobroPanel();
-  actualizarBotonEscritura();
-}
-function onCampoSimple(id, campo, valor, min, max, inputEl){
-  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
-  if (!j) return;
-  const n = Math.max(min, Math.min(max, parseInt(valor, 10) || 0));
-  const original = j[campo];
-  const c = _cambiosDe(id);
-  if (n === original) delete c[campo]; else c[campo] = n;
-  _limpiarSiVacio(id);
-  if (inputEl){ inputEl.value = n; inputEl.classList.toggle('changed', n !== original); }
-  const td = _celdaTabla(id, campo); if (td) td.textContent = n;
-  _actualizarFilaEditado(id);
-  _actualizarCobroPanel(); // altura/edad no tienen costo hoy, pero pueden generar linea informativa
-  actualizarBotonEscritura();
-}
-function onCampoSelect(id, campo, valor, selectEl){
-  const j = PLANTILLA_ACTUAL.find(p => p.id === id);
-  if (!j) return;
-  const original = j[campo];
-  const c = _cambiosDe(id);
-  if (valor === original) delete c[campo]; else c[campo] = valor;
-  _limpiarSiVacio(id);
-  if (selectEl) selectEl.classList.toggle('changed', valor !== original);
-  if (campo === 'pieDominante'){ const td = _celdaTabla(id, 'pieDominante'); if (td) td.textContent = valor === 'izq' ? 'Izq.' : 'Der.'; }
-  _actualizarFilaEditado(id);
-  _actualizarCobroPanel(); // pieDominante gratis, lesiones tiene costo (injuryCost)
-  actualizarBotonEscritura();
-}
-
 function actualizarBotonEscritura(){
   const btn = document.getElementById('btn-escribir-save');
   const cerrado = document.getElementById('pes5-cerrado')?.checked;
@@ -1162,10 +1129,11 @@ function _mostrarExitoEscritura({ backup, bytes }){
 // para que el panel de exito y el jugador que se estaba editando sigan
 // visibles (C2.3, punto 3).
 async function _recargarPlantillaTrasEscritura(){
-  const seleccionAnterior = JUGADOR_SELECCIONADO;
+  cerrarEditorJugador();
   PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
-  JUGADOR_SELECCIONADO = PLANTILLA_ACTUAL.some(p => p.id === seleccionAnterior) ? seleccionAnterior : null;
+  JUGADOR_SELECCIONADO = null;
   renderPlantillaBody();
+  renderWriteBar();
 }
 
 // C2.1 · el confirm() antes de escribir muestra SOLO equipo + nombres de
@@ -1288,6 +1256,7 @@ async function escribirAlSave(){
       await _aplicarCobroSiCorresponde();
       PLANO = copia;
       CAMBIOS_PENDIENTES = {};
+      await _publicarEquipoTrasEscritura(equipoCobro);
       if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
       return;
     }
@@ -1307,6 +1276,7 @@ async function escribirAlSave(){
     await _aplicarCobroSiCorresponde();
     PLANO = copia;
     CAMBIOS_PENDIENTES = {};
+    await _publicarEquipoTrasEscritura(equipoCobro);
     if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
     renderStatusBar();
   } catch(e) {
@@ -1584,10 +1554,13 @@ async function publicarPlantillas(ids){
       linea(`${t.name}: ${jugadores.length} jugadores publicados`, 'ok');
     }
     showToast(`Publicado: ${equipos.length} equipo(s).`);
+    if (BLOQUEO_EQUIPO != null && equipos.some(t => t.id === BLOQUEO_EQUIPO) && !Object.keys(CAMBIOS_PENDIENTES).length) await liberarBloqueoEquipo();
+    return true;
   } catch (e) {
     console.error('[pes5-tool] publicar', e);
     linea('ERROR: ' + (e.message || e), 'err');
     showToast('Error al publicar: ' + (e.message || e));
+    return false;
   } finally {
     if (btn) btn.disabled = false;
     cargarEstadoPublicacion(equipos);
