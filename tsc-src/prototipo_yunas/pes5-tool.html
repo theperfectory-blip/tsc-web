@@ -946,10 +946,11 @@ function enviarInitEditor(){
     presupuesto = {
       general: Math.max(0, Math.min((team.yunacoin || 0) - otrosTotal, restantes.general - otrosGeneral)),
       subscribers: Math.max(0, restantes.subscribers - otrosSub),
+      saldo: Math.max(0, (team.yunacoin || 0) - otrosTotal),
     };
   } else {
     reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0 });
-    presupuesto = { general: 1e9, subscribers: 1e9 };
+    presupuesto = { general: 1e9, subscribers: 1e9, saldo: 0 };
   }
   const pres = cobra ? PRESIDENTES_POR_TEAM[team.id] : null;
   fr.contentWindow.postMessage({

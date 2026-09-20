@@ -347,14 +347,18 @@ body.admin-libre .ep-hero,body.admin-libre .ep-cart-tot{display:none;}
   </div>
 
   <div class="ep-hero">
-    <div class="ep-hero-main" title="YunaCoins reales del presidente, tope de la regla de mejoras generales">
+    <div class="ep-hero-main" title="Saldo total de YunaCoins del equipo">
       <svg class="icn" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
       <div>
-        <div class="ep-hero-lbl">YunaCoins del presidente</div>
-        <div class="ep-hero-val"><b id="ep-balance-general">0</b><span class="ep-hero-cap">/ <span id="ep-hero-general-cap">0</span></span></div>
+        <div class="ep-hero-lbl">YunaCoins del equipo</div>
+        <div class="ep-hero-val"><b id="ep-balance-total">0</b></div>
       </div>
     </div>
-    <div class="ep-hero-sub" title="Bono exclusivo para jugadores suscriptores — se habilita cuando el saldo del presidente llega a 0">
+    <div class="ep-hero-sub" title="Lo que todavia se puede gastar en mejoras esta temporada, sobre el tope">
+      <div class="ep-hero-lbl">Mejoras de la temporada</div>
+      <div class="ep-hero-val small"><b id="ep-balance-general">0</b><span class="ep-hero-cap">/ <span id="ep-hero-general-cap">0</span></span></div>
+    </div>
+    <div class="ep-hero-sub" title="Bono exclusivo para jugadores suscriptores: se gasta primero en ellos">
       <div class="ep-hero-lbl">Bono suscriptores</div>
       <div class="ep-hero-val small"><b id="ep-balance-sub">0</b></div>
     </div>
@@ -743,6 +747,7 @@ async function recalcularPresupuestoReal(){
     general: Math.max(0, Math.min(wallet - pendTotal, rest.general - pendG)),
     subscribers: Math.max(0, rest.subscribers - pendS),
   };
+  APP.saldo = Math.max(0, wallet - pendTotal); // saldo total del equipo menos lo ya reservado en pedidos pendientes
 }
 
 const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
@@ -1063,7 +1068,7 @@ function renderCard(){
       <div class="ep-info-height"><span>Altura</span>${heightRow}</div>
       ${ageRow}
       <div><span>Nacionalidad</span><b>${_esc(p.country)}</b></div>
-      <div><span>Pie</span><b>${_esc(p.foot)}</b></div>
+      <div><span>Pie</span><b>${_esc(FOOT_LABEL[d.favfoot] || p.foot)}</b></div>
     </div>
     ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
   `;
@@ -1101,6 +1106,7 @@ function renderHero(){
   const p = currentPlayer();
   const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!(p && p.subscriber));
   document.getElementById('ep-hero-general-cap').textContent = RULES.budgetGeneral.toLocaleString('es-CL');
+  document.getElementById('ep-balance-total').textContent = Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL');
   document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
   document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
 }
@@ -1147,7 +1153,7 @@ function pendingChangeLines(){
     });
     if(d.age!==p.age) lines.push({label:'Edad', from:p.age, to:d.age, cost:0});
   }
-  if(d.favfoot!==p.favfoot) lines.push({label:'Pie favorito', from:p.favfoot, to:d.favfoot, cost:0});
+  if(d.favfoot!==p.favfoot) lines.push({label:'Pie dominante', from:FOOT_LABEL[p.favfoot]||p.favfoot, to:FOOT_LABEL[d.favfoot]||d.favfoot, cost:0});
   if(d.height!==p.height) lines.push({label:'Altura', from:p.height+' cm', to:d.height+' cm', cost:0});
   return lines;
 }
@@ -1259,6 +1265,7 @@ async function commitChanges(){
 
   APP.budget.general -= fromGeneral;
   APP.budget.subscribers -= fromSub;
+  APP.saldo = Math.max(0, (APP.saldo || 0) - cost);
 
   Object.assign(p.stats, APP.draft.stats);
   Object.assign(p.sec, APP.draft.sec);
@@ -1621,10 +1628,11 @@ function togglePosition(key){
   APP.draft.positions[key] = !APP.draft.positions[key];
   renderRows(); renderCart();
 }
+// El save de PES5 guarda un solo bit para el pie dominante: derecho o izquierdo. No existe "ambos".
+const FOOT_LABEL = { D: 'Der.', I: 'Izq.' };
 function setFavFoot(v){
-  const p = currentPlayer();
   APP.draft.favfoot = v;
-  renderRows();
+  renderCard(); renderRows(); renderCart(); // la tarjeta muestra el pie elegido y el boton de guardar se reevalua
 }
 
 function starSvg(on){
@@ -1733,12 +1741,11 @@ function renderRows(){
         <div class="ep-rstar ${on?'on':''}" onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</div>
       </div>`;
     }).join('') + `
-      <div class="ep-row" onclick="setHint('Pierna preferida del jugador.')">
-        <div class="ep-rlabel">Fav. side/foot</div>
+      <div class="ep-row" onclick="setHint('Pie dominante del jugador. En el juego solo puede ser derecho o izquierdo.')">
+        <div class="ep-rlabel">Pie dominante</div>
         <div class="ep-rfoot">
           <button class="${d.favfoot==='I'?'on':''}" onclick="event.stopPropagation();setFavFoot('I')">Izq.</button>
           <button class="${d.favfoot==='D'?'on':''}" onclick="event.stopPropagation();setFavFoot('D')">Der.</button>
-          <button class="${d.favfoot==='LR'?'on':''}" onclick="event.stopPropagation();setFavFoot('LR')">Ambas</button>
         </div>
       </div>`;
   }
@@ -1798,6 +1805,7 @@ function iniciarModoAdmin(m){
   PLAYERS = (m.jugadores || []).map(j => jugadorDesdePlantillaReal(j, { teamName: m.equipo.name }));
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p => [p.id, p]));
   APP.budget = { general: m.presupuesto.general, subscribers: m.presupuesto.subscribers };
+  APP.saldo = m.presupuesto.saldo || 0;
   APP.playerId = m.jugadorId;
   APP.page = 1;
   APP.hint = 'Selecciona un atributo para ver su descripcion.';

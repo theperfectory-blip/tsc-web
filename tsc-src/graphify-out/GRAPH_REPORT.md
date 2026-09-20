@@ -1,7 +1,7 @@
 # Graph Report - C:\Users\Administrator\Downloads\tsc.web-yunacoins\tsc-src  (2026-09-20)
 
 ## Corpus Check
-- 65 files · ~1,335,877 words
+- 65 files · ~1,336,310 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -257,11 +257,11 @@ Nodes (0):
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `set()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 5`, `Community 6`, `Community 7`, `Community 8`, `Community 10`, `Community 11`, `Community 12`, `Community 14`, `Community 16`, `Community 18`, `Community 20`?**
-  _High betweenness centrality (0.136) - this node is a cross-community bridge._
+  _High betweenness centrality (0.127) - this node is a cross-community bridge._
 - **Why does `copy()` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 8`, `Community 10`, `Community 15`, `Community 16`, `Community 19`, `Community 20`?**
-  _High betweenness centrality (0.090) - this node is a cross-community bridge._
+  _High betweenness centrality (0.097) - this node is a cross-community bridge._
 - **Why does `add()` connect `Community 6` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 4`, `Community 5`, `Community 7`, `Community 8`, `Community 11`, `Community 12`, `Community 13`, `Community 14`, `Community 17`, `Community 18`?**
-  _High betweenness centrality (0.073) - this node is a cross-community bridge._
+  _High betweenness centrality (0.082) - this node is a cross-community bridge._
 - **Are the 8 inferred relationships involving `copy()` (e.g. with `.assignFinalMaterial()` and `ensureString()`) actually correct?**
   _`copy()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 28 inferred relationships involving `set()` (e.g. with `.decodeGeometry()` and `._loadLight()`) actually correct?**
