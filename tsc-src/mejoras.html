@@ -1158,7 +1158,7 @@ function pendingChangeLines(){
   });
   if(d.primaryPos !== undefined && d.primaryPos !== p.primaryPos) {
     const posDeKey = k => Object.values(POSITIONS).find(pos=>pos.k===k);
-    lines.push({label:'Posición registrada', from:POS_BY_KEY[p.primaryPos]?.l||p.primaryPos, to:POS_BY_KEY[d.primaryPos]?.l||d.primaryPos, cost:0});
+    lines.push({label:'Posición natural', from:POS_BY_KEY[p.primaryPos]?.l||p.primaryPos, to:POS_BY_KEY[d.primaryPos]?.l||d.primaryPos, cost:0});
   }
   if(d.side !== undefined && p.side !== undefined && d.side !== p.side) {
     lines.push({label:'Banda', from:SIDE_LABEL[p.side]||'—', to:SIDE_LABEL[d.side]||'—', cost:0});
@@ -1649,7 +1649,7 @@ function togglePosition(key){
   }
   if(!ADMIN_EMBED){
     // Presidente: no puede desmarcar la registrada
-    if(on && key === d.primaryPos) return;
+    if(on && key === d.primaryPos){ showMiniToast('Es la posición natural: primero elegí otra como natural.'); return; }
   } else {
     // Admin: no puede desmarcar todas
     if(on && marcadasCount === 1) {
@@ -1788,12 +1788,12 @@ function renderRows(){
     html = POSITIONS.map(pos=>{
       const on = d.positions[pos.k];
       const isRegistered = pos.k === d.primaryPos;
-      const hint = isRegistered ? 'Posición registrada (O): donde rinde más.' : 'Posición secundaria (sin costo).';
-      const circleBtn = ADMIN_EMBED && on && !isRegistered
-        ? `<button class="ep-register-btn" title="Registrar (círculo O)" onclick="event.stopPropagation();setPrimaryPos('${pos.k}')"><svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>`
+      const hint = isRegistered ? 'Posición natural (círculo O): la posición principal del jugador.' : (on ? 'Posición secundaria (sin costo). Con el botón circular la hacés natural.' : 'Posición secundaria disponible para este jugador (sin costo en YunaCoins).');
+      const circleBtn = on && !isRegistered
+        ? `<button class="ep-register-btn" title="Hacer natural (círculo O)" onclick="event.stopPropagation();setPrimaryPos('${pos.k}')"><svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>`
         : '';
       const labelBadge = isRegistered
-        ? `<span style="color:var(--gold);font-size:11px;">${ADMIN_EMBED?'(registrada)':'(natural)'}</span>`
+        ? `<span style="color:var(--gold);font-size:11px;">(natural)</span>`
         : '';
       return `<div class="ep-row" onclick="setHint('${jsq(hint)}')">
         <div class="ep-rlabel">${_esc(pos.l)} ${labelBadge}</div>
