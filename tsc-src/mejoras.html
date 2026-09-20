@@ -177,6 +177,8 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .ep-rstar{flex:none;color:var(--txt3);display:flex;align-items:center;}
 .ep-rstar.on{color:var(--gold);}
 .ep-rfoot{display:flex;gap:5px;flex:none;}
+.ep-register-btn{width:30px;height:30px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid var(--brd2);background:var(--card3);color:var(--txt3);cursor:pointer;padding:0;}
+.ep-register-btn:hover{color:var(--gold);border-color:var(--gold-b);}
 .ep-rfoot button{padding:3px 9px;border-radius:999px;border:1px solid var(--brd2);background:var(--card3);
   color:var(--txt2);font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.5px;cursor:pointer;}
 .ep-rfoot button.on{background:var(--gold-l);border-color:var(--gold-b);color:var(--gold);}
@@ -296,6 +298,7 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   .ep-rstep{gap:6px;}
   .ep-rstep button{width:40px;height:40px;font-size:20px;border-radius:8px;}
   .ep-rfoot button{min-height:36px;padding:6px 12px;font-size:12px;}
+  .ep-register-btn{width:36px;height:36px;}
   .ep-rcost{font-size:12px;}
   .ep-rcost-row{font-size:12px;}
 
@@ -618,9 +621,9 @@ const POSITIONS = [
   {k:'AMF',l:'Mediapunta'},
   {k:'SMF',l:'Volante'},
   {k:'CMF',l:'Centrocampista central'},
-  {k:'WB', l:'Carrilero'},
+  {k:'WB', l:'Lateral'},
   {k:'DMF',l:'Centrocampista defensivo'},
-  {k:'SB', l:'Lateral'},
+  {k:'SB', l:'Carrilero'},
   {k:'CB', l:'Central'},
   {k:'CWP',l:'Líbero'},
   {k:'GK', l:'Portero'},
@@ -929,6 +932,7 @@ function jugadorDesdePlantillaReal(raw, equipo){
     height: raw.height, age: raw.age, foot: raw.foot,
     primaryPos: raw.primaryPos, stats: raw.stats, sec: raw.sec,
     abilities: raw.abilities, positions: raw.positions, favfoot: raw.favfoot,
+    side: raw.side, // banda (D|I|A); las plantillas publicadas antes del slice P no la traen
   };
 }
 
@@ -966,7 +970,7 @@ function loadDraft(){
   // Modo admin: el borrador arranca desde el original + lo ya guardado en la tool.
   const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : p;
   APP.draft = JSON.parse(JSON.stringify({
-    stats:src.stats, sec:src.sec, abilities:src.abilities, positions:p.positions, favfoot:src.favfoot, height:src.height, age:src.age,
+    stats:src.stats, sec:src.sec, abilities:src.abilities, positions:src.positions, primaryPos:src.primaryPos, side:src.side, favfoot:src.favfoot, height:src.height, age:src.age,
   }));
 }
 
@@ -1058,17 +1062,21 @@ function renderCard(){
         <button onclick="adjustAge(1)">+</button>
       </div></div></div>`
     : `<div><span>Edad</span><b>${p.age}</b></div>`;
+  const posRegistrada = d.primaryPos || p.primaryPos;
+  const posLabel = POS_BY_KEY[posRegistrada]?.l || posRegistrada;
+  const sideRow = d.side !== undefined ? `<div><span>Banda</span><b>${_esc(SIDE_LABEL[d.side]||'—')}</b></div>` : '';
   document.getElementById('ep-card').innerHTML = `
     <div class="ep-photo"><img src="${photo}" alt=""></div>
     <div>
       <div class="ep-name">${_esc(p.name)}</div>
-      <div class="ep-tag">#${_esc(p.dorsal)} &middot; ${_esc(p.tag)}</div>
+      <div class="ep-tag">#${_esc(p.dorsal)} &middot; ${_esc(posLabel)}</div>
     </div>
     <div class="ep-info">
       <div class="ep-info-height"><span>Altura</span>${heightRow}</div>
       ${ageRow}
       <div><span>Nacionalidad</span><b>${_esc(p.country)}</b></div>
       <div><span>Pie</span><b>${_esc(FOOT_LABEL[d.favfoot] || p.foot)}</b></div>
+      ${sideRow}
     </div>
     ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
   `;
@@ -1146,7 +1154,15 @@ function pendingChangeLines(){
   });
   POSITIONS.forEach(pos=>{
     if(d.positions[pos.k] && !p.positions[pos.k]) lines.push({label:'Posicion: '+pos.l, from:'—', to:'agregada', cost:0});
+    if(!d.positions[pos.k] && p.positions[pos.k]) lines.push({label:'Posicion: '+pos.l, from:'marcada', to:'quitada', cost:0});
   });
+  if(d.primaryPos !== undefined && d.primaryPos !== p.primaryPos) {
+    const posDeKey = k => Object.values(POSITIONS).find(pos=>pos.k===k);
+    lines.push({label:'Posición registrada', from:POS_BY_KEY[p.primaryPos]?.l||p.primaryPos, to:POS_BY_KEY[d.primaryPos]?.l||d.primaryPos, cost:0});
+  }
+  if(d.side !== undefined && p.side !== undefined && d.side !== p.side) {
+    lines.push({label:'Banda', from:SIDE_LABEL[p.side]||'—', to:SIDE_LABEL[d.side]||'—', cost:0});
+  }
   if(ADMIN_EMBED){
     ALL_ABILITY_KEYS.forEach(k=>{
       if(!d.abilities[k] && p.abilities[k]) lines.push({label:ABILITY_BY_KEY[k].l, from:'habilidad', to:'quitada', cost:0});
@@ -1209,17 +1225,11 @@ async function commitChanges(){
     return;
   }
 
-  // Slice D2: las posiciones todavia no se pueden escribir en el save.
-  const cambiaPosiciones = Object.keys(APP.draft.positions || {}).some(k => !!APP.draft.positions[k] !== !!(p.positions || {})[k]);
-  if (cambiaPosiciones){
-    closeApplyConfirm();
-    showMiniToast('Las posiciones todavía no se pueden pedir. Deshacé ese cambio para mandar el pedido.');
-    return;
-  }
   const draftJugador = {
     stats: Object.assign({}, p.stats, APP.draft.stats),
     sec: Object.assign({}, p.sec, APP.draft.sec),
     abilities: Object.assign({}, p.abilities, APP.draft.abilities),
+    positions: APP.draft.positions, primaryPos: APP.draft.primaryPos, side: APP.draft.side,
     height: APP.draft.height, favfoot: APP.draft.favfoot,
   };
   const cambios = PES5_PLANTILLA.cambiosDesdeEditor(p, draftJugador);
@@ -1271,6 +1281,9 @@ async function commitChanges(){
   Object.assign(p.sec, APP.draft.sec);
   Object.assign(p.abilities, APP.draft.abilities);
   Object.assign(p.positions, APP.draft.positions);
+  p.primaryPos = APP.draft.primaryPos;
+  if(APP.draft.side !== undefined) p.side = APP.draft.side;
+  p.tag = POS_BY_KEY[p.primaryPos]?.l || p.primaryPos;
   p.favfoot = APP.draft.favfoot;
   p.height = APP.draft.height;
 
@@ -1624,15 +1637,53 @@ function toggleAbility(key){
 }
 function togglePosition(key){
   const p = currentPlayer();
-  if(key === p.primaryPos) return; // posicion natural, fija
-  APP.draft.positions[key] = !APP.draft.positions[key];
-  renderRows(); renderCart();
+  const d = APP.draft;
+  const on = d.positions[key];
+  const marcadasCount = Object.values(d.positions).filter(Boolean).length;
+
+  if(!ADMIN_EMBED){
+    // Presidente: no puede desmarcar la registrada
+    if(on && key === d.primaryPos) return;
+    // Presidente: no puede pasar de maxPositions
+    if(!on && marcadasCount >= RULES.maxPositions) {
+      showMiniToast('Tope de ' + RULES.maxPositions + ' posiciones.');
+      return;
+    }
+  } else {
+    // Admin: no puede desmarcar todas
+    if(on && marcadasCount === 1) {
+      showMiniToast('Tiene que quedar al menos una posición.');
+      return;
+    }
+    // Admin: si desmarca la registrada, pasar a la primera marcada restante
+    if(on && key === d.primaryPos) {
+      for(const pos of POSITIONS) {
+        if(pos.k !== key && d.positions[pos.k]) {
+          d.primaryPos = pos.k;
+          break;
+        }
+      }
+    }
+  }
+
+  d.positions[key] = !d.positions[key];
+  renderCard(); renderRows(); renderCart();
 }
 // El save de PES5 guarda un solo bit para el pie dominante: derecho o izquierdo. No existe "ambos".
 const FOOT_LABEL = { D: 'Der.', I: 'Izq.' };
+const SIDE_LABEL = { D: 'Der.', I: 'Izq.', A: 'Ambas' };
 function setFavFoot(v){
   APP.draft.favfoot = v;
   renderCard(); renderRows(); renderCart(); // la tarjeta muestra el pie elegido y el boton de guardar se reevalua
+}
+function setSide(v){
+  APP.draft.side = v;
+  renderCard(); renderRows(); renderCart();
+}
+function setPrimaryPos(k){
+  if(!APP.draft.positions[k]) return;
+  APP.draft.primaryPos = k;
+  renderCard(); renderRows(); renderCart();
 }
 
 function starSvg(on){
@@ -1735,10 +1786,20 @@ function renderRows(){
   if(APP.page===4){
     html = POSITIONS.map(pos=>{
       const on = d.positions[pos.k];
-      const isPrimary = pos.k === p.primaryPos;
-      return `<div class="ep-row" onclick="setHint('Posicion secundaria disponible para este jugador (sin costo en YunaCoins).')">
-        <div class="ep-rlabel">${_esc(pos.l)}${isPrimary?' <span style="color:var(--gold);font-size:11px;">(natural)</span>':''}</div>
-        <div class="ep-rstar ${on?'on':''}" onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</div>
+      const isRegistered = pos.k === d.primaryPos;
+      const hint = isRegistered ? 'Posición registrada (O): donde rinde más.' : 'Posición secundaria (sin costo).';
+      const circleBtn = ADMIN_EMBED && on && !isRegistered
+        ? `<button class="ep-register-btn" title="Registrar (círculo O)" onclick="event.stopPropagation();setPrimaryPos('${pos.k}')"><svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>`
+        : '';
+      const labelBadge = isRegistered
+        ? `<span style="color:var(--gold);font-size:11px;">${ADMIN_EMBED?'(registrada)':'(natural)'}</span>`
+        : '';
+      return `<div class="ep-row" onclick="setHint('${jsq(hint)}')">
+        <div class="ep-rlabel">${_esc(pos.l)} ${labelBadge}</div>
+        <div style="display:flex;gap:5px;align-items:center;">
+          ${circleBtn}
+          <div class="ep-rstar ${on?'on':''}" onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</div>
+        </div>
       </div>`;
     }).join('') + `
       <div class="ep-row" onclick="setHint('Pie dominante del jugador. En el juego solo puede ser derecho o izquierdo.')">
@@ -1746,6 +1807,14 @@ function renderRows(){
         <div class="ep-rfoot">
           <button class="${d.favfoot==='I'?'on':''}" onclick="event.stopPropagation();setFavFoot('I')">Izq.</button>
           <button class="${d.favfoot==='D'?'on':''}" onclick="event.stopPropagation();setFavFoot('D')">Der.</button>
+        </div>
+      </div>
+      <div class="ep-row" onclick="setHint('Banda donde rinde más el jugador (derecha, izquierda o ambas). Es independiente del pie.')">
+        <div class="ep-rlabel">Banda</div>
+        <div class="ep-rfoot">
+          <button class="${d.side==='D'?'on':''}" onclick="event.stopPropagation();setSide('D')">Der.</button>
+          <button class="${d.side==='I'?'on':''}" onclick="event.stopPropagation();setSide('I')">Izq.</button>
+          <button class="${d.side==='A'?'on':''}" onclick="event.stopPropagation();setSide('A')">Ambas</button>
         </div>
       </div>`;
   }
@@ -1831,17 +1900,11 @@ function onMensajeDeLaTool(ev){
 // "Aplicar" en modo admin: no escribe nada, le devuelve el borrador a la tool.
 function commitChangesAdmin(){
   const p = currentPlayer();
-  const cambiaPosiciones = Object.keys(APP.draft.positions || {}).some(k => !!APP.draft.positions[k] !== !!(p.positions || {})[k]);
-  if(cambiaPosiciones){
-    closeApplyConfirm();
-    showMiniToast('Las posiciones todavía no se pueden escribir en el save. Deshacé ese cambio para guardar.');
-    return;
-  }
   closeApplyConfirm();
   window.parent.postMessage({
     tipo: 'pt-aplicar',
     jugadorId: p.id,
-    draft: { stats: APP.draft.stats, sec: APP.draft.sec, abilities: APP.draft.abilities, height: APP.draft.height, favfoot: APP.draft.favfoot, age: APP.draft.age },
+    draft: { stats: APP.draft.stats, sec: APP.draft.sec, abilities: APP.draft.abilities, positions: APP.draft.positions, primaryPos: APP.draft.primaryPos, side: APP.draft.side, height: APP.draft.height, favfoot: APP.draft.favfoot, age: APP.draft.age },
     costo: pendingCost(),
   }, location.origin);
 }

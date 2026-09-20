@@ -949,7 +949,7 @@ function enviarInitEditor(){
       saldo: Math.max(0, (team.yunacoin || 0) - otrosTotal),
     };
   } else {
-    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0 });
+    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0, maxPositions: 12 });
     presupuesto = { general: 1e9, subscribers: 1e9, saldo: 0 };
   }
   const pres = cobra ? PRESIDENTES_POR_TEAM[team.id] : null;
@@ -1627,6 +1627,14 @@ function renderReglasTab(){
         </div>
       </div>
 
+      <div class="pt-fieldgrp" style="margin-bottom:18px;">
+        <div class="pt-fieldgrp-title">Restricciones de plantilla</div>
+        <div class="pt-field">
+          <label>Máximo de posiciones por jugador<br><span style="font-size:11px;color:var(--txt3);">El juego permite hasta 12; la TSC usa 5.</span></label>
+          <input type="number" min="1" max="12" step="1" id="rg-maxPositions" value="${r.maxPositions}" style="width:100px;">
+        </div>
+      </div>
+
       <div id="rg-errores"></div>
 
       <div style="display:flex;gap:8px;margin-top:16px;">
@@ -1643,13 +1651,14 @@ function _leerFormReglas(){
     bandCosts: [0,1,2,3,4].map(i => n('rg-band-' + i)),
     scale8Cost: n('rg-scale8Cost'), abilityCost: n('rg-abilityCost'), injuryCost: n('rg-injuryCost'),
     budgetGeneral: n('rg-budgetGeneral'), budgetSubscribers: n('rg-budgetSubscribers'),
+    maxPositions: n('rg-maxPositions'),
   };
 }
 
 function restaurarReglasDefault(){
   const d = YUNACOINS_RULES.DEFAULT_RULES;
   d.bandCosts.forEach((v, i) => { document.getElementById('rg-band-' + i).value = v; });
-  ['scale8Cost','abilityCost','injuryCost','budgetGeneral','budgetSubscribers'].forEach(k => { document.getElementById('rg-' + k).value = d[k]; });
+  ['scale8Cost','abilityCost','injuryCost','budgetGeneral','budgetSubscribers','maxPositions'].forEach(k => { document.getElementById('rg-' + k).value = d[k]; });
   showToast('Valores por defecto cargados en el formulario. Falta Guardar.');
 }
 

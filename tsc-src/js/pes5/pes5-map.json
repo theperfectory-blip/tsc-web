@@ -300,12 +300,25 @@
   "_pendiente": "ninguno - las 12 posiciones estan completas. 'Por defecto' es un boton de accion (resetea posiciones del jugador), no un dato persistente - no aplica mapear."
  },
  "posicion_registrada": {
-  "_nota": "circulo O. RESUELTO con Kollman (DC+Extremo+Volante marcados, moviendo la O entre las 3).",
-  "bit": 429,
-  "off": "+0x35.5",
-  "ancho_bits": 2,
-  "enc": "indice 0-based del rango de esa posicion entre TODAS las marcadas del jugador, ordenando por bit ascendente (= de abajo hacia arriba en la pantalla del editor). Ej: Volante(bit509, mas abajo en pantalla)=0, Extremo(bit511)=1, DC(bit541, mas arriba)=2. Verificado 3/3.",
-  "pendiente_menor": "+0x35.7 se mantuvo constante en 1 en todas las pruebas (max 3 posiciones marcadas a la vez). No se confirmo si integra el campo para el caso de 4-5 posiciones marcadas (rango necesitaria 3 bits)."
+  "_nota": "circulo O. codigo FIJO de 4 bits en bits 428-431 (bit 428 = LSB, LSB-first igual que getField). NO es un rango 0-based entre las marcadas (esa lectura estaba mal; hallazgo resuelto 20/09). El codigo siempre pertenece a una de las posiciones marcadas. El bit 427 vale 1 en 71 jugadores (campo desconocido): no tocarlo. Verificado: 100% de jugadores de 1 posicion, 2821/2821 de varias.",
+  "bit": 428,
+  "off": "+0x35.4",
+  "ancho_bits": 4,
+  "enc": "codigo fijo por posicion, 4 bits LSB-first",
+  "codigos": {
+    "Portero": 0,
+    "Libero": 2,
+    "Central": 3,
+    "Carrilero": 4,
+    "Centrocampista defensivo (MCD)": 5,
+    "Lateral": 6,
+    "Centrocampista central (MC)": 7,
+    "Volante": 8,
+    "Mediapunta": 9,
+    "Extremo": 10,
+    "Segundo delantero (SD)": 11,
+    "Delantero centro (DC)": 12
+  }
  },
  "_noise": {
   "_nota": "bytes que cambian en CUALQUIER edicion, no son datos de juego: +0x6f-0x70 (contador de sesion de edicion) y a veces +0x56.7. Ignorar al comparar snapshots.",

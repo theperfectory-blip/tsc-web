@@ -32,6 +32,8 @@ de sus marcadas). Confirmado en el juego con Stranzl (O en Carrilero = código 4
 posiciones en el editor de PES5 y guardó cada vez; el save dio exactamente los códigos de la tabla en las 12
 (DC 12, SD 11, Extremo 10, Mediapunta 9, Volante 8, MC 7, Lateral 6, MCD 5, Carrilero 4, Central 3, Líbero 2, Portero 0).
 Solo cambiaron los bits 428–431 del registro; el bit 427 no se movió.
+**Regla del juego, confirmada por el usuario (20/09):** la O NO puede quedar en una posición sin estrella; solo se mueve entre
+posiciones ya marcadas. La escritura debe rechazar (error) una `posicionRegistrada` fuera del conjunto final de marcadas.
 El código 1 y los ≥13 no aparecen. El bit 427 vale 1 en 71 jugadores (campo desconocido): **no tocarlo**.
 
 **B. Carrilero/Lateral estaban cruzados en la tool.** En el juego: **Carrilero = SB** (grupo DE, con Central y

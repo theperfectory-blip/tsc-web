@@ -122,13 +122,51 @@ const PES5_EDITOR = (() => {
     marcadas.sort((a, b) => a.bit - b.bit); // ascendente = de abajo hacia arriba en pantalla
     return marcadas.map(m => m.nombre);
   }
-  // Resuelve el nombre de la posicion registrada (circulo O) — ver
-  // pes5-map.json > posicion_registrada: es el rango 0-based de esa
-  // posicion entre las marcadas, ordenando por bit ascendente.
+  // Resuelve el nombre de la posicion registrada (circulo O) — lee el codigo
+  // fijo de 4 bits (bits 428-431, LSB-first) y devuelve el nombre que
+  // coincida en pes5-map.json > posicion_registrada > codigos, o null si no
+  // hay coincidencia o no es uno de los codigos validos (1 o >=13 no existen).
   function posicionRegistrada(bytes, registro) {
-    const marcadas = posicionesMarcadas(bytes, registro); // ya ordenadas por bit asc
-    const idx = getField(bytes, registro, MAPA.posicion_registrada.bit, MAPA.posicion_registrada.ancho_bits);
-    return marcadas[idx] || marcadas[0] || null;
+    const codigoRaw = getField(bytes, registro, MAPA.posicion_registrada.bit, MAPA.posicion_registrada.ancho_bits);
+    const codigos = MAPA.posicion_registrada.codigos || {};
+    for (const [nombre, codigo] of Object.entries(codigos)) {
+      if (codigo === codigoRaw) return nombre;
+    }
+    return null;
+  }
+
+  // ---------- banda/pie ----------
+  // Lee la banda/pie del jugador (bits 542-543, relativo al pie actual en el
+  // save) y devuelve el lado ABSOLUTO: 'der'|'izq'|'ambas'. Ver
+  // pes5-map.json > ajustes_basicos > Banda (la nota explica la conversion).
+  function leerBanda(bytes, registro) {
+    const pieRaw = getField(bytes, registro, MAPA.ajustes_basicos['Pie dominante'].bit, 1);
+    const pie = pieRaw === 1 ? 'izq' : 'der';
+    const bandaRaw = getField(bytes, registro, MAPA.ajustes_basicos['Banda'].bit, 2);
+    if (bandaRaw === 2) return 'ambas';
+    if (bandaRaw === 0) return pie;
+    if (bandaRaw === 1) return pie === 'der' ? 'izq' : 'der';
+    return 'ambas';
+  }
+  // Escribe la banda/pie del jugador (bits 542-543). Recibe el lado ABSOLUTO
+  // ('der'|'izq'|'ambas') y convierte a relativo segun el pie ACTUAL del save
+  // (que ya puede haber cambiado en esta misma escritura). Valida que el lado
+  // sea valido.
+  function escribirBanda(bytes, registro, lado) {
+    if (lado !== 'der' && lado !== 'izq' && lado !== 'ambas') {
+      throw new Error('banda debe ser "der", "izq" o "ambas": ' + lado);
+    }
+    const pieRaw = getField(bytes, registro, MAPA.ajustes_basicos['Pie dominante'].bit, 1);
+    const pie = pieRaw === 1 ? 'izq' : 'der';
+    let bandaRaw = 0;
+    if (lado === 'ambas') {
+      bandaRaw = 2;
+    } else if (lado === pie) {
+      bandaRaw = 0;
+    } else {
+      bandaRaw = 1;
+    }
+    setField(bytes, registro, MAPA.ajustes_basicos['Banda'].bit, 2, bandaRaw);
   }
 
   // ---------- equipos (bloque 6 nombres + bloque 5 plantillas) ----------
@@ -251,6 +289,7 @@ const PES5_EDITOR = (() => {
       altura: leerCampoJugador(bytes, id, 'Altura'),
       posiciones: posicionesMarcadas(bytes, id),
       posicionRegistrada: posicionRegistrada(bytes, id),
+      banda: leerBanda(bytes, id),
       contadorEdiciones: _leerContador(bytes, id),
       // Slice D.R, punto 5e (dato del usuario, 15/09): un jugador es
       // suscriptor si su nombre en el save empieza con "$" (convencion que
@@ -269,17 +308,19 @@ const PES5_EDITOR = (() => {
   // el contador de ediciones (+0x32) una sola vez si escribio algo, y
   // devuelve la lista de campos escritos.
   //
-  // Decision (no estaba 100% especificada en el macro-slice): esta funcion
-  // NO edita `posiciones` ni `posicionRegistrada` — ambas dependen de un
-  // reindexado (el circulo O es un rango 0-based sobre las posiciones
-  // marcadas, ordenadas por bit) que se presta a corromper el dato si se
-  // cambia a mitad de una escritura parcial; se deja fuera de esta funcion
-  // hasta tener una spec propia (posible parte del slice C/D).
+  // Slice P: edita ahora posiciones (bits 0/1 de cada una de las 12) y
+  // posicionRegistrada (codigo fijo de 4 bits). La banda se escribe ANTES del
+  // pie para conservar el lado absoluto si el pie cambia pero la banda no.
   // Slice C1.4: saltea (no escribe) los campos cuyo valor nuevo es igual al
   // valor actual en el save, y no incrementa el contador de ediciones si al
   // final no escribio ningun campo real (ver macro-slice, C1.4).
   function escribirJugadorCompleto(bytes, id, cambios) {
     const escritos = [];
+    const codigos = MAPA.posicion_registrada.codigos || {};
+
+    // Guardar el lado absoluto ANTES de cambiar nada
+    let lado0 = leerBanda(bytes, id);
+
     if (cambios && cambios.atributos) {
       for (const [nombre, valor] of Object.entries(cambios.atributos)) {
         if (!MAPA.atributos_0_99[nombre]) throw new Error('atributo no encontrado en el mapa: ' + nombre);
@@ -321,14 +362,37 @@ const PES5_EDITOR = (() => {
         escritos.push('altura');
       }
     }
+
+    // Bloque pieDominante (ANTES de banda)
     if (cambios && cambios.pieDominante !== undefined) {
       if (cambios.pieDominante !== 'der' && cambios.pieDominante !== 'izq') throw new Error('pieDominante debe ser "der" o "izq": ' + cambios.pieDominante);
       const actual = leerCampoJugador(bytes, id, 'Pie dominante') === 1 ? 'izq' : 'der';
       if (actual !== cambios.pieDominante) {
         escribirCampoJugador(bytes, id, 'Pie dominante', cambios.pieDominante === 'izq' ? 1 : 0);
         escritos.push('pieDominante');
+        // Si el pie cambio y no viene banda explicita, reescribir la banda para conservar el lado absoluto
+        if (!cambios.banda) {
+          const bandaRawActual = getField(bytes, id, MAPA.ajustes_basicos['Banda'].bit, 2);
+          escribirBanda(bytes, id, lado0);
+          const bandaRawNueva = getField(bytes, id, MAPA.ajustes_basicos['Banda'].bit, 2);
+          if (bandaRawNueva !== bandaRawActual) {
+            escritos.push('banda');
+          }
+        }
       }
     }
+
+    // Bloque banda (DESPUES del pie, para que el pie sea el final)
+    if (cambios && cambios.banda !== undefined) {
+      const bandaRawActual = getField(bytes, id, MAPA.ajustes_basicos['Banda'].bit, 2);
+      escribirBanda(bytes, id, cambios.banda);
+      const bandaRawNueva = getField(bytes, id, MAPA.ajustes_basicos['Banda'].bit, 2);
+      if (bandaRawNueva !== bandaRawActual) {
+        escritos.push('banda');
+      }
+    }
+
+    // Bloque lesiones (DESPUES de banda y pie, antes de posiciones)
     if (cambios && cambios.lesiones !== undefined) {
       const idx = LESIONES_POR_RAW.indexOf(cambios.lesiones);
       if (idx < 0) throw new Error('lesiones debe ser "A", "B" o "C": ' + cambios.lesiones);
@@ -338,6 +402,70 @@ const PES5_EDITOR = (() => {
         escritos.push('lesiones');
       }
     }
+
+    // Bloque posiciones y posicionRegistrada
+    if (cambios && cambios.posiciones !== undefined && cambios.posiciones !== null) {
+      const posiciones = cambios.posiciones;
+      if (!Array.isArray(posiciones) || posiciones.length === 0) {
+        throw new Error('posiciones debe ser un array no vacio');
+      }
+      // Validar que todos los nombres existen en el mapa
+      for (const nombre of posiciones) {
+        if (!MAPA.posiciones[nombre]) {
+          throw new Error('posicion no encontrada en el mapa: ' + nombre);
+        }
+      }
+      // Si viene posicionRegistrada, validar que este en el conjunto final
+      if (cambios.posicionRegistrada !== undefined && cambios.posicionRegistrada !== null) {
+        if (!posiciones.includes(cambios.posicionRegistrada)) {
+          throw new Error('posicionRegistrada no esta en el conjunto de posiciones marcadas: ' + cambios.posicionRegistrada);
+        }
+      } else {
+        // NO viene posicionRegistrada: verificar que la actual pertenece al conjunto final
+        const registradaActual = posicionRegistrada(bytes, id);
+        if (registradaActual && !posiciones.includes(registradaActual)) {
+          throw new Error('la posicion registrada actual no pertenece al conjunto final, debe elegir una nueva posicionRegistrada');
+        }
+      }
+
+      // Escribir los bits de posiciones (1 si esta en el conjunto, 0 si no)
+      const posicionesPrevias = posicionesMarcadas(bytes, id);
+      let posicionesChanged = false;
+      for (const [nombre, campo] of Object.entries(MAPA.posiciones)) {
+        if (nombre.startsWith('_')) continue;
+        const estaba = posicionesPrevias.includes(nombre);
+        const esta = posiciones.includes(nombre);
+        if (estaba !== esta) {
+          setField(bytes, id, campo.bit, 1, esta ? 1 : 0);
+          posicionesChanged = true;
+        }
+      }
+      if (posicionesChanged) escritos.push('posiciones');
+
+      // Escribir la posicionRegistrada (codigo fijo)
+      const registradaNueva = cambios.posicionRegistrada || posicionRegistrada(bytes, id);
+      if (registradaNueva && codigos[registradaNueva] !== undefined) {
+        const codigoViejo = getField(bytes, id, MAPA.posicion_registrada.bit, MAPA.posicion_registrada.ancho_bits);
+        const codigoNuevo = codigos[registradaNueva];
+        if (codigoViejo !== codigoNuevo) {
+          setField(bytes, id, MAPA.posicion_registrada.bit, MAPA.posicion_registrada.ancho_bits, codigoNuevo);
+          escritos.push('posicionRegistrada');
+        }
+      }
+    } else if (cambios && cambios.posicionRegistrada !== undefined && cambios.posicionRegistrada !== null) {
+      // Solo viene posicionRegistrada (sin posiciones): validar que pertenece a las marcadas actuales
+      const marcadas = posicionesMarcadas(bytes, id);
+      if (!marcadas.includes(cambios.posicionRegistrada)) {
+        throw new Error('posicionRegistrada debe estar en el conjunto de posiciones marcadas actualmente');
+      }
+      const codigoViejo = getField(bytes, id, MAPA.posicion_registrada.bit, MAPA.posicion_registrada.ancho_bits);
+      const codigoNuevo = codigos[cambios.posicionRegistrada];
+      if (codigoViejo !== codigoNuevo) {
+        setField(bytes, id, MAPA.posicion_registrada.bit, MAPA.posicion_registrada.ancho_bits, codigoNuevo);
+        escritos.push('posicionRegistrada');
+      }
+    }
+
     if (escritos.length) _incrementarContador(bytes, id);
     return escritos;
   }
@@ -364,6 +492,7 @@ const PES5_EDITOR = (() => {
     buscarJugadorPorNombre, nombreDeRegistro,
     leerCampoJugador, escribirCampoJugador,
     posicionesMarcadas, posicionRegistrada,
+    leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
     leerJugadorCompleto, escribirJugadorCompleto,

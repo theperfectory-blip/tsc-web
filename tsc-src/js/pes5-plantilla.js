@@ -37,12 +37,12 @@
     dfLine:'Control linea defensa', sliding:'Hab. deslizandose',
     pkKeeper:'Hab. portero penaltis', oneVOneKeeper:'Hab. portero 1 a 1' };
   const POSITION_MAP = { CF:'Delantero centro (DC)', SS:'Segundo delantero (SD)', WG:'Extremo',
-    AMF:'Mediapunta', SMF:'Volante', CMF:'Centrocampista central (MC)', WB:'Carrilero',
-    DMF:'Centrocampista defensivo (MCD)', SB:'Lateral', CB:'Central', CWP:'Libero', PT_GK:'Portero' };
-  const BUCKET_BY_POS = { CF:'DC', SS:'DC', WG:'DC', AMF:'ME', SMF:'ME', CMF:'ME', WB:'DE', DMF:'ME', SB:'DE', CB:'DE', CWP:'DE', PT_GK:'PT' };
+    AMF:'Mediapunta', SMF:'Volante', CMF:'Centrocampista central (MC)', WB:'Lateral',
+    DMF:'Centrocampista defensivo (MCD)', SB:'Carrilero', CB:'Central', CWP:'Libero', PT_GK:'Portero' };
+  const BUCKET_BY_POS = { CF:'DC', SS:'DC', WG:'DC', AMF:'ME', SMF:'ME', CMF:'ME', WB:'ME', DMF:'ME', SB:'DE', CB:'DE', CWP:'DE', PT_GK:'PT' };
   const POSITION_LABEL = { CF:'Delantero centro', SS:'Segundo delantero', WG:'Extremo', AMF:'Mediapunta',
-    SMF:'Volante', CMF:'Centrocampista central', WB:'Carrilero', DMF:'Centrocampista defensivo',
-    SB:'Lateral', CB:'Central', CWP:'Líbero', GK:'Portero' };
+    SMF:'Volante', CMF:'Centrocampista central', WB:'Lateral', DMF:'Centrocampista defensivo',
+    SB:'Carrilero', CB:'Central', CWP:'Líbero', GK:'Portero' };
   const INJ_BY_RAW = ['C','B','A'];
 
   function jugadorParaEditor(ED, bytes, registro, slot){
@@ -62,6 +62,8 @@
     for (const [k, campo] of Object.entries(ABILITY_MAP)) abilities[k] = !!ED.leerCampoJugador(bytes, registro, campo);
 
     const pie = ED.leerCampoJugador(bytes, registro, 'Pie dominante');
+    const banda = ED.leerBanda(bytes, registro);
+    const side = banda === 'ambas' ? 'A' : banda === 'izq' ? 'I' : 'D';
 
     return {
       id: 'r' + registro,
@@ -74,7 +76,7 @@
       foot: pie === 1 ? 'Izq.' : 'Der.',
       favfoot: pie === 1 ? 'I' : 'D',
       primaryPos, tag: POSITION_LABEL[primaryPos] || primaryPos,
-      stats, sec, abilities, positions,
+      stats, sec, abilities, positions, side,
       subscriber: nombre.startsWith('$'),
     };
   }
@@ -106,6 +108,25 @@
     if (draft.height !== undefined && draft.height !== original.height) c.altura = draft.height;
     if (draft.age !== undefined && draft.age !== original.age) c.edad = draft.age;
     if (draft.favfoot !== undefined && draft.favfoot !== original.favfoot) c.pieDominante = draft.favfoot === 'I' ? 'izq' : 'der';
+    // Slice P: posiciones, primaryPos y side (banda)
+    if (draft.positions && original.positions) {
+      const originalesActivos = Object.keys(original.positions).filter(k => original.positions[k]);
+      const nuevosActivos = Object.keys(draft.positions).filter(k => draft.positions[k]);
+      // Comparar como conjuntos: mismo tamaño Y todos los elementos del uno estan en el otro
+      const mismoTamano = originalesActivos.length === nuevosActivos.length;
+      const todosEn = originalesActivos.every(k => nuevosActivos.includes(k));
+      if (!mismoTamano || !todosEn) {
+        // Orden: de las claves de POSITION_MAP, en el orden que esten marcadas
+        const posActivas = Object.keys(POSITION_MAP).filter(k => draft.positions[k === 'PT_GK' ? 'GK' : k]);
+        c.posiciones = posActivas.map(k => POSITION_MAP[k]);
+      }
+    }
+    if (draft.primaryPos !== undefined && draft.primaryPos !== original.primaryPos) {
+      c.posicionRegistrada = POSITION_MAP[draft.primaryPos === 'GK' ? 'PT_GK' : draft.primaryPos];
+    }
+    if (draft.side !== undefined && draft.side !== original.side) {
+      c.banda = draft.side === 'I' ? 'izq' : draft.side === 'A' ? 'ambas' : 'der';
+    }
     if (!Object.keys(c.atributos).length) delete c.atributos;
     if (!Object.keys(c.escala8).length) delete c.escala8;
     if (!Object.keys(c.habilidades).length) delete c.habilidades;
@@ -114,8 +135,9 @@
 
   // Slice Q2: inversa de cambiosDesdeEditor. Recibe un jugador en formato editor y
   // "cambios" en formato de la tool ({atributos, escala8, habilidades, altura, edad,
-  // pieDominante, lesiones}) y devuelve una COPIA del jugador con esos cambios aplicados.
-  // No muta el original. Con cambios null/undefined devuelve una copia igual.
+  // pieDominante, lesiones, posiciones, posicionRegistrada, banda}) y devuelve una COPIA
+  // del jugador con esos cambios aplicados. No muta el original. Con cambios null/undefined
+  // devuelve una copia igual.
   function aplicarCambiosAlJugador(jugador, cambios) {
     const j = JSON.parse(JSON.stringify(jugador));
     if (!cambios) return j;
@@ -136,6 +158,25 @@
     if (cambios.pieDominante !== undefined) {
       j.favfoot = cambios.pieDominante === 'izq' ? 'I' : 'D';
       j.foot = cambios.pieDominante === 'izq' ? 'Izq.' : 'Der.';
+    }
+    // Slice P: aplicar posiciones, primaryPos y side
+    if (cambios.posiciones && Array.isArray(cambios.posiciones)) {
+      const positions = {};
+      Object.keys(POSITION_MAP).forEach(k => positions[k === 'PT_GK' ? 'GK' : k] = false);
+      cambios.posiciones.forEach(nombre => {
+        const protoKey = Object.keys(POSITION_MAP).find(k => POSITION_MAP[k] === nombre);
+        if (protoKey) positions[protoKey === 'PT_GK' ? 'GK' : protoKey] = true;
+      });
+      j.positions = positions;
+    }
+    if (cambios.posicionRegistrada !== undefined) {
+      const protoKey = Object.keys(POSITION_MAP).find(k => POSITION_MAP[k] === cambios.posicionRegistrada);
+      if (protoKey) j.primaryPos = protoKey === 'PT_GK' ? 'GK' : protoKey;
+      j.tag = POSITION_LABEL[j.primaryPos] || j.primaryPos;
+      j.bucket = BUCKET_BY_POS[protoKey] || 'ME';
+    }
+    if (cambios.banda !== undefined) {
+      j.side = cambios.banda === 'izq' ? 'I' : cambios.banda === 'ambas' ? 'A' : 'D';
     }
     return j;
   }

@@ -60,6 +60,7 @@
     injuryCost: 250,                        // por nivel de Res. lesion (C->B->A)
     budgetGeneral: 50000,                   // tope de temporada: lo maximo que se puede gastar en mejoras generales
     budgetSubscribers: 25000,               // bono exclusivo de temporada, solo para jugadores suscriptores
+    maxPositions: 5,                        // maximo de posiciones marcadas por jugador (el juego permite hasta 12)
   };
 
   /* techo superior (inclusive) de cada banda de costo, EXACTO del editor */
@@ -327,6 +328,7 @@
   function validarReglas(r) {
     const errores = [];
     const entero = (v) => Number.isInteger(v) && v >= 0;
+    const enteroRango = (v, min, max) => Number.isInteger(v) && v >= min && v <= max;
     if (!r || typeof r !== 'object') return ['reglas vacias'];
     if (!Array.isArray(r.bandCosts) || r.bandCosts.length !== 5) errores.push('bandCosts debe tener 5 valores');
     else {
@@ -338,6 +340,7 @@
     ['scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers'].forEach((k) => {
       if (!entero(r[k])) errores.push(k + ': entero >= 0');
     });
+    if (!enteroRango(r.maxPositions, 1, 12)) errores.push('maxPositions debe ser un entero entre 1 y 12');
     return errores;
   }
 
@@ -346,7 +349,7 @@
   function normalizarReglas(data) {
     const base = JSON.parse(JSON.stringify(DEFAULT_RULES));
     if (!data || typeof data !== 'object') return base;
-    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers'];
+    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers', 'maxPositions'];
     const candidato = Object.assign({}, base);
     campos.forEach((k) => { if (data[k] !== undefined) candidato[k] = Array.isArray(data[k]) ? data[k].slice() : data[k]; });
     return validarReglas(candidato).length ? base : candidato;
