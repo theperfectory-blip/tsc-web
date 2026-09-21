@@ -17,10 +17,18 @@ de ese equipo. La ve cualquiera.
 | Bloque | Contenido |
 |---|---|
 | Plantilla | El plantel completo con las stats de cada jugador, igual que un presidente ve el suyo hoy |
-| Saldo | YunaCoins que tiene el presidente ahora |
-| Gastado en mejoras | Total de la temporada y total histórico |
-| Gastado en fichajes | Total de la temporada y total histórico |
-| Fichajes | Qué jugadores fichó y por cuánto |
+| Gastado en mejoras | Lo consumido del tope general de la temporada, con su tope: "5.550 / 50.000" |
+| Gastado en suscriptores | Lo consumido del bono de suscriptores, con su tope: "0 / 25.000" |
+
+**Solo esos dos números de dinero** (decisión del usuario, 20/09). El **saldo total NO se muestra**:
+que se sepa cuánto gastó y en qué, no cuánto tiene.
+
+> **Cuidado al implementar:** el encabezado de `mejoras.html` muestra hoy lo que **queda**
+> (tope − gastado), no lo gastado. La vista pública muestra lo contrario. No copiar el número
+> tal cual: hay que invertirlo.
+
+Cuando existan los fichajes (sección 3) se suma un tercer número con el mismo criterio: gastado
+en fichajes, y qué jugadores fichó.
 
 **Motivo (palabras del usuario):** Luis comparte el save igual, como pasaba con las memory cards
 de PES 4 — cualquiera podía cargarlas en su emulador y ver todos los equipos. La información no
