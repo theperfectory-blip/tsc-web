@@ -95,6 +95,23 @@ Lo que se aprendió haciendo el trámite, y que no estaba en la doc:
   Hosting **en vez de** la URL de la Cloud Function porque esta última no se
   conoce hasta después del deploy (2ª gen) y cambiaría si se redespliega o se
   cambia de región. Con el rewrite, la URL registrada **nunca cambia**.
+- **La ficha de la app muestra `Acceso a puntos de fidelidad: Disabled`** (y
+  `Acceso ilimitado: Disabled`). No es un campo editable — no aparece en ningún
+  paso del asistente, lo controla Streamlabs. La doc de scopes **no menciona**
+  que `points.*` requiera permiso especial, así que panel y doc se contradicen.
+- **Verificado a mano:** se abrió la URL de autorización cambiando el `scope` de
+  la plantilla (`donations.*`) por `points.read points.write`, y la pantalla de
+  consentimiento **declara correctamente** *"Read/Modify loyalty points of all
+  users in your channel"*. O sea: **el consentimiento acepta los scopes.**
+  Ese texto además confirma el diseño — un solo token de Luis habilita
+  leer/escribir **cualquier usuario de su canal**, incluido el sujeto de prueba.
+
+> ⚠️ **Lo anterior NO prueba que los endpoints respondan.** Son dos capas: que
+> el consentimiento acepte los scopes es una cosa, y que `GET/POST /points`
+> funcione con ese token estando en TESTING es otra. La bandera `Disabled`
+> podría gobernar la segunda. **Por eso el slice A arranca con un smoke test**
+> (ver más abajo): si devuelve 401/403, se corta ahí y se pasa al Plan B (§6)
+> sin haber construido nada.
 
 ### 3.2 Consecuencia del tier TESTING (5 req/min) por slice
 
@@ -129,6 +146,30 @@ sincronizado que introduce C.
 exponer el `client_secret`.
 
 **Enfoque:**
+
+> ### A.0 — Smoke test PRIMERO (gate de todo el macro)
+>
+> **Antes de escribir una línea del resto del slice**, probar a mano que los
+> endpoints responden. Es media hora y decide si el macro sigue por API o por
+> Plan B (§6).
+>
+> 1. Conectar una plataforma al Streamlabs del desarrollador y activar Cloudbot
+>    con Loyalty en ese canal; darse unos puntos (datos de prueba propios).
+> 2. Agregarse a la whitelist de la app (ahora se puede: ya hay cuenta de
+>    plataforma).
+> 3. Abrir la URL de autorización con `scope=points.read points.write` y
+>    autorizar. El redirect va a dar 404 — **copiar el `code` de la barra de
+>    direcciones** (dura pocos minutos).
+> 4. Canjear el `code` por un token (curl/Postman, con el `client_secret` —
+>    lo hace el usuario, nunca queda escrito en el repo ni en un chat).
+> 5. `GET /points` contra el canal propio.
+>
+> **Veredicto binario:** devuelve puntos → seguir con A.1 en adelante.
+> Devuelve 401/403 → **parar, el `Disabled` es real, ir al Plan B (§6)**.
+>
+> Beneficio colateral: ese canal queda como **sandbox permanente** para ensayar
+> el slice C con puntos de mentira.
+
 1. ~~Registrar la app~~ → **HECHO el 2026-09-21** (ver §3.1). Credenciales
    guardadas fuera del repo.
 2. Cloud Function con dos endpoints: el **callback** del OAuth (recibe el
@@ -256,6 +297,43 @@ esté desplegado (callback + rewrite incluidos):
 
 Y una regla de mantenimiento: si un presidente **se cambia el handle de
 YouTube**, hay que actualizar el mapeo o sus mejoras dejan de descontarse.
+
+---
+
+## 6. Plan B — sin API (si el smoke test A.0 falla)
+
+Alternativa propuesta por el usuario el 2026-09-21, documentada por si el
+`Acceso a puntos de fidelidad: Disabled` resulta ser real. Elimina de un saque
+OAuth, `client_secret`, Cloud Function, tier TESTING/APPROVED y los 5 req/min.
+
+**Lo que NO existe (verificado):** Cloudbot **no tiene import/export de puntos
+en lote**. El "Importer" del panel es un migrador de **una sola vez** desde
+otros bots (StreamElements, Nightbot, el Desktop) que se conecta con tokens de
+esas plataformas — no sirve para uso cotidiano. Tampoco hay CSV.
+
+**La asimetría que lo hace viable:**
+
+| Dirección | Volumen | Cómo se resuelve |
+|---|---|---|
+| Streamlabs → web (ganancias) | los ~80, todos ganan en cada directo | Luis **copia la lista** del panel y la pega en un campo de la tool; la tool parsea `usuario + puntos` y actualiza los saldos. Un pegado resuelve los 80. |
+| web → Streamlabs (gastos) | **poquísimos** — solo los que pidieron mejoras | La tool le muestra una lista corta ("poné a @X en 397.000") y Luis edita esos pocos con el lápiz del panel. Dos minutos. |
+
+**Lo que NO haría:** automatizar los clics del panel con un script. La UI de
+Streamlabs puede cambiar sin aviso y deja la herramienta rota en silencio,
+aparte de ser terreno gris con sus términos. El copiar/pegar lo hace una
+persona y no tiene ese problema.
+
+**Lo que se pierde respecto del Plan A:** la **lectura en vivo**. Sin ella no
+se puede validar el saldo real en el momento de aprobar, así que vuelve el
+agujero del sobregiro (el caso de la ruleta, decisión 3). Mitigación posible:
+exigir que Luis pegue la lista fresca **antes** de aprobar una tanda, para que
+la validación corra contra datos recientes aunque no sean del segundo.
+
+**Lo que NO cambia entre Plan A y Plan B:** toda la lógica. Qué restar, qué
+sumar, la marca de sincronizado, el ledger, el campo de mapeo, la validación
+contra sobregiro. **Lo único que cambia es el transporte** (una llamada HTTP vs.
+un copiar/pegar). Por eso el **slice B y el núcleo de cálculo se pueden
+construir antes de decidir** — no se tiran en ninguno de los dos escenarios.
 
 ---
 
