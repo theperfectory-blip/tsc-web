@@ -1,8 +1,10 @@
 # Streamlabs ↔ YuNaCoins — notas para retomar en otra sesión
 
-> Estado: **exploración, nada implementado ni decidido en firme.** Este
-> documento existe para no perder el contexto investigado — retomar acá
-> antes de volver a preguntar lo mismo.
+> Estado: **notas de investigación de la API.** Las decisiones de producto y el
+> plan de implementación ya NO viven acá — están cerradas en
+> **[`MACRO_SLICE_STREAMLABS.md`](MACRO_SLICE_STREAMLABS.md)** (2026-09-21).
+> Este archivo se conserva solo por el detalle de la API y el contexto de cómo
+> se llegó hasta ahí. **Si buscás qué hay que hacer, andá al macro slice.**
 
 ## Objetivo
 
@@ -58,18 +60,21 @@ a sus equipos.
 - Falta decidir el **mapeo usuario de stream ↔ equipo/presidente** — dato
   que solo Luis tiene (no se puede inferir del código).
 
-## Decisión abierta — dirección del sync (SIN RESOLVER)
+## ~~Decisión abierta — dirección del sync~~ → RESUELTA (2026-09-21)
 
-Tres opciones, sin decidir todavía:
-1. **Streamlabs manda**: los viewers ganan puntos orgánicamente mirando/
-   chateando, se importan de solo lectura a `coins`.
-2. **La web manda**: el admin ajusta YuNaCoins por rendimiento de equipo
-   (como hoy), y eso se empuja a Streamlabs para que se vea en overlays del
-   stream.
-3. **Bidireccional**: las dos cosas a la vez — mucho más complejo, necesita
-   resolver conflictos si cambian por los dos lados a la vez.
+Las tres opciones que estaban acá quedaron obsoletas. **La decisión final no
+fue ninguna de las tres tal cual**, sino un híbrido por evento:
 
-**Esto hay que decidirlo antes de poder armar el slice de implementación.**
+- **El descuento** (web → Streamlabs) se aplica **en el momento en que Luis
+  aprueba un pedido**, no por lotes — para que nadie pueda gastar dos veces los
+  mismos puntos (mejoras + ruleta) durante un directo.
+- **El saldo** (Streamlabs → web) vuelve **una sola vez por directo**, con un
+  botón al cierre.
+- Streamlabs nunca "suma": las ganancias las acumula el Cloudbot solo. El
+  sistema solo **resta** lo gastado y **copia** el resultado.
+
+Detalle completo, slices y riesgos en
+**[`MACRO_SLICE_STREAMLABS.md`](MACRO_SLICE_STREAMLABS.md)**.
 
 ## Qué se necesita de Luis (una vez resuelta la dirección del sync)
 
@@ -87,7 +92,12 @@ Tres opciones, sin decidir todavía:
 
 ## Próximo paso al retomar
 
-Decidir la dirección del sync (arriba) → recién ahí armar
-`MACRO_SLICE_STREAMLABS.md` con el mismo formato pre-slice que
-`MACRO_SLICE_MEJORAS.md`/`MACRO_SLICE_CALENDARIO.md` → pedirle a Luis los 3
-puntos de arriba antes de implementar la parte de OAuth.
+Ya está armado: **[`MACRO_SLICE_STREAMLABS.md`](MACRO_SLICE_STREAMLABS.md)**
+(slices A-D, decisiones cerradas, riesgos). Los 3 puntos que hay que pedirle a
+Luis siguen valiendo, pero **recién después** de que el slice A (OAuth + Cloud
+Function) esté desplegado: si él autoriza antes de que exista el callback, el
+permiso se pierde y hay que repetirlo.
+
+Un dato de la API que quedó verificado y define el diseño:
+`POST /points/user_point_edit` **setea el valor absoluto**, no suma un delta
+("points that will be set to the user").
