@@ -109,10 +109,44 @@ partida concreta y **cambia con el tiempo** (los jugadores crecen y envejecen). 
 Master de Luis y se movería solo. Si los precios de la TSC tienen que ser estables durante una
 temporada, conviene fijarlos una vez en vez de leerlos del juego.
 
-**Conclusión:** PES5 lo calcula en tiempo de ejecución a partir de atributos y edad. Las tres
-opciones planteadas al usuario: (1) fórmula propia con las stats que sí se leen, (2) cargar los
-precios a mano una vez si el mercado son solo leyendas, (3) deducir la fórmula de KONAMI con
-~100 muestras de capturas y validarla con muestras reservadas. **Sin decidir.**
+**Conclusión:** PES5 lo calcula en tiempo de ejecución a partir de atributos y edad.
+
+### Intento de deducir la fórmula con 110 muestras (21/09)
+
+El usuario aportó los onces titulares de 10 equipos (Udinese, Inter, Arsenal, Liverpool, Monaco,
+Man Utd, Juventus, Milan, Chelsea, R. Madrid) = **110 jugadores con precio**, del **día 1** de una
+Liga Master recién empezada. Datos y scripts en el scratchpad de la sesión
+(`precios-ml.json`, `dataset.json`, `cruzar.js`, `buscar-campo.js`, `nullspace.js`, `porpos.js`).
+
+**Dato clave:** son precios del día 1 y **le salen iguales a cualquiera que empiece una Liga
+Master nueva**. O sea son datos FIJOS: una lista capturada una vez vale para siempre.
+
+Lo descartado:
+
+1. **No hay campo oculto en la ficha.** Se probaron todos los offsets de bit del registro de 124 b
+   con anchos de 4 a 16 bits: ninguno ordena igual que el precio (rho > 0,90: cero candidatos).
+2. **No es una fórmula lineal única.** Hay 73 precios distintos para 110 jugadores, con grupos de
+   hasta 5 jugadores en el mismo valor exacto (p. ej. 942 = Samuel, Zanetti, Campbell, Makelele).
+   Si la valoración oculta fuera un peso lineal de los atributos, existiría un vector `w` con
+   `w·(xa − xb) = 0` para cada par empatado. Se resolvió el autovector menor de `AᵀA` con 36
+   ecuaciones de empate: **el autovalor menor es 237, no ~0** → ese vector no existe.
+
+Lo confirmado:
+
+3. **La fórmula depende de la posición.** Correlación del precio con la suma de atributos, por
+   posición: CA 0,89 · CC 0,87 · DC 0,85 · MP 0,74 · CCD 0,67 · CT 0,61 · **PT −0,02**. El mejor
+   atributo suelto de cada posición: CT → Defensa (0,77), PT → Mentalidad (0,89), MP → Precisión
+   (0,81), CC/CA → Vel. pase corto (0,84–0,90), DC → Ataque (0,79), EX → Agilidad (−0,99, n=4).
+4. **La edad influye pero no linealmente:** Mihajlovic (36 a, Defensa 80) vale 435 y Maldini
+   (37 a, Defensa 98) vale 1416, el central más caro de la muestra.
+
+**Para una fórmula exacta harían falta 30–50 muestras por posición** (~40 capturas más) y aun así
+saldría una aproximación. **Pendiente de decidir si vale la pena.**
+
+**Cuidado con los datos:** 8 nombres están duplicados en el save (Felipe, Samuel, Verón, Adriano,
+Bergkamp, Luis García, R. Kovac, Stam) y el cruce eligió al de mayor suma de atributos. Al menos
+uno quedó mal: el "R. Kovac" de la Juventus salió con Defensa 74 valiendo 840 (probablemente es
+Niko en vez de Robert). Si se retoma, desambiguar por plantilla del club, no por nombre.
 
 ## 6. Relación con otras decisiones
 
