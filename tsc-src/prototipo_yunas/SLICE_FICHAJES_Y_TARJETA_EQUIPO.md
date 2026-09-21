@@ -73,7 +73,46 @@ estima que la mitad del presupuesto se va a ir en fichajes.
    hueco que queda. Falta comprobar en el juego que eso no descoloca la alineación ni la táctica,
    que pueden depender del número de slot. **Probar con una copia del save antes de usarlo.**
 4. **Mecanismo de compra:** sorteo u otro. Lo define Luis.
-5. **Precios:** dependen de la tabla de la Liga Master y del multiplicador. Los define Luis.
+5. **Precios:** el precio de Liga Master × **5** (regla vigente al 21/09, tiene que ser editable
+   en cualquier momento, igual que el resto de las reglas). De dónde sale el precio base: ver
+   sección 7.
+
+## 7. El precio de Liga Master NO está en el save (investigado el 21/09)
+
+Se buscó el precio de 11 jugadores austríacos leídos de una captura del juego (Schranz 408,
+Stranzl 527, Hiden 470, Standfest 386, Pogatetz 439, Aufhauser 436, Kühbauer 495, Schopp 588,
+Ivanschitz 423, Vastic 545, Kollman 460 — registros 1 a 11).
+
+**Resultado: no está guardado.** Lo descartado:
+
+- No aparece dentro de los 124 bytes de la ficha de ningún jugador.
+- No hay tabla indexada por registro con ningún stride (se probaron 2 a 64).
+- El precio no es proporcional a la suma de atributos (la razón va de 0,214 a 0,304).
+- Una zona con los 11 precios en 4 KB resultó ser **falso positivo**: es un array de enteros
+  correlativos (382, 383, 384…), un índice interno. Cubre todo el rango, así que cualquier
+  número cae ahí. **No volver a investigar esa zona.**
+### El save de Liga Master (`KONAMI-WIN32PES5000`)
+
+El usuario guardó una partida de Liga Master durante la investigación y apareció el archivo
+`KONAMI-WIN32PES5000` (751.616 b) en la misma carpeta. Lo averiguado:
+
+- **Usa la misma primera capa** que el option file: XOR con `keyPC` (256 b, cíclica). Aplicándola
+  sola, casi todo el archivo queda legible — aparece `"Birmingham City"` en texto claro y los
+  fondos del usuario (12.000) como entero de 32 bits en 0x1fea0 y 0x6b5cc.
+- **Los precios tampoco están ahí** como tabla por jugador (probados strides de 2 a 128).
+- Queda una **zona cifrada** que no se pudo abrir: la segunda capa va por bloques y las
+  posiciones de `block[]`/`blockSize[]` de `OptionFile.java` son del option file, no sirven acá.
+  Un intento de localizar el inicio del bloque por fuerza bruta no dio resultado.
+
+**Aviso para el futuro:** aunque se encuentre la tabla, el precio de Liga Master pertenece a una
+partida concreta y **cambia con el tiempo** (los jugadores crecen y envejecen). Vendría de la Liga
+Master de Luis y se movería solo. Si los precios de la TSC tienen que ser estables durante una
+temporada, conviene fijarlos una vez en vez de leerlos del juego.
+
+**Conclusión:** PES5 lo calcula en tiempo de ejecución a partir de atributos y edad. Las tres
+opciones planteadas al usuario: (1) fórmula propia con las stats que sí se leen, (2) cargar los
+precios a mano una vez si el mercado son solo leyendas, (3) deducir la fórmula de KONAMI con
+~100 muestras de capturas y validarla con muestras reservadas. **Sin decidir.**
 
 ## 6. Relación con otras decisiones
 
