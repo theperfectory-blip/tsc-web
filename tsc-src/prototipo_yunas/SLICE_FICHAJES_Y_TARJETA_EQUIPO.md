@@ -54,6 +54,25 @@ son los mejores jugadores disponibles.
 Los fichajes salen del mismo bolsillo que las mejoras: en la primera temporada el usuario
 estima que la mitad del presupuesto se va a ir en fichajes.
 
+## 3 bis. La estrella: marca de jugador real / leyenda (decidido el 21/09)
+
+Los jugadores fichados (reales, leyendas) se muestran **con una estrella delante del nombre**,
+igual que los suscriptores llevan `$`. Sirve para que presidentes y público identifiquen de un
+vistazo qué jugadores reales tiene cada equipo.
+
+| Punto | Decisión |
+|---|---|
+| Dónde vive | **Solo en la tool y en la web. NO se escribe en el save.** En el juego no hay ninguna diferencia entre un jugador base y uno real |
+| Contra qué se guarda | Contra el **número de ficha** del jugador en el save, no contra su nombre |
+| Renombrar | El presidente puede ponerle el nombre que quiera (p. ej. Ronaldo → "Pepito los palotes"): **la estrella no se pierde**, porque nunca dependió del texto |
+| Quién la pone | **Automática** al aplicar un fichaje cobrado (ahí ya se sabe qué ficha entró a qué equipo). Luis puede ponerla o quitarla a mano para casos fuera de una compra |
+| Nivelación | **El que tiene estrella NO se nivela** (no lleva base 80). Los demás criterios de la nivelación los define Luis (slice G) |
+| ¿Coincide con `$`? | No. El suscriptor que se llame Ronaldo lleva `$Ronaldo`; el Ronaldo real no lleva nada delante en el save |
+
+> Esto **evita** tener que escribir nombres en el save: hoy `pes5-editor.js` sabe leer nombres
+> (UTF-16, 15 caracteres) pero **no existe ninguna función para escribirlos**. Con la estrella
+> fuera del save, no hace falta construirla para esta parte.
+
 ## 4. Qué ya existe y sirve
 
 | Pieza | Estado |
