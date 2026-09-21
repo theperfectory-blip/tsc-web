@@ -73,6 +73,40 @@ commiteado.
 usuario inexistente. Por la decisión 2 no debería pasar nunca con un presidente
 legítimo — si pasa, es un mapeo mal cargado y tiene que ser **ruidoso**.
 
+### 3.1 Estado del registro (hecho el 2026-09-21)
+
+La app **ya está registrada** en el Programa API de Streamlabs. Estado devuelto:
+**"Prueba en curso"** (TESTING). Credenciales guardadas fuera del repo (el
+`client_secret` va en la config de la Cloud Function, nunca en `tsc-src/` ni en
+un commit).
+
+Lo que se aprendió haciendo el trámite, y que no estaba en la doc:
+
+- **Whitelist obligatoria mientras la app no esté aprobada.** Solo los usuarios
+  de esa lista pueden autorizar la app (hasta 10). **Luis ya está cargado**
+  (plataforma `Youtube`, usuario `LuisYuNa3210`). Si faltara, su "Authorize"
+  falla sin explicación útil.
+- **El pase a APPROVED NO se pide ahora.** Streamlabs lo dice explícito: *"When
+  your app is ready to publish you can apply for full access."* Es un hito
+  **posterior**, cuando los slices ya funcionen — no un trámite paralelo.
+  Corrige la suposición previa de "pedirlo cuanto antes".
+- **Redirect URI elegido:** `https://teamsubscup.web.app/api/streamlabs/callback`,
+  vía *rewrite* de Firebase Hosting hacia la función. Se eligió una ruta del
+  Hosting **en vez de** la URL de la Cloud Function porque esta última no se
+  conoce hasta después del deploy (2ª gen) y cambiaría si se redespliega o se
+  cambia de región. Con el rewrite, la URL registrada **nunca cambia**.
+
+### 3.2 Consecuencia del tier TESTING (5 req/min) por slice
+
+Todo el desarrollo ocurre a 5 requests por minuto. Cada aprobación de pedido son
+2 llamadas (leer + escribir):
+
+| Slice | ¿Viable en TESTING? |
+|---|---|
+| A, B | Sí, no dependen del volumen |
+| **C** | Sí — ~2 aprobaciones por minuto, molesta poco en una tanda normal |
+| **D** | **No para uso real.** 80 equipos ≈ 160 llamadas ≈ **30 minutos**. Se construye y se prueba con 2-3 equipos; el uso real queda **bloqueado hasta APPROVED** |
+
 ---
 
 ## 4. Orden y dependencias
@@ -95,17 +129,19 @@ sincronizado que introduce C.
 exponer el `client_secret`.
 
 **Enfoque:**
-1. Registrar la app en `dev.streamlabs.com` (cuenta del desarrollador, **no**
-   la de Luis — la cuenta que registra la app no tiene nada que ver con de
-   quién son los puntos; Luis solo autoriza después).
+1. ~~Registrar la app~~ → **HECHO el 2026-09-21** (ver §3.1). Credenciales
+   guardadas fuera del repo.
 2. Cloud Function con dos endpoints: el **callback** del OAuth (recibe el
    `code`, lo canjea por token, lo guarda) y el **wrapper** de puntos
    (`leerPuntos(username)` / `setPuntos(username, valor)`).
-3. Guardar `access_token` + `refresh_token` (colección propia, no legible por
+3. **Rewrite en `firebase.json`** de `/api/streamlabs/callback` hacia la
+   función. Es obligatorio: el redirect URI registrado en Streamlabs apunta a
+   esa ruta del Hosting, no a la URL de la función. Si el rewrite no existe, el
+   callback devuelve 404 y **hay que repetir la autorización con Luis**.
+4. Guardar `access_token` + `refresh_token` (colección propia, no legible por
    cliente) y refrescar cuando venza.
-4. Pedir el pase a **APPROVED** apenas esté registrada la app — lo revisa
-   Streamlabs y tarda, y en TESTING (5 req/min) aprobar una tanda de pedidos
-   se vuelve inusable (2 llamadas por aprobación).
+5. El pase a **APPROVED** NO se pide acá — es un hito posterior, cuando A-D ya
+   funcionen (ver §3.1).
 
 **Orden obligatorio:** la función del callback tiene que estar **desplegada
 antes** de mandarle el link a Luis. Si él autoriza antes, el redirect cae al
@@ -164,8 +200,16 @@ cargado o handle cambiado → **ruidoso**, nunca silencioso.
 el flujo de aplicar pedidos).
 
 **Riesgos:** **alto** — es el único slice que escribe saldos reales en dos
-sistemas sin atomicidad. Mitigación: el orden de arriba + la marca; probar
-primero con UN equipo de prueba y montos chicos.
+sistemas sin atomicidad. Mitigación: el orden de arriba + la marca.
+
+> **Sujeto de prueba (decidido 2026-09-21):** las pruebas del slice C se hacen
+> contra **`@TheRationalUser`** — la cuenta del propio desarrollador, que ya
+> existe en la lista de Loyalty del canal de Luis (~519.000 puntos).
+> **Nunca contra la entrada de un presidente.** Razón: el token solo lo puede
+> emitir Luis (los puntos son de su canal), pero una vez emitido permite
+> leer/escribir cualquier usuario de ese canal — así que se elige como conejillo
+> de indias a alguien que, si se rompe, puede arreglarse solo y no le reclama a
+> nadie. Esto baja el riesgo real del slice sin montar ningún sandbox aparte.
 
 ---
 
@@ -189,11 +233,18 @@ usuarios no encontrados en Loyalty.
 
 **Riesgos:** medio. Mitigación: la idempotencia hace que reintentar sea seguro.
 
+> **Bloqueado para uso real hasta APPROVED.** Un barrido de 80 equipos son hasta
+> 160 llamadas; a 5 req/min del tier TESTING son ~30 minutos. Se **construye y
+> se verifica con 2-3 equipos**, pero no se pone en manos de Luis hasta tener el
+> tier completo. Es el slice que justifica pedir el acceso completo.
+
 ---
 
 ## 5. Qué hace falta de Luis (y en qué orden)
 
-Recién **después** de que el slice A esté desplegado:
+Ya está **whitelisteado** (`Youtube` / `LuisYuNa3210`), así que puede autorizar
+aunque la app siga en TESTING. Lo que falta, recién **después** de que el slice A
+esté desplegado (callback + rewrite incluidos):
 
 1. **Aprobar el permiso** — abrir el link de autorización con su cuenta de
    Streamlabs (la del Cloudbot) y darle Authorize. Una sola vez.
