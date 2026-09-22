@@ -124,6 +124,35 @@ Todo el desarrollo ocurre a 5 requests por minuto. Cada aprobación de pedido so
 | **C** | Sí — ~2 aprobaciones por minuto, molesta poco en una tanda normal |
 | **D** | **No para uso real.** 80 equipos ≈ 160 llamadas ≈ **30 minutos**. Se construye y se prueba con 2-3 equipos; el uso real queda **bloqueado hasta APPROVED** |
 
+### 3.3 Camino crítico: solicitud de acceso a Loyalty (enviada 2026-09-22)
+
+Tras el 401 del smoke test, se envió la solicitud formal desde
+*Clientes de OAuth → la app → Enviar aplicación*, que es el trámite que el
+propio mensaje de error indica.
+
+**Estado: Pendiente. Streamlabs se comprometió a responder en el plazo de
+1 semana** (respuesta del formulario al enviar).
+
+Contenido enviado: descripción del producto, instrucciones paso a paso con
+URLs, 4 capturas (Palmarés → panel de Loyalty de Luis → panel de Coins con los
+saldos en cero → mejoras.html) y un comentario final pidiendo **explícitamente
+`points.read`/`points.write`**, citando textual el 401 recibido y aclarando que
+**no** se pide el tier ilimitado (para bajar la barra de lo que tienen que
+aprobar).
+
+**Esto es ahora el camino crítico del macro.** Mientras tanto:
+
+| Se puede avanzar | Bloqueado |
+|---|---|
+| Slice **B** (campo de mapeo) — ya implementado, falta cerrar el texto del hint | Slice **A** (OAuth + función) |
+| Juntar la tabla de equivalencias con Luis | Slice **C** (descuento al aprobar) |
+| Plan B (§6) como alternativa si la rechazan o se demora | Slice **D** (botón de cierre) |
+
+**Pendiente de seguridad:** el `client_secret` y un `access_token` de 20 años
+quedaron expuestos en un canal de chat durante las pruebas. **Rotar el secret y
+revocar el token** antes de desplegar nada. Ahora es barato: no hay ninguna
+función usándolos.
+
 ---
 
 ## 4. Orden y dependencias
@@ -169,6 +198,26 @@ exponer el `client_secret`.
 >
 > Beneficio colateral: ese canal queda como **sandbox permanente** para ensayar
 > el slice C con puntos de mentira.
+>
+> ### ✅ EJECUTADO el 2026-09-22 — resultado: BLOQUEADO
+>
+> Se corrió el smoke test completo. El flujo OAuth funciona de punta a punta:
+> autorización OK, canje de `code` por token **HTTP 200**, y el JWT devuelto
+> lleva `"scopes":["points.read","points.write"]`. Pero el `GET /points`
+> devuelve:
+>
+> ```
+> HTTP 401
+> "Access to Loyalty points API, requires special approval. Please request for
+>  loyalty access from third party app (OAuth Clients) dashboard. We will
+>  review and get back to you."
+> ```
+>
+> **La bandera `Acceso a puntos de fidelidad: Disabled` es real y gobierna los
+> endpoints**, no solo la UI. Lección: que la pantalla de consentimiento acepte
+> los scopes **no prueba nada** — fue un falso positivo que casi nos hace
+> construir el slice A entero al pepe. Las dos capas (consentimiento vs.
+> endpoints) se verifican por separado.
 
 1. ~~Registrar la app~~ → **HECHO el 2026-09-21** (ver §3.1). Credenciales
    guardadas fuera del repo.
