@@ -58,6 +58,42 @@ git push
 Servidor local: `cd tsc-src && npx serve .` en **esta** carpeta. Ojo: pega
 contra el Firestore real (no hay sandbox), igual que en `tsc.web`.
 
+### ⚠️ `preview_start` lee el `launch.json` de `tsc.web`, NO el de esta carpeta
+
+**Trampa verificada el 2026-09-21.** Aunque estés parado en este worktree,
+`preview_start` resuelve las configuraciones desde
+`C:\Users\Administrator\Downloads\tsc.web\.claude\launch.json` (el checkout de
+**main**). El `.claude/launch.json` de esta carpeta **no se lee**.
+
+Consecuencia: si pedís `preview_start` con el nombre `tsc-src`, te levanta el
+servidor **con el código de main**, no con el tuyo. Y como la app se ve igual,
+no te das cuenta: probás, "funciona", y en realidad nunca ejercitaste tu
+cambio. Le pasó a un agente implementando el slice B.
+
+**Qué usar desde esta carpeta:**
+
+```
+preview_start  →  name: "tsc-yunacoins"   (puerto 3001)
+```
+
+| Nombre | Qué sirve | Puerto |
+|---|---|---|
+| `tsc-src` | el código de **main** ⚠️ | 3000 |
+| **`tsc-yunacoins`** | **el código de ESTA carpeta** ✅ | **3001** |
+
+**Cómo confirmar que estás sirviendo lo correcto** (hacelo siempre que dudes):
+buscá en el servidor algo que solo exista en tu cambio. Ej.:
+
+```bash
+curl -s http://localhost:3001/js/teams.js | grep -c "tf-streamlabs-user"
+```
+
+Si da 0, estás sirviendo main.
+
+El `.claude/launch.json` de esta carpeta quedó con un nombre y puerto propios
+(`tsc-2.0` / 3002) por si algún día la resolución se arregla — pero **hoy es
+inerte**. No te confíes de él.
+
 Convención de mensajes: `feat(editor)`, `feat(pes5)`, `feat(pedidos)`,
 `feat(yunacoins)`, `fix(...)`, `docs(...)`, `chore(...)`.
 
