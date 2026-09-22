@@ -299,6 +299,13 @@ async function renderProfileBody(){
     </button>`;
   }
 
+  if(team){
+    bd += `<a class="pp-sec" href="mejoras.html" style="text-decoration:none;color:inherit;">
+      <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>Mejorar jugadores con YunaCoins</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>`;
+  }
+
   if(AUTH.role==='admin'){
     bd += `<button type="button" class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Panel Admin</span>
