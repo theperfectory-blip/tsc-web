@@ -234,9 +234,15 @@ async function openTeamModal(id=null){
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group">
           <label>YuNaCoins actuales</label>
           <input type="number" id="tf-coins" value="${team?.yunacoin||0}" min="0">
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Usuario de Streamlabs <span style="font-size:11px;color:var(--txt3);font-weight:400;">(mapeo para YunaCoins · solo admin)</span></label>
+          <input type="text" id="tf-streamlabs-user" value="${_esc(team?.streamlabsUser||'')}" placeholder="Ej: LuisYuNa3210">
+          <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Sin arroba — el mismo nombre que figura en el panel de Streamlabs.</div>
         </div>
       </div>
       <div class="modal-footer">
@@ -380,6 +386,9 @@ async function saveTeam(id){
   const color2 = document.getElementById('tf-color2')?.value || color;
   const status= document.getElementById('tf-status').value;
   const coins = parseInt(document.getElementById('tf-coins').value)||0;
+  let streamlabsUser = document.getElementById('tf-streamlabs-user')?.value || '';
+  streamlabsUser = streamlabsUser.trim().replace(/^@/, '').trim();
+  streamlabsUser = streamlabsUser || null;
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
 
@@ -416,6 +425,7 @@ async function saveTeam(id){
   const data = {
     name, ini, pres, color, color2, status,
     yunacoin: coins,
+    streamlabsUser,
     previousNames,                                  // ← nuevo (array)
     historyNames: previousNames.join(' → '),        // ← compatibilidad legacy (string)
     logo: logoUrl,

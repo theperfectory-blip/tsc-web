@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>PROTOTIPO · Tool de Luis (PES5)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../css/variables.css">
+<link rel="stylesheet" href="../../css/components.css">
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script src="../../js/firebase-config.js"></script>
+<script src="../../js/state.js"></script>
+<script src="../../js/db.js"></script>
+<script src="../../js/auth.js"></script>
+<script src="../../js/pes5-crypt.js"></script>
+<script src="../../js/pes5-editor.js"></script>
+<style>
+body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
+*{box-sizing:border-box;}
+.shell{max-width:820px;margin:0 auto;padding:24px 16px 80px;}
+h1{font-family:'Bebas Neue';font-size:26px;letter-spacing:0.5px;margin:0 0 4px;}
+.sub{color:var(--txt3);font-size:13px;margin-bottom:20px;}
+.card{border:1px solid var(--brd);border-radius:var(--r);background:var(--card);padding:16px;margin-bottom:14px;}
+.card h2{font-family:'Barlow Condensed';font-size:15px;letter-spacing:1px;text-transform:uppercase;margin:0 0 10px;color:var(--txt2);}
+.log{font-family:monospace;font-size:12.5px;white-space:pre-wrap;max-height:360px;overflow:auto;
+  background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:10px;}
+.log .ok{color:#4ade80;} .log .err{color:#f87171;} .log .warn{color:#facc15;}
+.gate{padding:40px;text-align:center;color:var(--txt3);}
+#ep-auth-status{position:fixed;top:14px;right:16px;font-size:12px;}
+</style>
+</head>
+<body>
+<div id="ep-auth-status"></div>
+<div class="shell">
+  <h1>Tool de Luis · PES5</h1>
+  <div class="sub">Sube tu option file para publicar el plantel actual de cada equipo vinculado (los presidentes lo van a ver reflejado en su editor).</div>
+  <div id="contenido">Cargando...</div>
+</div>
+
+<script>
+function openModal(id){ document.getElementById(id)?.classList.add('open'); }
+function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
+function showToast(msg){ console.log(msg); }
+
+function renderAuthUI(){
+  const el = document.getElementById('ep-auth-status');
+  if (el){
+    if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" onclick="openAuthModal()">Iniciar sesion</button>`;
+    else el.innerHTML = `${AUTH.profile?.displayName||AUTH.user.email} <button onclick="authSignOut()">Salir</button>`;
+  }
+  render();
+}
+
+function render(){
+  const cont = document.getElementById('contenido');
+  if (!AUTH.user){ cont.innerHTML = '<div class="gate">Iniciá sesión como admin.</div>'; return; }
+  if (AUTH.role !== 'admin'){ cont.innerHTML = '<div class="gate">Esta página es solo para el admin (Luis).</div>'; return; }
+  cont.innerHTML = `
+    <div class="card">
+      <h2>1. Option file</h2>
+      <input type="file" id="archivo">
+    </div>
+    <div class="card">
+      <h2>2. Publicar plantillas</h2>
+      <button class="btn btn-primary" id="btn-publicar" disabled onclick="publicarPlantillas()">Publicar plantel de todos los equipos vinculados</button>
+      <div class="log" id="log" style="margin-top:10px;"></div>
+    </div>
+  `;
+  document.getElementById('archivo').addEventListener('change', onArchivo);
+}
+
+let BYTES_PLANO = null;
+
+function log(msg, cls){
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function onArchivo(ev){
+  const file = ev.target.files[0];
+  if (!file) return;
+  const buf = new Uint8Array(await file.arrayBuffer());
+  await PES5_CRYPT.cargarClaves('../../js/pes5/');
+  await PES5_EDITOR.cargarMapa('../../js/pes5/');
+  BYTES_PLANO = PES5_CRYPT.descifrar(buf);
+  document.getElementById('btn-publicar').disabled = false;
+  log(`Archivo cargado y descifrado: ${file.name} (${buf.length} b)`, 'ok');
+}
+
+/* ---- mapeo pes5-map.json -> forma que espera mejoras.html ---- */
+const STAT_MAP = { atk:'Ataque', def:'Defensa', equ:'Equilibrio', res:'Resistencia', vm:'Vel. maxima',
+  ace:'Aceleracion', rsp:'Respuesta', agi:'Agilidad', pcd:'Prec. conduccion', vcd:'Vel. conduccion',
+  ppc:'Prec. pase corto', vpc:'Vel. pase corto', ppl:'Prec. pase largo', vpl:'Vel. pase largo',
+  pre:'Precision', pot:'Potencia', ted:'Tecnica de disparo', psf:'Prec. saq. falta', efe:'Efecto',
+  cab:'Cabezazo', sal:'Salto', tec:'Tecnica', agr:'Agresividad' };
+const SEC_MAP = { ment:'Mentalidad', cons:'Regularidad en el juego', gk:'Cualidades de portero',
+  teq:'Trabajo en equipo', cond:'Estabilidad', wff:'Frec. pie malo', wfa:'Prec. pie malo' };
+/* dos habilidades del prototipo (bothFoot, feedKick) no tienen campo verificado
+   en pes5-map.json todavia — quedan sin leer (false) hasta mapearlas. Lo mismo
+   al reves: pes5-map tiene "Disparos medios" y "Marcar hombre" sin usar aca. */
+const ABILITY_MAP = { dribbling:'Regate', dribbleKeeping:'Hab. regate', postPlayer:'Hab. jugador poste',
+  positioning:'Cap. posic.', reaction:'Reaccion', linePos:'Lineas', striker:'Hab. goleadora',
+  playmaker:'Cap. mando', passing:'Pase', oneVOneShoot:'Hab. gol. 1 a 1', pkKick:'Hab. lanza penaltis',
+  longThrow:'Hab. saque largo', oneTouchPass:'Hab. pase 1 toque', side:'Lado', center:'Centro',
+  outside:'Exterior', manMark:'Marcaje', dfLine:'Control linea defensa', sliding:'Hab. deslizandose',
+  pkKeeper:'Hab. portero penaltis', oneVOneKeeper:'Hab. portero 1 a 1' };
+const POSITION_MAP = { CF:'Delantero centro (DC)', SS:'Segundo delantero (SD)', WG:'Extremo',
+  AMF:'Mediapunta', SMF:'Volante', CMF:'Centrocampista central (MC)', WB:'Carrilero',
+  DMF:'Centrocampista defensivo (MCD)', SB:'Lateral', CB:'Central', CWP:'Libero', PT_GK:'Portero' };
+const BUCKET_BY_POS = { CF:'DC', SS:'DC', WG:'DC', AMF:'ME', SMF:'ME', CMF:'ME', WB:'DE', DMF:'ME', SB:'DE', CB:'DE', CWP:'DE', PT_GK:'PT' };
+/* nombres tal como aparecen en la version en español del juego (verificados
+   in-game esta sesion, ver pes5-map.json > posiciones) */
+const POSITION_LABEL = { CF:'Delantero centro', SS:'Segundo delantero', WG:'Extremo', AMF:'Mediapunta',
+  SMF:'Volante', CMF:'Centrocampista central', WB:'Carrilero', DMF:'Centrocampista defensivo',
+  SB:'Lateral', CB:'Central', CWP:'Líbero', GK:'Portero' };
+const INJ_BY_RAW = ['C','B','A'];
+
+function leerJugadorPrototipo(bytes, registro, slot){
+  const stats = {}; for (const [k,campo] of Object.entries(STAT_MAP)) stats[k] = PES5_EDITOR.leerCampoJugador(bytes, registro, campo);
+  const sec = {}; for (const [k,campo] of Object.entries(SEC_MAP)) sec[k] = PES5_EDITOR.leerCampoJugador(bytes, registro, campo);
+  sec.inj = INJ_BY_RAW[PES5_EDITOR.leerCampoJugador(bytes, registro, 'Resistencia lesiones')] || 'C';
+
+  const marcadas = PES5_EDITOR.posicionesMarcadas(bytes, registro);
+  const positions = {};
+  for (const protoKey of Object.keys(POSITION_MAP)) positions[protoKey === 'PT_GK' ? 'GK' : protoKey] = marcadas.includes(POSITION_MAP[protoKey]);
+  const regNombre = PES5_EDITOR.posicionRegistrada(bytes, registro);
+  const protoKeyRegistrada = Object.keys(POSITION_MAP).find(k => POSITION_MAP[k] === regNombre) || 'CMF';
+  const primaryPos = protoKeyRegistrada === 'PT_GK' ? 'GK' : protoKeyRegistrada;
+
+  const abilities = {};
+  for (const [k, campo] of Object.entries(ABILITY_MAP)) abilities[k] = !!PES5_EDITOR.leerCampoJugador(bytes, registro, campo);
+
+  const pie = PES5_EDITOR.leerCampoJugador(bytes, registro, 'Pie dominante'); // 0=derecho,1=izquierdo
+
+  return {
+    id: 'r' + registro,
+    slot, // orden real dentro del equipo (0 = primer titular, tal como esta en el archivo)
+    name: PES5_EDITOR.nombreDeRegistro(bytes, registro),
+    dorsal: '',
+    bucket: BUCKET_BY_POS[protoKeyRegistrada] || 'ME',
+    height: PES5_EDITOR.leerCampoJugador(bytes, registro, 'Altura'),
+    age: PES5_EDITOR.leerCampoJugador(bytes, registro, 'Edad'),
+    foot: pie === 1 ? 'Izq.' : 'Der.',
+    favfoot: pie === 1 ? 'I' : 'D',
+    primaryPos, tag: POSITION_LABEL[primaryPos] || primaryPos,
+    stats, sec, abilities, positions,
+  };
+}
+
+async function publicarPlantillas(){
+  const btn = document.getElementById('btn-publicar');
+  btn.disabled = true;
+  try {
+    const equipos = await dbGetAll('teams', t => !!t.pes5Club);
+    if (!equipos.length){ log('Ningun equipo de la TSC tiene un club de PES5 vinculado todavia.', 'warn'); return; }
+    for (const equipo of equipos) {
+      const indiceClub = PES5_EDITOR.buscarEquipoPorNombre(BYTES_PLANO, equipo.pes5Club);
+      if (indiceClub < 0) { log(`${equipo.name}: club "${equipo.pes5Club}" no encontrado en el archivo`, 'err'); continue; }
+      const ids = PES5_EDITOR.leerPlantillaEquipo(BYTES_PLANO, indiceClub);
+      const jugadores = ids.map((id, idx) => leerJugadorPrototipo(BYTES_PLANO, id, idx));
+      await firebase.firestore().collection('pes5_plantillas').doc(String(equipo.id)).set({
+        teamId: equipo.id, teamName: equipo.name, pes5Club: equipo.pes5Club,
+        jugadores, actualizadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      log(`${equipo.name} (${equipo.pes5Club}): ${jugadores.length} jugadores publicados`, 'ok');
+    }
+    log('Listo.', 'ok');
+  } catch(e) {
+    log('Error: ' + (e?.message || e), 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+if (typeof initDB === 'function') initDB().then(()=>{ if (typeof onAuthInit === 'function') onAuthInit(); });
+</script>
+</body>
+</html>

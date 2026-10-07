@@ -2,11 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "tsc-src",
+      "name": "tsc-2.0",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "tsc-src"],
-      "port": 3000,
-      "autoPort": true
+      "runtimeArgs": ["serve", "tsc-src", "-l", "3002"],
+      "port": 3002
     }
   ]
 }

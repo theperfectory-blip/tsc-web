@@ -1,0 +1,13 @@
+const fs=require('fs');
+module.exports=function openCard(path){const raw=fs.readFileSync(path);
+ const pl=raw.readUInt16LE(0x28),ppc=raw.readUInt16LE(0x2A),ao=raw.readUInt32LE(0x34),rdc=raw.readUInt32LE(0x3C);
+ const ifc=[];for(let i=0;i<32;i++)ifc.push(raw.readUInt32LE(0x50+i*4));
+ const rpl=pl+16,cl=pl*ppc;
+ const rcp=c=>{const o=Buffer.alloc(cl);for(let p=0;p<ppc;p++){const f=(c*ppc+p)*rpl;raw.copy(o,p*pl,f,f+pl);}return o;};
+ const rc=c=>rcp(ao+c);
+ const fn=c=>{const ii=Math.floor(c/256);const fc=rcp(ifc[Math.floor(ii/256)]).readUInt32LE((ii%256)*4);return rcp(fc).readUInt32LE((c%256)*4);};
+ const ch=(s,n)=>{const o=[];let c=s;while(o.length<n&&c!==0xFFFFFFFF){o.push(c);const x=fn(c);if((x&0x80000000)===0)break;c=x&0x7FFFFFFF;}return o;};
+ const en=(s,n)=>{const b=Buffer.concat(ch(s,Math.ceil(n/(cl/512))).map(rc));const r=[];for(let i=0;i<n&&(i+1)*512<=b.length;i++){const o=i*512;r.push({length:b.readUInt32LE(o+4),cluster:b.readUInt32LE(o+0x10),name:b.toString('latin1',o+0x40,o+0x60).replace(/\0.*$/,'')});}return r;};
+ const d=en(rdc,rc(rdc).readUInt32LE(4)).find(e=>e.name==='BESLES-52760PES4OPT');
+ const fe=en(d.cluster,d.length).find(e=>e.name==='BESLES-52760PES4OPT');
+ return Buffer.concat(ch(fe.cluster,Math.ceil(fe.length/cl)).map(rc)).subarray(0,fe.length);};

@@ -1,0 +1,354 @@
+{
+ "_comment": "Mapa del registro de jugador de PES5 PC (KONAMI-WIN32PES5OPT). Bits relativos al inicio del registro de 124 bytes, LSB-first.",
+ "_verificado": "2026-08-29",
+ "_validacion": "Cada campo confirmado con una calibracion aislada in-game: un solo cambio por jugador, verificado contra el archivo descifrado.",
+ "tabla": {
+  "base": 36872,
+  "base_hex": "0x9008",
+  "stride": 124,
+  "registros": 5000,
+  "bloque": 4
+ },
+ "registro": {
+  "nombre": {
+   "off": "+0x00",
+   "bytes": 30,
+   "enc": "utf16le",
+   "chars": 15
+  },
+  "camiseta": {
+   "off": "+0x20",
+   "bytes": 16,
+   "enc": "ascii"
+  },
+  "contador_ediciones": {
+   "off": "+0x32"
+  }
+ },
+ "atributos_0_99": {
+  "_ancho_bits": 7,
+  "Ataque": {
+   "bit": 432,
+   "off": "+0x36.0"
+  },
+  "Defensa": {
+   "bit": 439,
+   "off": "+0x36.7"
+  },
+  "Equilibrio": {
+   "bit": 448,
+   "off": "+0x38.0"
+  },
+  "Resistencia": {
+   "bit": 455,
+   "off": "+0x38.7"
+  },
+  "Vel. maxima": {
+   "bit": 462,
+   "off": "+0x39.6"
+  },
+  "Aceleracion": {
+   "bit": 469,
+   "off": "+0x3a.5"
+  },
+  "Respuesta": {
+   "bit": 480,
+   "off": "+0x3c.0"
+  },
+  "Agilidad": {
+   "bit": 487,
+   "off": "+0x3c.7"
+  },
+  "Prec. conduccion": {
+   "bit": 494,
+   "off": "+0x3d.6"
+  },
+  "Vel. conduccion": {
+   "bit": 501,
+   "off": "+0x3e.5"
+  },
+  "Prec. pase corto": {
+   "bit": 512,
+   "off": "+0x40.0"
+  },
+  "Vel. pase corto": {
+   "bit": 519,
+   "off": "+0x40.7"
+  },
+  "Prec. pase largo": {
+   "bit": 526,
+   "off": "+0x41.6"
+  },
+  "Vel. pase largo": {
+   "bit": 533,
+   "off": "+0x42.5"
+  },
+  "Precision": {
+   "bit": 544,
+   "off": "+0x44.0"
+  },
+  "Potencia": {
+   "bit": 551,
+   "off": "+0x44.7"
+  },
+  "Tecnica de disparo": {
+   "bit": 558,
+   "off": "+0x45.6"
+  },
+  "Prec. saq. falta": {
+   "bit": 565,
+   "off": "+0x46.5"
+  },
+  "Efecto": {
+   "bit": 576,
+   "off": "+0x48.0"
+  },
+  "Cabezazo": {
+   "bit": 583,
+   "off": "+0x48.7"
+  },
+  "Salto": {
+   "bit": 590,
+   "off": "+0x49.6"
+  },
+  "Tecnica": {
+   "bit": 608,
+   "off": "+0x4c.0"
+  },
+  "Agresividad": {
+   "bit": 615,
+   "off": "+0x4c.7"
+  },
+  "Mentalidad": {
+   "bit": 622,
+   "off": "+0x4d.6"
+  },
+  "Cualidades de portero": {
+   "bit": 629,
+   "off": "+0x4e.5"
+  },
+  "Trabajo en equipo": {
+   "bit": 640,
+   "off": "+0x50.0"
+  }
+ },
+ "atributos_1_8": {
+  "_ancho_bits": 3,
+  "_nota": "guardan valor-1: un 8 en pantalla se almacena como 7",
+  "Regularidad en el juego": {
+   "bit": 647,
+   "off": "+0x50.7"
+  },
+  "Estabilidad": {
+   "bit": 650,
+   "off": "+0x51.2"
+  },
+  "Prec. pie malo": {
+   "bit": 653,
+   "off": "+0x51.5"
+  },
+  "Frec. pie malo": {
+   "bit": 656,
+   "off": "+0x52.0"
+  }
+ },
+ "habilidades": {
+  "_ancho_bits": 1,
+  "_orden": "igual al de la pantalla Modo Editar",
+  "Regate": {
+   "bit": 572,
+   "off": "+0x47.4"
+  },
+  "Hab. regate": {
+   "bit": 573,
+   "off": "+0x47.5"
+  },
+  "Cap. posic.": {
+   "bit": 574,
+   "off": "+0x47.6"
+  },
+  "Reaccion": {
+   "bit": 575,
+   "off": "+0x47.7"
+  },
+  "Cap. mando": {
+   "bit": 604,
+   "off": "+0x4b.4"
+  },
+  "Pase": {
+   "bit": 605,
+   "off": "+0x4b.5"
+  },
+  "Hab. goleadora": {
+   "bit": 606,
+   "off": "+0x4b.6"
+  },
+  "Hab. gol. 1 a 1": {
+   "bit": 607,
+   "off": "+0x4b.7"
+  },
+  "Hab. jugador poste": {
+   "bit": 636,
+   "off": "+0x4f.4"
+  },
+  "Lineas": {
+   "bit": 637,
+   "off": "+0x4f.5"
+  },
+  "Disparos medios": {
+   "bit": 638,
+   "off": "+0x4f.6"
+  },
+  "Lado": {
+   "bit": 639,
+   "off": "+0x4f.7"
+  },
+  "Centro": {
+   "bit": 661,
+   "off": "+0x52.5"
+  },
+  "Hab. lanza penaltis": {
+   "bit": 662,
+   "off": "+0x52.6"
+  },
+  "Hab. pase 1 toque": {
+   "bit": 663,
+   "off": "+0x52.7"
+  },
+  "Exterior": {
+   "bit": 664,
+   "off": "+0x53.0"
+  },
+  "Marcar hombre": {
+   "bit": 665,
+   "off": "+0x53.1"
+  },
+  "Hab. deslizandose": {
+   "bit": 666,
+   "off": "+0x53.2"
+  },
+  "Marcaje": {
+   "bit": 667,
+   "off": "+0x53.3"
+  },
+  "Control linea defensa": {
+   "bit": 668,
+   "off": "+0x53.4"
+  },
+  "Hab. portero penaltis": {
+   "bit": 669,
+   "off": "+0x53.5"
+  },
+  "Hab. portero 1 a 1": {
+   "bit": 670,
+   "off": "+0x53.6"
+  },
+  "Hab. saque largo": {
+   "bit": 671,
+   "off": "+0x53.7"
+  }
+ },
+ "ajustes_basicos": {
+  "_nota": "pantalla Ajustes basicos del editor: Edad, Pie dominante, Resistencia lesiones",
+  "Edad": {
+   "bit": 877,
+   "off": "+0x6d.5",
+   "ancho_bits": 5,
+   "enc": "valor almacenado + 15 (rango 15-46). Verificado: Buffel 24->25 (valor 9->10)"
+  },
+  "Pie dominante": {
+   "bit": 416,
+   "off": "+0x34.0",
+   "ancho_bits": 1,
+   "enc": "0 = derecho, 1 = izquierdo. Verificado: Daerden izq->der (1->0)"
+  },
+  "Banda": {
+   "bit": 542,
+   "off": "+0x43.6",
+   "ancho_bits": 2,
+   "enc": "RELATIVA AL PIE. 0 = banda del mismo lado que el pie (PD/BD o PI/BI), 1 = banda del lado contrario (PD/BI o PI/BD), 2 = ambas; el valor 3 no aparece. Se lee como bit542 + 2*bit543 (bit 542 = LSB). Es el segundo tramo de Banda/pie del editor; el pie es el bit 416. Verificado con Stranzl (registro 2): Ambas (b542=0,b543=1) -> PD/BD (0,0) -> PD/BI (1,0) -> al cambiar SOLO el pie a izquierdo el juego pasa a PI/BD con los mismos bits (1,0). Confirmado el 2026-09-20 con Stranzl: PI/BI = (0,0), PI/BD = (1,0), PI/Ambas = (0,1), PD/Ambas = (0,1). Son 3 valores; el juego solo cambia el rotulo (PD/PI) segun el pie. Save real (4893 jugadores): 60% ambas."
+  },
+  "Resistencia lesiones": {
+   "bit": 659,
+   "off": "+0x52.3",
+   "ancho_bits": 2,
+   "enc": "probable 0=C, 1=B, 2=A (sin confirmar C). Verificado: Mpenza B->A (1->2)"
+  },
+  "Altura": {
+   "bit": 704,
+   "off": "+0x58.0",
+   "ancho_bits": 6,
+   "enc": "valor almacenado + 148. CORREGIDO 2026-08-31: el ancho real es 6 bits, no 7 - el bit +0x58.6 (710) es un flag sin relacion que se colaba en la lectura y generaba una distribucion bimodal (alturas de 100-250cm). Verificado con el save real completo (4894 jugadores): con 6 bits + 148 la distribucion es una campana limpia centrada en ~180cm, sin gap. Puskas=172, Romario=169, Berbatov=188 (coinciden con su altura real conocida).",
+   "pendiente_menor": "+0x58.6 (bit 710) queda sin identificar - no es parte de la altura.",
+   "rango_juego": "148-205 — slice C2.2 bis (2026-09-15): los 6 bits crudos permiten representar hasta 211, pero el editor de altura de PES5 solo admite hasta 205 cm; ese es el tope que debe validar cualquier escritura, no el limite del campo. El save real (4894 jugadores) hoy tiene max=203. Minimo del juego confirmado en 148 (dato del usuario)."
+  }
+ },
+ "posiciones": {
+  "_nota": "1 bit por posicion = estrella amarilla (jugable). Un jugador puede tener hasta 5 marcadas. Mapeado con jugadores de una sola posicion de base, agregando una segunda sin tocar la principal ni la O.",
+  "Portero": { "bit": 446, "off": "+0x37.6" },
+  "Libero": { "bit": 447, "off": "+0x37.7" },
+  "Centrocampista central (MC)": { "bit": 508, "off": "+0x3f.4" },
+  "Volante": { "bit": 509, "off": "+0x3f.5" },
+  "Mediapunta": { "bit": 510, "off": "+0x3f.6" },
+  "Extremo": { "bit": 511, "off": "+0x3f.7" },
+  "Central": { "bit": 476, "off": "+0x3b.4" },
+  "Carrilero": { "bit": 477, "off": "+0x3b.5" },
+  "Centrocampista defensivo (MCD)": { "bit": 478, "off": "+0x3b.6" },
+  "Lateral": { "bit": 479, "off": "+0x3b.7" },
+  "Segundo delantero (SD)": { "bit": 540, "off": "+0x43.4" },
+  "Delantero centro (DC)": { "bit": 541, "off": "+0x43.5" },
+  "_pendiente": "ninguno - las 12 posiciones estan completas. 'Por defecto' es un boton de accion (resetea posiciones del jugador), no un dato persistente - no aplica mapear."
+ },
+ "posicion_registrada": {
+  "_nota": "circulo O. codigo FIJO de 4 bits en bits 428-431 (bit 428 = LSB, LSB-first igual que getField). NO es un rango 0-based entre las marcadas (esa lectura estaba mal; hallazgo resuelto 20/09). El codigo siempre pertenece a una de las posiciones marcadas. El bit 427 vale 1 en 71 jugadores (campo desconocido): no tocarlo. Verificado: 100% de jugadores de 1 posicion, 2821/2821 de varias.",
+  "bit": 428,
+  "off": "+0x35.4",
+  "ancho_bits": 4,
+  "enc": "codigo fijo por posicion, 4 bits LSB-first",
+  "codigos": {
+    "Portero": 0,
+    "Libero": 2,
+    "Central": 3,
+    "Carrilero": 4,
+    "Centrocampista defensivo (MCD)": 5,
+    "Lateral": 6,
+    "Centrocampista central (MC)": 7,
+    "Volante": 8,
+    "Mediapunta": 9,
+    "Extremo": 10,
+    "Segundo delantero (SD)": 11,
+    "Delantero centro (DC)": 12
+  }
+ },
+ "_noise": {
+  "_nota": "bytes que cambian en CUALQUIER edicion, no son datos de juego: +0x6f-0x70 (contador de sesion de edicion) y a veces +0x56.7. Ignorar al comparar snapshots.",
+  "bit_695_+0x56.7": "aparece en casi todas las ediciones excepto Edad sola",
+  "rango_+0x6f_a_+0x70": "contador variable, no correlaciona limpio con el campo editado"
+ },
+ "pendientes": [
+  "Posicion registrada: ancho exacto para 4-5 posiciones marcadas (ver posicion_registrada.pendiente_menor)",
+  "Estructura de bloque 5 para escritura (bajas/traspasos) - solo lectura resuelta, ver equipos.roster"
+ ],
+ "equipos": {
+  "_nota": "RESUELTO 2026-08-31. Permite leer la plantilla actual de cualquier club (no selecciones) sin entender el algoritmo de escritura de bajas/traspasos.",
+  "tabla_nombres": {
+   "base": 803608,
+   "stride": 140,
+   "total_equipos": 138,
+   "bloque": 6,
+   "enc": "nombre completo (ascii, offset+0x00) repetido, codigo corto 3 letras, resto sin identificar del todo"
+  },
+  "roster": {
+   "_nota": "bloque 5. Los indices de equipo son LOS MISMOS que en tabla_nombres (mismo orden: Arsenal=0, Aston Villa=1, Birmingham=2, Blackburn=3, Bolton=4...). Verificado con 138/138 equipos.",
+   "base": 667458,
+   "stride": 64,
+   "slots_por_equipo": 32,
+   "ancho_slot_bits": 16,
+   "enc": "cada slot es un uint16LE, indice directo a la tabla de jugadores (bloque 4). 0 = slot vacio. El primer slot no-vacio es siempre el arquero.",
+   "formula": "offset_absoluto = 667458 + indice_equipo*64 + slot*2",
+   "_bloque": 5,
+   "gotcha_escritura": "el JUEGO internamente hace swap con otro jugador del mismo grupo posicional al dar de baja (arquero/defensa/medio/delantero) - esa regla exacta no esta resuelta. PERO no hace falta reproducirla: escribir con un swap-and-pop simple (mover el ultimo slot activo al hueco, sin importar posicion) FUNCIONA - probado en PES5 real: baja de Harkins en Blackburn Rovers + traspaso de Forssell de Birmingham City a Aston Villa, ambos cargaron bien en el juego (arquero se mantuvo primero, plantel sin huecos ni corrupcion). Ver tools/write-team-test.js."
+  },
+  "seleccion_vs_club": "un jugador puede estar referenciado en la lista de su seleccion nacional Y en la de su club a la vez, mismo id de jugador, listas independientes. Antes de la seccion de clubes (que arranca en 667458) el bloque 5 tiene las listas de selecciones nacionales, en otro formato/tamano no mapeado (no hace falta para la TSC, que trabaja con clubes)."
+ }
+}
