@@ -219,6 +219,57 @@ exponer el `client_secret`.
 > construir el slice A entero al pepe. Las dos capas (consentimiento vs.
 > endpoints) se verifican por separado.
 
+### ⏳ RE-EJECUTADO el 2026-10-06 — acceso concedido, plataforma sin confirmar
+
+Streamlabs aprobó el 2026-09-25 (Estado `Approved` + `Acceso a puntos de
+fidelidad: Enabled`). Token HTTP 200 de nuevo. Pero:
+
+| Llamada | Respuesta |
+|---|---|
+| `GET /points` (con o sin `platform`/`provider`/`type=youtube`, channel por nombre o por `UC…`) | `401 "User does not have twitch account."` |
+| `GET /points/user_points` | `401 {"error":"user_not_found"}` — **no se queja de Twitch** |
+| `GET /user` | `"primary":"youtube"`, sin cuenta Twitch |
+
+**Lectura:** el bloqueo de aprobación desapareció (el mensaje de *special
+approval* ya no sale). `/points` parece **solo Twitch** — chequea que el dueño
+del token tenga Twitch. `/points/user_points` sí busca al usuario y no lo
+encuentra, consistente con que el canal de prueba **nunca hizo directo y su
+lista de Loyalty está vacía**. Todavía no se puede distinguir "usuario
+inexistente" de "endpoint que tampoco soporta YouTube".
+
+**Para cerrar el gate falta un canal YouTube con al menos un usuario con
+puntos.** Opción sin tocar a Luis: directo corto en el canal propio con
+Cloudbot activo + chatear desde la segunda cuenta, y repetir
+`/points/user_points` con ese usuario.
+
+**Rate limit observado:** `429 Too Many Attempts` tras ~5 llamadas en un
+minuto pese al estado `Approved` — los endpoints de puntos tienen su propio
+límite. Tenerlo en cuenta en el slice D (sync de ~62 equipos).
+
+**Secret:** no hay rotación autoservicio en el panel (ni en detalles ni en
+Editar; editar una app aprobada puede devolverla a revisión). **Antes de que
+Luis autorice**, pedirle a soporte que la regenere — condición de A.1.
+
+**Actualización 2026-10-06 (noche) — escritura probada + bloqueo de Cloudbot propio:**
+
+- `POST /points/user_point_edit` tampoco rechaza YouTube: devuelve
+  `user_not_found`, igual que la lectura. **La API no crea usuarios**: solo
+  edita a los que ya están en la lista de Loyalty. Probado con handle,
+  `@handle`, nombre visible e ID `UC…` → los cuatro `user_not_found`.
+- El canal de prueba no puede poblar su lista: **Cloudbot no entra al chat**
+  (3 directos públicos, moderador OK, token renovado, Reload Widgets, Setup
+  Wizard en verde). Causa raíz probable: token de YouTube vencido desde
+  ~abril; tras re-login, Streamlabs volvió a detectar directos pero el bot
+  sigue mudo. **Ticket enviado a soporte de Streamlabs** (respuesta a
+  the.perfectory@gmail.com).
+- **Dato de diseño (doc oficial):** YouTube no entrega lista de espectadores,
+  así que en YouTube **solo ganan puntos los que escriben en el chat**. Los
+  presidentes tienen que chatear para juntar YunaCoins.
+
+**Para cerrar A.0 quedan dos caminos:** (a) que soporte destrabe el Cloudbot
+propio y repetir la prueba, o (b) un click de autorización de Luis y **solo
+lectura** del saldo de `@TheRationalUser` en su canal (Cloudbot ahí funciona).
+
 1. ~~Registrar la app~~ → **HECHO el 2026-09-21** (ver §3.1). Credenciales
    guardadas fuera del repo.
 2. Cloud Function con dos endpoints: el **callback** del OAuth (recibe el
