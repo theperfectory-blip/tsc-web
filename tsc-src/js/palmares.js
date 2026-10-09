@@ -2023,7 +2023,10 @@ const _PALM_PUB = {
   roomImagesPromise: null,
   // Cancela una transición de swap (comp/campeón) en curso si el usuario
   // dispara otra antes de que termine — ver _palmSwapSala().
-  salaSwapToken: 0
+  salaSwapToken: 0,
+  // Firma de lo que _palmRenderSala() pintó por última vez — un re-render de
+  // la vitrina con la sala abierta solo la vuelve a pintar si cambió.
+  salaRenderSig: null
 };
 
 const _PALM_SALA_IMG = {
@@ -2478,9 +2481,15 @@ function _palmBindEdgeFade(el){
 
 function _palmBindPublicPalmares(root){
   if (!root) return;
-  _palmDisposeSala();
-  const sala = document.getElementById('sala');
-  if (sala) sala.hidden = true;
+  // Con la sala abierta (o cargando) no se toca: renderPubPalmares() ya
+  // re-insertó el mismo nodo en el shell nuevo y la re-sincroniza con
+  // _palmSyncSalaAfterRerender(). Ocultarla acá a mano dejaba body.sala-open
+  // puesto y la página sin scroll.
+  if (!_palmSalaIsOpen()) {
+    _palmDisposeSala();
+    const sala = document.getElementById('sala');
+    if (sala) sala.hidden = true;
+  }
   _palmBindEdgeFade(root.querySelector('#mv-nav'));
   _PALM_PUB.vitrineAbort?.abort();
   _PALM_PUB.vitrineAbort = new AbortController();
@@ -2512,6 +2521,52 @@ function _palmEnsureVisibilityBinding(){
     _palmTheme().setVisible(_PALM_PUB.visible);
     if (!_PALM_PUB.visible) _palmCloseSala(false);
   });
+}
+
+function _palmSalaIsOpen(){
+  const sala = document.getElementById('sala');
+  return !!sala && !sala.hidden && document.body.classList.contains('sala-open');
+}
+
+function _palmSalaSignature(){
+  const comp = _palmCurrentSalaComp();
+  const rec = _palmCurrentSalaRecord();
+  if (!comp || !rec) return null;
+  const team = _PALM_PUB.teamById[rec.teamId] || null;
+  return JSON.stringify([
+    comp.comp,
+    _PALM_PUB.salaChampIdx,
+    team?.name || '',
+    _palmTeamColors(team, comp.comp),
+    getPalmaresMedia(rec.id),
+    comp.records.map(entry => [
+      entry.id, entry.teamId, !!entry.pending, entry.season, entry.juego, entry.year,
+      _PALM_PUB.teamById[entry.teamId]?.name || ''
+    ])
+  ]);
+}
+
+/* Tras un re-render de la vitrina (liveSubscribe, volver a la sección,
+   edición admin) con la sala abierta: re-ubica en el compData nuevo el récord
+   que se estaba viendo (por key de competición e id, porque el orden puede
+   cambiar) y refresca la sala solo si su contenido cambió. Si la competición
+   ya no tiene récords se cierra por el camino normal (_palmCloseSala). */
+function _palmSyncSalaAfterRerender(prev){
+  if (!prev || !_palmSalaIsOpen()) return;
+  // El disparador original quedó fuera del DOM: el foco vuelve a la copa nueva.
+  if (!_PALM_PUB.focusReturn?.isConnected) {
+    _PALM_PUB.focusReturn = document.querySelector('#mv-hero .mv-stage');
+  }
+  const compIdx = _PALM_PUB.compData.findIndex(entry => entry.comp.key === prev.compKey);
+  const records = compIdx >= 0 ? _PALM_PUB.compData[compIdx].records : [];
+  if (!records.length) { _palmCloseSala(); return; }
+  const champIdx = records.findIndex(rec => String(rec.id) === String(prev.recId));
+  _PALM_PUB.salaCompIdx = compIdx;
+  _PALM_PUB.salaChampIdx = Math.max(0, champIdx);
+  // Cargando: el .then() de _palmOpenSala pinta con los índices ya re-ubicados.
+  const sala = document.getElementById('sala');
+  if (sala.classList.contains('loading')) return;
+  if (_palmSalaSignature() !== _PALM_PUB.salaRenderSig) _palmRenderSala();
 }
 
 function _palmCurrentSalaComp(){
@@ -2577,6 +2632,7 @@ function _palmRenderSala(){
   const comp = _palmCurrentSalaComp();
   const rec = _palmCurrentSalaRecord();
   if (!sala || !comp || !rec) return;
+  _PALM_PUB.salaRenderSig = _palmSalaSignature();
   const team = _PALM_PUB.teamById[rec.teamId] || null;
   const colors = _palmTeamColors(team, comp.comp);
   const lightColors = {
@@ -2963,7 +3019,8 @@ function _palmMoveSalaChamp(delta){
   if (!comp?.records?.length) return;
   const dir = delta > 0 ? 'up' : 'down';
   _palmSwapSala(dir, () => {
-    _PALM_PUB.salaChampIdx = (_PALM_PUB.salaChampIdx + delta + comp.records.length) % comp.records.length;
+    const len = _palmCurrentSalaComp()?.records?.length || comp.records.length;
+    _PALM_PUB.salaChampIdx = (_PALM_PUB.salaChampIdx + delta + len) % len;
     _palmRenderSala();
   });
 }
@@ -3169,6 +3226,7 @@ function _palmDisposeSala(){
   _palmCupCtrl().dispose();
   _palmTheme().leaveSala();
   _PALM_PUB.salaUsesSvg = null;
+  _PALM_PUB.salaRenderSig = null;
 }
 
 function _palmLoadScriptOnce(src){
@@ -3687,13 +3745,27 @@ async function renderPubPalmares(){
     dbGetAll('teams')
   ]);
   if (token !== _PALM_PUB.renderToken) return;
+  const salaPrev = _palmSalaIsOpen()
+    ? { compKey:_palmCurrentSalaComp()?.comp.key, recId:_palmCurrentSalaRecord()?.id }
+    : null;
   const teamById = {};
   allTeams.forEach(team => { teamById[team.id] = team; });
   _PALM_PUB.teamById = teamById;
   _PALM_PUB.compData = _palmBuildPublicCompData(recs, teamById);
   _PALM_PUB.compIdx = Math.max(0, Math.min(_PALM_PUB.compIdx || 0, Math.max(0, _PALM_PUB.compData.length - 1)));
+  // #sala vive dentro del shell: con la sala abierta se conserva el MISMO nodo
+  // (listeners, canvas de la copa/humo, collage) en lugar de la copia oculta
+  // que trae el innerHTML nuevo, y se le devuelve el foco que perdió al salir
+  // del DOM.
+  const openSala = salaPrev ? document.getElementById('sala') : null;
+  const salaFocus = openSala?.contains(document.activeElement) ? document.activeElement : null;
   el.innerHTML = _palmVitrineShellHTML();
+  if (openSala) {
+    el.querySelector('#sala')?.replaceWith(openSala);
+    salaFocus?.focus({ preventScroll:true });
+  }
   _palmBindPublicPalmares(el);
   _palmRenderVitrine();
   _palmEnsureVisibilityBinding();
+  _palmSyncSalaAfterRerender(salaPrev);
 }
