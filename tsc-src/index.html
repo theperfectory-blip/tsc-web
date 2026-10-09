@@ -7,8 +7,8 @@
 <meta name="google-site-verification" content="u8p-ovfSkkIWYuCLhyLFQi_UJ7IWhbbhRhWvEoP-UnE" />
 <meta name="description" content="Copa Suscriptores de LuisYuNa: tabla de posiciones, calendario, resultados en vivo, equipos y palmarés del torneo entre suscriptores.">
 <link rel="canonical" href="https://teamsubscup.web.app/">
-<link rel="icon" type="image/png" href="assets/chibi/LuisYuNa_nuevo.png">
-<link rel="apple-touch-icon" href="assets/chibi/LuisYuNa_nuevo.png">
+<link rel="icon" type="image/png" href="assets/chibi/LuisYuNa_nuevo_192.png">
+<link rel="apple-touch-icon" href="assets/chibi/LuisYuNa_nuevo_192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0C0F14">
 
@@ -68,7 +68,7 @@
      de estado ENCIMA — un asset no crítico que falla (ver 'error' abajo) se
      marca como completo igual para no colgar el splash para siempre. -->
 <div id="boot-splash" aria-hidden="true">
-  <img src="assets/tsc_sin_fondo.png" alt="">
+  <img src="assets/tsc_sin_fondo.webp" alt="">
   <div id="boot-splash-status"></div>
 </div>
 <script>
@@ -112,7 +112,7 @@
   var yunaImg = new Image();
   yunaImg.addEventListener('load', function(){ markBootStep('yunaImg'); }, { once:true });
   yunaImg.addEventListener('error', function(){ markBootStep('yunaImg', true); }, { once:true });
-  yunaImg.src = 'assets/chibi/LuisYuNa_nuevo.png';
+  yunaImg.src = 'assets/chibi/LuisYuNa_nuevo_128.webp';
 
   function isNativeApk(){
     try {
@@ -158,7 +158,7 @@
   <div class="topbar-brand">
     <button class="icon-btn" id="pub-menu-btn" onclick="togglePubSidebar()" title="Menú" style="display:none;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
     <button type="button" class="topbar-brand-btn" onclick="goHome()" title="Ir a inicio">
-      <img class="topbar-logo" src="assets/chibi/LuisYuNa_nuevo.png" alt="Teams Subs Cup">
+      <img class="topbar-logo" src="assets/chibi/LuisYuNa_nuevo_128.webp" alt="Teams Subs Cup">
       <div class="topbar-name">Teams Subs <span>Cup</span></div>
     </button>
   </div>

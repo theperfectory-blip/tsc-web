@@ -465,7 +465,7 @@ function renderFixtureGenModal(){
   <div class="modal-overlay open">
     <div class="modal" style="max-width:520px;position:relative;">
       <div class="sala-loader sala-loader-hide" id="fx-loader" aria-hidden="true" style="border-radius:var(--rl);">
-        <img src="assets/tsc_sin_fondo.png" alt="">
+        <img src="assets/tsc_sin_fondo.webp" alt="">
         <div class="sala-loader-text" id="fx-loader-text" aria-live="polite">Generando fechas</div>
         <div class="sala-loader-bar"><div class="sala-loader-fill" id="fx-loader-fill"></div></div>
       </div>

@@ -2031,8 +2031,8 @@ const _PALM_SALA_IMG = {
   h: 1024,
   shiftXr: 0,
   focoH: 0.86,
-  focoL: { img: 'foco_izquierdo.png', cw: 531, ch: 912, lcx: 0.437, lcy: 0.081, Lx: 0.145, Ly: 0.168 },
-  focoR: { img: 'foco_derecho.png',  cw: 354, ch: 912, lcx: 0.352, lcy: 0.102, Lx: 0.807, Ly: 0.168 },
+  focoL: { img: 'foco_izquierdo.webp', cw: 531, ch: 912, lcx: 0.437, lcy: 0.081, Lx: 0.145, Ly: 0.168 },
+  focoR: { img: 'foco_derecho.webp',  cw: 354, ch: 912, lcx: 0.352, lcy: 0.102, Lx: 0.807, Ly: 0.168 },
   ped: { cx: 744, contact: 568, w: 401, panel: { cx: 744, cy: 715, w: 330 } }
 };
 
@@ -2269,7 +2269,7 @@ function _palmVitrineShellHTML(){
     </section>
     <div id="sala" role="dialog" aria-modal="true" aria-labelledby="sala-comp" aria-hidden="true" aria-describedby="sala-hint" hidden>
       <div class="sala-loader" id="sala-loader" aria-hidden="true">
-        <img src="assets/tsc_sin_fondo.png" alt="">
+        <img src="assets/tsc_sin_fondo.webp" alt="">
         <div class="sala-loader-text" id="sala-loader-text" aria-live="polite">Cargando sala de trofeos…</div>
         <div class="sala-loader-bar"><div class="sala-loader-fill" id="sala-loader-fill"></div></div>
       </div>
@@ -2285,7 +2285,7 @@ function _palmVitrineShellHTML(){
       <div class="sala-particles" aria-hidden="true">${particles}</div>
       <div class="sala-cup" id="sala-cup"></div>
       <div class="sala-plate" id="sala-plate">
-        <img src="assets/placa_dorada.png" alt="">
+        <img src="assets/placa_dorada.webp" alt="">
         <div class="palm-plate-txt" id="sala-plate-txt"></div>
       </div>
       <div class="sala-cap">
@@ -2757,10 +2757,10 @@ function _palmPreloadRoomImages(){
   if (_PALM_PUB.roomImagesReady) return Promise.resolve();
   if (_PALM_PUB.roomImagesPromise) return _PALM_PUB.roomImagesPromise;
   _PALM_PUB.roomImagesPromise = Promise.all([
-    'assets/sin_fondo.png',
-    'assets/foco_izquierdo.png',
-    'assets/foco_derecho.png',
-    'assets/placa_dorada.png'
+    'assets/sin_fondo.webp',
+    'assets/foco_izquierdo.webp',
+    'assets/foco_derecho.webp',
+    'assets/placa_dorada.webp'
   ].map(_palmPreloadImage)).then(() => { _PALM_PUB.roomImagesReady = true; });
   return _PALM_PUB.roomImagesPromise;
 }
@@ -2834,6 +2834,13 @@ async function _palmPreloadOtherTrophies(excludeCompIdx){
   if (_palmSalaShouldUseSvg() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const targets = _PALM_PUB.compData.filter((entry, idx) => idx !== excludeCompIdx && entry.records.length);
   for (const entry of targets) {
+    // Una copa por vez y solo cuando el navegador está libre: decodificar
+    // Draco en paralelo con la animación de apertura causaba tirones en
+    // equipos modestos.
+    await new Promise(resolve => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(resolve, { timeout: 3000 });
+      else setTimeout(resolve, 600);
+    });
     const sala = document.getElementById('sala');
     if (!sala || sala.hidden) return;
     try {
@@ -3112,7 +3119,7 @@ function _palmLayoutSala(){
 
   const fg = sala.querySelector('.sala-foreground');
   if (fg) {
-    if (!fg.style.backgroundImage) fg.style.backgroundImage = "url('assets/sin_fondo.png')";
+    if (!fg.style.backgroundImage) fg.style.backgroundImage = "url('assets/sin_fondo.webp')";
     fg.style.backgroundSize = bgSize;
     fg.style.backgroundPosition = bgPos;
   }
@@ -3128,7 +3135,7 @@ function _palmLayoutSala(){
     };
     const pl = place(L);
     const pr = place(R);
-    focos.style.backgroundImage = "url('assets/foco_izquierdo.png'), url('assets/foco_derecho.png')";
+    focos.style.backgroundImage = "url('assets/foco_izquierdo.webp'), url('assets/foco_derecho.webp')";
     focos.style.backgroundRepeat = 'no-repeat, no-repeat';
     focos.style.backgroundSize = `${pl.dw}px ${pl.dh}px, ${pr.dw}px ${pr.dh}px`;
     focos.style.backgroundPosition = `${pl.x0}px ${pl.y0}px, ${pr.x0}px ${pr.y0}px`;
@@ -3223,6 +3230,8 @@ function _palmCupCtrl(){
   let pendingH = 0;
   let loadToken = 0;
   let sessionToken = 0;
+  let perfFrames = 0; // ver watchPerf()
+  let perfTime = 0;
   // Cache de modelos GLB crudos (sin normalizar escala/centro) por URL — cada
   // uso clona desde acá. Sobrevive a dispose()/reaperturas de la sala a
   // propósito (requisito: no destruir el cache al cambiar de competición).
@@ -3307,8 +3316,13 @@ function _palmCupCtrl(){
 
   function init(nextHost){
     host = nextHost;
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // Tope 1.5 (antes 2): en pantallas 4K/retina con zoom eso son ~44 % menos
+    // píxeles que sombrear por frame y con MSAA la diferencia no se ve en una
+    // copa que gira. renderTick() baja a 1 si el equipo igual no llega.
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+    perfFrames = 0;
+    perfTime = 0;
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -3338,8 +3352,24 @@ function _palmCupCtrl(){
     if (pendingW) _PALM_PUB.cupCtrl.resize(pendingW, pendingH);
   }
 
+  // Calidad adaptativa: tras el arranque, mide ~2 s de frames; si el promedio
+  // queda bajo ~40 fps, renderiza a densidad 1 (una sola vez por renderer).
+  function watchPerf(raw){
+    if (perfFrames < 0 || !renderer || renderer.getPixelRatio() <= 1) return;
+    perfFrames++;
+    if (perfFrames <= 30) return; // los primeros frames incluyen subida de texturas/shaders
+    perfTime += Math.min(raw, 0.25);
+    if (perfFrames < 150) return;
+    if (perfTime / (perfFrames - 30) > 1 / 40) renderer.setPixelRatio(1);
+    perfFrames = -1;
+  }
+
   function renderTick(){
-    const dt = Math.min(clock.getDelta(), 0.05);
+    const raw = clock.getDelta();
+    const dt = Math.min(raw, 0.05);
+    // Solo con la animación corriendo: con movimiento reducido renderTick se
+    // llama suelto (resize/cambio de copa) y sus deltas no son frames reales.
+    if (!reducedMotionQuery.matches) watchPerf(raw);
     if (spotL && targetLeft) spotL.color.lerp(targetLeft, Math.min(1, dt * 3.5));
     if (spotR && targetRight) spotR.color.lerp(targetRight, Math.min(1, dt * 3.5));
     if (cup && !reducedMotionQuery.matches) cup.rotation.y += dt * 0.45;
@@ -3539,16 +3569,38 @@ window.__retuneSalaCup = function(){
   return ok;
 };
 
+/* Humo de la Sala. Rendimiento (equipos modestos / pantallas de 120-144 Hz):
+   - la simulación avanza por TIEMPO (pasos fijos de 1/60 s), no por frame:
+     a 144 Hz antes corría 2.4× más rápido y quemaba 2.4× la CPU;
+   - cada bocanada se pinta con drawImage de un sprite pre-renderizado en vez
+     de crear un createRadialGradient nuevo por partícula y por frame;
+   - el canvas real es de media resolución (el humo es difuso, no se nota) y
+     la simulación sigue en coordenadas lógicas W×H vía ctx.setTransform. */
 class _PalmSmoke {
-  constructor(ctx, color){
+  constructor(ctx, color, W, H){
     this.ctx = ctx;
     this.color = color || [170, 175, 187];
     this.p = [];
     this.running = false;
     this.raf = null;
     this.t = 0;
-    this.W = ctx.canvas.width;
-    this.H = ctx.canvas.height;
+    this.lastTs = 0;
+    this.acc = 0;
+    this.W = W || ctx.canvas.width;
+    this.H = H || ctx.canvas.height;
+    this.sprite = _PalmSmoke.makeSprite(this.color);
+  }
+  static makeSprite([r, g, b]){
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const gd = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gd.addColorStop(0, `rgba(${r},${g},${b},0.95)`);
+    gd.addColorStop(0.45, `rgba(${r},${g},${b},0.4)`);
+    gd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = gd;
+    x.fillRect(0, 0, 128, 128);
+    return c;
   }
   mk(x){
     return {
@@ -3598,9 +3650,8 @@ class _PalmSmoke {
     }
   }
   draw(){
-    const [r, g, b] = this.color;
     const gA = 0.85 + 0.15 * Math.sin(this.t / 60 * 0.045 + 1);
-    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.ctx.clearRect(0, 0, this.W, this.H);
     for (const q of this.p) {
       const tin = Math.min(1, q.life / (q.max * 0.12));
       const fx = Math.min(1, q.x / 130, (this.W - q.x) / 130);
@@ -3608,14 +3659,7 @@ class _PalmSmoke {
       const a = q.a * tin * Math.max(0, Math.min(fx, fy)) * gA;
       if (a <= 0.0015) continue;
       this.ctx.globalAlpha = a;
-      const gd = this.ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r);
-      gd.addColorStop(0, `rgba(${r},${g},${b},0.95)`);
-      gd.addColorStop(0.45, `rgba(${r},${g},${b},0.4)`);
-      gd.addColorStop(1, `rgba(${r},${g},${b},0)`);
-      this.ctx.fillStyle = gd;
-      this.ctx.beginPath();
-      this.ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2);
-      this.ctx.fill();
+      this.ctx.drawImage(this.sprite, q.x - q.r, q.y - q.r, q.r * 2, q.r * 2);
     }
     this.ctx.globalAlpha = 1;
   }
@@ -3625,23 +3669,36 @@ class _PalmSmoke {
       this.advance();
     }
   }
-  loop(){
-    if (this.t % 4 === 0) this.emit();
-    this.advance();
-    this.draw();
-    if (this.running) this.raf = requestAnimationFrame(() => this.loop());
+  loop(ts){
+    if (!this.running) return;
+    // Pasos fijos de 1/60 s según el tiempo real; tope de 4 por frame para
+    // no "ponerse al día" de golpe tras volver de una pestaña en segundo plano.
+    const STEP = 1000 / 60;
+    this.acc += this.lastTs ? Math.min(ts - this.lastTs, STEP * 4) : STEP;
+    this.lastTs = ts;
+    let moved = false;
+    while (this.acc >= STEP) {
+      if (this.t % 4 === 0) this.emit();
+      this.advance();
+      this.acc -= STEP;
+      moved = true;
+    }
+    if (moved) this.draw();
+    this.raf = requestAnimationFrame(t => this.loop(t));
   }
   start(){
     if (this.running) return;
     this.running = true;
-    this.loop();
+    this.lastTs = 0;
+    this.acc = 0;
+    this.raf = requestAnimationFrame(t => this.loop(t));
   }
   stop(){
     this.running = false;
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = null;
     this.p.length = 0;
-    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.ctx.clearRect(0, 0, this.W, this.H);
   }
 }
 
@@ -3652,10 +3709,12 @@ function _palmSmokeCtrl(){
     start(canvas){
       if (!canvas || _palmSalaShouldUseSvg() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       this.stop();
-      canvas.width = 1280;
-      canvas.height = 720;
+      // Media resolución real; la simulación sigue en 1280×720 lógicos.
+      canvas.width = 640;
+      canvas.height = 360;
       const ctx = canvas.getContext('2d');
-      this.instance = new _PalmSmoke(ctx, [170, 175, 187]);
+      ctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      this.instance = new _PalmSmoke(ctx, [170, 175, 187], 1280, 720);
       this.instance.step(1100);
       this.instance.start();
     },
@@ -3680,8 +3739,9 @@ async function renderPubPalmares(){
   const el = document.getElementById('pub-palmares-content');
   if (!el) return;
   const token = ++_PALM_PUB.renderToken;
-  await seedPalmaresIfEmpty();
-  await loadPalmaresComps();
+  // En paralelo: son lecturas independientes y cada await en serie es un
+  // viaje de ida y vuelta completo a Firestore (se nota fuera de Chile).
+  await Promise.all([seedPalmaresIfEmpty(), loadPalmaresComps()]);
   const [recs, allTeams] = await Promise.all([
     getAllPalmaresRecords(),
     dbGetAll('teams')
