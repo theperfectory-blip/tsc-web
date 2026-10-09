@@ -20,11 +20,13 @@
   "emulators": {
     "firestore": { "port": 8080 },
     "functions": { "port": 5001 },
+    "hosting":   { "port": 5050 },
     "ui": { "enabled": false }
   },
   "hosting": {
     "site": "teamsubscup",
-    "public": "tsc-src",
+    "public": "dist",
+    "predeploy": ["node scripts/build-web.mjs"],
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -34,13 +36,69 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css|html|json)",
+        "source": "/",
         "headers": [
-          { "key": "Cache-Control",            "value": "no-cache" },
+          { "key": "Cache-Control",            "value": "public, max-age=0, must-revalidate, s-maxage=31536000" },
           { "key": "X-Content-Type-Options",   "value": "nosniff" },
           { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
           { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
           { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "**/*.@(html|json|webmanifest)",
+        "headers": [
+          { "key": "Cache-Control",            "value": "public, max-age=0, must-revalidate, s-maxage=31536000" },
+          { "key": "X-Content-Type-Options",   "value": "nosniff" },
+          { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
+          { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "/js/**",
+        "headers": [
+          { "key": "Cache-Control",            "value": "public, max-age=0, must-revalidate, s-maxage=31536000" },
+          { "key": "X-Content-Type-Options",   "value": "nosniff" },
+          { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
+          { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "/css/**",
+        "headers": [
+          { "key": "Cache-Control",            "value": "public, max-age=0, must-revalidate, s-maxage=31536000" },
+          { "key": "X-Content-Type-Options",   "value": "nosniff" },
+          { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
+          { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "/assets/**/*.@(js|css)",
+        "headers": [
+          { "key": "Cache-Control",            "value": "public, max-age=0, must-revalidate, s-maxage=31536000" },
+          { "key": "X-Content-Type-Options",   "value": "nosniff" },
+          { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
+          { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "/bundles/**",
+        "headers": [
+          { "key": "Cache-Control",            "value": "public, max-age=31536000, s-maxage=31536000, immutable" },
+          { "key": "X-Content-Type-Options",   "value": "nosniff" },
+          { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
+          { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
+        ]
+      },
+      {
+        "source": "**/*.@(png|jpg|jpeg|webp|gif|svg|ico|glb|wasm|mp3|ogg|wav|woff2)",
+        "headers": [
+          { "key": "Cache-Control",            "value": "public, max-age=86400, stale-while-revalidate=604800, s-maxage=31536000" }
         ]
       }
     ]

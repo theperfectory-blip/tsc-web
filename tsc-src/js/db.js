@@ -32,6 +32,13 @@ function initDB(){
   if (_isFS()) {
     db = firebase.firestore();
     console.log('[db] backend: Firestore (nube) ·', FIREBASE_CONFIG.projectId);
+    // Abre YA, en paralelo, los espejos de las colecciones que lee cualquier
+    // visita pública (panel/palmarés/equipos/calendario). Sin esto el arranque
+    // las pedía una tras otra: un viaje completo al servidor por cada una.
+    if (_fsMirrorEnabled()) {
+      ['seasons','settings','teams','competitions','phases','matches','palmares','palmares-comps']
+        .forEach(store => { try { _fsMirror(store); } catch(_){} });
+    }
     return Promise.resolve();
   }
   // ---------- IndexedDB (local) ----------
@@ -75,9 +82,133 @@ function dbEnsureCounterAtLeast(store, value){
   });
 }
 
+/* ------------------------------------------------------------
+   ESPEJO EN MEMORIA (solo Firestore)
+   ------------------------------------------------------------
+   Antes, CADA dbGetAll() era un viaje de ida y vuelta al servidor
+   (Firestore está en Santiago): recorrer las páginas públicas hacía
+   ~5.000 lecturas, ~2.500 solo en Equipos (mismas colecciones pedidas
+   una vez por equipo). Desde Perú cada viaje cuesta bastante más que
+   desde Chile, y se acumulaba.
+
+   Ahora la primera lectura de una colección abre un onSnapshot y espera
+   el primer snapshot CONFIRMADO por el servidor (nunca caché vieja); las
+   siguientes salen de memoria al instante. El listener mantiene el espejo
+   al día con los cambios de cualquier dispositivo y con las escrituras
+   propias (dbPut/dbAdd/dbDelete/lotes se reflejan localmente antes de que
+   su promesa resuelva). Contrato intacto: cada llamada devuelve objetos
+   NUEVOS (d.data() crea uno por llamada), así que mutar el resultado no
+   contamina el espejo.
+
+   Cae a la lectura directa de siempre si: el listener falla (p.ej.
+   permission-denied), no hay confirmación del servidor en 10 s (offline),
+   el último snapshot viene de caché (conexión caída), o la colección se
+   invalidó tras una transacción (dbMirrorInvalidate). Un espejo sin uso
+   por 3 min se cierra para no pagar lecturas de cambios que nadie mira.
+   Desactivable en caliente con `window.TSC_FS_MIRROR = false`. */
+const _FS_MIRROR = new Map(); // store -> { snap, ready, unsub, dead, denied, staleUntil, lastUse, byId }
+const _FS_MIRROR_IDLE_MS = 3 * 60 * 1000;
+const _FS_MIRROR_FIRST_TIMEOUT_MS = 10000;
+let _fsMirrorSweepTimer = null;
+let _fsMirrorAuthHooked = false;
+
+function _fsMirrorEnabled(){
+  return typeof window === 'undefined' || window.TSC_FS_MIRROR !== false;
+}
+
+function _fsMirrorDrop(store, m){
+  if (_FS_MIRROR.get(store) !== m) return;
+  _FS_MIRROR.delete(store);
+  try { m.unsub && m.unsub(); } catch(_){}
+}
+
+function _fsMirrorSweep(){
+  const now = Date.now();
+  for (const [store, m] of _FS_MIRROR) {
+    if (now - m.lastUse > _FS_MIRROR_IDLE_MS) _fsMirrorDrop(store, m);
+  }
+  if (!_FS_MIRROR.size) { clearInterval(_fsMirrorSweepTimer); _fsMirrorSweepTimer = null; }
+}
+
+function _fsMirror(store){
+  const existing = _FS_MIRROR.get(store);
+  // `denied` se conserva (muerto) para no reabrir un listener que va a volver
+  // a fallar en cada llamada: dbGetAll cae a la lectura directa hasta que
+  // cambie la sesión (ver onAuthStateChanged abajo).
+  if (existing && (!existing.dead || existing.denied)) { existing.lastUse = Date.now(); return existing; }
+  if (existing) _fsMirrorDrop(store, existing);
+
+  // Con login/logout cambian los permisos: un espejo que murió por
+  // permission-denied se descarta para reintentar con el usuario nuevo.
+  if (!_fsMirrorAuthHooked && typeof firebase !== 'undefined' && firebase.auth) {
+    _fsMirrorAuthHooked = true;
+    try {
+      firebase.auth().onAuthStateChanged(() => {
+        for (const [s, m] of _FS_MIRROR) if (m.dead) _fsMirrorDrop(s, m);
+      });
+    } catch(_){}
+  }
+
+  const m = { snap: null, ready: null, unsub: null, dead: false, denied: false, staleUntil: 0, lastUse: Date.now(), byId: null };
+  m.ready = new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('sin confirmación del servidor'));
+    }, _FS_MIRROR_FIRST_TIMEOUT_MS);
+    m.unsub = db.collection(store).onSnapshot({ includeMetadataChanges: true }, snap => {
+      m.snap = snap;
+      m.byId = null;
+      if (!snap.metadata.fromCache) m.staleUntil = 0;
+      if (!settled && !snap.metadata.fromCache) { settled = true; clearTimeout(timer); resolve(); }
+    }, err => {
+      m.dead = true;
+      m.denied = err?.code === 'permission-denied';
+      clearTimeout(timer);
+      if (!settled) { settled = true; reject(err); }
+      if (!m.denied) _fsMirrorDrop(store, m);
+    });
+  });
+  m.ready.catch(() => { m.dead = true; });
+  _FS_MIRROR.set(store, m);
+  if (!_fsMirrorSweepTimer) _fsMirrorSweepTimer = setInterval(_fsMirrorSweep, 60 * 1000);
+  return m;
+}
+
+/* Snapshot fresco del espejo, o null si hay que leer directo del servidor. */
+function _fsMirrorFresh(m){
+  if (!m || m.dead || !m.snap || m.snap.metadata.fromCache || Date.now() < m.staleUntil) return null;
+  return m.snap;
+}
+
+/* Fuerza a que las lecturas de estas colecciones vayan directo al servidor
+   hasta que el listener entregue un snapshot nuevo, o 2 s como máximo (si
+   la transacción no cambió nada, no llega ningún snapshot). Para usar
+   tras db.runTransaction(): a diferencia de set()/batch, una transacción no
+   se refleja localmente antes de resolver, así que el espejo podría ir
+   unos milisegundos atrasado justo después. */
+function dbMirrorInvalidate(...stores){
+  stores.forEach(store => {
+    const m = _FS_MIRROR.get(store);
+    if (m) m.staleUntil = Date.now() + 2000;
+  });
+}
+
+function _fsGetAllDirect(store, filter){
+  return db.collection(store).get().then(snap=>{
+    let result = snap.docs.map(d=>d.data());
+    if(filter) result = result.filter(filter);
+    return result;
+  });
+}
+
 function dbGetAll(store, filter){
   if (_isFS()) {
-    return db.collection(store).get().then(snap=>{
+    if (!_fsMirrorEnabled()) return _fsGetAllDirect(store, filter);
+    const m = _fsMirror(store);
+    return m.ready.then(() => _fsMirrorFresh(m), () => null).then(snap => {
+      if (!snap) return _fsGetAllDirect(store, filter);
       let result = snap.docs.map(d=>d.data());
       if(filter) result = result.filter(filter);
       return result;
@@ -97,6 +228,16 @@ function dbGetAll(store, filter){
 
 function dbGet(store, id){
   if (_isFS()) {
+    // Solo usa el espejo si la colección ya está espejada y fresca: un get
+    // suelto no justifica suscribirse a la colección entera.
+    const snap = _fsMirrorEnabled() ? _fsMirrorFresh(_FS_MIRROR.get(store)) : null;
+    if (snap) {
+      const m = _FS_MIRROR.get(store);
+      m.lastUse = Date.now();
+      if (!m.byId) m.byId = new Map(snap.docs.map(d => [d.id, d]));
+      const doc = m.byId.get(String(id));
+      return Promise.resolve(doc ? doc.data() : undefined);
+    }
     return db.collection(store).doc(String(id)).get()
       .then(snap => snap.exists ? snap.data() : undefined);
   }

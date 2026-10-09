@@ -717,6 +717,9 @@
         return;
       }
       teamId = result.teamId; ord = result.ord; remaining = result.remaining;
+      // Una transacción no pasa por el espejo local de db.js antes de resolver:
+      // que la próxima lectura de estas colecciones vaya directo al servidor.
+      if (typeof dbMirrorInvalidate === 'function') dbMirrorInvalidate('sorteo', 'sorteoEvents');
       // Reflejar el resultado en el estado LOCAL de este mismo cliente (el
       // admin que sorteó) sin esperar al propio onSnapshot — misma UX de siempre.
       b.drawn.push({ teamId, at: Date.now() });

@@ -15,6 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Genera dist/ (la carpeta pública): bundles de JS/CSS con hash. Solo usa
+      # Node, sin npm install. firebase.json también lo corre como predeploy;
+      # este paso explícito garantiza que dist/ exista aunque la acción no
+      # ejecutara los hooks de predeploy.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/build-web.mjs
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
