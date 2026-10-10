@@ -125,6 +125,7 @@ function _fsMirrorDrop(store, m){
 function _fsMirrorSweep(){
   const now = Date.now();
   for (const [store, m] of _FS_MIRROR) {
+    if (m.subs.size) continue; // una vista suscrita (dbSubscribe) lo mantiene vivo
     if (now - m.lastUse > _FS_MIRROR_IDLE_MS) _fsMirrorDrop(store, m);
   }
   if (!_FS_MIRROR.size) { clearInterval(_fsMirrorSweepTimer); _fsMirrorSweepTimer = null; }
@@ -149,9 +150,16 @@ function _fsMirror(store){
     } catch(_){}
   }
 
-  const m = { snap: null, ready: null, unsub: null, dead: false, denied: false, staleUntil: 0, lastUse: Date.now(), byId: null };
+  // `synced`: llegó al menos un snapshot del servidor (el espejo está completo,
+  // aunque ahora venga de caché). `subs`: callbacks de dbSubscribe que
+  // comparten este listener en vez de abrir otro (MS-2.5).
+  const m = { snap: null, ready: null, unsub: null, dead: false, denied: false, synced: false, staleUntil: 0, lastUse: Date.now(), byId: null, subs: new Set() };
   m.ready = new Promise((resolve, reject) => {
     let settled = false;
+    // El timeout solo destraba la PRIMERA lectura (cae a la directa); el
+    // listener sigue abierto y el espejo se usa en cuanto llegue el servidor.
+    // Antes lo marcaba muerto: cada dbGetAll siguiente abría otro listener
+    // (otra lectura completa) y volvía a esperar 10 s (MS-2.5).
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
@@ -160,17 +168,19 @@ function _fsMirror(store){
     m.unsub = db.collection(store).onSnapshot({ includeMetadataChanges: true }, snap => {
       m.snap = snap;
       m.byId = null;
-      if (!snap.metadata.fromCache) m.staleUntil = 0;
+      if (!snap.metadata.fromCache) { m.staleUntil = 0; m.synced = true; }
       if (!settled && !snap.metadata.fromCache) { settled = true; clearTimeout(timer); resolve(); }
+      m.subs.forEach(fn => { try { fn(snap); } catch (e) { console.error('[db] dbSubscribe ' + store + ':', e); } });
     }, err => {
       m.dead = true;
       m.denied = err?.code === 'permission-denied';
       clearTimeout(timer);
       if (!settled) { settled = true; reject(err); }
+      console.warn('[db] espejo ' + store + ':', err?.code || err?.message);
       if (!m.denied) _fsMirrorDrop(store, m);
     });
   });
-  m.ready.catch(() => { m.dead = true; });
+  m.ready.catch(() => {});
   _FS_MIRROR.set(store, m);
   if (!_fsMirrorSweepTimer) _fsMirrorSweepTimer = setInterval(_fsMirrorSweep, 60 * 1000);
   return m;
@@ -195,9 +205,20 @@ function dbMirrorInvalidate(...stores){
   });
 }
 
-function _fsGetAllDirect(store, filter){
-  return db.collection(store).get().then(snap=>{
-    let result = snap.docs.map(d=>d.data());
+/* Lectura directa, SIEMPRE del servidor. Sin conexión, get() normal devuelve
+   lo que haya en la caché aunque esté vacía o incompleta, y se tomaba como
+   dato real (p. ej. el próximo id de matchHistory saldría repetido). Ahora:
+   si el servidor no responde y el espejo llegó a sincronizarse, se usa su
+   última copia completa (vieja, con aviso); si nunca se sincronizó, lanza. */
+function _fsGetAllDirect(store, filter, m){
+  return db.collection(store).get({ source: 'server' }).then(snap => snap.docs, err => {
+    if (m && m.synced && m.snap) {
+      console.warn('[db] ' + store + ': sin servidor, uso la última copia del espejo');
+      return m.snap.docs;
+    }
+    throw err;
+  }).then(docs => {
+    let result = docs.map(d=>d.data());
     if(filter) result = result.filter(filter);
     return result;
   });
@@ -207,8 +228,10 @@ function dbGetAll(store, filter){
   if (_isFS()) {
     if (!_fsMirrorEnabled()) return _fsGetAllDirect(store, filter);
     const m = _fsMirror(store);
-    return m.ready.then(() => _fsMirrorFresh(m), () => null).then(snap => {
-      if (!snap) return _fsGetAllDirect(store, filter);
+    // Si la primera espera venció, igual se mira el espejo: puede haber
+    // llegado el snapshot del servidor después del timeout.
+    return m.ready.then(() => _fsMirrorFresh(m), () => _fsMirrorFresh(m)).then(snap => {
+      if (!snap) return _fsGetAllDirect(store, filter, m);
       let result = snap.docs.map(d=>d.data());
       if(filter) result = result.filter(filter);
       return result;
@@ -376,17 +399,26 @@ function dbSubscribe(store, filter, cb){
     // cambio real. Comparar el JSON contra el snapshot anterior evita eso: solo
     // se llama a `cb` cuando el contenido realmente difiere.
     let prevJSON = null;
-    return db.collection(store).onSnapshot(
-      snap => {
-        let result = snap.docs.map(d=>d.data());
-        if(filter) result = result.filter(filter);
-        const json = JSON.stringify(result);
-        if(json === prevJSON) return;
-        prevJSON = json;
-        cb(result);
-      },
-      err => console.warn('[db] onSnapshot '+store+':', err.code||err.message)
-    );
+    const deliver = snap => {
+      let result = snap.docs.map(d=>d.data());
+      if(filter) result = result.filter(filter);
+      const json = JSON.stringify(result);
+      if(json === prevJSON) return;
+      prevJSON = json;
+      cb(result);
+    };
+    if (!_fsMirrorEnabled()) {
+      return db.collection(store).onSnapshot(deliver,
+        err => console.warn('[db] onSnapshot '+store+':', err.code||err.message));
+    }
+    // Comparte el listener del espejo: antes abría uno propio y la colección
+    // se leía entera DOS veces por visita (teams, palmares, settings,
+    // sorteo…; MS-2.5). Si el espejo ya tiene datos, entrega el estado
+    // actual como primer snapshot, igual que un onSnapshot nuevo.
+    const m = _fsMirror(store);
+    m.subs.add(deliver);
+    if (m.snap) Promise.resolve().then(() => { if (m.subs.has(deliver)) deliver(m.snap); });
+    return () => { m.subs.delete(deliver); m.lastUse = Date.now(); };
   }
   return ()=>{}; // IndexedDB local: sin tiempo real
 }

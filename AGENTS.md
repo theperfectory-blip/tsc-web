@@ -29,6 +29,9 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
     el listener falla, no hay confirmación del servidor en 10 s o el
     snapshot viene de caché. Se cierra tras 3 min sin uso.
     `dbMirrorInvalidate(...stores)` después de transacciones.
+    `dbSubscribe` comparte el listener del espejo. Sin conexión, la lectura
+    directa va al servidor y, si falla, usa la última copia del espejo o
+    lanza (nunca devuelve una caché vacía como dato).
     `window.TSC_FS_MIRROR = false` lo apaga en caliente.
   - IDs enteros autoincrementales vía contadores en `_counters/{store}`.
 - **Arranque** (`ui-utils.js`, evento `load`): `initDB` → seeds y
@@ -87,6 +90,9 @@ escritura).
    `tsc-src` a `sandbox/site`, arma `sandbox/dist` y lo sirve en el mismo
    puerto. Una de las dos a la vez. No usar `hosting-dist` para probar
    escrituras: abre sin `?emu=1`, contra producción.
+
+Lecturas por visita: `node scripts/emu-probe.mjs` y abrir
+`localhost:3001/probe.html` (`window.__PROBE__.report()`, MS-2.5).
 
 Paridad `tsc-src`/`dist` sin navegador: `node scripts/smoke-parity.mjs`
 (MS-2.2). Cableado: `node scripts/audit-wiring.mjs` (MS-2.3).

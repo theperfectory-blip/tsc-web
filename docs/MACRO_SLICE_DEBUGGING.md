@@ -423,6 +423,7 @@ grandes (por ejemplo 3.1).
 - Temporada guardada en `tsc_season` que ya no existe.
 
 ### 2.5 · Espejo en memoria de Firestore (H-18)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.5.md`. 2 bugs del espejo corregidos (timeout que reabría listeners y devolvía `[]` sin conexión; `dbSubscribe` duplicaba listeners). H-29 corregido (0 escrituras al guardar un equipo). Lista de colecciones por temporada para M5.
 Verificar en el sandbox:
 - (a) Una escritura propia (`dbPut`/`dbAdd`/`dbDelete`/lotes) aparece en el
   siguiente `dbGetAll`.
