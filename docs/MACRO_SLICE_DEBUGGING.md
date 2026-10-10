@@ -152,11 +152,44 @@ adelanta porque reemplaza la lectura manual de código en M4, M5 y M7.
 4. Cerrar: verificación → reporte `docs/reportes/MS-X.Y.md` → commit →
    fin de la sesión.
 
-| Tipo de slice | Modelo / esfuerzo |
-|---|---|
-| Mecánicos (M1, 7.1, 7.4) | Sonnet o esfuerzo bajo |
-| Juicio fino (0.1, 2.5, M3, 6.1) | Opus, esfuerzo normal o alto |
-| Secciones de M4 y M5 | Esfuerzo medio, guiado por C1–C9 |
+Modelo y esfuerzo por slice (criterio: Opus alto donde un error es un
+agujero de seguridad o pérdida de datos; Sonnet donde el trabajo es
+mecánico o lo guía un checklist):
+
+| Slice | Modelo | Esfuerzo |
+|---|---|---|
+| 0.1 XSS logo + reglas + forense | Opus 5.5 | high |
+| 0.2 Exclusión en builds · 0.3 email admin | Sonnet 5.5 | low |
+| 1.1 · 1.2 · 1.3 Docs y releases | Sonnet 5.5 | low |
+| 1.4 AGENTS/CLAUDE al día | Sonnet 5.5 | medium |
+| 1.5 Grafo | Sonnet 5.5 | low |
+| 1.6 Git local · 1.7 Disco local | Sonnet 5.5 | low |
+| 2.1 Sandbox con emuladores | Opus 5.5 | medium |
+| 2.2 Paridad tsc-src / dist | Sonnet 5.5 | medium |
+| 2.3 Auditor de cableado | Sonnet 5.5 | medium |
+| 2.4 Arranque y fallos de red | Opus 5.5 | medium |
+| 2.5 Espejo en memoria | Opus 5.5 | high |
+| 3.1 Barrido de sinks | Sonnet 5.5 | medium |
+| 3.2 Reglas + suite de tests | Opus 5.5 | high |
+| 3.3 Storage | Sonnet 5.5 | low |
+| 3.4 Drift de reglas | Sonnet 5.5 | low |
+| 3.5 CSP | Opus 5.5 | medium |
+| 3.6 Config externa · 3.7 Cuentas | Sonnet 5.5 | medium |
+| M4 (4.1–4.9) secciones públicas | Sonnet 5.5 | medium |
+| 4.2 Palmarés (3,7k líneas, 3D) | Sonnet 5.5 | high |
+| M5 (5.1–5.12) secciones admin | Sonnet 5.5 | medium |
+| 5.1 Acceso admin · 5.2 Temporadas (cascada) · 5.7 Bracket | Opus 5.5 | medium |
+| 5.13 Import atómico | Opus 5.5 | high |
+| 6.1 Cloud Functions | Opus 5.5 | medium |
+| 6.2 Dependencias · 6.3 Android | Sonnet 5.5 | medium |
+| 7.1 Helper de escape | Sonnet 5.5 | low |
+| 7.2 Código muerto | Sonnet 5.5 | medium |
+| 7.3 CSS · 7.4 Assets | Sonnet 5.5 | low |
+| 7.5 Delegación de eventos | Opus 5.5 | high |
+| 7.6 Cierre documental | Sonnet 5.5 | low |
+
+Si un slice de Sonnet encuentra algo de seguridad o de integridad de
+datos, se anota como hallazgo nuevo y se resuelve en una sesión con Opus.
 
 Ahorro adicional: archivos grandes se leen por `grep` y rangos, nunca
 enteros; verificación en navegador con `read_page`/consola (capturas solo
