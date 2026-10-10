@@ -149,8 +149,47 @@ adelanta porque reemplaza la lectura manual de código en M4, M5 y M7.
 2. Prompt: `Ejecuta el slice X.Y de docs/MACRO_SLICE_DEBUGGING.md`.
 3. Leer solo la sección del slice, los hallazgos que cita y los reportes
    previos que necesite. Nada de exploración general.
-4. Cerrar: verificación → reporte `docs/reportes/MS-X.Y.md` → commit →
-   fin de la sesión.
+4. Cerrar con el protocolo de cierre (abajo). La sesión termina solo
+   cuando el slice queda **CERRADO** o **BLOQUEADO**.
+
+### Protocolo de cierre de un slice (lo ejecuta Claude, sin que se pida)
+
+1. **Implementar** los cambios del slice. Nada fuera de su alcance: lo
+   que aparezca se anota como hallazgo nuevo.
+2. **Tests automáticos**, según lo que toque el slice:
+   - Reglas → tests en el emulador de Firestore.
+   - Functions → `npm run test:emulator`.
+   - Builds → `node scripts/build-web.mjs` / `build-www.mjs` y revisar la
+     salida.
+   - Scripts propios (auditor de cableado, smoke test) → correrlos.
+3. **Prueba en navegador** si el cambio se ve en la UI:
+   - En `tsc-src` y en `dist`.
+   - Con `__TSC_READONLY__` contra producción, o en el sandbox si hay
+     escrituras (desde 2.1).
+   - Consola sin errores nuevos.
+   - Móvil y escritorio si cambió el layout.
+4. **Si algo falla:** corregir y volver al paso 2. No se cierra con fallas
+   abiertas.
+5. **Higiene:** `graphify update .` en `tsc-src/` si cambió código ·
+   checklist de seguridad pre-commit de `CLAUDE.md` · `git diff` revisado
+   (sin cambios ajenos al slice).
+6. **Reporte** `docs/reportes/MS-X.Y.md` con la plantilla de la sección 6,
+   incluida la evidencia de cada verificación.
+7. **Marcar el slice** en este documento como `CERRADO · fecha · commit`
+   (o `BLOQUEADO · motivo`).
+8. **Commit + push** de la rama.
+9. **Mensaje final al dueño**, en este formato:
+   - Qué quedó hecho.
+   - Qué se verificó y cómo (con el resultado real, incluidas fallas).
+   - Acción manual pendiente del dueño (M-x), si la hay.
+   - Prompt exacto del siguiente slice, con su modelo y esfuerzo.
+
+El dueño revisa ese mensaje, hace las acciones manuales que se le pidan,
+cambia modelo y esfuerzo, escribe `/clear` y pega el prompt siguiente.
+
+**BLOQUEADO** = el slice no puede cerrar sin algo del dueño (una decisión
+D-x o una acción M-x). Se commitea lo hecho, se explica qué falta y el
+siguiente slice no arranca hasta resolverlo, salvo que no dependa de él.
 
 Modelo y esfuerzo por slice (criterio: Opus alto donde un error es un
 agujero de seguridad o pérdida de datos; Sonnet donde el trabajo es
