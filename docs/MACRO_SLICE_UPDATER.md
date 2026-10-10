@@ -1,10 +1,7 @@
 # Macro Slice — Auto-actualizador de la APK · 2026-07-20
 
-> Estado **verificado en código** por Sonnet 5 el 2026-07-20. Pendiente de
-> auditoría/aprobación del supervisor antes de implementar. Cada slice se
-> ejecuta y cierra por separado — mismo protocolo que los macros anteriores.
->
-> **Nada de este documento está implementado todavía.**
+> Estado: **implementado en v1.5.0** (primer tag que incluye `updater.js`,
+> commit `275c62f`). Se conserva como registro del diseño.
 
 ## Objetivo
 

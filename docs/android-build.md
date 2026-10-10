@@ -221,6 +221,11 @@ avisaba. Con el auto-actualizador la falla pasa a ocurrir **en silencio,
 dentro del instalador del sistema y para todos a la vez** — nadie sabe por qué
 "no anda actualizar".
 
+### Hash del APK en la nota del release
+
+Calcular `sha256sum TEAM-SUBS-CUP-vX.Y.Z-release.apk` y pegarlo en la nota del
+release de GitHub (ahí lo busca `SECURITY.md`; ya no hay `RELEASE_NOTES.md` en el repo).
+
 ### 2. Publicar `update.json` junto al APK
 
 Mismo release, nombre fijo:
@@ -283,7 +288,7 @@ cd android
 cd ..
 
 adb uninstall web.teamsubscup.app
-adb install releases/android/v1.0.0/TEAM-SUBS-CUP-v1.0.0-release.apk
+adb install android/app/build/outputs/apk/release/app-release.apk
 adb shell monkey -p web.teamsubscup.app -c android.intent.category.LAUNCHER 1
 ```
 

@@ -17,7 +17,7 @@
    vive ahí y no acá.
 
    Backend: GitHub Releases (Slice B del macro, ver
-   tsc-src/MACRO_SLICE_UPDATER.md) — NO Firebase Storage. El asset
+   docs/MACRO_SLICE_UPDATER.md) — NO Firebase Storage. El asset
    update.json todavía no existe en el release actual mientras el
    Slice B no se publique: la URL de abajo devuelve 404 hoy. Eso es
    un estado real que check() reporta como 'network-error' (con

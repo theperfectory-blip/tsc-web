@@ -305,6 +305,8 @@ grandes (por ejemplo 3.1).
 - Siguen en el historial de git, así que no se pierde nada.
 
 ### 1.2 · Reubicar los documentos que sí sirven
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.2-1.3.md`.
+
 - `tsc-src/PROTOCOLO_VERIFICACION.md` pasa a `docs/`. Es la regla
   permanente, y `CLAUDE.md`/`AGENTS.md` lo enlazan desde 1.4.
 - `tsc-src/MACRO_SLICE_UPDATER.md` pasa a `docs/`. Corregir su estado a
@@ -313,6 +315,8 @@ grandes (por ejemplo 3.1).
 - Crear `docs/reportes/` para los reportes de este macro.
 
 ### 1.3 · Releases: GitHub como fuente única (H-12)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.2-1.3.md`.
+
 - Retirar `releases/android/` del repo (notas y `update.json`).
 - Actualizar `docs/android-build.md` para que el flujo de publicación
   apunte a GitHub Releases, que es de donde lee el actualizador. Revisar
