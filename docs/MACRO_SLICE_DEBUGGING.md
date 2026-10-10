@@ -393,11 +393,13 @@ grandes (por ejemplo 3.1).
   Network.
 
 ### 2.2 · Paridad `tsc-src` / `dist` (H-20)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.2.md`. `node scripts/smoke-parity.mjs`.
 - Smoke test: cargar las dos variantes, comparar la lista de funciones
   globales definidas y los errores de consola. En `dist`, si falta una
   global, un módulo cortó su bundle.
 
 ### 2.3 · Auditor estático de cableado
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.3-cableado.md`. `node scripts/audit-wiring.mjs`.
 - `scripts/audit-wiring.mjs` (solo desarrollo, no se publica). Recorre
   `index.html` y los templates de los JS y reporta:
   - Handlers `on*="fn(…)"` que llaman funciones no definidas: cableado roto.
