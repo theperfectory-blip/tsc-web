@@ -47,8 +47,9 @@
 | D3 | `assets-src/trophies-hi` (55 MB, originales de los trofeos en alta, sin respaldo en ningún lado) | Respaldar fuera del disco (Drive o un repo privado de assets) | 1.7 |
 | D4 | Cambios sin commitear en `main` (`.claude/launch.json`: configs `tsc-yunacoins` y `hosting-dist`) | Commitear `hosting-dist` (este plan la usa). `tsc-yunacoins` a la rama de yunacoins | 1.6, 2.x |
 | D5 | Fuente única de instrucciones: `AGENTS.md` y `CLAUDE.md` son idénticos | `AGENTS.md` canónico (Codex no sigue imports); `CLAUDE.md` = `@AGENTS.md` | 1.4 |
-| D6 | Rama IndexedDB de `db.js`: ¿fallback offline o código muerto? | Decidir con la evidencia del slice 2.4 | 7.2 |
+| D6 | Rama IndexedDB de `db.js`: ¿fallback offline o código muerto? | Evidencia lista (MS-2.4): muestra datos inventados sin aviso. Recomendado: sacarla y mostrar error de conexión | 7.2 |
 | D7 | Auto-registro abierto: cualquiera puede crear cuenta (`role: president`, sin equipo) | Mantenerlo, pero con verificación de email y reglas endurecidas (3.2) | 3.7 |
+| D8 | Temporadas cerradas: ¿siguen en Firestore, editables y leídas en cada visita? | **Decidido por el dueño (2026-10-10):** cada temporada finalizada pasa a un archivo JSON fijo en el repo, de solo lectura para todos (también el admin). El público la ve completa desde el selector. Sus datos se borran de Firestore con respaldo. Va en M5. Primera: T3 (última de PES 4) | 5.14–5.16 |
 
 ## 2. Acciones manuales del dueño
 
@@ -63,6 +64,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-5 | Cloudinary: restringir el preset unsigned (formatos, tamaño máximo, carpeta fija) | Slice 3.6 |
 | M-6 | (Opcional) Dar el rol "Firebase Rules Admin" a la service account del CI para desplegar reglas desde el workflow | Slice 3.4 |
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
+| M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
 
 ---
 
@@ -115,6 +117,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. Verificar si es alcanzable |
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
+| H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
 
 ---
 
@@ -221,6 +224,7 @@ mecánico o lo guía un checklist):
 | M5 (5.1–5.12) secciones admin | Sonnet 5.5 | medium |
 | 5.1 Acceso admin · 5.2 Temporadas (cascada) · 5.7 Bracket | Opus 5.5 | medium |
 | 5.13 Import atómico | Opus 5.5 | high |
+| 5.14–5.16 Temporadas archivadas | Opus 5.5 | high |
 | 6.1 Cloud Functions | Opus 5.5 | medium |
 | 6.2 Dependencias · 6.3 Android | Sonnet 5.5 | medium |
 | 7.1 Helper de escape | Sonnet 5.5 | low |
@@ -379,6 +383,7 @@ grandes (por ejemplo 3.1).
 ## M2 — Entorno de pruebas y cableado
 
 ### 2.1 · Sandbox con emuladores (H-21)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.1.md`. Hallazgo nuevo de rendimiento (guardar un equipo reescribe 422 historiales en serie) propuesto para 2.5/M5.
 - Modo emulador en `firebase-config.js`. Se activa solo si `hostname` es
   `localhost` **y** hay `?emu=1`. Conecta Firestore (`:8080`) y Auth
   (`:9099`).
@@ -392,11 +397,13 @@ grandes (por ejemplo 3.1).
   Network.
 
 ### 2.2 · Paridad `tsc-src` / `dist` (H-20)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.2.md`. `node scripts/smoke-parity.mjs`.
 - Smoke test: cargar las dos variantes, comparar la lista de funciones
   globales definidas y los errores de consola. En `dist`, si falta una
   global, un módulo cortó su bundle.
 
 ### 2.3 · Auditor estático de cableado
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.3-cableado.md`. `node scripts/audit-wiring.mjs`.
 - `scripts/audit-wiring.mjs` (solo desarrollo, no se publica). Recorre
   `index.html` y los templates de los JS y reporta:
   - Handlers `on*="fn(…)"` que llaman funciones no definidas: cableado roto.
@@ -408,6 +415,7 @@ grandes (por ejemplo 3.1).
 - Salida: `docs/reportes/MS-2.3-cableado.md`. M4, M5 y M7 la usan.
 
 ### 2.4 · Arranque y fallos de red (H-23, D6)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.4.md`. H-23 confirmado: sin SDK, el visitante ve datos sembrados inventados y sin aviso. D6 queda con evidencia para el dueño.
 - Cadena `onload → initDB → setTheme → seedInitialData → loadSeasons →
   setMode`: manejo de errores en cada paso.
 - Simular que `gstatic` está bloqueado y documentar qué ve el visitante
@@ -418,6 +426,7 @@ grandes (por ejemplo 3.1).
 - Temporada guardada en `tsc_season` que ya no existe.
 
 ### 2.5 · Espejo en memoria de Firestore (H-18)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.5.md`. 2 bugs del espejo corregidos (timeout que reabría listeners y devolvía `[]` sin conexión; `dbSubscribe` duplicaba listeners). H-29 corregido (0 escrituras al guardar un equipo). Lista de colecciones por temporada para M5.
 Verificar en el sandbox:
 - (a) Una escritura propia (`dbPut`/`dbAdd`/`dbDelete`/lotes) aparece en el
   siguiente `dbGetAll`.
@@ -429,10 +438,15 @@ Verificar en el sandbox:
 - (f) Cambio de sesión: login y logout.
 - (g) Lecturas por visita pública, medidas en el emulador. Proyectar el
   costo cuando crezca `matches` e `history`.
+- (h) H-29: escrituras en serie de `refreshHistoryForSeason` al guardar un
+  equipo. Medir en el sandbox y proponer lote o escritura solo de lo que
+  cambió.
 
 **Salida:** bugs corregidos y una lista priorizada de colecciones que
 conviene consultar por temporada (`where('season','==',…)`) en vez de
-espejar completas.
+espejar completas. Con D8 (temporadas archivadas, 5.14–5.16), las
+temporadas cerradas salen de Firestore y la consulta por temporada pasa a
+ser opcional.
 
 ---
 
@@ -543,6 +557,9 @@ sandbox de 2.1.**
 | 5.11 | Palmarés, historial y tabla histórica (admin) | `palmares.js`, `history.js` |
 | 5.12 | Calendario y etiquetas de día (admin) | `calendar.js` |
 | 5.13 | Datos: exportar e importar. Import atómico (H-19): backup automático antes de sobrescribir, borrado en lote con `dbDeleteMany` y validación completa antes de tocar nada | `data.js` |
+| 5.14 | Temporadas archivadas (D8) · generador: script que lee de producción (solo GET, como `emu-snapshot`) una temporada finalizada y escribe `tsc-src/data/temporadas/<id>.json` con todo lo suyo (`competitions`, `phases`, `matches`, `matchHistory`, `coins`, `sorteo`, `sorteoEvents`, `calDayLabels`) y los nombres de equipo como estaban al cerrar. Índice `data/temporadas/index.json`. Validación: conteos y una huella por colección contra Firestore | `scripts/`, `data/` |
+| 5.15 | Temporadas archivadas · lectura: la capa de datos sirve una temporada archivada desde su archivo (todas las secciones públicas y admin, en solo lectura). Historial y tabla histórica suman JSON de PES 1-3 + archivos + temporada actual. La APK baja del hosting los archivos que no trae. Sandbox: T3 desde archivo idéntica a T3 desde Firestore (capturas y conteos) | `db.js`, `history.js`, `nav.js`, `seasons.js` |
+| 5.16 | Temporadas archivadas · cierre: el admin no puede editar, reactivar ni borrar una temporada archivada (UI + regla que rechace escrituras con `season` archivada). Respaldo completo y luego borrado de los documentos de T3 en Firestore (M-8, lo confirma el dueño). Medir lecturas por visita antes y después con `emu-probe` | `seasons.js`, `firestore.rules`, `scripts/` |
 
 ---
 

@@ -628,6 +628,13 @@ const EQUIPOS_INICIALES = [
 async function seedInitialData(){
   const seasons = await dbGetAll('seasons');
   if(seasons.length>0) return; // ya inicializado
+  if(_isFS()){
+    // En Firestore se confirma con el SERVIDOR antes de sembrar: una lectura
+    // sin conexión puede volver vacía desde la caché y sembraría una temporada
+    // y 60 equipos duplicados (MS-2.4). Sin conexión, esto lanza y no siembra.
+    const snap = await db.collection('seasons').limit(1).get({source:'server'});
+    if(!snap.empty) return;
+  }
   // Temporada 1
   await dbAdd('seasons',{number:1,status:'active',createdAt:new Date().toISOString()});
   // 60 equipos
@@ -779,22 +786,32 @@ async function migratePalmaresV4DiablosToAngeles(){
 /* ----------------------------------------------------------
    ARRANQUE
    ---------------------------------------------------------- */
+/* Un paso que falla no corta el arranque. Antes, cualquier excepción (p. ej.
+   permission-denied de un seed para un visitante anónimo) dejaba la app en el
+   splash para siempre: sin setMode, sin render y sin botón de login (MS-2.4). */
+async function _bootStep(name, fn){
+  try { await fn(); return true; }
+  catch(e){ console.error(`[arranque] ${name} falló:`, e); return false; }
+}
+
 window.addEventListener('load', async ()=>{
-  await initDB();
-  const savedTheme = localStorage.getItem('tsc_theme')||'dark';
-  setTheme(savedTheme);
-  await seedInitialData();
-  if(typeof seedHistoryIfEmpty==='function') await seedHistoryIfEmpty();
-  // Migrar datos antiguos con nombres a IDs
-  await migrateTeamNamesToIds();
-  // Sincronizar previousNames (resuelve duplicados en tabla histórica)
-  await syncTeamPreviousNames();
-  // v3: DIABLOS ROJOS es el nombre antiguo de AC ANGELES ROJOS (fusionar)
-  await migrateTeamsV3MergeDiablos();
-  // Sembrar palmarés histórico si la IDB está vacía
-  if(typeof seedPalmaresIfEmpty==='function') await seedPalmaresIfEmpty();
-  // v4: re-asignar títulos huérfanos de DIABLOS ROJOS a AC ANGELES ROJOS
-  await migratePalmaresV4DiablosToAngeles();
+  const dbOk = await _bootStep('initDB', initDB);
+  if(!dbOk) showToast('No se pudo abrir la base de datos','error');
+  await _bootStep('setTheme', ()=>setTheme(localStorage.getItem('tsc_theme')||'dark'));
+  if(dbOk){
+    await _bootStep('seedInitialData', seedInitialData);
+    if(typeof seedHistoryIfEmpty==='function') await _bootStep('seedHistoryIfEmpty', seedHistoryIfEmpty);
+    // Migrar datos antiguos con nombres a IDs
+    await _bootStep('migrateTeamNamesToIds', migrateTeamNamesToIds);
+    // Sincronizar previousNames (resuelve duplicados en tabla histórica)
+    await _bootStep('syncTeamPreviousNames', syncTeamPreviousNames);
+    // v3: DIABLOS ROJOS es el nombre antiguo de AC ANGELES ROJOS (fusionar)
+    await _bootStep('migrateTeamsV3MergeDiablos', migrateTeamsV3MergeDiablos);
+    // Sembrar palmarés histórico si la IDB está vacía
+    if(typeof seedPalmaresIfEmpty==='function') await _bootStep('seedPalmaresIfEmpty', seedPalmaresIfEmpty);
+    // v4: re-asignar títulos huérfanos de DIABLOS ROJOS a AC ANGELES ROJOS
+    await _bootStep('migratePalmaresV4DiablosToAngeles', migratePalmaresV4DiablosToAngeles);
+  }
 
   // Restaurar navegación (temporada/página/modo) para que un reload no
   // vuelva siempre a Palmarés en público. Dos cosas deben pasar ANTES de lo
@@ -810,6 +827,12 @@ window.addEventListener('load', async ()=>{
     const savedSeason = parseInt(localStorage.getItem('tsc_season'));
     if(Number.isFinite(savedSeason) && savedSeasons.some(s=>s.number===savedSeason)){
       STATE.season = savedSeason;
+    } else if(savedSeasons.length && !savedSeasons.some(s=>s.number===STATE.season)){
+      // Temporada guardada borrada (o sin guardar) y la por defecto (1) no
+      // existe: ir a la activa, o a la más reciente. Antes quedaba STATE.season
+      // apuntando a una temporada inexistente y el sitio se veía vacío.
+      const active = savedSeasons.find(s=>s.status==='active');
+      STATE.season = (active || savedSeasons.reduce((a,b)=>(b.number>a.number?b:a))).number;
     }
     const savedPublicPage = localStorage.getItem('tsc_public_page');
     const validPublicPages = typeof getPublicScrollPages === 'function' ? getPublicScrollPages() : [];
@@ -820,28 +843,24 @@ window.addEventListener('load', async ()=>{
     if(savedAdminPage) STATE.adminPage = savedAdminPage;
   }catch(e){}
 
-  await loadSeasons();
-  setMode('public');
-  // Inicializar autenticación (Firebase Auth + roles)
-  if(typeof onAuthInit === 'function') onAuthInit();
+  await _bootStep('loadSeasons', loadSeasons);
+  await _bootStep('setMode', ()=>setMode('public'));
 
   // Si la última sesión estaba en modo admin, subir a admin en cuanto la
   // sesión se confirme. Usa `savedMode` (capturado arriba, ANTES de que
   // setMode('public') sobrescribiera tsc_mode) — no se puede re-leer
-  // localStorage acá. AUTH.role lo resuelve el listener propio de onAuthInit
-  // (auth.js) con su propia consulta a Firestore — esperamos (con reintentos
-  // acotados) en vez de duplicar esa consulta acá. Si no es admin (o no hay
-  // sesión), no hace nada.
-  if(savedMode==='admin' && typeof firebase!=='undefined' && typeof firebase.auth==='function'){
-    const unsub = firebase.auth().onAuthStateChanged(async (user)=>{
-      unsub();
-      if(!user) return;
-      for(let i=0; i<10 && AUTH.role!=='admin'; i++){
-        await new Promise(r=>setTimeout(r,150));
-      }
-      if(AUTH.role==='admin') setMode('admin');
-    });
+  // localStorage acá. Espera el evento 'tsc:auth' que emite onAuthInit
+  // (auth.js) cuando AUTH ya tiene el rol: antes se sondeaba AUTH.role
+  // 1,5 s y, si el perfil tardaba más (red lenta), el admin quedaba en
+  // público sin aviso (MS-2.4). Se registra ANTES de onAuthInit para no
+  // perder el primer evento. Si no es admin (o no hay sesión), no hace nada.
+  if(savedMode==='admin'){
+    window.addEventListener('tsc:auth', (e)=>{
+      if(e.detail?.role==='admin' && STATE.mode!=='admin') setMode('admin');
+    }, { once:true });
   }
+  // Inicializar autenticación (Firebase Auth + roles)
+  if(typeof onAuthInit === 'function') await _bootStep('onAuthInit', onAuthInit);
 
   // Aviso automático de actualización (Slice C2) — la app ya está usable acá
   // (initDB/migraciones/seeds/loadSeasons ya terminaron arriba). setTimeout

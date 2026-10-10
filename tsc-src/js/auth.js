@@ -214,6 +214,8 @@ function onAuthInit(){
       AUTH = { user: null, role: 'public', teamId: null, profile: null };
     }
     renderAuthUI();
+    // Rol ya resuelto: el arranque (ui-utils.js) restaura el modo admin con esto.
+    window.dispatchEvent(new CustomEvent('tsc:auth', { detail: AUTH }));
   });
 }
 

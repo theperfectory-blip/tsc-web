@@ -147,6 +147,11 @@ async function appendOrUpdateHistory(matchId){
   };
 
   if(existing.length){
+    // Sin cambios, no se escribe. El registro no guarda nombres (se resuelven
+    // al mostrar), así que refreshHistoryForSeason, que corre al guardar un
+    // equipo, reescribía los ~420 partidos idénticos, uno por uno: minutos
+    // con el modal abierto (H-29, MS-2.5).
+    if(Object.keys(data).every(k => existing[0][k] === data[k])) return;
     await dbPut('matchHistory', {...existing[0], ...data});
   } else {
     // Continuar IDs después del max(estáticos, IDB)

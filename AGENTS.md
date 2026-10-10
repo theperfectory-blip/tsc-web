@@ -29,6 +29,9 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
     el listener falla, no hay confirmación del servidor en 10 s o el
     snapshot viene de caché. Se cierra tras 3 min sin uso.
     `dbMirrorInvalidate(...stores)` después de transacciones.
+    `dbSubscribe` comparte el listener del espejo. Sin conexión, la lectura
+    directa va al servidor y, si falla, usa la última copia del espejo o
+    lanza (nunca devuelve una caché vacía como dato).
     `window.TSC_FS_MIRROR = false` lo apaga en caliente.
   - IDs enteros autoincrementales vía contadores en `_counters/{store}`.
 - **Arranque** (`ui-utils.js`, evento `load`): `initDB` → seeds y
@@ -67,11 +70,36 @@ Configs en `.claude/launch.json`:
 - `hosting-dist`: emulador de hosting sobre `dist/` en `:5050` (correr
   antes `node scripts/build-web.mjs`).
 
-**localhost = producción.** Ambas variantes pegan contra el Firestore real.
-Toda verificación en navegador sigue
-[`docs/PROTOCOLO_VERIFICACION.md`](docs/PROTOCOLO_VERIFICACION.md): activar
-`window.__TSC_READONLY__ = true` después del `load` y no probar flujos de
-escritura contra producción.
+**localhost = producción**, salvo en el sandbox. `tsc-src` y `hosting-dist`
+pegan contra el Firestore real: toda verificación ahí sigue
+[`docs/PROTOCOLO_VERIFICACION.md`](docs/PROTOCOLO_VERIFICACION.md) (activar
+`window.__TSC_READONLY__ = true` después del `load`, sin flujos de
+escritura).
+
+**Sandbox (emuladores, MS-2.1).** Los flujos de escritura se prueban acá:
+
+1. `node scripts/emu-snapshot.mjs`: copia real en `sandbox/` (ignorado por
+   git). Lee la base de producción (solo GET) y copia el sitio con 2 de las
+   11 copas y el 20 % de las fotos de la vitrina.
+2. `tsc-emu-backend` (`node scripts/emu-start.mjs`): emuladores de
+   Firestore `:8080` y Auth `:9099`, con Java en el PATH.
+3. `node scripts/emu-seed.mjs sandbox/backup.json --clean`: carga la base y
+   crea admin y presidente de prueba (`scripts/emu-credentials.example.json`).
+4. `tsc-emu`: sirve `sandbox/site` en `:3001`. Para la variante `dist`,
+   `tsc-emu-dist` (`node scripts/emu-dist.mjs`): copia el código actual de
+   `tsc-src` a `sandbox/site`, arma `sandbox/dist` y lo sirve en el mismo
+   puerto. Una de las dos a la vez. No usar `hosting-dist` para probar
+   escrituras: abre sin `?emu=1`, contra producción.
+
+Lecturas por visita: `node scripts/emu-probe.mjs` y abrir
+`localhost:3001/probe.html` (`window.__PROBE__.report()`, MS-2.5).
+
+Paridad `tsc-src`/`dist` sin navegador: `node scripts/smoke-parity.mjs`
+(MS-2.2). Cableado: `node scripts/audit-wiring.mjs` (MS-2.3).
+
+`firebase-config.js` entra en modo emulador solo en `localhost` con
+`?emu=1` o en el puerto 3001. En ese modo Cloudinary se simula y la callable
+de Functions va a `:5001`.
 
 Tests (emulador de Firestore, desde `functions/`): `npm run test:emulator`
 (Functions) y `npm run test:rules` (reglas de `teams`).

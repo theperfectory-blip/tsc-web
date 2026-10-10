@@ -74,3 +74,9 @@ assets-src/
 
 # ─── Build de Hosting (scripts/build-web.mjs, se regenera en cada deploy) ───
 dist/
+
+# Credenciales locales del emulador (opcional; si no existe se usa el .example)
+scripts/emu-credentials.json
+
+# Copia del sandbox con datos reales (scripts/emu-snapshot.mjs): nunca a git
+sandbox/
