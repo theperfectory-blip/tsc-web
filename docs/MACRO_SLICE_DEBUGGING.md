@@ -297,6 +297,8 @@ grandes (por ejemplo 3.1).
 ## M1 — Saneamiento del repositorio
 
 ### 1.1 · Borrar documentos de trabajo cerrado (H-11)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.1.md`.
+
 - Borrar `tsc-src/docs/migration/` completo, `tsc-src/REPORTE_SORTEO_TADA.md`,
   `tsc-src/REPORTE_TABLA_SCROLL_MOVIL.md` y `docs/firebase-setup-steps.md`
   (lo cubre `DEPLOY.md`). Arreglar los enlaces de `README.md`.
