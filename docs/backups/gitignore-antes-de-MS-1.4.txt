@@ -29,10 +29,10 @@ ui-debug.log*
 .env.*
 !.env.example
 
-# ─── Config de cliente ───
-# tsc-src/js/firebase-config.js y cloudinary.js SÍ se versionan a propósito:
-# son config pública (ver SECURITY.md). Un fork parte de los .example.js.
-# Versión anterior de este archivo: docs/backups/gitignore-antes-de-MS-1.4.txt
+# ─── Configuración local (cada desarrollador usa su Firebase proyecto) ───
+tsc-src/js/firebase-config.js
+tsc-src/js/cloudinary.js
+# Ver DEPLOY.md para instrucciones de configuración
 
 # ─── App nativa Android (Capacitor) — el proyecto SÍ se versiona, solo
 #     sus artefactos de build quedan afuera (ver android/.gitignore) ───

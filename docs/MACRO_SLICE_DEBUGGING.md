@@ -324,6 +324,8 @@ grandes (por ejemplo 3.1).
   `RELEASE_NOTES.md`; pasa a decir que va en la nota del release de GitHub.
 
 ### 1.4 · Instrucciones del proyecto al día (H-09, H-10, D1, D5)
+> **Estado:** CERRADO · 2026-10-10 · D1 y D5 aprobadas por el dueño. Ver `docs/reportes/MS-1.4.md`.
+
 - `AGENTS.md` canónico, reescrito sobre el estado real:
   - Backend Firestore, con el espejo en memoria y el fallback IndexedDB.
   - Pipeline `tsc-src` → `dist` (hosting) y → `www` (APK).
