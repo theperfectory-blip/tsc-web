@@ -15,4 +15,7 @@
 - APKs v1.4.0, v1.5.0, v1.5.2, v1.5.3: SHA-256 idéntico al asset de GitHub Release (repo `tsc-web`). Borradas.
 - Borrados: `android/app/build`, `dist/`, `www/`, `tsc-src/graphify-out/cache`, `firebase-debug.log`, `functions/firestore-debug.log`.
 - v1.3.1 (D2): subida como release histórica (`--latest=false`, SHA-256 verificado) y APK local borrada.
-- **Pendiente:** respaldo de `assets-src/trophies-hi` (D3), mover `NEXT_SESSION.md` al worktree de yunacoins.
+- D3: `assets-src/trophies-hi` respaldado en el Drive personal del dueño (zip de 11 .glb, SHA-256 C0C23280…A5C7); se conserva en disco.
+- `NEXT_SESSION.md` movido a `D:/Desktop/tsc.web-yunacoins/`.
+
+Slice 1.7 cerrado.

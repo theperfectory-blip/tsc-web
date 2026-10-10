@@ -360,7 +360,7 @@ grandes (por ejemplo 3.1).
   `android/*.gradle` se descarta.
 
 ### 1.7 · Disco local (H-17, D2, D3), con aprobación explícita (M-7)
-> **Estado:** PARCIAL · 2026-10-10 · M-7 aprobada para regenerables y APKs v1.4.0–v1.5.3. Pendiente D3 (respaldo trophies-hi). Ver `docs/reportes/MS-1.5-1.7.md`.
+> **Estado:** CERRADO · 2026-10-10 · M-7 aprobada; D2 y D3 resueltas. Ver `docs/reportes/MS-1.5-1.7.md`.
 
 | Elemento | Peso | Acción |
 |---|---|---|
