@@ -1,0 +1,4 @@
+# Excluir de graphify (no es codigo del proyecto)
+assets/vendor
+trophies-svg
+graphify-out

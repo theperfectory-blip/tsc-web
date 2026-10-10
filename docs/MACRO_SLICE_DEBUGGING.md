@@ -297,12 +297,16 @@ grandes (por ejemplo 3.1).
 ## M1 — Saneamiento del repositorio
 
 ### 1.1 · Borrar documentos de trabajo cerrado (H-11)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.1.md`.
+
 - Borrar `tsc-src/docs/migration/` completo, `tsc-src/REPORTE_SORTEO_TADA.md`,
   `tsc-src/REPORTE_TABLA_SCROLL_MOVIL.md` y `docs/firebase-setup-steps.md`
   (lo cubre `DEPLOY.md`). Arreglar los enlaces de `README.md`.
 - Siguen en el historial de git, así que no se pierde nada.
 
 ### 1.2 · Reubicar los documentos que sí sirven
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.2-1.3.md`.
+
 - `tsc-src/PROTOCOLO_VERIFICACION.md` pasa a `docs/`. Es la regla
   permanente, y `CLAUDE.md`/`AGENTS.md` lo enlazan desde 1.4.
 - `tsc-src/MACRO_SLICE_UPDATER.md` pasa a `docs/`. Corregir su estado a
@@ -311,6 +315,8 @@ grandes (por ejemplo 3.1).
 - Crear `docs/reportes/` para los reportes de este macro.
 
 ### 1.3 · Releases: GitHub como fuente única (H-12)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.2-1.3.md`.
+
 - Retirar `releases/android/` del repo (notas y `update.json`).
 - Actualizar `docs/android-build.md` para que el flujo de publicación
   apunte a GitHub Releases, que es de donde lee el actualizador. Revisar
@@ -318,6 +324,8 @@ grandes (por ejemplo 3.1).
   `RELEASE_NOTES.md`; pasa a decir que va en la nota del release de GitHub.
 
 ### 1.4 · Instrucciones del proyecto al día (H-09, H-10, D1, D5)
+> **Estado:** CERRADO · 2026-10-10 · D1 y D5 aprobadas por el dueño. Ver `docs/reportes/MS-1.4.md`.
+
 - `AGENTS.md` canónico, reescrito sobre el estado real:
   - Backend Firestore, con el espejo en memoria y el fallback IndexedDB.
   - Pipeline `tsc-src` → `dist` (hosting) y → `www` (APK).
@@ -329,6 +337,8 @@ grandes (por ejemplo 3.1).
 - `.gitignore`: sacar las 2 líneas engañosas (según D1).
 
 ### 1.5 · Grafo útil (H-14)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.5-1.7.md`.
+
 - Excluir `assets/vendor/` del análisis de graphify (revisar qué mecanismo
   de exclusión soporta la herramienta) y regenerar.
 - Poner nombre de dominio a las comunidades: palmarés, bracket, sorteo,
@@ -338,6 +348,8 @@ grandes (por ejemplo 3.1).
   (`dbGetAll`, `showToast`…) y no de three.js.
 
 ### 1.6 · Git local (H-16, D4)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.5-1.7.md`.
+
 - Borrar las ramas locales ya mergeadas `perf/carga-latam` y
   `recovery/yunacoins-pre-reset`. Ambas están contenidas en `main`, así
   que no se pierde nada.
@@ -348,6 +360,7 @@ grandes (por ejemplo 3.1).
   `android/*.gradle` se descarta.
 
 ### 1.7 · Disco local (H-17, D2, D3), con aprobación explícita (M-7)
+> **Estado:** CERRADO · 2026-10-10 · M-7 aprobada; D2 y D3 resueltas. Ver `docs/reportes/MS-1.5-1.7.md`.
 
 | Elemento | Peso | Acción |
 |---|---|---|

@@ -95,12 +95,12 @@ firebase/                     # Reglas de seguridad (Firestore + Storage)
 
 scripts/                      # Utilidades de build (build-www.mjs, conversión de imágenes)
 
-releases/android/             # APKs firmadas + RELEASE_NOTES.md por versión
-
 docs/                         # Documentación
-  ├── android-build.md        # Ciclo debug/release de la app Android
+  ├── android-build.md        # Ciclo debug/release y publicación en GitHub Releases
   ├── android-push-notifications.md
-  └── firebase-setup-steps.md
+  ├── PROTOCOLO_VERIFICACION.md
+  ├── MACRO_SLICE_UPDATER.md
+  └── reportes/               # Reportes de cada slice
 ```
 
 ## 🚀 Empezar
@@ -156,7 +156,7 @@ O automático con GitHub Actions (ver `.github/workflows/firebase-hosting.yml`).
 - UI responsive móvil (375px+), audio (radar ping, sonidos UI)
 - Logos vía Cloudinary, palmarés con sala de trofeos 3D
 - Rediseño visual "motion site" desplegado en producción
-- **App Android (Capacitor)**: APK firmada, distribución directa — ver `releases/android/`
+- **App Android (Capacitor)**: APK firmada, distribución por GitHub Releases — ver `docs/android-build.md`
 - **Notificaciones push (FCM)**: backend en Cloud Functions, probado de punta a punta en
   producción (envío manual + trigger automático al marcar un partido en vivo)
 

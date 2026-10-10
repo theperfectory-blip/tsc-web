@@ -198,7 +198,7 @@
   }
 
   /* Deep-link al tocar una notificación (Slice C2 del macro auto-actualizador,
-     ver tsc-src/MACRO_SLICE_UPDATER.md). Extraída del callback de arriba a
+     ver docs/MACRO_SLICE_UPDATER.md). Extraída del callback de arriba a
      propósito para poder invocarla a mano sin un push real — probarlo con un
      push de verdad requiere backend + token FCM y está fuera de alcance acá:
        window.PUSH.handleNotificationData({section:'updates'})

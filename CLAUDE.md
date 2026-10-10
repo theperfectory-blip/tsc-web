@@ -1,153 +1,22 @@
-## Proyecto TSC Web — Copa Suscriptores Admin
+@AGENTS.md
 
-Aplicación web de gestión de torneos de fútbol (TSC · Copa Suscriptores).
-Código fuente modular en `tsc-src/` (dividido desde `TSC_Admin_v1_91.html`, 6537 líneas monolíticas).
-Base de datos: **IndexedDB** en el navegador (sin backend).
-Para correr localmente: `cd tsc-src && npx serve .` → abrir `http://localhost:3000`
+## Específico de Claude
 
----
+### graphify
 
-## Code Map — tsc-src/
+El grafo de conocimiento del proyecto está en `tsc-src/graphify-out/`.
 
-```
-tsc-src/
-├── index.html                  # Shell HTML: topbar, sidebar, nav público, páginas, modales globales
-│
-├── css/
-│   ├── variables.css           # Custom properties: colores, temas dark/light, tipografía
-│   ├── layout.css              # Topbar, sidebar, nav público, main content (grid layout)
-│   └── components.css          # Botones, badges, forms, tablas, modales, grids, animaciones
-│
-└── js/                         # Carga en orden de dependencias (ver index.html)
-    │
-    ├── state.js                # GLOBALS: STATE{season,mode}, DB_NAME, DB_VER, STORES, db
-    │
-    ├── db.js                   # IndexedDB CRUD
-    │   └── initDB, dbGetAll, dbGet, dbAdd, dbPut, dbDelete, getForSeason, getSeasonName
-    │
-    ├── ui-utils.js             # UI helpers + arranque de la app
-    │   ├── openModal, closeModal, showConfirm, closeConfirm, runConfirm, showToast
-    │   ├── setTheme, openSettings, saveSettings
-    │   └── seedInitialData     # Datos iniciales + window.onload → initDB, setTheme, loadSeasons, setMode
-    │
-    ├── nav.js                  # Navegación modo público/admin
-    │   ├── setMode, goPublicPage, goAdminPage
-    │   ├── renderPublicPage, renderAdminPage
-    │   ├── renderPubPanel, renderPubHistory, renderAdmDashboard
-    │   └── loadSeasons, onSeasonChange
-    │
-    ├── color-picker.js         # Selector de color tipo rueda hexagonal
-    │   └── openColorPicker, PALETTE, COLOR_WHEEL
-    │
-    ├── competitions.js         # CRUD de competiciones
-    │   ├── renderAdmComps, renderCompsGrid
-    │   ├── openCompModal, closeCompModal, saveComp, deleteComp
-    │   └── COMP_TYPES, PHASE_TYPES
-    │
-    ├── phases.js               # Gestión de fases por competición
-    │   ├── openFasesForComp, renderAdmFases, onFaseCompChange, renderPhasesList
-    │   ├── togglePhasePublish
-    │   ├── openPhaseModal, closePhaseModal, savePhase, deletePhase
-    │   └── renderPubComps      # Vista pública de competiciones
-    │
-    ├── standings.js            # Clasificaciones de grupos
-    │   ├── getCriteria, saveCriteria, calcGroupStandings, isMathConfirmed, renderGroupTable
-    │   ├── openCriteriaModal, closeCriteriaModal, saveCriteriaAndRefresh (drag & drop criteria)
-    │   └── openGroupAssignModal, renderAssignTeamsList, addToGroup, removeFromGroup, saveGroupAssign
-    │
-    ├── matches.js              # Registro de partidos (grupos / jornadas / rondas)
-    │   ├── renderAdmMatches, onMatchPhaseChange, onMatchGroupChange, renderMatchesList
-    │   ├── navegarRonda, showMatchGroupTable, renderRondasAdmin
-    │   ├── openRondaModal, updateRondaSlot, saveRonda, deleteRonda
-    │   ├── openMatchInputModal, saveMatchResult, deleteMatch
-    │   └── openEditResultModal, saveEditResult, openAssignDateToJornada, saveJornadaDate
-    │
-    ├── bracket.js              # Render de cuadros eliminatorios (bracket visual)
-    │   ├── renderBracket, buildBracketRounds, buildBracketSlots, renderBracketHTML, scaleBracket
-    │   ├── resolveSlotRef, refLabel, refBadgeHTML, getClassifiedFromPhase
-    │   ├── openSlotRefModal, saveSlotRef, removeSlotRef
-    │   ├── openBracketMatchModal, saveBracketMatch, deleteBracketMatch
-    │   ├── getWinner, teamLogoHtml, loadBracketLogos
-    │   └── getStandingsForPhase, invalidateStandingsCache (_standingsCache)
-    │
-    ├── playoff.js              # Configuración de formato playoff / supercopa
-    │   ├── renderPlayoff
-    │   ├── openPlayoffLegModal, savePlayoffLeg, deletePlayoffLeg
-    │   ├── openPlayoffTeamAssign, buildPlayoffPools, clearPlayoffAssign, savePlayoffAssign
-    │   └── openSupercopaTeamAssign, saveSupercopaAssign, getPlayoffWinnersFromPhase
-    │
-    ├── teams.js                # CRUD de equipos + vista pública
-    │   ├── renderAdmTeams, renderTeamsTable, filterTeamsTable
-    │   ├── openTeamModal, closeTeamModal, saveTeam, deleteTeam
-    │   ├── previewLogo, removeLogo, updateColorPreview, syncColorPicker, setTeamColor
-    │   └── renderPubTeams, filterPubTeams, renderPubTeamsGrid
-    │
-    ├── coins.js                # Gestión de YuNaCoins (economía virtual)
-    │   ├── renderAdmCoins, renderCoinsTable, filterCoinsTable
-    │   ├── openCoinsModal, saveCoinsTransaction, openCoinsHistory
-    │   └── openBulkCoinsModal, setBulkMode, saveBulkCoins
-    │
-    ├── seasons.js              # Gestión de temporadas
-    │   ├── renderAdmSeasons, openSeasonModal, saveSeasonModal
-    │   ├── switchToSeason, confirmFinalizeSeason, finalizeSeason
-    │   └── confirmDeleteSeason, deleteSeason, confirmReactivateSeason, reactivateSeason
-    │
-    ├── data.js                 # Export / Import de la base de datos
-    │   ├── renderAdmData, renderDBInfo
-    │   ├── exportFullDB, exportSeason, downloadJSON
-    │   └── importDB
-    │
-    └── public.js               # Vistas públicas (panel, competiciones, equipos, historial)
-        ├── renderPubPanel, pubShowMatchesGroup
-        ├── pubSelectComp, pubSelectPhase
-        └── renderPubHistory
-```
+- **GRAPH FIRST:** antes de buscar en el código, consultar
+  `tsc-src/graphify-out/GRAPH_REPORT.md` (god nodes y comunidades con nombre
+  de dominio). `assets/vendor` está excluido vía `tsc-src/.graphifyignore`.
+- Si existe `tsc-src/graphify-out/wiki/index.md`, navegarlo en vez de leer
+  archivos crudos.
+- Después de modificar código en la sesión, correr `graphify update .`
+  dentro de `tsc-src/` (solo AST, sin costo de API) y luego
+  `python ../scripts/graphify-label.py` para restaurar los nombres de
+  comunidad (si cambian los módulos, ajustar `NAMES` en ese script).
 
-### Flujo de arranque
-```
-window.onload → initDB() → setTheme() → seedInitialData() → loadSeasons() → setMode('public')
-```
+### Íconos
 
-### Dependencias entre módulos
-```
-state.js ← db.js ← todos los demás
-ui-utils.js ← nav.js ← public.js / competitions.js / phases.js / ...
-bracket.js ← standings.js (getStandingsForPhase)
-playoff.js ← bracket.js (getPlayoffWinner)
-phases.js → renderPubComps (usa bracket.js + standings.js)
-```
-
----
-
-## graphify
-
-This project has a graphify knowledge graph at `tsc-src/graphify-out/`.
-
-Rules:
-- **GRAPH FIRST — SUSPENDIDA hasta cerrar el slice 1.5** de `docs/MACRO_SLICE_DEBUGGING.md`: el grafo actual está contaminado por `assets/vendor` (three.js/draco) y sus comunidades no tienen nombre, así que leerlo en cada tarea gasta tokens sin orientar. Mientras tanto: `grep` dirigido y lectura por rangos. Al cerrar 1.5, restaurar esta regla.
-- **Debugging en curso:** el plan vigente es `docs/MACRO_SLICE_DEBUGGING.md`. Cada sesión ejecuta un slice: leer solo esa sección y los hallazgos que cita.
-- If `tsc-src/graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
-- After modifying code files in this session, run `graphify update .` inside `tsc-src/` to keep the graph current (AST-only, no API cost)
-
-## Iconos — SVG obligatorio
-
-- **Nunca usar emojis en la UI.** Cualquier icono nuevo debe ser SVG inline estilo Lucide: `stroke`, no `fill`, `currentColor`, `stroke-width="1.7–2.2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`.
-- Esto aplica a botones, badges, labels, toasts, modales, hints — cualquier elemento visual nuevo o modificado.
-
-## Seguridad — reglas estrictas (NUNCA violar)
-
-### Archivos prohibidos en git
-- **NUNCA** tocar `tsc-src/js/firebase-config.js` ni `tsc-src/js/cloudinary.js` para commitearlos — están en `.gitignore` por diseño. Si se necesita config, editar solo los archivos `.example.js`.
-- **NUNCA** escribir credenciales, API keys, tokens o passwords inline en código. Firebase usa el objeto `firebaseConfig` importado del archivo ignorado.
-- **NUNCA** commitear archivos `*serviceAccount*.json` ni `*-firebase-adminsdk-*.json`.
-
-### Código seguro
-- **innerHTML con datos de usuario:** siempre escapar con la función `_esc()` / `_uaEsc()` disponible en cada módulo. Solo se permite `innerHTML` con HTML generado internamente (nunca con input del usuario sin escapar).
-- **No agregar `TODO: fix security`** sin crear un issue asociado. Si se detecta una vulnerabilidad, documentarla en SECURITY.md o abrir issue — no dejarla como comentario suelto.
-- **Reglas Firestore:** no modificar lógica de roles (`isAdmin()`, `isUser()`) sin verificar que las reglas en Firestore console siguen siendo consistentes.
-
-### Checklist antes de cada commit
-- [ ] `firebase-config.js` y `cloudinary.js` NO están en el staging area
-- [ ] Ningún valor hardcodeado de credencial en los archivos modificados
-- [ ] `innerHTML` con datos externos usa `_esc()` o equivalente
-- [ ] Sin `TODO: fix security` sueltos
+Regla de `AGENTS.md` → UI: nunca emojis, siempre SVG inline estilo Lucide.
+Vale también para cualquier texto visible que Claude genere en la app.

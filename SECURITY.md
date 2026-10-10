@@ -124,7 +124,7 @@ Almacena (en Firestore):
 **nunca** se commitean — ver `docs/android-build.md`. Sin ese archivo, `./gradlew
 assembleRelease` igual corre pero el APK sale **sin firmar**, así que su ausencia falla de
 forma segura (no silenciosa: un APK sin firmar no se puede compartir como release real). Cada
-release firmada en `releases/android/vX.Y.Z/` incluye su SHA-256 en `RELEASE_NOTES.md` para
+release firmada en GitHub Releases incluye su SHA-256 en la nota del release para
 que quien la instala pueda verificar que no fue alterada en tránsito.
 
 ## Desarrollo seguro
