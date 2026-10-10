@@ -49,6 +49,7 @@
 | D5 | Fuente única de instrucciones: `AGENTS.md` y `CLAUDE.md` son idénticos | `AGENTS.md` canónico (Codex no sigue imports); `CLAUDE.md` = `@AGENTS.md` | 1.4 |
 | D6 | Rama IndexedDB de `db.js`: ¿fallback offline o código muerto? | Evidencia lista (MS-2.4): muestra datos inventados sin aviso. Recomendado: sacarla y mostrar error de conexión | 7.2 |
 | D7 | Auto-registro abierto: cualquiera puede crear cuenta (`role: president`, sin equipo) | Mantenerlo, pero con verificación de email y reglas endurecidas (3.2) | 3.7 |
+| D8 | Temporadas cerradas: ¿siguen en Firestore, editables y leídas en cada visita? | **Decidido por el dueño (2026-10-10):** cada temporada finalizada pasa a un archivo JSON fijo en el repo, de solo lectura para todos (también el admin). El público la ve completa desde el selector. Sus datos se borran de Firestore con respaldo. Va en M5. Primera: T3 (última de PES 4) | 5.14–5.16 |
 
 ## 2. Acciones manuales del dueño
 
@@ -63,6 +64,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-5 | Cloudinary: restringir el preset unsigned (formatos, tamaño máximo, carpeta fija) | Slice 3.6 |
 | M-6 | (Opcional) Dar el rol "Firebase Rules Admin" a la service account del CI para desplegar reglas desde el workflow | Slice 3.4 |
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
+| M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
 
 ---
 
@@ -222,6 +224,7 @@ mecánico o lo guía un checklist):
 | M5 (5.1–5.12) secciones admin | Sonnet 5.5 | medium |
 | 5.1 Acceso admin · 5.2 Temporadas (cascada) · 5.7 Bracket | Opus 5.5 | medium |
 | 5.13 Import atómico | Opus 5.5 | high |
+| 5.14–5.16 Temporadas archivadas | Opus 5.5 | high |
 | 6.1 Cloud Functions | Opus 5.5 | medium |
 | 6.2 Dependencias · 6.3 Android | Sonnet 5.5 | medium |
 | 7.1 Helper de escape | Sonnet 5.5 | low |
@@ -441,7 +444,9 @@ Verificar en el sandbox:
 
 **Salida:** bugs corregidos y una lista priorizada de colecciones que
 conviene consultar por temporada (`where('season','==',…)`) en vez de
-espejar completas.
+espejar completas. Con D8 (temporadas archivadas, 5.14–5.16), las
+temporadas cerradas salen de Firestore y la consulta por temporada pasa a
+ser opcional.
 
 ---
 
@@ -552,6 +557,9 @@ sandbox de 2.1.**
 | 5.11 | Palmarés, historial y tabla histórica (admin) | `palmares.js`, `history.js` |
 | 5.12 | Calendario y etiquetas de día (admin) | `calendar.js` |
 | 5.13 | Datos: exportar e importar. Import atómico (H-19): backup automático antes de sobrescribir, borrado en lote con `dbDeleteMany` y validación completa antes de tocar nada | `data.js` |
+| 5.14 | Temporadas archivadas (D8) · generador: script que lee de producción (solo GET, como `emu-snapshot`) una temporada finalizada y escribe `tsc-src/data/temporadas/<id>.json` con todo lo suyo (`competitions`, `phases`, `matches`, `matchHistory`, `coins`, `sorteo`, `sorteoEvents`, `calDayLabels`) y los nombres de equipo como estaban al cerrar. Índice `data/temporadas/index.json`. Validación: conteos y una huella por colección contra Firestore | `scripts/`, `data/` |
+| 5.15 | Temporadas archivadas · lectura: la capa de datos sirve una temporada archivada desde su archivo (todas las secciones públicas y admin, en solo lectura). Historial y tabla histórica suman JSON de PES 1-3 + archivos + temporada actual. La APK baja del hosting los archivos que no trae. Sandbox: T3 desde archivo idéntica a T3 desde Firestore (capturas y conteos) | `db.js`, `history.js`, `nav.js`, `seasons.js` |
+| 5.16 | Temporadas archivadas · cierre: el admin no puede editar, reactivar ni borrar una temporada archivada (UI + regla que rechace escrituras con `season` archivada). Respaldo completo y luego borrado de los documentos de T3 en Firestore (M-8, lo confirma el dueño). Medir lecturas por visita antes y después con `emu-probe` | `seasons.js`, `firestore.rules`, `scripts/` |
 
 ---
 
