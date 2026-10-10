@@ -242,7 +242,7 @@ grandes (por ejemplo 3.1).
 ## M0 — Hotfix de seguridad
 
 ### 0.1 · XSS por `teams.logo` (H-01)
-> **Estado:** BLOQUEADO · 2026-10-10 · `9734432` · solo falta M-1 (desplegar reglas). Código, test de reglas y forense hechos: ver `docs/reportes/MS-0.1.md`.
+> **Estado:** CERRADO · 2026-10-10 · `9734432` · M-1 ejecutado (reglas desplegadas en `tsc-web-yuna`). Ver `docs/reportes/MS-0.1.md`.
 
 - **Helper único:** nuevo `tsc-src/js/sanitize.js`, cargado justo después
   de `state.js` en `index.html`. `build-web` y `build-www` lo toman solos
