@@ -113,6 +113,8 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-24 | Assets: 75 MB en `tsc-src/assets` (trofeos `.glb`, `palmares_theme.mp3` de 4,7 MB, PNG de 1,6 a 2,2 MB con su par `.webp` ya generado) |
 | H-25 | `functions/` declara Node 20, que está fuera de soporte desde 2026-04-30 |
 | H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. Verificar si es alcanzable |
+| H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
+| H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
 
 ---
 
@@ -240,6 +242,8 @@ grandes (por ejemplo 3.1).
 ## M0 — Hotfix de seguridad
 
 ### 0.1 · XSS por `teams.logo` (H-01)
+> **Estado:** BLOQUEADO · 2026-10-10 · solo falta M-1 (desplegar reglas). Código, test de reglas y forense hechos: ver `docs/reportes/MS-0.1.md`.
+
 - **Helper único:** nuevo `tsc-src/js/sanitize.js`, cargado justo después
   de `state.js` en `index.html`. `build-web` y `build-www` lo toman solos
   porque leen el orden de `index.html`. Contiene:

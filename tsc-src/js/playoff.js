@@ -321,9 +321,10 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
         const teamId=side==='a'?slots[i].teamA:slots[i].teamB;
         if(!teamId) continue;
         const team=allTeams.find(t=>t.id===teamId);
-        if(team?.logo){
+        const logo=safeImgUrl(team?.logo);
+        if(logo){
           const el=document.getElementById(`plogo-${phaseId}-${i}-${side}`);
-          if(el) el.innerHTML=`<img src="${team.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+          if(el) el.innerHTML=`<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
         }
       }
     }

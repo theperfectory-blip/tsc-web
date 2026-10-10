@@ -87,15 +87,15 @@ function renderTeamsTable(teams){
     <tr id="team-row-${t.id}">
       <td style="color:var(--txt3);">${i+1}</td>
       <td>
-        <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${t.color||'#333'};flex-shrink:0;">
-          ${t.logo
-            ? `<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`
-            : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${t.ini||'?'}</span>`
+        <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(t.color,'#333')};flex-shrink:0;">
+          ${safeImgUrl(t.logo)
+            ? `<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`
+            : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escHtml(t.ini||'?')}</span>`
           }
         </div>
       </td>
-      <td style="font-weight:600;">${t.name}</td>
-      <td><span class="badge badge-gray">${t.ini||'—'}</span></td>
+      <td style="font-weight:600;">${escHtml(t.name)}</td>
+      <td><span class="badge badge-gray">${escHtml(t.ini||'—')}</span></td>
       <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escTxt(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td>
         <span class="badge ${t.status==='ACTIVO'?'badge-green':'badge-gray'}">
@@ -145,10 +145,10 @@ async function openTeamModal(id=null){
         <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:16px;">
           <!-- Logo uploader -->
           <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
-            <div id="logo-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${team?.color||'#333'};border:2px solid var(--brd2);cursor:pointer;" onclick="document.getElementById('logo-file').click()">
-              ${team?.logo
-                ? `<img src="${team.logo}" style="width:100%;height:100%;object-fit:cover;">`
-                : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${team?.ini||'?'}</span>`
+            <div id="logo-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(team?.color,'#333')};border:2px solid var(--brd2);cursor:pointer;" onclick="document.getElementById('logo-file').click()">
+              ${safeImgUrl(team?.logo)
+                ? `<img src="${safeImgUrl(team.logo)}" style="width:100%;height:100%;object-fit:cover;">`
+                : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${escHtml(team?.ini||'?')}</span>`
               }
             </div>
             <input type="file" id="logo-file" accept="image/*" style="display:none;" onchange="previewLogo(this)">

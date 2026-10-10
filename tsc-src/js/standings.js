@@ -802,8 +802,8 @@ function renderAssignTeamsList(teams, groups){
     }).join('');
 
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);">
-      <div style="width:22px;height:22px;border-radius:50%;background:${t.color||'#333'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;flex-shrink:0;">
-        ${t.logo?`<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`:`${_escTxt(t.ini||'?')}`}
+      <div style="width:22px;height:22px;border-radius:50%;background:${safeCssColor(t.color,'#333')};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;flex-shrink:0;">
+        ${safeImgUrl(t.logo)?`<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`:`${_escTxt(t.ini||'?')}`}
       </div>
       <div style="flex:1;display:flex;flex-direction:column;gap:2px;overflow:hidden;min-width:0;">
         <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escTxt(t.name)}</span>
