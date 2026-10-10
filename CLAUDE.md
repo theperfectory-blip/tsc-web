@@ -124,7 +124,8 @@ phases.js → renderPubComps (usa bracket.js + standings.js)
 This project has a graphify knowledge graph at `tsc-src/graphify-out/`.
 
 Rules:
-- **GRAPH FIRST — always:** before searching for ANY function, file, or dependency, read `tsc-src/graphify-out/GRAPH_REPORT.md`. Identify the relevant community by name and the god nodes involved. Only then use grep/Read. This applies to every task, not just architecture questions.
+- **GRAPH FIRST — SUSPENDIDA hasta cerrar el slice 1.5** de `docs/MACRO_SLICE_DEBUGGING.md`: el grafo actual está contaminado por `assets/vendor` (three.js/draco) y sus comunidades no tienen nombre, así que leerlo en cada tarea gasta tokens sin orientar. Mientras tanto: `grep` dirigido y lectura por rangos. Al cerrar 1.5, restaurar esta regla.
+- **Debugging en curso:** el plan vigente es `docs/MACRO_SLICE_DEBUGGING.md`. Cada sesión ejecuta un slice: leer solo esa sección y los hallazgos que cita.
 - If `tsc-src/graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
 - After modifying code files in this session, run `graphify update .` inside `tsc-src/` to keep the graph current (AST-only, no API cost)
 
