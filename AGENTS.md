@@ -67,11 +67,26 @@ Configs en `.claude/launch.json`:
 - `hosting-dist`: emulador de hosting sobre `dist/` en `:5050` (correr
   antes `node scripts/build-web.mjs`).
 
-**localhost = producción.** Ambas variantes pegan contra el Firestore real.
-Toda verificación en navegador sigue
-[`docs/PROTOCOLO_VERIFICACION.md`](docs/PROTOCOLO_VERIFICACION.md): activar
-`window.__TSC_READONLY__ = true` después del `load` y no probar flujos de
-escritura contra producción.
+**localhost = producción**, salvo en el sandbox. `tsc-src` y `hosting-dist`
+pegan contra el Firestore real: toda verificación ahí sigue
+[`docs/PROTOCOLO_VERIFICACION.md`](docs/PROTOCOLO_VERIFICACION.md) (activar
+`window.__TSC_READONLY__ = true` después del `load`, sin flujos de
+escritura).
+
+**Sandbox (emuladores, MS-2.1).** Los flujos de escritura se prueban acá:
+
+1. `node scripts/emu-snapshot.mjs`: copia real en `sandbox/` (ignorado por
+   git). Lee la base de producción (solo GET) y copia el sitio con 2 de las
+   11 copas y el 20 % de las fotos de la vitrina.
+2. `tsc-emu-backend` (`node scripts/emu-start.mjs`): emuladores de
+   Firestore `:8080` y Auth `:9099`, con Java en el PATH.
+3. `node scripts/emu-seed.mjs sandbox/backup.json --clean`: carga la base y
+   crea admin y presidente de prueba (`scripts/emu-credentials.example.json`).
+4. `tsc-emu`: sirve `sandbox/site` en `:3001`.
+
+`firebase-config.js` entra en modo emulador solo en `localhost` con
+`?emu=1` o en el puerto 3001. En ese modo Cloudinary se simula y la callable
+de Functions va a `:5001`.
 
 Tests (emulador de Firestore, desde `functions/`): `npm run test:emulator`
 (Functions) y `npm run test:rules` (reglas de `teams`).

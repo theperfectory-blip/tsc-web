@@ -9,6 +9,19 @@
       "autoPort": true
     },
     {
+      "name": "tsc-emu-backend",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/emu-start.mjs"],
+      "port": 8080
+    },
+    {
+      "name": "tsc-emu",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "sandbox/site", "-l", "3001"],
+      "port": 3001,
+      "url": "http://localhost:3001"
+    },
+    {
       "name": "hosting-dist",
       "runtimeExecutable": "firebase",
       "runtimeArgs": ["emulators:start", "--only", "hosting", "--project", "tsc-web-yuna"],

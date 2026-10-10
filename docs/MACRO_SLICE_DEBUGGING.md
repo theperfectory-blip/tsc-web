@@ -379,6 +379,7 @@ grandes (por ejemplo 3.1).
 ## M2 — Entorno de pruebas y cableado
 
 ### 2.1 · Sandbox con emuladores (H-21)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.1.md`. Hallazgo nuevo de rendimiento (guardar un equipo reescribe 422 historiales en serie) propuesto para 2.5/M5.
 - Modo emulador en `firebase-config.js`. Se activa solo si `hostname` es
   `localhost` **y** hay `?emu=1`. Conecta Firestore (`:8080`) y Auth
   (`:9099`).

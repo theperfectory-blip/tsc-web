@@ -187,7 +187,14 @@ async function calClearSchedule(matchId, phaseId, slotId){
    encola una Cloud Task, y Cloud Tasks no está disponible en la región
    donde vive el Firestore. Ver functions/lib/config.js para el detalle. */
 function _notifyStreamTodayCallable(){
-  return firebase.app().functions('southamerica-east1').httpsCallable('notifyStreamToday');
+  const fns = firebase.app().functions('southamerica-east1');
+  // Sandbox (MS-2.1): al emulador de Functions (:5001), nunca a producción.
+  // Si ese emulador no está corriendo, la llamada falla en local.
+  if (window.__TSC_EMULATOR__ && !fns.__tscEmu){
+    fns.useEmulator('localhost', 5001);
+    fns.__tscEmu = true;
+  }
+  return fns.httpsCallable('notifyStreamToday');
 }
 
 async function notifyStreamTodayClick(){
