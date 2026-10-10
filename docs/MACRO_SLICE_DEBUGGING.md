@@ -115,6 +115,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. Verificar si es alcanzable |
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
+| H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
 
 ---
 
@@ -433,6 +434,9 @@ Verificar en el sandbox:
 - (f) Cambio de sesión: login y logout.
 - (g) Lecturas por visita pública, medidas en el emulador. Proyectar el
   costo cuando crezca `matches` e `history`.
+- (h) H-29: escrituras en serie de `refreshHistoryForSeason` al guardar un
+  equipo. Medir en el sandbox y proponer lote o escritura solo de lo que
+  cambió.
 
 **Salida:** bugs corregidos y una lista priorizada de colecciones que
 conviene consultar por temporada (`where('season','==',…)`) en vez de

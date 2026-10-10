@@ -73,8 +73,10 @@ sacar la rama y los seeds de cliente, y mostrar en el splash
 - `node scripts/smoke-parity.mjs`: paridad OK (901 globales en las dos
   variantes, por `_bootStep`).
 - `node scripts/audit-wiring.mjs`: sin handlers rotos nuevos.
-- `dist` no se abrió en el navegador: `hosting-dist` sin `?emu=1` va a
-  producción. Lo cubre el smoke de paridad.
+- `dist` no se abrió en el navegador en este slice. Se podía con
+  `hosting-dist` navegando a `?emu=1`, pero esa config abre primero sin el
+  parámetro, contra producción. Desde la revisión de 2.1/2.2 existe
+  `tsc-emu-dist` para esto. El smoke de paridad cubre la carga.
 
 ## Acción del dueño requerida
 

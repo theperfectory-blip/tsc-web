@@ -6,15 +6,19 @@
    navegador, dentro de un contexto `vm` con window/document/firebase
    simulados (stubs que absorben cualquier acceso) y compara:
    - las globales definidas (funciones y variables) tras cargar;
+   - los listeners registrados al cargar (addEventListener en window,
+     document y elementos), porque perder un registro no quita globales;
    - los errores lanzados al cargar cada script / bundle.
-   Si en `dist` falta una global que `tsc-src` sí define, un módulo cortó su
-   bundle. Se ve además qué archivo lanzó el error.
+   Si en `dist` falta una global o un listener que `tsc-src` sí tiene, un
+   módulo cortó su bundle. Se ve además qué archivo lanzó el error.
 
-   No reemplaza la prueba en navegador (el DOM real puede lanzar errores que
-   el stub oculta): ver docs/reportes/MS-2.2.md.
+   Puntos ciegos: un archivo que solo declara `function` (el navegador las
+   define igual por hoisting, así que tampoco rompe) y el código que solo
+   corre con el SDK de Firebase cargado (acá no está). No reemplaza la
+   prueba en navegador (tsc-emu-dist): ver docs/reportes/MS-2.2.md.
 
    Uso: node scripts/smoke-parity.mjs   (corre antes build-web.mjs) */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -22,23 +26,27 @@ import { execFileSync } from 'node:child_process';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
-// Stub universal: cualquier propiedad devuelve otro stub; es llamable y construible.
-function makeStub(label = 'stub') {
+// Stub universal: cualquier propiedad devuelve otro stub; es llamable y
+// construible. `addEventListener` anota `<objeto>:<evento>` en `listeners`.
+function makeStub(label, listeners) {
   const fn = function () {};
-  const p = new Proxy(fn, {
+  return new Proxy(fn, {
     get(_, k) {
       if (k === Symbol.toPrimitive) return () => '';
       if (k === 'then') return undefined;
       if (k === 'length') return 0;
       if (k === Symbol.iterator) return function* () {};
-      return makeStub(`${label}.${String(k)}`);
+      if (k === 'addEventListener') return type => { listeners.push(`${label}:${type}`); };
+      // Promesa real (nunca resuelve): `then` es undefined en los stubs para
+      // que `await stub` no se cuelgue, pero el splash inline usa fonts.ready.then.
+      if (k === 'ready' && label === 'document.fonts') return new Promise(() => {});
+      return makeStub(`${label}.${String(k)}`, listeners);
     },
     set() { return true; },
     has() { return true; },
-    apply() { return makeStub(`${label}()`); },
-    construct() { return makeStub(`new ${label}`); },
+    apply() { return makeStub(`${label}()`, listeners); },
+    construct() { return makeStub(`new ${label}`, listeners); },
   });
-  return p;
 }
 
 function runVariant(dir, label) {
@@ -48,32 +56,26 @@ function runVariant(dir, label) {
     .filter(s => !s.src || !/^https?:/.test(s.src));
   const store = new Map();
   const baseline = new Set();
-  const stubs = new Proxy({}, {});
+  const listeners = [];
+  const stub = label => makeStub(label, listeners);
   const ctx = vm.createContext({});
-  const win = new Proxy(ctx, {
-    get(t, k) {
-      if (k in t) return t[k];
-      if (k === 'window' || k === 'self' || k === 'globalThis' || k === 'top' || k === 'parent') return win;
-      return undefined;
-    },
-  });
   // Entorno mínimo: localStorage real en memoria, resto stubs.
   const ls = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k), clear: () => store.clear() };
   Object.assign(ctx, {
     window: ctx, self: ctx, globalThis: ctx, top: ctx, parent: ctx,
-    document: makeStub('document'), navigator: { userAgent: 'node-smoke', onLine: true, language: 'es' },
+    document: stub('document'), navigator: { userAgent: 'node-smoke', onLine: true, language: 'es' },
     location: { hostname: 'smoke.invalid', href: 'http://smoke.invalid/', protocol: 'http:', search: '', hash: '', origin: 'http://smoke.invalid', port: '', pathname: '/' },
     localStorage: ls, sessionStorage: { ...ls },
     firebase: undefined, // como si gstatic estuviera bloqueado: db.js cae a IndexedDB
-    indexedDB: makeStub('indexedDB'), Capacitor: undefined,
+    indexedDB: stub('indexedDB'), Capacitor: undefined,
     console: { log() {}, info() {}, debug() {}, warn() {}, error() {} },
     setTimeout: () => 0, setInterval: () => 0, clearTimeout() {}, clearInterval() {}, requestAnimationFrame: () => 0, cancelAnimationFrame() {},
-    addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }),
-    fetch: () => new Promise(() => {}), Image: function () {}, Audio: function () {}, Notification: makeStub('Notification'),
+    addEventListener: type => { listeners.push(`window:${type}`); }, removeEventListener() {}, matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }),
+    fetch: () => new Promise(() => {}), Image: function () { return stub('img'); }, Audio: function () { return stub('audio'); }, Notification: stub('Notification'),
     IntersectionObserver: function () { return { observe() {}, disconnect() {} }; }, ResizeObserver: function () { return { observe() {}, disconnect() {} }; },
-    MutationObserver: function () { return { observe() {}, disconnect() {} }; }, getComputedStyle: () => makeStub('cs'),
-    innerWidth: 1280, innerHeight: 800, devicePixelRatio: 1, screen: { width: 1280, height: 800 }, history: makeStub('history'),
-    THREE: makeStub('THREE'), CustomEvent: function () {}, Event: function () {}, HTMLElement: function () {}, Element: function () {},
+    MutationObserver: function () { return { observe() {}, disconnect() {} }; }, getComputedStyle: () => stub('cs'),
+    innerWidth: 1280, innerHeight: 800, devicePixelRatio: 1, screen: { width: 1280, height: 800 }, history: stub('history'),
+    THREE: stub('THREE'), CustomEvent: function () {}, Event: function () {}, HTMLElement: function () {}, Element: function () {},
   });
   for (const k of Object.keys(ctx)) baseline.add(k);
   const errors = [];
@@ -93,7 +95,7 @@ function runVariant(dir, label) {
   // Un const/let/class definido solo existe si el script llegó a ejecutarlo.
   const lexOk = new Set();
   for (const n of lexical) { try { if (vm.runInContext(`typeof ${n}`, ctx) !== 'undefined') lexOk.add(n); } catch {} }
-  return { label, scripts: scripts.length, globals, lexOk, errors };
+  return { label, scripts: scripts.length, globals, lexOk, listeners, errors };
 }
 
 // Reconstruye dist/ para comparar contra el código actual.
@@ -105,15 +107,22 @@ const union = (r) => new Set([...r.globals, ...r.lexOk]);
 const A = union(a), B = union(b);
 const onlySrc = [...A].filter(x => !B.has(x)).sort();
 const onlyDist = [...B].filter(x => !A.has(x)).sort();
+// Listeners como multiconjunto: el mismo evento puede registrarse varias veces.
+const tally = list => list.reduce((m, k) => m.set(k, (m.get(k) || 0) + 1), new Map());
+const La = tally(a.listeners), Lb = tally(b.listeners);
+const lostListeners = [...La].filter(([k, n]) => (Lb.get(k) || 0) < n).map(([k, n]) => `${k} (${n - (Lb.get(k) || 0)})`);
+const extraListeners = [...Lb].filter(([k, n]) => (La.get(k) || 0) < n).map(([k, n]) => `${k} (${n - (La.get(k) || 0)})`);
 
 for (const r of [a, b]) {
-  console.log(`\n[${r.label}] ${r.scripts} scripts · ${union(r).size} globales (${r.globals.size} var/function + ${r.lexOk.size} let/const/class) · ${r.errors.length} errores de carga`);
+  console.log(`\n[${r.label}] ${r.scripts} scripts · ${union(r).size} globales (${r.globals.size} var/function + ${r.lexOk.size} let/const/class) · ${r.listeners.length} listeners · ${r.errors.length} errores de carga`);
   for (const e of r.errors) console.log('   ! ' + e);
 }
 console.log(`\nSolo en tsc-src (${onlySrc.length}): ${onlySrc.join(', ') || '—'}`);
 console.log(`Solo en dist   (${onlyDist.length}): ${onlyDist.join(', ') || '—'}`);
+console.log(`Listeners que faltan en dist (${lostListeners.length}): ${lostListeners.join(', ') || '—'}`);
+console.log(`Listeners de más en dist     (${extraListeners.length}): ${extraListeners.join(', ') || '—'}`);
 const msgs = r => r.errors.map(e => e.slice(e.indexOf(': ') + 2)).sort().join('|');
 const errDiff = msgs(a) !== msgs(b);
 if (errDiff) console.log('Los errores de carga difieren entre variantes.');
-process.exitCode = onlySrc.length || onlyDist.length || errDiff ? 1 : 0;
+process.exitCode = onlySrc.length || onlyDist.length || lostListeners.length || extraListeners.length || errDiff ? 1 : 0;
 console.log(process.exitCode ? '\nPARIDAD: FALLA' : '\nPARIDAD: OK');

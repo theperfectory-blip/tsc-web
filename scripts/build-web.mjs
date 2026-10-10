@@ -27,14 +27,17 @@
    Uso: node scripts/build-web.mjs   (también corre solo como predeploy de
         hosting en firebase.json) */
 import { existsSync, rmSync, cpSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { isExcluded } from './build-exclude.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const SRC = join(ROOT, 'tsc-src');
-const DEST = join(ROOT, 'dist');
+// --src/--dest (relativos a la raíz): solo para el sandbox (emu-dist.mjs).
+// Sin ellos, tsc-src → dist como siempre (predeploy y CI).
+const arg = name => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const SRC = join(ROOT, arg('src') || 'tsc-src');
+const DEST = join(ROOT, arg('dest') || 'dist');
 const BUNDLE_DIR = 'bundles';
 
 // Exclusiones compartidas con build-www (docs internos, *.md, trophies-svg…).
@@ -107,4 +110,4 @@ html = html.replace(JS_RE, () => (jsIdx++ === 0 ? tags.join('') : ''));
 
 writeFileSync(join(DEST, 'index.html'), html);
 
-console.log(`[build-web] dist/ generado · ${cssFiles.length} CSS → 1 · ${jsFiles.length} JS → ${runs.length} (tramos ${runs.map(r => (r.strict ? 'S' : 'N') + r.files.length).join(' ')})`);
+console.log(`[build-web] ${relative(ROOT, DEST)}/ generado · ${cssFiles.length} CSS → 1 · ${jsFiles.length} JS → ${runs.length} (tramos ${runs.map(r => (r.strict ? 'S' : 'N') + r.files.length).join(' ')})`);

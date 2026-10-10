@@ -87,6 +87,23 @@ corregida por Opus 5.5 en la misma sesión.
 - Se deja `localhost:3001` reservado al sandbox. Cualquier sitio servido en
   ese puerto en localhost entra en modo emulador.
 
+## Revisión posterior (2026-10-10, Opus 5.5)
+
+- **El "incidente menor" fue una violación del protocolo.** La carga de
+  `hosting-dist` sin `?emu=1` fue a producción sin `__TSC_READONLY__`. No
+  escribió porque la base ya tiene temporadas (ver MS-2.4: `seedInitialData`
+  solo escribe con `seasons` vacía), pero el agujero era de la config:
+  `launch.json` no puede pasar query y `hosting-dist` siempre abre `:5050`
+  sin el parámetro. Se agregó `tsc-emu-dist` (`scripts/emu-dist.mjs`): sirve
+  el build de `dist` del sandbox en `:3001`, que ya es modo emulador.
+  `hosting-dist` queda para verificar contra producción siguiendo el
+  protocolo.
+- **"Nada a `identitytoolkit`" vale por host.** El emulador de Auth usa la
+  ruta `localhost:9099/identitytoolkit.googleapis.com/…`; lo que no hubo
+  fueron peticiones al host `identitytoolkit.googleapis.com`.
+- **El hallazgo de rendimiento quedó registrado como H-29** en el plan y en
+  la lista del slice 2.5.
+
 ## Acción del dueño requerida
 
 Ninguna. Las reglas no cambiaron.

@@ -22,6 +22,13 @@
       "url": "http://localhost:3001"
     },
     {
+      "name": "tsc-emu-dist",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/emu-dist.mjs"],
+      "port": 3001,
+      "url": "http://localhost:3001"
+    },
+    {
       "name": "hosting-dist",
       "runtimeExecutable": "firebase",
       "runtimeArgs": ["emulators:start", "--only", "hosting", "--project", "tsc-web-yuna"],
