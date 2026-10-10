@@ -337,6 +337,8 @@ grandes (por ejemplo 3.1).
 - `.gitignore`: sacar las 2 líneas engañosas (según D1).
 
 ### 1.5 · Grafo útil (H-14)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.5-1.7.md`.
+
 - Excluir `assets/vendor/` del análisis de graphify (revisar qué mecanismo
   de exclusión soporta la herramienta) y regenerar.
 - Poner nombre de dominio a las comunidades: palmarés, bracket, sorteo,
@@ -346,6 +348,8 @@ grandes (por ejemplo 3.1).
   (`dbGetAll`, `showToast`…) y no de three.js.
 
 ### 1.6 · Git local (H-16, D4)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-1.5-1.7.md`.
+
 - Borrar las ramas locales ya mergeadas `perf/carga-latam` y
   `recovery/yunacoins-pre-reset`. Ambas están contenidas en `main`, así
   que no se pierde nada.
@@ -356,6 +360,7 @@ grandes (por ejemplo 3.1).
   `android/*.gradle` se descarta.
 
 ### 1.7 · Disco local (H-17, D2, D3), con aprobación explícita (M-7)
+> **Estado:** PARCIAL · 2026-10-10 · M-7 aprobada para regenerables y APKs v1.4.0–v1.5.3. Pendientes D2 (v1.3.1) y D3 (respaldo trophies-hi). Ver `docs/reportes/MS-1.5-1.7.md`.
 
 | Elemento | Peso | Acción |
 |---|---|---|

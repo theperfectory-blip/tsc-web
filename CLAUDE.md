@@ -6,15 +6,15 @@
 
 El grafo de conocimiento del proyecto está en `tsc-src/graphify-out/`.
 
-- **GRAPH FIRST — SUSPENDIDA hasta cerrar el slice 1.5** de
-  `docs/MACRO_SLICE_DEBUGGING.md`: el grafo actual está contaminado por
-  `assets/vendor` (three.js/draco) y sus comunidades no tienen nombre, así
-  que leerlo en cada tarea gasta tokens sin orientar. Mientras tanto:
-  `grep` dirigido y lectura por rangos. Al cerrar 1.5, restaurar esta regla.
+- **GRAPH FIRST:** antes de buscar en el código, consultar
+  `tsc-src/graphify-out/GRAPH_REPORT.md` (god nodes y comunidades con nombre
+  de dominio). `assets/vendor` está excluido vía `tsc-src/.graphifyignore`.
 - Si existe `tsc-src/graphify-out/wiki/index.md`, navegarlo en vez de leer
   archivos crudos.
 - Después de modificar código en la sesión, correr `graphify update .`
-  dentro de `tsc-src/` (solo AST, sin costo de API).
+  dentro de `tsc-src/` (solo AST, sin costo de API) y luego
+  `python ../scripts/graphify-label.py` para restaurar los nombres de
+  comunidad (si cambian los módulos, ajustar `NAMES` en ese script).
 
 ### Íconos
 
