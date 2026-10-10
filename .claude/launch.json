@@ -7,6 +7,12 @@
       "runtimeArgs": ["serve", "tsc-src"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "hosting-dist",
+      "runtimeExecutable": "firebase",
+      "runtimeArgs": ["emulators:start", "--only", "hosting", "--project", "tsc-web-yuna"],
+      "port": 5050
     }
   ]
 }

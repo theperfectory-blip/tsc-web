@@ -962,9 +962,9 @@
       listEl.innerHTML = filtered.map(t => {
         const checked = selected.has(t.id) ? 'checked' : '';
         const ini = (t.ini || t.name.substring(0,3));
-        const col = t.color || '#333';
-        const logo = t.logo
-          ? `<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`
+        const col = safeCssColor(t.color, '#333');
+        const logo = safeImgUrl(t.logo)
+          ? `<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`
           : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escapeHtml(ini)}</span>`;
         return `
           <label class="stp-row" data-id="${t.id}" style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--brd);cursor:pointer;">

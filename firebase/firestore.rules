@@ -31,12 +31,32 @@ service cloud.firestore {
     match /calDayLabels/{id}   { allow read: if true; allow write: if isAdmin(); }
 
     // --- Equipos: el presidente edita SU equipo ---
+    // Solo name y logo, y con valores validados (H-01: el logo se inserta
+    // en <img src> del panel admin; un valor libre era XSS almacenado).
+    // Cada campo se valida solo si cambia, para no bloquear la edición de
+    // uno por un valor histórico del otro.
+    function teamChanged(k) { return k in request.resource.data.diff(resource.data).affectedKeys(); }
+    function validTeamName() {
+      let n = request.resource.data.get('name', null);
+      return !teamChanged('name')
+          || (n is string && n.size() >= 1 && n.size() <= 40 && !n.matches('(?s).*[<>].*'));
+    }
+    function validTeamLogo() {
+      let l = request.resource.data.get('logo', null);
+      return !teamChanged('logo')
+          || l == null
+          || (l is string && l.size() < 500
+              && l.matches('https://res[.]cloudinary[.]com/dnjijd8mx/[A-Za-z0-9_./,:%=+~-]+'));
+    }
+
     match /teams/{teamId} {
       allow read: if true;
       allow update: if isAdmin()
                     || (isPresident() && me().teamId != null && string(me().teamId) == teamId
                         && me().lockEdits != true
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'logo']));
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'logo'])
+                        && validTeamName()
+                        && validTeamLogo());
       allow create, delete: if isAdmin();
     }
 

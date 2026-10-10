@@ -49,9 +49,11 @@ async function getTeamLogo(name){
 }
 
 function teamLogoHtml(name, team, size=28){
-  const ini = team?.ini||name?.substring(0,3)||'?';
-  const col = team?.color||'#333';
-  if(team?.logo) return `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${team.logo}" style="width:100%;height:100%;object-fit:cover;"></div>`;
+  const ini = escHtml(team?.ini||name?.substring(0,3)||'?');
+  const col = safeCssColor(team?.color, '#333');
+  const logo = safeImgUrl(team?.logo);
+  size = Number(size)||28;
+  if(logo) return `<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;flex-shrink:0;"><img src="${logo}" style="width:100%;height:100%;object-fit:cover;"></div>`;
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${col};display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:${Math.floor(size*0.35)}px;color:#fff;flex-shrink:0;">${ini}</div>`;
 }
 
@@ -1346,10 +1348,11 @@ function loadBracketLogos(slots){
     const byName = Object.fromEntries(allTeams.map(t=>[t.name, t]));
     for(const ref of refs){
       const team = byId[ref] || byName[ref];
-      if(!team?.logo) continue;
+      const logo = safeImgUrl(team?.logo);
+      if(!logo) continue;
       const key = team.name?.substring(0,6) || String(ref);
-      document.querySelectorAll(`[id*="${key}"]`).forEach(el=>{
-        if(el.id.startsWith('blogo-')) el.innerHTML=`<img src="${team.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+      document.querySelectorAll(`[id*="${CSS.escape(key)}"]`).forEach(el=>{
+        if(el.id.startsWith('blogo-')) el.innerHTML=`<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
       });
     }
   },100);

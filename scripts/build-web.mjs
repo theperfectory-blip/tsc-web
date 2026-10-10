@@ -27,25 +27,25 @@
    Uso: node scripts/build-web.mjs   (también corre solo como predeploy de
         hosting en firebase.json) */
 import { existsSync, rmSync, cpSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { isExcluded } from './build-exclude.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'tsc-src');
 const DEST = join(ROOT, 'dist');
 const BUNDLE_DIR = 'bundles';
 
-// Lo mismo que hosting.ignore excluía al publicar tsc-src/ directamente.
-const SKIP = new Set(['graphify-out', 'trophies-upload', 'node_modules', '_cmp']);
+// Exclusiones compartidas con build-www (docs internos, *.md, trophies-svg…).
 
 rmSync(DEST, { recursive: true, force: true });
 mkdirSync(DEST, { recursive: true });
 for (const name of readdirSync(SRC)) {
-  if (name.startsWith('.') || SKIP.has(name)) continue;
+  if (isExcluded(name)) continue;
   cpSync(join(SRC, name), join(DEST, name), {
     recursive: true,
-    filter: src => !basename(src).startsWith('.') && !SKIP.has(basename(src))
+    filter: src => !isExcluded(src)
   });
 }
 mkdirSync(join(DEST, BUNDLE_DIR), { recursive: true });

@@ -1656,8 +1656,8 @@ function _histStdRowHTML(s, i){
   const rendPct = (s.rendimiento*100).toFixed(1);
   const rendColor = s.rendimiento>=0.6 ? 'var(--green)' : s.rendimiento>=0.4 ? 'var(--gold)' : 'var(--red)';
   const ini = s.ini || (s.name?.substring(0,3) || '?').toUpperCase();
-  const logoHTML = s.logo
-    ? `<img src="${s.logo}" style="width:100%;height:100%;object-fit:cover;">`
+  const logoHTML = safeImgUrl(s.logo)
+    ? `<img src="${safeImgUrl(s.logo)}" style="width:100%;height:100%;object-fit:cover;">`
     : `${_esc(ini)}`;
 
   // Tooltip de previousNames si tiene
