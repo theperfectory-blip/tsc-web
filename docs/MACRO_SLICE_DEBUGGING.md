@@ -47,7 +47,7 @@
 | D3 | `assets-src/trophies-hi` (55 MB, originales de los trofeos en alta, sin respaldo en ningún lado) | Respaldar fuera del disco (Drive o un repo privado de assets) | 1.7 |
 | D4 | Cambios sin commitear en `main` (`.claude/launch.json`: configs `tsc-yunacoins` y `hosting-dist`) | Commitear `hosting-dist` (este plan la usa). `tsc-yunacoins` a la rama de yunacoins | 1.6, 2.x |
 | D5 | Fuente única de instrucciones: `AGENTS.md` y `CLAUDE.md` son idénticos | `AGENTS.md` canónico (Codex no sigue imports); `CLAUDE.md` = `@AGENTS.md` | 1.4 |
-| D6 | Rama IndexedDB de `db.js`: ¿fallback offline o código muerto? | Decidir con la evidencia del slice 2.4 | 7.2 |
+| D6 | Rama IndexedDB de `db.js`: ¿fallback offline o código muerto? | Evidencia lista (MS-2.4): muestra datos inventados sin aviso. Recomendado: sacarla y mostrar error de conexión | 7.2 |
 | D7 | Auto-registro abierto: cualquiera puede crear cuenta (`role: president`, sin equipo) | Mantenerlo, pero con verificación de email y reglas endurecidas (3.2) | 3.7 |
 
 ## 2. Acciones manuales del dueño
@@ -411,6 +411,7 @@ grandes (por ejemplo 3.1).
 - Salida: `docs/reportes/MS-2.3-cableado.md`. M4, M5 y M7 la usan.
 
 ### 2.4 · Arranque y fallos de red (H-23, D6)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-2.4.md`. H-23 confirmado: sin SDK, el visitante ve datos sembrados inventados y sin aviso. D6 queda con evidencia para el dueño.
 - Cadena `onload → initDB → setTheme → seedInitialData → loadSeasons →
   setMode`: manejo de errores en cada paso.
 - Simular que `gstatic` está bloqueado y documentar qué ve el visitante
