@@ -100,7 +100,6 @@ releases/android/             # APKs firmadas + RELEASE_NOTES.md por versión
 docs/                         # Documentación
   ├── android-build.md        # Ciclo debug/release de la app Android
   ├── android-push-notifications.md
-  ├── FIREBASE_MIGRATION_PLAN.md
   └── firebase-setup-steps.md
 ```
 

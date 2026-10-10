@@ -10,6 +10,7 @@
 import { existsSync, rmSync, cpSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isExcluded } from './build-exclude.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'tsc-src');
@@ -25,7 +26,7 @@ for (const name of INCLUDE) {
     console.warn(`[build-www] falta tsc-src/${name}, se omite`);
     continue;
   }
-  cpSync(from, join(DEST, name), { recursive: true });
+  cpSync(from, join(DEST, name), { recursive: true, filter: src => !isExcluded(src) });
 }
 
 console.log(`[build-www] www/ generado desde tsc-src/ (${INCLUDE.join(', ')})`);

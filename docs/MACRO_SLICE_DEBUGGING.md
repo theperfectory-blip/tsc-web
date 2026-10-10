@@ -274,6 +274,8 @@ grandes (por ejemplo 3.1).
   verde, forense documentado y M-1 ejecutado.
 
 ### 0.2 · Que la web no publique documentos internos (H-02, H-15)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-0.2-0.3.md`. Falta solo M-2 (404 tras el deploy).
+
 - Extraer la lista de exclusión a un módulo compartido (por ejemplo
   `scripts/build-exclude.mjs`) que usen `build-web.mjs` y `build-www.mjs`:
   `*.md`, `docs/`, `trophies-svg/`, `graphify-out/`, `trophies-upload/`,
@@ -283,6 +285,8 @@ grandes (por ejemplo 3.1).
   misma lista que antes. Después del deploy (M-2), esas URLs responden 404.
 
 ### 0.3 · Sacar la identidad del admin del repo (H-03)
+> **Estado:** CERRADO · 2026-10-10 · ver `docs/reportes/MS-0.2-0.3.md`.
+
 - Borrar `docs/FIREBASE_MIGRATION_PLAN.md` (también está en H-11) y quitar
   su enlace en `README.md`. Hacer `git grep` de otros emails o UIDs reales
   en el árbol actual.
