@@ -14,4 +14,5 @@
 ## 1.7 Disco local (M-7 aprobada: regenerables + APKs v1.4.0–v1.5.3)
 - APKs v1.4.0, v1.5.0, v1.5.2, v1.5.3: SHA-256 idéntico al asset de GitHub Release (repo `tsc-web`). Borradas.
 - Borrados: `android/app/build`, `dist/`, `www/`, `tsc-src/graphify-out/cache`, `firebase-debug.log`, `functions/firestore-debug.log`.
-- **Pendiente:** v1.3.1 (D2; no está en GitHub, se conserva), respaldo de `assets-src/trophies-hi` (D3), mover `NEXT_SESSION.md` al worktree de yunacoins.
+- v1.3.1 (D2): subida como release histórica (`--latest=false`, SHA-256 verificado) y APK local borrada.
+- **Pendiente:** respaldo de `assets-src/trophies-hi` (D3), mover `NEXT_SESSION.md` al worktree de yunacoins.
