@@ -651,8 +651,8 @@ function _pubDrawH2H(title){
   // spread de _histTeams, así que .logo viaja igual que color/ini) — cae a
   // iniciales para los equipos sintéticos de _pubHTeamMeta (nombres del
   // histórico sin equipo real asociado), que nunca traen .logo.
-  const crestA = pickA.logo ? `<img src="${_esc(pickA.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
-  const crestB = pickB.logo ? `<img src="${_esc(pickB.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
+  const crestA = safeImgUrl(pickA.logo) ? `<img src="${safeImgUrl(pickA.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
+  const crestB = safeImgUrl(pickB.logo) ? `<img src="${safeImgUrl(pickB.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
   result.innerHTML = `<div class="h2h-face">
     <div class="h2h-side" style="--team-color:${_esc(pickA.color||'#5f6368')};--team-color-2:${_esc(pickA.color2||pickA.color||'#3c4043')};"><div class="h2h-crest">${crestA}</div><div class="h2h-name">${_esc(pickA.name)}</div></div>
     <div class="h2h-vs">VS</div>
@@ -712,7 +712,7 @@ function _pubSetupH2H(){
       const q = _histNorm(input.value);
       items = q ? _pubH.teamList.filter(t=>t.search.includes(q)).slice(0,7) : [];
       ac.innerHTML = items.map((t,i)=>{
-        const crest = t.logo ? `<img src="${_esc(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(t.ini||_pubHIni(t.name));
+        const crest = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(t.ini||_pubHIni(t.name));
         return `<div class="h2h-ac-item" id="${ac.id}-opt-${i}" role="option" aria-selected="false" style="--team-color:${_esc(t.color||'#5f6368')};" data-id="${_esc(t.id)}"><span class="h2h-ac-crest">${crest}</span>${_esc(t.name)}</div>`;
       }).join('');
       const open = !!items.length;
@@ -1412,7 +1412,7 @@ function _htHeader(layout){
   }).join('');
 }
 function _htCrest(r){
-  const inner = r.logo ? `<img src="${_esc(r.logo)}" alt="">` : _esc(r.ini||_pubHIni(r.name));
+  const inner = safeImgUrl(r.logo) ? `<img src="${safeImgUrl(r.logo)}" alt="">` : _esc(r.ini||_pubHIni(r.name));
   return `<span class="ht-crest" style="background:${_esc(r.color||'#5f6368')};">${inner}</span>`;
 }
 /* Nombre del equipo + ícono ⓘ si tiene nombres anteriores (mismo patrón que

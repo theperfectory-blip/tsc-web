@@ -120,11 +120,11 @@ function _pbBracketCards(phase, rounds, slots, teamMap){
 }
 
 function _pbCrestMini(t){
-  const inner = t.logo ? `<img src="${_pbEsc(t.logo)}" alt="">` : _pbEsc(t.ini||'?');
+  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="">` : _pbEsc(t.ini||'?');
   return `<span class="gbr-crest-mini" style="--team-color:${_pbEsc(t.color||'#444')};--team-color-2:${_pbEsc(t.color2||'#222')};">${inner}</span>`;
 }
 function _pbCrestTree(t){
-  const inner = t.logo ? `<img src="${_pbEsc(t.logo)}" alt="">` : _pbEsc(t.ini||'?');
+  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="">` : _pbEsc(t.ini||'?');
   return `<span class="gbr-tree-crest" style="--team-color:${_pbEsc(t.color||'#444')};--team-color-2:${_pbEsc(t.color2||'#222')};">${inner}</span>`;
 }
 
@@ -443,7 +443,7 @@ async function _pubRenderBracketBroadcast(phaseId, containerId){
    ════════════════════════════════════════════════════════════════ */
 
 function _pbTieCrest(t){
-  const inner = t.logo ? `<img src="${_pbEsc(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">` : _pbEsc(t.ini||'?');
+  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">` : _pbEsc(t.ini||'?');
   return `<div class="tie-crest">${inner}</div>`;
 }
 

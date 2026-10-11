@@ -131,6 +131,7 @@ async function openTeamModal(id=null){
   const wrap = document.getElementById('team-modal-wrap');
   // Cuentas para el selector de presidente (vínculo real users.teamId).
   const _presUsers = (typeof loadUsersForSelect==='function') ? await loadUsersForSelect() : [];
+  const _presMyUid = (typeof AUTH!=='undefined' && AUTH.user) ? AUTH.user.uid : null;   // la regla exime al admin solo en su propia cuenta
   const _presLinkedUid = id ? (_presUsers.find(u=>u.teamId===id)?.uid || '') : '';
   const _presEsc = (v)=>String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -158,12 +159,12 @@ async function openTeamModal(id=null){
           <div style="flex:1;">
             <div class="form-group">
               <label>Nombre del equipo</label>
-              <input type="text" id="tf-name" value="${team?.name||''}" placeholder="YUNAITED FC">
+              <input type="text" id="tf-name" value="${escAttr(team?.name||'')}" placeholder="YUNAITED FC">
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Iniciales (3 max)</label>
-                <input type="text" id="tf-ini" value="${team?.ini||''}" maxlength="3" placeholder="YUN"
+                <input type="text" id="tf-ini" value="${escAttr(team?.ini||'')}" maxlength="3" placeholder="YUN"
                   oninput="document.getElementById('logo-ini-preview')&&(document.getElementById('logo-ini-preview').textContent=this.value.toUpperCase())">
               </div>
               <div class="form-group">
@@ -182,10 +183,10 @@ async function openTeamModal(id=null){
           ${_presUsers.length
             ? `<select id="tf-pres-uid" style="width:100%;padding:9px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:15px;">
                  <option value="">— sin presidente —</option>
-                 ${_presUsers.map(u=>`<option value="${u.uid}" ${u.uid===_presLinkedUid?'selected':''}>${_presEsc(u.name)}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
+                 ${_presUsers.map(u=>`<option value="${escAttr(u.uid)}" ${u.uid===_presLinkedUid?'selected':''} ${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?'disabled':''}>${_presEsc(u.name)}${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?' · email sin verificar':''}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
                </select>
                <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Se asigna la cuenta del suscriptor; el vínculo es la fuente de verdad (no texto libre).</div>`
-            : `<input type="text" id="tf-pres" value="${team?.pres||''}" placeholder="Nombre del suscriptor">
+            : `<input type="text" id="tf-pres" value="${escAttr(team?.pres||'')}" placeholder="Nombre del suscriptor">
                <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Inicia sesión como admin para vincular cuentas de presidente.</div>`
           }
         </div>
@@ -530,8 +531,7 @@ function _pubTeamCardHtml(t){
   const stats  = window._pubTeamStats  || {};
   const titles = window._pubTeamTitles || new Map();
   const c1 = _col(t.color), c2 = _col(t.color2 || t.color);
-  const crest = t.logo
-    ? `<img src="${_esc(t.logo)}" alt="" loading="lazy">`
+  const crest = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" loading="lazy">`
     : `${_esc(t.ini||'?')}`;
   const s = stats[t.id] || {pj:0,v:0,recent:[]};
   const winPct = s.pj>0 ? Math.round(s.v/s.pj*100) : 0;

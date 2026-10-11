@@ -16,8 +16,8 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
     `functions/` (push FCM), Storage (trofeos).
   - Imágenes subidas por usuarios (logos): Cloudinary (`js/cloudinary.js`).
   - Reglas en `firebase/firestore.rules` y `firebase/storage.rules`. Se
-    despliegan **a mano** (`firebase deploy --only firestore:rules`); el CI
-    no las despliega.
+    despliegan **a mano** (`firebase deploy --only firestore:rules,storage`);
+    el CI (`rules-tests.yml`) solo corre los tests.
 - **Capa de datos (`js/db.js`):** API única `dbGetAll / dbGet / dbAdd /
   dbAddMany / dbPut / dbDelete / dbDeleteMany / dbSubscribe / getForSeason`.
   - `USE_FIRESTORE` (lo define `firebase-config.js`) elige el backend. Si el
@@ -101,8 +101,20 @@ Paridad `tsc-src`/`dist` sin navegador: `node scripts/smoke-parity.mjs`
 `?emu=1` o en el puerto 3001. En ese modo Cloudinary se simula y la callable
 de Functions va a `:5001`.
 
-Tests (emulador de Firestore, desde `functions/`): `npm run test:emulator`
-(Functions) y `npm run test:rules` (reglas de `teams`).
+Sinks con datos de usuario: `node scripts/emu-xss.mjs data|users|page`
+(datos con marcador en el sandbox y `localhost:3001/xss.html`,
+`window.__XSS__.report()`, MS-3.1).
+CSP: fuente única en `scripts/csp.mjs` (header Report-Only en
+`firebase.json`, `<meta>` que inyecta `build-www` en la APK);
+`node scripts/csp.mjs --check` y `node scripts/emu-xss.mjs csp` (enforce en
+el sandbox, `window.__CSP__`). Drift de reglas publicadas vs repo:
+`node scripts/rules-drift.mjs` (solo lectura, sesión del CLI).
+
+Tests (emulador, desde `functions/`): `npm run test:emulator` (Functions),
+`npm run test:cleanup` (limpieza de perfiles huérfanos), `npm run test:rules`
+(`rules-teams.js` + `rules-suite.js`: todas las colecciones con los roles) y
+`npm run test:rules:storage`. El CI (`rules-tests.yml`) corre estos tres
+últimos.
 
 ## Mapa de código — `tsc-src/`
 

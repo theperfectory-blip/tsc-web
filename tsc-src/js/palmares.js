@@ -1064,7 +1064,7 @@ async function renderAdmPalmares(){
                 <td class="cell-team">
                   <div class="team-cell">
                     <div class="team-logo" style="background:${_escAttr(_palmIsHex(team.color)?team.color:'#333333')};">
-                      ${team.logo ? `<img src="${_escAttr(team.logo)}" alt="">` : `<span>${_esc(team.ini || team.name.substring(0,3))}</span>`}
+                      ${safeImgUrl(team.logo) ? `<img src="${safeImgUrl(team.logo)}" alt="">` : `<span>${_esc(team.ini || team.name.substring(0,3))}</span>`}
                     </div>
                     <span class="team-name">${_esc(team.name)}</span>
                   </div>
@@ -1116,7 +1116,7 @@ function _palmReorderListHTML(list, teamById){
       <span class="palm-reorder-handle" aria-hidden="true"
         onpointerdown="_palmReorderPointerDown(event,'${_escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
       <span class="palm-reorder-pos">${i+1}</span>
-      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (t?.logo ? `<img src="${_escAttr(t.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3)))}</span>
+      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (safeImgUrl(t?.logo) ? `<img src="${safeImgUrl(t?.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3)))}</span>
       <span class="palm-reorder-name">${_esc(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
     </div>`;
   }).join('');
@@ -2377,8 +2377,7 @@ function _palmVitrineDataHTML(entry){
   if (!entry) return '';
   const team = entry.champTeam;
   const colors = entry.colors;
-  const badgeContent = team?.logo
-    ? `<img src="${_escAttr(team.logo)}" alt="">`
+  const badgeContent = safeImgUrl(team?.logo) ? `<img src="${safeImgUrl(team?.logo)}" alt="">`
     : _esc(_palmTeamIni(team));
   const championHtml = team ? `
     <div class="mv-vig-row">

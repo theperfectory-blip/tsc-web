@@ -477,8 +477,8 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       const name = td.name||'';
       const ini = (td.ini||name||'').substring(0,3).toUpperCase();
       const col = colorOf(td.color);
-      const crest = td.logo
-        ? `<span class="st-crest"><img src="${_tkEsc(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
+      const crest = safeImgUrl(td.logo)
+        ? `<span class="st-crest"><img src="${safeImgUrl(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
         : `<span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>`;
       const dg = s.gf - s.gc;
       const dgColor = dg>0 ? 'var(--green-ink)' : dg<0 ? 'var(--red)' : 'var(--txt2)';

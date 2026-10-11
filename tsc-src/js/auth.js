@@ -130,6 +130,12 @@ async function authSubmit(){
   try {
     if (_authMode === 'signup'){
       const name = document.getElementById('auth-name').value.trim();
+      // Mismo límite que validDisplayName en firestore.rules: si no, el
+      // perfil no se crea y la cuenta queda sin documento en `users`.
+      if (name.length > 64 || /[<>]/.test(name)){
+        errEl.textContent = 'El nombre admite hasta 64 caracteres, sin < ni >.';
+        return;
+      }
       _pendingSignupName = name || null;   // lo usa _loadProfile al crear el perfil
       const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
       if (name) await cred.user.updateProfile({ displayName: name });
@@ -194,6 +200,43 @@ async function _loadProfile(user){
   return profile;
 }
 
+/* ---- Alinea el perfil con la sesión (slice 3.7) ----
+   - emailVerified: el admin no puede ver Auth, así que el propio usuario deja
+     escrito en su perfil que verificó el email. La regla de Firestore solo lo
+     acepta si el token de la sesión trae email_verified, por eso se refresca
+     el usuario y el token antes de escribirlo.
+   - email: si lo cambió por verifyBeforeUpdateEmail, el perfil quedaba con el
+     viejo. La regla solo deja igualarlo al del token.
+   - @usuario: los perfiles anteriores a 3.7 no tienen reserva en
+     usernames/{nombre}; se crea acá (si el nombre ya es de otro, no pasa nada).
+   Todo es best-effort: si falla, el login sigue igual. */
+async function _syncAccountFlags(user, profile){
+  try {
+    const ref = _usersCol().doc(user.uid);
+    const upd = {};
+    if (!profile.emailVerified){
+      if (!user.emailVerified){ try { await user.reload(); } catch(e){} }
+      if (user.emailVerified){
+        await user.getIdToken(true);
+        upd.emailVerified = true;
+      }
+    }
+    if (user.email && profile.email !== user.email){
+      await user.getIdToken(true);
+      upd.email = user.email;
+    }
+    if (Object.keys(upd).length){
+      await ref.update(upd);
+      Object.assign(profile, upd);
+    }
+    if (profile.username){
+      const claim = firebase.firestore().collection('usernames').doc(profile.username);
+      const cur = await claim.get();
+      if (!cur.exists) await claim.set({ uid: user.uid });
+    }
+  } catch(e){ console.warn('[auth] no se pudo sincronizar el perfil:', e.code || e.message); }
+}
+
 /* ---- Listener principal del estado de autenticación ---- */
 function onAuthInit(){
   if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function') return;
@@ -204,6 +247,7 @@ function onAuthInit(){
       try { profile = await _loadProfile(user); }
       catch(e){ profile = { role:'president', teamId:null, displayName:user.email }; }
       AUTH = { user, role: profile.role || 'president', teamId: (profile.teamId ?? null), profile };
+      if (profile.uid) _syncAccountFlags(user, profile);   // sin esperar: no bloquea el arranque
       // Si este dispositivo ya tenía un token FCM local (registrado como
       // invitado, o de una sesión previa), asociarlo a la cuenta recién
       // logueada. No pide permiso ni toca el plugin nativo — solo Firestore.
@@ -238,8 +282,8 @@ function renderAuthUI(){
   if (AUTH.user){
     // Solo avatar (sin nombre). Foto de perfil (Firestore) > Firebase Auth photo > SVG genérico.
     const photo  = AUTH.profile?.photoURL || AUTH.user.photoURL;
-    const avatar = photo
-      ? `<img src="${_authEsc(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
+    const avatar = safeImgUrl(photo)
+      ? `<img src="${safeImgUrl(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
       : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
     // Botón de perfil con el diseño del rediseño (pill + avatar + chevron),
     // pero conserva el flujo real: onclick → openProfile() (modal completo).

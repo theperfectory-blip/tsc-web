@@ -59,9 +59,9 @@ Estas acciones no se pueden ejecutar desde el repo:
 |---|---|---|
 | M-1 | `firebase deploy --only firestore:rules` | Al cerrar 0.1 |
 | M-2 | Merge a `main` (dispara el deploy de hosting por CI) | Al cerrar el macro 0, y luego por macro |
-| M-3 | `firebase deploy --only firestore:rules,storage` | Al cerrar 3.2 y 3.3 |
-| M-4 | Google Cloud Console: restringir las 2 API keys (web por referrer, Android por paquete + SHA-1) | Slice 3.6 |
-| M-5 | Cloudinary: restringir el preset unsigned (formatos, tamaño máximo, carpeta fija) | Slice 3.6 |
+| M-3 | `firebase deploy --only firestore:rules,storage` | Al cerrar 3.2 y 3.3 · **hecho 2026-10-11** |
+| M-4 | Google Cloud Console: restringir las 2 API keys (web por referrer, Android por paquete + SHA-1) | Slice 3.6 · **hecho 2026-10-11** |
+| M-5 | Cloudinary: restringir el preset unsigned (formatos, tamaño máximo, carpeta fija) | Slice 3.6 · **hecho 2026-10-11** |
 | M-6 | (Opcional) Dar el rol "Firebase Rules Admin" a la service account del CI para desplegar reglas desde el workflow | Slice 3.4 |
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
 | M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
@@ -81,7 +81,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | H-05 | Media | No hay CSP. Hay más de 200 `innerHTML` y unos 300 handlers `onclick=` inline | `firebase.json`, `tsc-src/index.html` |
 | H-06 | Media | `users.create` no tiene allowlist de campos. Ni create ni update validan tipos ni tamaños (`displayName`, `photoURL`, `username`) | `firebase/firestore.rules` (bloque `users`) |
 | H-07 | Media | Las reglas se despliegan a mano, así que producción puede diferir del repo | Nota en `.github/workflows/firebase-hosting.yml` |
-| H-08 | Media (a verificar) | Sin confirmar que estén restringidas: las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
+| H-08 | Media (**cerrado** 2026-10-11) | Estaban sin restringir (medido 2026-10-11, restringidas en 3.6): las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
 | H-09 | Baja | `.gitignore` lista `firebase-config.js` y `cloudinary.js`, pero están trackeados. Contradice `CLAUDE.md` y `SECURITY.md` | `git ls-files -ci --exclude-standard` |
 
 Barrido del historial completo (todas las ramas): sin claves privadas,
@@ -118,6 +118,8 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
 | H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
+| H-30 | `openPlayoffLegModal` recibe los nombres de los equipos y `savePlayoffLeg` los guarda como `teamA`/`teamB` del partido en vez de los ids; `getWinner` compara contra ids. Latente: en el snapshot no hay legs de playoff guardados así. Hallado en 3.1, va a M5 (Opus) |
+| H-31 | El presidente no podía cambiar su @usuario: la verificación de unicidad listaba `users`, que las reglas no dejan a un no admin. **Cerrado en 3.7** con la reserva `usernames/{nombre}` |
 
 ---
 
@@ -453,6 +455,7 @@ ser opcional.
 ## M3 — Seguridad completa
 
 ### 3.1 · Mapa de confianza y barrido de sinks (H-05)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.1-3.2.md`. 3 sinks de atributo/JS explotables pese a la regla de 0.1 (modal de equipo, handlers de playoff, `uid` pisado en Usuarios admin) y unos 40 de texto o URL corregidos. Barrido dinámico con `scripts/emu-xss.mjs`: 0 inyecciones en `tsc-src` y `dist`.
 - Tabla de qué campos puede escribir cada rol:
   - Anónimo: nada.
   - Usuario registrado: su `users/{uid}`.
@@ -464,6 +467,7 @@ ser opcional.
   `title=`. Migrarlos al helper de 0.1.
 
 ### 3.2 · Reglas Firestore endurecidas y suite de tests (H-06)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.1-3.2.md`. `npm run test:rules`: 21/21 + 350/350 (324/350 contra las reglas anteriores). Desplegadas (M-3).
 - `users.create`:
   - `keys().hasOnly([...])` con los campos de alta reales (sacarlos de
     `auth.js`).
@@ -478,17 +482,20 @@ ser opcional.
   - El presidente no toca equipos ajenos.
 
 ### 3.3 · Storage cerrado (H-04)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. `logos/**` sin escritura; nada usa Storage salvo la lectura de `trophies/`. Desplegado (M-3).
 - `logos/**` pasa a `allow write: if false`. Antes, confirmar con `grep`
   que nada usa `firebase.storage`; hoy ni se carga ese SDK. Desplegar con
   M-3.
 
 ### 3.4 · Drift de reglas y despliegue reproducible (H-07)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. Sin drift (lo publicado = repo antes de 3.2/3.3). `scripts/rules-drift.mjs` y tests de reglas en CI (`rules-tests.yml`). El deploy desde CI queda para cuando se haga M-6.
 - Comparar las reglas activas en la consola con las del repo y tomar el
   repo como fuente de verdad.
 - Si el dueño hace M-6, agregar el deploy de `firestore:rules,storage` al
   workflow, condicionado a que pasen los tests de 3.2.
 
 ### 3.5 · CSP (H-05)
+> **Estado:** ABIERTO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. Report-Only en `firebase.json` y `<meta>` en la APK (fuente única `scripts/csp.mjs`); 0 violaciones en enforce en el sandbox (`tsc-src` y `dist`). Cierra una semana después del deploy, al pasar a enforce.
 - Header `Content-Security-Policy` en `firebase.json`, primero en modo
   `-Report-Only`. Directivas:
   - `default-src 'self'`
@@ -503,6 +510,7 @@ ser opcional.
   legítimas y se pasa a modo enforce.
 
 ### 3.6 · Configuración externa (H-08)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. M-4 y M-5 hechos por el dueño y verificados: las 2 API keys restringidas (403 desde fuera, web y APK funcionando) y el preset `tsc_logos` limitado (más `cobral_fotos`, hallado de paso). App Check: no por ahora (APK fuera de Play).
 - Checklist exacto para M-4 y M-5:
   - Referrers permitidos: `teamsubscup.web.app`, `tsc-web-yuna.web.app`,
     `tsc-web-yuna.firebaseapp.com`, `localhost`.
@@ -512,9 +520,13 @@ ser opcional.
 - Evaluar App Check (opcional).
 
 ### 3.7 · Cuentas (D7)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.7.md`. `emailVerified` escrito por el usuario y respaldado por el token; el admin solo asigna equipo a cuentas verificadas. @usuario por reserva atómica en `usernames/{nombre}` (cierra H-31). `users.email` se alinea con el token. Trigger `onAuthUserDeleted` para perfiles huérfanos. Reglas: 379/379. Reglas y función desplegadas (M-3).
 - Exigir email verificado para que el admin asigne equipo.
 - Qué pasa al borrar la propia cuenta: ¿queda el equipo apuntando a un
   presidente inexistente? ¿Quedan tokens FCM huérfanos?
+- H-31: @usuario sin verificación de unicidad posible para el presidente.
+- `users.email` queda viejo tras `verifyBeforeUpdateEmail` (las reglas no
+  dejan reescribirlo).
 
 ---
 

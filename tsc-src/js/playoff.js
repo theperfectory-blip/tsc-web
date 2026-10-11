@@ -118,17 +118,17 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
 
     el.innerHTML=`
     <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 16px;">
-      <div style="font-family:'Bebas Neue';font-size:28px;letter-spacing:6px;color:var(--gold);text-align:center;text-shadow:0 0 30px rgba(201,168,76,0.35);">${phase.name}</div>
+      <div style="font-family:'Bebas Neue';font-size:28px;letter-spacing:6px;color:var(--gold);text-align:center;text-shadow:0 0 30px rgba(201,168,76,0.35);">${escHtml(phase.name)}</div>
       ${trophySVGsc}
       <div class="card" style="max-width:480px;width:100%;padding:20px 24px;box-sizing:border-box;">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;${hasAnySC?'margin-bottom:16px;':''}">
           <div style="text-align:right;">
-            <div style="font-size:16px;font-weight:${champSC===slot.teamA?'700':'500'};color:${champSC===slot.teamA?'var(--gold)':hasBothSC?'var(--txt)':'var(--txt3)'};">${teamASC}</div>
+            <div style="font-size:16px;font-weight:${champSC===slot.teamA?'700':'500'};color:${champSC===slot.teamA?'var(--gold)':hasBothSC?'var(--txt)':'var(--txt3)'};">${escHtml(teamASC)}</div>
             ${champSC===slot.teamA?'<div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:2px;margin-top:3px;">✓ Campeón</div>':''}
           </div>
           <div style="font-family:\'Bebas Neue\';font-size:20px;color:var(--txt3);text-align:center;">vs</div>
           <div style="text-align:left;">
-            <div style="font-size:16px;font-weight:${champSC===slot.teamB?'700':'500'};color:${champSC===slot.teamB?'var(--gold)':hasBothSC?'var(--txt)':'var(--txt3)'};">${teamBSC}</div>
+            <div style="font-size:16px;font-weight:${champSC===slot.teamB?'700':'500'};color:${champSC===slot.teamB?'var(--gold)':hasBothSC?'var(--txt)':'var(--txt3)'};">${escHtml(teamBSC)}</div>
             ${champSC===slot.teamB?'<div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:2px;margin-top:3px;">✓ Campeón</div>':''}
           </div>
         </div>
@@ -140,7 +140,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       </div>
       ${champSC?`<div style="text-align:center;margin-top:4px;">
         <div style="font-family:'Barlow Condensed';font-size:13px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;">Campeón</div>
-        <div style="font-family:'Bebas Neue';font-size:40px;letter-spacing:2px;color:var(--txt);line-height:1.1;">${champSC}</div>
+        <div style="font-family:'Bebas Neue';font-size:40px;letter-spacing:2px;color:var(--txt);line-height:1.1;">${escHtml(champSC)}</div>
       </div>`:''}
     </div>`;
 
@@ -223,7 +223,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       const prevLegDone = (li===0) || (legData[li-1] && legData[li-1].goalsA!==null && legData[li-1].goalsB!==null && !legData[li-1].live);
       // En vivo (admin) abre el centro; si no, el editor de leg.
       const clickAttr = (isAdmin && isLegLive && ld.id!=null) ? `openLiveMatch(${ld.id})`
-        : (isAdmin && bothTeams && (ld.teamA&&ld.teamB)) ? `openPlayoffLegModal('${phaseId}','${ld.slotId}',${i},${legNo},'${ldTeamAName.replace(/'/g,"\\'")}','${ldTeamBName.replace(/'/g,"\\'")}',${isAdmin})` : '';
+        : (isAdmin && bothTeams && (ld.teamA&&ld.teamB)) ? `openPlayoffLegModal('${phaseId}','${ld.slotId}',${i},${legNo},${escAttr(JSON.stringify(String(ldTeamAName)))},${escAttr(JSON.stringify(String(ldTeamBName)))},${isAdmin})` : '';
       const sa = ld.goalsA!==null?ld.goalsA:'-', sb = ld.goalsB!==null?ld.goalsB:'-';
       const colA = isLegLive?'var(--red)':(ld.goalsA!==null&&ld.goalsA>ld.goalsB?'var(--gold)':'var(--txt)');
       const colB = isLegLive?'var(--red)':(ld.goalsB!==null&&ld.goalsB>ld.goalsA?'var(--gold)':'var(--txt)');
@@ -271,7 +271,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     } else if(isAdmin && !anyLive && bothTeamsExist && nextPlayableLegIdx>=0){
       const _ld = legData[nextPlayableLegIdx];
       const _ll = legsCount>1 ? ` · ${nextPlayableLegIdx===0?'Ida':'Vuelta'}` : '';
-      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;"><span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo${_ll}</button></div>`;
+      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;"><span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo${_ll}</button></div>`;
     }
 
     html+=`
@@ -281,8 +281,8 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
 
         <!-- Equipo A: logo | nombre | goles ✓ -->
         <div style="display:flex;align-items:center;gap:7px;">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-a">${teamAIni}</div>
-          <span style="font-size:15px;font-weight:${wA?'700':'400'};color:${wA?'var(--gold)':'var(--txt)'};">${teamAName}</span>
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-a">${escHtml(teamAIni)}</div>
+          <span style="font-size:15px;font-weight:${wA?'700':'400'};color:${wA?'var(--gold)':'var(--txt)'};">${escHtml(teamAName)}</span>
           ${scoreA!==null?`<span style="font-family:'Bebas Neue';font-size:20px;color:${wA?'var(--gold)':'var(--txt2)'};">${scoreA}</span>`:''}
           ${winBadgeA}
         </div>
@@ -304,8 +304,8 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
         <div style="display:flex;align-items:center;justify-content:flex-end;gap:7px;">
           ${winBadgeB}
           ${scoreB!==null?`<span style="font-family:'Bebas Neue';font-size:20px;color:${wB?'var(--gold)':'var(--txt2)'};">${scoreB}</span>`:''}
-          <span style="font-size:15px;font-weight:${wB?'700':'400'};color:${wB?'var(--gold)':'var(--txt)'};">${teamBName}</span>
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-b">${teamBIni}</div>
+          <span style="font-size:15px;font-weight:${wB?'700':'400'};color:${wB?'var(--gold)':'var(--txt)'};">${escHtml(teamBName)}</span>
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--txt2);flex-shrink:0;" id="plogo-${phaseId}-${i}-b">${escHtml(teamBIni)}</div>
         </div>
       </div>
     </div>`;
@@ -355,9 +355,9 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:6px;">
-          <div style="font-size:14px;font-weight:600;text-align:center;">${teamA}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(teamA)}</div>
           <div style="font-family:'Bebas Neue';font-size:19px;color:var(--txt3);">vs</div>
-          <div style="font-size:14px;font-weight:600;text-align:center;">${teamB}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(teamB)}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
           <input type="number" id="pl-ga" min="0" value="${cur?.goalsA??0}"
@@ -382,7 +382,7 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
         ${cur?`<button class="btn btn-danger btn-sm" onclick="closePlayoffLegModal();deletePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Borrar</button>`:'<div></div>'}
         <div style="display:flex;gap:8px;">
           <button class="btn" onclick="closePlayoffLegModal()">Cancelar</button>
-          <button class="btn btn-primary" onclick="savePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg},'${teamA.replace(/'/g,"\\'")}','${teamB.replace(/'/g,"\\'")}')">Guardar</button>
+          <button class="btn btn-primary" onclick="savePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg},${escAttr(JSON.stringify(teamA))},${escAttr(JSON.stringify(teamB))})">Guardar</button>
         </div>
       </div>
     </div>
@@ -487,10 +487,10 @@ async function openPlayoffTeamAssign(phaseId, matchIdx){
       // Filtrar opciones ya asignadas en otros cruces (excepto las del cruce actual)
       const opts = pool.options.filter(o=>!usedElsewhere.has(String(o.value))||curUsed.has(String(o.value)));
       if(!opts.length) return;
-      html += `<optgroup label="${pool.label}">`;
+      html += `<optgroup label="${escAttr(pool.label)}">`;
       opts.forEach(opt=>{
         const sel = String(opt.value)===selStr ? ' selected' : '';
-        html += `<option value="${String(opt.value).replace(/"/g,'&quot;')}"${sel}>${opt.label}</option>`;
+        html += `<option value="${escAttr(opt.value)}"${sel}>${escHtml(opt.label)}</option>`;
       });
       html += `</optgroup>`;
     });
@@ -751,7 +751,7 @@ async function openSupercopaTeamAssign(phaseId, matchIdx){
   const teamOpts=(selected)=>{
     const selStr = selected==null ? '' : String(selected);
     return `<option value="">— Seleccionar —</option>`+
-      activeTeams.map(t=>`<option value="${t.id}" ${String(t.id)===selStr?'selected':''}>${t.name}</option>`).join('');
+      activeTeams.map(t=>`<option value="${t.id}" ${String(t.id)===selStr?'selected':''}>${escHtml(t.name)}</option>`).join('');
   };
 
   let wrap=document.getElementById('supercopa-assign-wrap');
