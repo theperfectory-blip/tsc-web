@@ -296,3 +296,30 @@ el preset.
   (carpeta `cobral`, sin sobrescribir, la misma transformación y formatos).
 - **Estado:** 3.3, 3.4 y 3.6 cerrados del todo. 3.5 sigue en la semana de
   Report-Only, que empieza con el merge.
+
+## Semana de Report-Only (3.5)
+
+- **Inicio:** 2026-10-11 03:43 UTC, merge de
+  [PR #7](https://github.com/theperfectory-blip/tsc-web/pull/7) (`beb692f`) y
+  deploy de Hosting por CI (verde).
+- **Verificado en producción** el mismo día:
+  - `curl -sD - -o /dev/null https://teamsubscup.web.app/` muestra
+    `Content-Security-Policy-Report-Only` con la política de `csp.mjs`.
+  - Visita anónima con `__TSC_READONLY__ = true` a panel, equipos,
+    calendario, sorteo, historial y palmarés: **0 violaciones** (evento
+    `securitypolicyviolation`) y consola sin avisos de CSP.
+  - No se revisaron las páginas del admin con sesión ni la APK (la `<meta>`
+    llega con la próxima release).
+- **Fecha de revisión: 2026-10-18 o después.** Pasos:
+  1. Abrir la consola del navegador (F12) en escritorio y en el celular y
+     recorrer: panel, palmarés (Sala 3D), sorteo, calendario, login, perfil
+     (cambiar foto), admin (equipos, partidos, usuarios) y exportar historial.
+     Buscar mensajes "Content Security Policy" / "Report Only".
+  2. Si no aparece ninguno: cambiar la clave a `Content-Security-Policy` en
+     `firebase.json` (los dos headers) y en el check de `scripts/csp.mjs`,
+     correr `node scripts/csp.mjs --check` y publicar (merge a `main`).
+  3. Si aparece alguno legítimo: agregar el origen en `scripts/csp.mjs`,
+     sincronizar `firebase.json` y reiniciar la semana.
+  4. Marcar 3.5 como CERRADO en el plan.
+- Prompt para esa sesión (Sonnet 5.5, low):
+  `Cierra el slice 3.5 de docs/MACRO_SLICE_DEBUGGING.md (paso a enforce)`.
