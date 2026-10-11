@@ -89,3 +89,13 @@ antes y se loguea sin abortar el broadcast).
 **M-9:** `firebase deploy --only functions` **antes del 2026-10-30** (fecha en
 que Google desactiva Node 20, aviso del deploy de 3.7). Después, en el
 próximo stream, probar el botón "notificar stream de hoy" una vez.
+
+## Deploy (M-9) · 2026-10-11
+
+Hecho por el dueño desde `claude/slice-6`. `firebase functions:list`: las 4
+funciones en `nodejs22`, con las mismas regiones (`notifyStreamToday` y
+`notifyStartupContinuation` en `southamerica-east1`, `onMatchWentLive` en
+`southamerica-west1`, `onAuthUserDeleted` en `us-central1`). Las llamadas
+sin credenciales devuelven lo mismo que antes: `notifyStartupContinuation`
+403 (IAM) y `notifyStreamToday` 401. Falta probar el botón "notificar stream
+de hoy" en el próximo stream.

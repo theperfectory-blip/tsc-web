@@ -65,7 +65,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-6 | (Opcional) Dar el rol "Firebase Rules Admin" a la service account del CI para desplegar reglas desde el workflow | Slice 3.4 |
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
 | M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
-| M-9 | `firebase deploy --only functions` (runtime Node 22) y probar una vez el botón de "stream de hoy" | Slice 6.1 · **antes del 2026-10-30** |
+| M-9 | `firebase deploy --only functions` (runtime Node 22) y probar una vez el botón de "stream de hoy" | Slice 6.1 · **deploy hecho 2026-10-11** (falta probar el botón en el próximo stream) |
 
 ---
 
@@ -592,7 +592,7 @@ sandbox de 2.1.**
 - `npm run test:emulator` en verde.
 - Migrar a Node 22. Correr `npm audit` en `functions/`.
 
-> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-6.1.md`. Task de continuación privada por IAM (403 sin credenciales, `invoker: 'private'` explícito), callable con rol leído de Firestore, trigger de vivo sin campos del cliente. Payload de la task validado; limpieza también de tokens mal formados. Node 22, firebase-admin 14.5, firebase-functions 7.4, `npm audit` 15 → 0. Harness 1-9, cleanup 9/9, reglas 379/379. Deploy pendiente (M-9). Hallazgos nuevos H-32 a H-35.
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-6.1.md`. Task de continuación privada por IAM (403 sin credenciales, `invoker: 'private'` explícito), callable con rol leído de Firestore, trigger de vivo sin campos del cliente. Payload de la task validado; limpieza también de tokens mal formados. Node 22, firebase-admin 14.5, firebase-functions 7.4, `npm audit` 15 → 0. Harness 1-9, cleanup 9/9, reglas 379/379. Desplegado (M-9): las 4 funciones en `nodejs22`, 403/401 sin credenciales. Hallazgos nuevos H-32 a H-35.
 
 ### 6.2 · Dependencias
 - `npm audit` en la raíz (Capacitor).
