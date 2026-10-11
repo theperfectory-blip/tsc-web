@@ -146,3 +146,14 @@ borrado de cuenta y `users.email` viejo. Todo se probó en el sandbox
   nuevas y el cliente viejo, el @usuario ya no se puede cambiar y el admin no
   puede asignar equipos a cuentas sin `emailVerified`, hasta que el cliente
   nuevo esté publicado y las cuentas hayan iniciado sesión.
+
+## Cierre (2026-10-11)
+
+- Reglas desplegadas por el dueño (M-3, junto con 3.2 y 3.3) y verificadas
+  con `rules-drift.mjs`: IGUAL.
+- `firebase deploy --only functions:onAuthUserDeleted`: creada
+  (Node.js 20, 1.ª gen, `us-central1`), con limpieza de imágenes de
+  contenedor a 1 día.
+- **Aviso del deploy:** Node.js 20 se desactiva el **2026-10-30**. Después no
+  se pueden publicar funciones sin actualizar el runtime (H-25, slice 6.1).
+  Conviene adelantar 6.1 antes de esa fecha.

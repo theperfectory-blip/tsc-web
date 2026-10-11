@@ -261,3 +261,38 @@ el preset.
   CI, si se quiere que el workflow despliegue las reglas.
 - **M-2 (al cerrar M3):** con el merge sale la CSP Report-Only y el escape de
   3.1. La `<meta>` de la APK sale en la próxima release.
+
+## Cierre (2026-10-11, acciones del dueño hechas)
+
+- **M-3:** `firebase deploy --only firestore:rules,storage` desde
+  `claude/slice-3` (02:28 UTC). `node scripts/rules-drift.mjs`: **IGUAL** en
+  Firestore y en Storage.
+- **M-4, key web (`Browser key`):** restricción por sitios con
+  `http://localhost/*`, `http://localhost:3000/*`, `https://localhost/*`,
+  `https://teamsubscup.web.app/*`, `https://tsc-web-yuna.firebaseapp.com/*` y
+  `https://tsc-web-yuna.web.app/*`. Google no acepta comodín en el puerto
+  (`localhost:*`), así que el desarrollo queda en el 3000. La lista de 25 APIs
+  que Firebase le puso por defecto no se tocó.
+  - Prueba (solo lectura): sin `Referer` y con `evil.example` → **403**;
+    `teamsubscup.web.app`, `tsc-web-yuna.web.app` y `https://localhost/` →
+    200. El dueño entró a la web en incógnito sin problemas.
+- **M-4, key Android:** "Apps para Android" con `web.teamsubscup.app` y dos
+  huellas SHA-1 (sacadas con `gradlew signingReport` desde la copia principal,
+  donde está `keystore.properties`):
+  - release `B5:AE:3A:55:35:81:C0:53:F7:7F:2F:0F:D2:A6:CE:14:AC:2A:27:62`;
+  - debug `E3:7C:0A:F8:D8:EC:BD:11:EE:F8:14:21:39:1B:36:59:44:82:43:EE`.
+  - Prueba: sin cabeceras, con `Referer` ajeno y con el paquete sin firma →
+    **403**. La APK sigue funcionando en el teléfono del dueño.
+- **M-5, Cloudinary `tsc_logos`:** Unsigned, carpeta `tsc-logos`, sin
+  sobrescribir, public ID automático (inadivinable), incoming transformation
+  `c_limit,w_2048,h_2048,q_auto`, formatos `jpg, png, webp`.
+  - El preset **no tiene campo de tamaño máximo**: el límite lo pone el plan de
+    la cuenta. El checklist decía 10 MB por error de supuesto.
+  - Las fotos HEIC de iPhone quedan rechazadas; si hace falta, agregar `heic`.
+  - Prueba del dueño: cambio de escudo desde el perfil y foto en una galería
+    del palmarés, las dos OK.
+- **Hallazgo:** había un segundo preset unsigned, `cobral_fotos` (creado el
+  2026-10-02), que no usa ningún repo. El dueño le aplicó la misma protección
+  (carpeta `cobral`, sin sobrescribir, la misma transformación y formatos).
+- **Estado:** 3.3, 3.4 y 3.6 cerrados del todo. 3.5 sigue en la semana de
+  Report-Only, que empieza con el merge.

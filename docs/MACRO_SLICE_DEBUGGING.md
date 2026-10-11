@@ -59,9 +59,9 @@ Estas acciones no se pueden ejecutar desde el repo:
 |---|---|---|
 | M-1 | `firebase deploy --only firestore:rules` | Al cerrar 0.1 |
 | M-2 | Merge a `main` (dispara el deploy de hosting por CI) | Al cerrar el macro 0, y luego por macro |
-| M-3 | `firebase deploy --only firestore:rules,storage` | Al cerrar 3.2 y 3.3 |
-| M-4 | Google Cloud Console: restringir las 2 API keys (web por referrer, Android por paquete + SHA-1) | Slice 3.6 |
-| M-5 | Cloudinary: restringir el preset unsigned (formatos, tamaño máximo, carpeta fija) | Slice 3.6 |
+| M-3 | `firebase deploy --only firestore:rules,storage` | Al cerrar 3.2 y 3.3 · **hecho 2026-10-11** |
+| M-4 | Google Cloud Console: restringir las 2 API keys (web por referrer, Android por paquete + SHA-1) | Slice 3.6 · **hecho 2026-10-11** |
+| M-5 | Cloudinary: restringir el preset unsigned (formatos, tamaño máximo, carpeta fija) | Slice 3.6 · **hecho 2026-10-11** |
 | M-6 | (Opcional) Dar el rol "Firebase Rules Admin" a la service account del CI para desplegar reglas desde el workflow | Slice 3.4 |
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
 | M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
@@ -81,7 +81,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | H-05 | Media | No hay CSP. Hay más de 200 `innerHTML` y unos 300 handlers `onclick=` inline | `firebase.json`, `tsc-src/index.html` |
 | H-06 | Media | `users.create` no tiene allowlist de campos. Ni create ni update validan tipos ni tamaños (`displayName`, `photoURL`, `username`) | `firebase/firestore.rules` (bloque `users`) |
 | H-07 | Media | Las reglas se despliegan a mano, así que producción puede diferir del repo | Nota en `.github/workflows/firebase-hosting.yml` |
-| H-08 | Media (confirmado en 3.6) | Sin restringir (medido 2026-10-11): las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
+| H-08 | Media (**cerrado** 2026-10-11) | Estaban sin restringir (medido 2026-10-11, restringidas en 3.6): las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
 | H-09 | Baja | `.gitignore` lista `firebase-config.js` y `cloudinary.js`, pero están trackeados. Contradice `CLAUDE.md` y `SECURITY.md` | `git ls-files -ci --exclude-standard` |
 
 Barrido del historial completo (todas las ramas): sin claves privadas,
@@ -467,7 +467,7 @@ ser opcional.
   `title=`. Migrarlos al helper de 0.1.
 
 ### 3.2 · Reglas Firestore endurecidas y suite de tests (H-06)
-> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.1-3.2.md`. `npm run test:rules`: 21/21 + 350/350 (324/350 contra las reglas anteriores). Falta desplegar las reglas (M-3).
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.1-3.2.md`. `npm run test:rules`: 21/21 + 350/350 (324/350 contra las reglas anteriores). Desplegadas (M-3).
 - `users.create`:
   - `keys().hasOnly([...])` con los campos de alta reales (sacarlos de
     `auth.js`).
@@ -482,7 +482,7 @@ ser opcional.
   - El presidente no toca equipos ajenos.
 
 ### 3.3 · Storage cerrado (H-04)
-> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. `logos/**` sin escritura; nada usa Storage salvo la lectura de `trophies/`. Falta desplegar (M-3).
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. `logos/**` sin escritura; nada usa Storage salvo la lectura de `trophies/`. Desplegado (M-3).
 - `logos/**` pasa a `allow write: if false`. Antes, confirmar con `grep`
   que nada usa `firebase.storage`; hoy ni se carga ese SDK. Desplegar con
   M-3.
@@ -510,7 +510,7 @@ ser opcional.
   legítimas y se pasa a modo enforce.
 
 ### 3.6 · Configuración externa (H-08)
-> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. H-08 confirmado: las 2 API keys sin restringir. Checklists exactos para M-4 y M-5 (el preset de Cloudinary también lo usa la galería: 10 MB, no 2). App Check: no por ahora (APK fuera de Play).
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. M-4 y M-5 hechos por el dueño y verificados: las 2 API keys restringidas (403 desde fuera, web y APK funcionando) y el preset `tsc_logos` limitado (más `cobral_fotos`, hallado de paso). App Check: no por ahora (APK fuera de Play).
 - Checklist exacto para M-4 y M-5:
   - Referrers permitidos: `teamsubscup.web.app`, `tsc-web-yuna.web.app`,
     `tsc-web-yuna.firebaseapp.com`, `localhost`.
@@ -520,7 +520,7 @@ ser opcional.
 - Evaluar App Check (opcional).
 
 ### 3.7 · Cuentas (D7)
-> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.7.md`. `emailVerified` escrito por el usuario y respaldado por el token; el admin solo asigna equipo a cuentas verificadas. @usuario por reserva atómica en `usernames/{nombre}` (cierra H-31). `users.email` se alinea con el token. Trigger `onAuthUserDeleted` para perfiles huérfanos. Reglas: 379/379. Falta desplegar reglas y la función (M-3).
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.7.md`. `emailVerified` escrito por el usuario y respaldado por el token; el admin solo asigna equipo a cuentas verificadas. @usuario por reserva atómica en `usernames/{nombre}` (cierra H-31). `users.email` se alinea con el token. Trigger `onAuthUserDeleted` para perfiles huérfanos. Reglas: 379/379. Reglas y función desplegadas (M-3).
 - Exigir email verificado para que el admin asigne equipo.
 - Qué pasa al borrar la propia cuenta: ¿queda el equipo apuntando a un
   presidente inexistente? ¿Quedan tokens FCM huérfanos?
