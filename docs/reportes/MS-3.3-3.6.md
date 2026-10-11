@@ -88,11 +88,20 @@ Auth). No se desplegó nada.
   `Permissions-Policy` presentes), así que la CSP sale con el próximo deploy
   de Hosting. Se confirma con
   `curl -sD - -o /dev/null https://teamsubscup.web.app/ | grep -i content-security`.
-- **No cubierto por la prueba:**
-  - La callable de Functions y la subida real a Cloudinary: en el sandbox van
-    al emulador y a la simulación. Los dos orígenes de producción están en
-    `connect-src`.
-  - Un dispositivo Android real.
+- **Orígenes de producción de Functions y Cloudinary** (en el sandbox la
+  callable va al emulador y la subida se simula): se probaron con un `fetch` a
+  una ruta inexistente de cada dominio desde `csp.html` (enforce). No ejecuta
+  ninguna función ni sube nada.
+  - `southamerica-east1-tsc-web-yuna.cloudfunctions.net` y `api.cloudinary.com`:
+    la CSP los permite y la petición sale (aparece en Resource Timing).
+  - Control `evil.example`: bloqueado por `connect-src`, no sale.
+  - El 404 de Cloudinary intenta cargar su propia hoja de estilos y su script
+    (`/stylesheets/g/cloudinary_public.css`, `/javascripts/g/…`), que la CSP
+    bloquea. Es la página de error de una ruta inventada; la subida real
+    devuelve JSON. No se agregan.
+  - La callable real (`notifyStreamToday` manda push a los usuarios) y una
+    subida real a la cuenta no se ejecutaron a propósito.
+- **No cubierto:** un dispositivo Android real.
 
 ### Por qué 3.5 no cierra
 
