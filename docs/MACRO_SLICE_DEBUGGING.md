@@ -65,6 +65,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-6 | (Opcional) Dar el rol "Firebase Rules Admin" a la service account del CI para desplegar reglas desde el workflow | Slice 3.4 |
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
 | M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
+| M-9 | `firebase deploy --only functions` (runtime Node 22) y probar una vez el botón de "stream de hoy" | Slice 6.1 · **antes del 2026-10-30** |
 
 ---
 
@@ -113,13 +114,17 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-22 | Unas 20 copias de la función de escape; 8 de ellas se llaman `_esc` y comparten el scope global |
 | H-23 | Si el SDK de Firebase no carga, `USE_FIRESTORE` queda en `false`. Hay que verificar si en ese caso la app corre sobre un IndexedDB local vacío y `seedInitialData` siembra 60 equipos falsos (`ui-utils.js:628`) |
 | H-24 | Assets: 75 MB en `tsc-src/assets` (trofeos `.glb`, `palmares_theme.mp3` de 4,7 MB, PNG de 1,6 a 2,2 MB con su par `.webp` ya generado) |
-| H-25 | `functions/` declara Node 20, que está fuera de soporte desde 2026-04-30 |
+| H-25 | `functions/` declara Node 20, que está fuera de soporte desde 2026-04-30. **Cerrado en 6.1** (Node 22, deps sin vulnerabilidades; falta el deploy, M-9) |
 | H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. Verificar si es alcanzable |
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
 | H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
 | H-30 | `openPlayoffLegModal` recibe los nombres de los equipos y `savePlayoffLeg` los guarda como `teamA`/`teamB` del partido en vez de los ids; `getWinner` compara contra ids. Latente: en el snapshot no hay legs de playoff guardados así. Hallado en 3.1, va a M5 (Opus) |
 | H-31 | El presidente no podía cambiar su @usuario: la verificación de unicidad listaba `users`, que las reglas no dejan a un no admin. **Cerrado en 3.7** con la reserva `usernames/{nombre}` |
+| H-32 | El usuario escribe su propio `fcmTokens` (hasta 20 strings): un presidente podría registrar el token de otro dispositivo y mandarle los avisos de su equipo. Baja, sin datos sensibles. Hallado en 6.1 |
+| H-33 | Dedup de push no atómico (lee y después escribe): la task de arranque y el trigger de vivo en el mismo segundo pueden duplicar un aviso de "a continuación". Baja, aceptada. Hallado en 6.1 |
+| H-34 | `notifyRecipients` escribe todo en un solo batch (límite 500): alcanza para ~150 destinatarios por corrida. Latente. Hallado en 6.1 |
+| H-35 | `firebase-hosting.yml` corre el build con Node 20. Hallado en 6.1, va a 6.2 |
 
 ---
 
@@ -586,6 +591,8 @@ sandbox de 2.1.**
 - Revisar dedup, limpieza de tokens inválidos y región.
 - `npm run test:emulator` en verde.
 - Migrar a Node 22. Correr `npm audit` en `functions/`.
+
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-6.1.md`. Task de continuación privada por IAM (403 sin credenciales, `invoker: 'private'` explícito), callable con rol leído de Firestore, trigger de vivo sin campos del cliente. Payload de la task validado; limpieza también de tokens mal formados. Node 22, firebase-admin 14.5, firebase-functions 7.4, `npm audit` 15 → 0. Harness 1-9, cleanup 9/9, reglas 379/379. Deploy pendiente (M-9). Hallazgos nuevos H-32 a H-35.
 
 ### 6.2 · Dependencias
 - `npm audit` en la raíz (Capacitor).
