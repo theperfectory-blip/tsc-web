@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test:emulator": "firebase emulators:exec --project demo-tsc-web --only firestore \"node test/verify-emulator.js\"",
-    "test:rules": "firebase emulators:exec --project demo-tsc-web --only firestore \"node test/rules-teams.js\""
+    "test:rules": "firebase emulators:exec --project demo-tsc-web --only firestore \"node test/rules-teams.js && node test/rules-suite.js\""
   },
   "dependencies": {
     "firebase-admin": "^13.10.0",

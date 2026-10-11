@@ -282,10 +282,10 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
         </td>
         <td style="padding:7px 8px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <div style="width:24px;height:24px;border-radius:50%;background:${displayColor};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;overflow:hidden;">
-              ${teamData.logo ? `<img src="${_esc(teamData.logo)}" style="width:100%;height:100%;object-fit:cover;">` : displayIni.substring(0,3).toUpperCase()}
+            <div style="width:24px;height:24px;border-radius:50%;background:${safeCssColor(displayColor,'#888')};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;overflow:hidden;">
+              ${safeImgUrl(teamData.logo) ? `<img src="${safeImgUrl(teamData.logo)}" style="width:100%;height:100%;object-fit:cover;">` : escHtml(String(displayIni||'').substring(0,3).toUpperCase())}
             </div>
-            <span style="font-size:14px;font-weight:500;">${displayName}</span>${confBadge}${refBadge}
+            <span style="font-size:14px;font-weight:500;">${escHtml(displayName)}</span>${confBadge}${refBadge}
           </div>
         </td>
         <td style="padding:7px 8px;font-weight:700;font-size:16px;">${s.pts}</td>
@@ -899,7 +899,7 @@ async function renderAssignGroupSlots(){
         }
         resolvedName = tid!=null ? (teamById[tid]?.name || `#${tid}`) : 'Por definir';
       }
-      const badge = (typeof refBadgeHTML==='function' && r.type!=='team') ? refBadgeHTML(label) : `<span style="font-size:11px;color:var(--txt3);">${label}</span>`;
+      const badge = (typeof refBadgeHTML==='function' && r.type!=='team') ? refBadgeHTML(label) : `<span style="font-size:11px;color:var(--txt3);">${escHtml(label)}</span>`;
       refRows[gi].push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 6px;background:var(--card);border:1px dashed var(--gold-b);border-radius:3px;font-size:13px;">
         <span style="display:flex;align-items:center;gap:6px;min-width:0;">
           ${badge}
@@ -940,7 +940,7 @@ async function renderAssignGroupSlots(){
           const team = teamById[tid];
           const name = team?.name || `Team ${tid}`;
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 6px;background:var(--card);border-radius:3px;font-size:13px;">
-            <span>${name}</span>
+            <span>${escHtml(name)}</span>
             <button onclick="removeFromGroup(${i},${tid})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
           </div>`;
         }).join('')}

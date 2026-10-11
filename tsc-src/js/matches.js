@@ -314,7 +314,7 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
       <div style="text-align:center;">
         <div style="font-family:'Barlow Condensed';font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:1px;">Fecha ${curR}</div>
         <div style="font-size:11px;color:var(--txt3);text-transform:capitalize;">${fechaStr}</div>
-        ${libre?`<div style="font-size:11px;color:var(--gold);margin-top:2px;">Libre: ${libre}</div>`:''}
+        ${libre?`<div style="font-size:11px;color:var(--gold);margin-top:2px;">Libre: ${escHtml(libre)}</div>`:''}
       </div>
       <button onclick="navegarRonda('${containerId}',${phaseId},${groupIdx},${nextR})"
         style="background:none;border:none;color:${nextR!==null?'var(--txt)':'var(--txt3)'};font-size:22px;cursor:${nextR!==null?'pointer':'default'};padding:0 8px;line-height:1;opacity:${nextR!==null?1:0.3};" ${nextR===null?'disabled':''}>›</button>
@@ -410,7 +410,7 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span style="font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:0.5px;text-transform:uppercase;">${label}</span>
           ${fechaDisplay?`<span style="font-size:11px;color:var(--txt3);">${fechaDisplay}</span>`:''}
-          ${libre?`<span style="font-size:12px;color:var(--gold);">Libre: <strong>${libre}</strong></span>`:''}
+          ${libre?`<span style="font-size:12px;color:var(--gold);">Libre: <strong>${escHtml(libre)}</strong></span>`:''}
           ${pendientes?`<span style="font-size:11px;background:rgba(201,168,76,0.15);color:var(--gold);padding:1px 6px;border-radius:3px;">${pendientes} pendiente${pendientes>1?'s':''}</span>`:''}
         </div>
         <div style="display:flex;gap:6px;">
@@ -454,9 +454,9 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
           const luisA = m.luisTeam===m.teamA ? luisBadge : '';
           const luisB = m.luisTeam===m.teamB ? luisBadge : '';
           return `<tr>
-            <td style="text-align:right;padding:7px 10px;${fA}">${luisA?`<span style="display:inline-flex;align-items:center;gap:5px;justify-content:flex-end;">${luisA}${teamAName}</span>`:teamAName}</td>
+            <td style="text-align:right;padding:7px 10px;${fA}">${luisA?`<span style="display:inline-flex;align-items:center;gap:5px;justify-content:flex-end;">${luisA}${escHtml(teamAName)}</span>`:escHtml(teamAName)}</td>
             <td style="text-align:center;width:120px;">${centerCell}</td>
-            <td style="padding:7px 10px;${fB}">${luisB?`<span style="display:inline-flex;align-items:center;gap:5px;">${luisB}${teamBName}</span>`:teamBName}</td>
+            <td style="padding:7px 10px;${fB}">${luisB?`<span style="display:inline-flex;align-items:center;gap:5px;">${luisB}${escHtml(teamBName)}</span>`:escHtml(teamBName)}</td>
             <td style="font-size:11px;color:var(--txt3);white-space:nowrap;padding-right:6px;">${diaCorto}</td>
             <td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✕</button></td>
           </tr>`;
@@ -832,7 +832,7 @@ function renderRondaModalContent(){
     const ignoreIds = new Set();
     if(slot.matchId) ignoreIds.add(slot.matchId);
     const pairReason = (slot.a!=null && slot.b!=null) ? st.pairingBlockReason(slot.a, slot.b, ignoreIds) : null;
-    const pairWarn = pairReason ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">${_UI_ALERT_SVG}${pairReason}</div>` : '';
+    const pairWarn = pairReason ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">${_UI_ALERT_SVG}${escHtml(pairReason)}</div>` : '';
 
     const sameTeamWarn = (slot.a!=null && slot.a===slot.b)
       ? `<div style="font-size:11px;color:var(--red);margin-top:3px;">${_UI_ALERT_SVG}Local y visita no pueden ser el mismo</div>`
@@ -902,7 +902,7 @@ function renderRondaModalContent(){
         ${optsLibre.join('')}
       </select>
       ${mustPickLibreFirst?`<div style="margin-top:8px;padding:8px 10px;background:rgba(201,168,76,0.12);border:1px solid var(--gold-b);border-radius:var(--r);font-size:12px;color:var(--gold);font-weight:600;">Paso 1: selecciona el equipo libre para habilitar los cruces de la fecha.</div>`:''}
-      ${byeWarn?`<div style="font-size:11px;color:var(--red);margin-top:6px;">${_UI_ALERT_SVG}${byeWarn}</div>`:''}
+      ${byeWarn?`<div style="font-size:11px;color:var(--red);margin-top:6px;">${_UI_ALERT_SVG}${escHtml(byeWarn)}</div>`:''}
     </div>`;
   }
 
@@ -918,7 +918,7 @@ function renderRondaModalContent(){
 
   // Mensaje de progreso
   const filled = st.slots.filter(s=>s.a!=null && s.b!=null && s.a!==s.b).length;
-  const libreLabel = st.libre!=null ? st.nameOf(st.libre) : '—';
+  const libreLabel = st.libre!=null ? escHtml(st.nameOf(st.libre)) : '—';
   const progressMsg = `${filled}/${st.slotsCount} partidos${st.isOdd?` · libre: ${libreLabel}`:''}`;
 
   wrap.innerHTML=`
@@ -1117,9 +1117,9 @@ async function openEditResultModal(matchId, phaseId, groupIdx){
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:700;text-align:center;line-height:1.2;">${teamAName}</div>
+          <div style="font-size:13px;font-weight:700;text-align:center;line-height:1.2;">${escHtml(teamAName)}</div>
           <div style="font-family:'Bebas Neue';font-size:20px;color:var(--txt3);">vs</div>
-          <div style="font-size:13px;font-weight:700;text-align:center;line-height:1.2;">${teamBName}</div>
+          <div style="font-size:13px;font-weight:700;text-align:center;line-height:1.2;">${escHtml(teamBName)}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;">
           <input type="number" id="er-ga" min="0" value="${hasR?m.goalsA:0}"
@@ -1257,7 +1257,7 @@ async function openMatchInputModal(phaseId, groupIdx, defaultTeam){
   const pendOpts = posiblesDisplay.map((p,i)=>{
     const pAName = teamNameById[p.a]||`Team ${p.a}`;
     const pBName = teamNameById[p.b]||`Team ${p.b}`;
-    return `<option value="${i}">${pAName} vs ${pBName}${p.jugados>0?' (vuelta)':''}</option>`;
+    return `<option value="${i}">${escHtml(pAName)} vs ${escHtml(pBName)}${p.jugados>0?' (vuelta)':''}</option>`;
   }).join('');
 
   wrap.innerHTML = `
@@ -1275,9 +1275,9 @@ async function openMatchInputModal(phaseId, groupIdx, defaultTeam){
           </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:14px;">
-          <div style="font-size:14px;font-weight:600;text-align:center;" id="mi-label-a">${teamNameById[posiblesDisplay[0]?.a]||''}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;" id="mi-label-a">${escHtml(teamNameById[posiblesDisplay[0]?.a]||'')}</div>
           <div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">vs</div>
-          <div style="font-size:14px;font-weight:600;text-align:center;" id="mi-label-b">${teamNameById[posiblesDisplay[0]?.b]||''}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;" id="mi-label-b">${escHtml(teamNameById[posiblesDisplay[0]?.b]||'')}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;">
           <input type="number" id="mi-ga" min="0" value="0" oninput="updateMatchPreview()"
@@ -1327,8 +1327,8 @@ function updateMatchPreview(){
   const gb = parseInt(document.getElementById('mi-gb')?.value)||0;
   const prev = document.getElementById('match-preview');
   if(!prev) return;
-  if(ga>gb) prev.innerHTML=`<span style="color:var(--green);">${ta}</span> gana`;
-  else if(gb>ga) prev.innerHTML=`<span style="color:var(--green);">${tb}</span> gana`;
+  if(ga>gb) prev.innerHTML=`<span style="color:var(--green);">${escHtml(ta)}</span> gana`;
+  else if(gb>ga) prev.innerHTML=`<span style="color:var(--green);">${escHtml(tb)}</span> gana`;
   else prev.innerHTML=`<span style="color:var(--gold);">Empate</span>`;
 }
 

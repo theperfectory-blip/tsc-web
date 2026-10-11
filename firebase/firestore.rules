@@ -61,29 +61,68 @@ service cloud.firestore {
     }
 
     // --- Perfiles de usuario ---
+    // Valores de los campos que escribe el propio usuario (H-06, slice 3.2).
+    // displayName/username/photoURL terminan en el panel admin; aunque el
+    // cliente escapa (3.1), las reglas acotan tipo, tamaño y formato.
+    function cloudinaryUrl(v) {
+      return v is string && v.size() < 500
+          && v.matches('https://res[.]cloudinary[.]com/dnjijd8mx/[A-Za-z0-9_./,:%=+~-]+');
+    }
+    function validDisplayName(v) { return v is string && v.size() >= 1 && v.size() <= 64 && !v.matches('(?s).*[<>].*'); }
+    // Mismo formato que impone profile.js (minúsculas, dígitos y _).
+    function validUsername(v)    { return v == null || (v is string && v.matches('[a-z0-9_]{1,30}')); }
+    function validPhotoURL(v)    { return v == null || cloudinaryUrl(v); }
+    // Zona IANA (America/Santiago, Etc/GMT+3, UTC…).
+    function validTimezone(v)    { return v == null || (v is string && v.size() <= 64 && v.matches('[A-Za-z0-9_+/-]+')); }
+    function validIsoDate(v)     { return v is string && v.size() <= 40; }
+    function userChanged(k)      { return k in request.resource.data.diff(resource.data).affectedKeys(); }
+    function userField(k)        { return request.resource.data.get(k, null); }
+
     match /users/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
 
-      // Auto-registro: el usuario crea SU propio perfil, forzado a
-      // presidente sin equipo (no puede auto-ascenderse a admin).
+      // Auto-registro: el usuario crea SU propio perfil con los campos de
+      // _loadProfile (tsc-src/js/auth.js), forzado a presidente sin equipo
+      // y bloqueado (no puede auto-ascenderse ni nacer desbloqueado). El
+      // uid y el email salen del token: no se pueden inventar.
       allow create: if signedIn()
                     && request.auth.uid == uid
-                    && request.resource.data.role == 'president'
-                    && request.resource.data.teamId == null;
+                    && request.resource.data.keys().hasOnly([
+                         'uid', 'email', 'displayName', 'username', 'photoURL',
+                         'timezone', 'role', 'teamId', 'lockEdits', 'createdAt'
+                       ])
+                    && request.resource.data.keys().hasAll(['uid', 'role', 'teamId', 'lockEdits'])
+                    && userField('uid') == request.auth.uid
+                    && userField('email') == request.auth.token.get('email', null)
+                    && userField('role') == 'president'
+                    && userField('teamId') == null
+                    && userField('lockEdits') == true
+                    && (!('displayName' in request.resource.data) || validDisplayName(userField('displayName')))
+                    && validUsername(userField('username'))
+                    && validPhotoURL(userField('photoURL'))
+                    && validTimezone(userField('timezone'))
+                    && (!('createdAt' in request.resource.data) || validIsoDate(userField('createdAt')));
 
-      // Edita su propio perfil — allowlist explícita (no blocklist): un
-      // usuario solo puede tocar los campos de perfil + push/timezone de
-      // abajo. Antes esto era "cualquier campo salvo role/teamId/lockEdits",
-      // lo que también dejaba reescribir email/uid/createdAt sin querer.
+      // Edita su propio perfil: allowlist explícita (no blocklist) de los
+      // campos de perfil + push/timezone. Cada campo se valida solo si
+      // cambia, para que un valor histórico no bloquee editar otro.
       // fcmTokens/pushEnabled/pushPlatform/pushUpdatedAt: ver tsc-src/js/push.js
       // (Fase 8, notificaciones FCM) y docs/android-push-notifications.md.
       allow update: if isAdmin()
-                    || (request.auth.uid == uid
+                    || (signedIn() && request.auth.uid == uid
                         && request.resource.data.diff(resource.data)
                               .affectedKeys().hasOnly([
                                 'displayName', 'username', 'photoURL', 'timezone',
                                 'fcmTokens', 'pushEnabled', 'pushPlatform', 'pushUpdatedAt'
-                              ]));
+                              ])
+                        && (!userChanged('displayName')   || validDisplayName(userField('displayName')))
+                        && (!userChanged('username')      || validUsername(userField('username')))
+                        && (!userChanged('photoURL')      || validPhotoURL(userField('photoURL')))
+                        && (!userChanged('timezone')      || validTimezone(userField('timezone')))
+                        && (!userChanged('fcmTokens')     || (userField('fcmTokens') is list && userField('fcmTokens').size() <= 20))
+                        && (!userChanged('pushEnabled')   || userField('pushEnabled') is bool)
+                        && (!userChanged('pushPlatform')  || userField('pushPlatform') in ['android', 'ios', 'web'])
+                        && (!userChanged('pushUpdatedAt') || validIsoDate(userField('pushUpdatedAt'))));
 
       // Cada quien puede borrar su propia cuenta; el admin, cualquiera.
       allow delete: if isAdmin() || request.auth.uid == uid;

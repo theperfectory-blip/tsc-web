@@ -130,6 +130,12 @@ async function authSubmit(){
   try {
     if (_authMode === 'signup'){
       const name = document.getElementById('auth-name').value.trim();
+      // Mismo límite que validDisplayName en firestore.rules: si no, el
+      // perfil no se crea y la cuenta queda sin documento en `users`.
+      if (name.length > 64 || /[<>]/.test(name)){
+        errEl.textContent = 'El nombre admite hasta 64 caracteres, sin < ni >.';
+        return;
+      }
       _pendingSignupName = name || null;   // lo usa _loadProfile al crear el perfil
       const cred = await firebase.auth().createUserWithEmailAndPassword(email, pass);
       if (name) await cred.user.updateProfile({ displayName: name });
@@ -238,8 +244,8 @@ function renderAuthUI(){
   if (AUTH.user){
     // Solo avatar (sin nombre). Foto de perfil (Firestore) > Firebase Auth photo > SVG genérico.
     const photo  = AUTH.profile?.photoURL || AUTH.user.photoURL;
-    const avatar = photo
-      ? `<img src="${_authEsc(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
+    const avatar = safeImgUrl(photo)
+      ? `<img src="${safeImgUrl(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
       : `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:block;"><path d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.25c-3.6 0-7.5 1.9-7.5 4.95V20.5h15v-1.3c0-3.05-3.9-4.95-7.5-4.95z"/></svg>`;
     // Botón de perfil con el diseño del rediseño (pill + avatar + chevron),
     // pero conserva el flujo real: onclick → openProfile() (modal completo).

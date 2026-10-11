@@ -25,7 +25,9 @@ async function renderAdmUsuarios(){
       firebase.firestore().collection('users').get(),
       dbGetAll('teams'),
     ]);
-    users = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    // uid sale del id del documento y va al final: un campo `uid` dentro del
+    // perfil (lo escribe el propio usuario al registrarse) no puede pisarlo.
+    users = snap.docs.map(d => ({ ...d.data(), uid: d.id }));
     teams = teamsRaw;
   } catch(e){
     el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${_uaEsc(e.code||e.message)}</div>`;
@@ -74,16 +76,16 @@ async function renderAdmUsuarios(){
               <td style="padding:8px 10px;font-weight:600;">${_uaEsc(u.displayName||'(sin nombre)')}${isMe?' <span style="color:var(--gold);font-size:11px;">(tú)</span>':''}</td>
               <td style="padding:8px 10px;color:var(--txt2);">${_uaEsc(u.email||'')}</td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} onchange="adminSetUserRole('${_uaEsc(u.uid)}', this.value)">
+                <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} onchange="adminSetUserRole(${escAttr(JSON.stringify(u.uid))}, this.value)">
                   <option value="president" ${u.role==='president'?'selected':''}>Presidente</option>
                   <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
                 </select>
               </td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" onchange="adminSetUserTeam('${_uaEsc(u.uid)}', this.value)">${teamOpts(u.teamId ?? null)}</select>
+                <select style="${selStyle}" onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null)}</select>
               </td>
               <td style="padding:8px 10px;text-align:center;">
-                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" onchange="adminSetUserLock('${_uaEsc(u.uid)}', this.checked)">
+                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
               </td>
             </tr>`;
           }).join('')}

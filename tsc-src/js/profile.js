@@ -227,8 +227,8 @@ async function renderProfileBody(){
   const { show: showPhotosBtn, label: photosBtnLabel } = _pfPhotosButtonState(teamTitles);
 
   // ── Crest para el header ─────────────────────────────────────
-  const crestContent = currentLogo
-    ? `<img src="${_pfEsc(currentLogo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
+  const crestContent = safeImgUrl(currentLogo)
+    ? `<img src="${safeImgUrl(currentLogo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
     : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${_pfEsc((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
   const titlesBadge = titlesTotal > 0
     ? `<span class="pp-titles-badge" title="${titlesTotal} título${titlesTotal===1?'':'s'} en el club">×${titlesTotal}</span>`
@@ -247,7 +247,7 @@ async function renderProfileBody(){
       ` : `
         <label for="profile-avatar-file" style="cursor:pointer;" title="Cambiar foto de perfil">
           <div class="pp-crest" id="profile-avatar-preview" style="border-radius:50%;background:rgba(255,255,255,0.15);">
-            ${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">` : `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
+            ${safeImgUrl(avatarSrc) ? `<img src="${safeImgUrl(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">` : `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
           </div>
         </label>
         <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
@@ -327,7 +327,7 @@ async function renderProfileBody(){
   <div id="profile-account-section" class="pp-disclosure" hidden>
     ${team ? `<div class="pp-avatar-row">
       <label for="profile-avatar-file" class="pp-avatar-edit" title="Cambiar foto de perfil">
-        <span id="profile-avatar-preview">${avatarSrc ? `<img src="${_pfEsc(avatarSrc)}" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}</span>
+        <span id="profile-avatar-preview">${safeImgUrl(avatarSrc) ? `<img src="${safeImgUrl(avatarSrc)}" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}</span>
         <svg class="pp-avatar-pencil" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
       </label>
       <input type="file" id="profile-avatar-file" accept="image/*" hidden onchange="profileSelectAvatar(this)">
@@ -685,8 +685,8 @@ function profileSelectAvatar(input){
 function _updateTopbarAvatar(url){
   const btn = document.querySelector('.tp-avatar');
   if (!btn) return;
-  btn.innerHTML = url
-    ? `<img src="${_pfEsc(url)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
+  btn.innerHTML = safeImgUrl(url)
+    ? `<img src="${safeImgUrl(url)}" alt="" style="width:100%;height:100%;object-fit:cover;">`
     : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
 }
 
@@ -836,12 +836,16 @@ async function saveProfile(){
       upd.photoURL = newPhotoURL;
     }
 
-    // 2. Nombre para mostrar
-    if (newName && newName !== (AUTH.profile?.displayName || '')) upd.displayName = newName;
+    // 2. Nombre para mostrar (mismo límite que validDisplayName en firestore.rules)
+    if (newName && newName !== (AUTH.profile?.displayName || '')){
+      if (newName.length > 64 || /[<>]/.test(newName)){ showToast('El nombre admite hasta 64 caracteres, sin < ni >','error'); return; }
+      upd.displayName = newName;
+    }
 
     // 3. Nombre de usuario (@handle) con verificación de unicidad
     if (newUsername !== (AUTH.profile?.username || '')){
       if (newUsername){
+        if (!/^[a-z0-9_]{1,30}$/.test(newUsername)){ showToast('El usuario admite hasta 30 caracteres: a-z, 0-9 y _','error'); return; }
         const snap = await firebase.firestore().collection('users').where('username','==',newUsername).get();
         if (snap.docs.some(d => d.id !== AUTH.user.uid)){ showToast('Ese nombre de usuario ya está en uso','error'); return; }
       }
@@ -1300,8 +1304,7 @@ async function _renderClubDossierBody(team, publicView=false){
 
   const tc  = _palmIsHex(team.color)  ? team.color  : '#1a1a2e';
   const tc2 = _palmIsHex(team.color2) ? team.color2 : tc;
-  const crestContent = team.logo
-    ? `<img src="${_pfEsc(team.logo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
+  const crestContent = safeImgUrl(team.logo) ? `<img src="${safeImgUrl(team.logo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
     : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3).toUpperCase())}</span>`;
 
   const [stats, teamTitles, seasonSpots] = await Promise.all([

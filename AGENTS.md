@@ -101,8 +101,13 @@ Paridad `tsc-src`/`dist` sin navegador: `node scripts/smoke-parity.mjs`
 `?emu=1` o en el puerto 3001. En ese modo Cloudinary se simula y la callable
 de Functions va a `:5001`.
 
+Sinks con datos de usuario: `node scripts/emu-xss.mjs data|users|page`
+(datos con marcador en el sandbox y `localhost:3001/xss.html`,
+`window.__XSS__.report()`, MS-3.1).
+
 Tests (emulador de Firestore, desde `functions/`): `npm run test:emulator`
-(Functions) y `npm run test:rules` (reglas de `teams`).
+(Functions) y `npm run test:rules` (`rules-teams.js` + `rules-suite.js`:
+todas las colecciones con los 5 roles).
 
 ## Mapa de código — `tsc-src/`
 

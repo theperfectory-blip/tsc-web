@@ -73,7 +73,7 @@ function _calLogo(team, size, fallbackLabel){
     const initials = fallbackLabel ? String(fallbackLabel).substring(0,2).toUpperCase() : '?';
     return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:#555;font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
   }
-  if(team.logo) return `<img class="cal-logo" src="${_esc(team.logo)}" style="width:${s}px;height:${s}px;" alt="${_esc(team.name)}">`;
+  if(safeImgUrl(team.logo)) return `<img class="cal-logo" src="${safeImgUrl(team.logo)}" style="width:${s}px;height:${s}px;" alt="${_esc(team.name)}">`;
   const initials = (team.name||'?').substring(0,2).toUpperCase();
   const bg = team.color||'#555';
   return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:${_esc(bg)};font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
@@ -1336,8 +1336,8 @@ async function renderPubCalendar(){
     const iniA = (mmTa?.ini || mmTaN).substring(0,3).toUpperCase();
     const iniB = (mmTb?.ini || mmTbN).substring(0,3).toUpperCase();
     const colA = mmTa?.color || '#333', colB = mmTb?.color || '#333';
-    const crestA = mmTa?.logo ? `<img src="${_esc(mmTa.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
-    const crestB = mmTb?.logo ? `<img src="${_esc(mmTb.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
+    const crestA = safeImgUrl(mmTa?.logo) ? `<img src="${safeImgUrl(mmTa?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
+    const crestB = safeImgUrl(mmTb?.logo) ? `<img src="${safeImgUrl(mmTb?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
     const time = _calMatchTimeLocal(m);
     const played = m.goalsA!=null && m.goalsB!=null;
     /* en vuelta el marcador también se invierte visualmente */

@@ -829,13 +829,13 @@ const PLACE_COLORS = ['#C9A84C','#9CA3AF','#CD7F32','#6366F1','#F87171','#34D399
 /* Renderiza un badge coloreado a partir de un label "GX-Nro" o "GX-Nro·COMP" */
 function refBadgeHTML(label, baseFs=11){
   const m = label.match(/^G([A-Z])-([^·]+)(?:·(.+))?$/);
-  if(!m) return `<span style="font-size:${baseFs}px;color:var(--txt3);">${label}</span>`;
+  if(!m) return `<span style="font-size:${baseFs}px;color:var(--txt3);">${escHtml(label)}</span>`;
   const groupIdx = m[1].charCodeAt(0)-65;
   const placeIdx = ['1ro','2do','3ro','4to','5to','6to','7mo','8vo'].indexOf(m[2]);
   const gColor = GROUP_COLORS[groupIdx % GROUP_COLORS.length];
   const pColor = PLACE_COLORS[Math.max(0,placeIdx) % PLACE_COLORS.length];
   const ctxHtml = m[3]
-    ? `<span style="color:var(--txt3);font-size:${baseFs-2}px;font-weight:600;margin-left:3px;">${m[3]}</span>`
+    ? `<span style="color:var(--txt3);font-size:${baseFs-2}px;font-weight:600;margin-left:3px;">${escHtml(m[3])}</span>`
     : '';
   return `<span style="font-size:${baseFs}px;font-weight:700;font-family:'Barlow Condensed';letter-spacing:0.3px;">` +
     `<span style="color:${gColor};">G${m[1]}</span>` +
@@ -1120,10 +1120,10 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
     } else if(isAdmin&&!anyLive&&!aTbd&&!bTbd&&!hasResult){
       var _lbOnclick='', _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo';
       if(slot.twoLeg){
-        if(!leg1Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',1,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Ida'; }
-        else if(!leg2Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',2,'+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Vuelta'; }
+        if(!leg1Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',1,'+escAttr(JSON.stringify(slot.teamA))+','+escAttr(JSON.stringify(slot.teamB))+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Ida'; }
+        else if(!leg2Done){ _lbOnclick='event.stopPropagation();startLiveBracketLeg(\''+slotId+'\','+phase.id+',2,'+escAttr(JSON.stringify(slot.teamA))+','+escAttr(JSON.stringify(slot.teamB))+','+ri+','+realMi+')'; _lbLabel='<span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>Vivo · Vuelta'; }
       } else {
-        _lbOnclick='event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+JSON.stringify(slot.teamA)+','+JSON.stringify(slot.teamB)+','+ri+','+realMi+')';
+        _lbOnclick='event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+escAttr(JSON.stringify(slot.teamA))+','+escAttr(JSON.stringify(slot.teamB))+','+ri+','+realMi+')';
       }
       if(_lbOnclick) topSection='<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="'+_lbOnclick+'" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:\'Barlow Condensed\';font-weight:700;letter-spacing:0.3px;">'+_lbLabel+'</button></div>';
     }
@@ -1162,7 +1162,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
         var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
         return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
           +logoCircle(lid,nm)
-          +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+tx+'</span>'
+          +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+_bkEsc(tx)+'</span>'
           +bdg
           +'<span style="flex:1;"></span>'
           +scoreHtml
@@ -1239,7 +1239,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
   var champSection = champ
     ? '<div style="text-align:center;margin-top:24px;padding-bottom:8px;">'+trophyHTML
       +'<div style="font-family:\'Barlow Condensed\';font-size:13px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;margin-top:10px;">Campe&oacute;n</div>'
-      +'<div style="font-family:\'Bebas Neue\';font-size:34px;letter-spacing:2px;color:var(--txt);line-height:1;">'+champ+'</div></div>'
+      +'<div style="font-family:\'Bebas Neue\';font-size:34px;letter-spacing:2px;color:var(--txt);line-height:1;">'+_bkEsc(champ)+'</div></div>'
     : '<div style="text-align:center;margin-top:24px;padding-bottom:8px;opacity:0.5;">'+trophyHTML
       +'<div style="font-family:\'Barlow Condensed\';font-size:12px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase;margin-top:10px;">Campe&oacute;n por definir</div></div>';
 
@@ -1434,7 +1434,7 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
     const playoffOpts = playoffPhases.map(p=>{
       const compName = competitions.find(c=>c.id===p.compId)?.name || 'Sin competición';
       const mCount = getPlayoffMatchupsCount(p);
-      return `<option value="${p.id}" ${p.id===selPlayoffPhaseId?'selected':''}>${compName} → ${p.name} (${mCount} cruce${mCount===1?'':'s'})</option>`;
+      return `<option value="${p.id}" ${p.id===selPlayoffPhaseId?'selected':''}>${_escOpt(compName)} → ${_escOpt(p.name)} (${mCount} cruce${mCount===1?'':'s'})</option>`;
     }).join('');
 
     const groupOpts = Array.from({length:nGroups},(_,i)=>`
@@ -1509,7 +1509,7 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       ? (previewTeam||'Equipo')
       : `Ganador Llave ${selPlayoffMatchIdx+1}`;
     const badgePreview = selSourceType==='team'
-      ? `<span style="font-size:14px;font-weight:700;color:var(--gold);">${previewTeam}</span>`
+      ? `<span style="font-size:14px;font-weight:700;color:var(--gold);">${escHtml(previewTeam)}</span>`
       : refBadgeHTML(shortLabel);
 
     const modalTitle = isGroupTarget
@@ -1527,7 +1527,7 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
           <div style="background:var(--gold-l);border:1px solid var(--gold-b);border-radius:var(--r);padding:10px 12px;font-size:14px;">
             <div style="color:var(--txt3);font-size:12px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Referencia actual</div>
             <div style="font-weight:600;font-size:17px;">${badgePreview}</div>
-            <div style="color:var(--txt2);margin-top:3px;">Equipo ahora: <strong style="color:var(--txt);">${previewTeam}</strong></div>
+            <div style="color:var(--txt2);margin-top:3px;">Equipo ahora: <strong style="color:var(--txt);">${escHtml(previewTeam)}</strong></div>
           </div>
 
           <div class="form-group">
@@ -1792,11 +1792,11 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
   const legLbl = txt=>`<div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin:10px 0 5px;">${txt}</div>`;
 
   const scoreSection = twoLeg
-    ? `${legLbl(`Ida · ${nameA} local`)}
+    ? `${legLbl(`Ida · ${escHtml(nameA)} local`)}
        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
          ${inp('bm-l1a', existingLeg1?.goalsA)}<div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">-</div>${inp('bm-l1b', existingLeg1?.goalsB)}
        </div>
-       ${legLbl(`Vuelta · ${nameB} local`)}
+       ${legLbl(`Vuelta · ${escHtml(nameB)} local`)}
        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
          ${inp('bm-l2a', existingLeg2?.goalsA)}<div style="font-family:'Bebas Neue';font-size:24px;color:var(--txt3);">-</div>${inp('bm-l2b', existingLeg2?.goalsB)}
        </div>
@@ -1821,9 +1821,9 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:4px;">
-          <div style="font-size:14px;font-weight:600;text-align:center;">${nameA}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(nameA)}</div>
           <div style="font-family:'Bebas Neue';font-size:22px;color:var(--txt3);">vs</div>
-          <div style="font-size:14px;font-weight:600;text-align:center;">${nameB}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(nameB)}</div>
         </div>
         ${scoreSection}
 
@@ -1852,7 +1852,7 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
         ${(twoLeg?(existingLeg1||existingLeg2):existing) ? `<button class="btn btn-danger btn-sm" onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">✕ Eliminar</button>` : '<div></div>'}
         <div style="display:flex;gap:8px;">
           <button class="btn" onclick="closeBracketMatchModal()">Cancelar</button>
-          <button class="btn btn-primary" onclick="saveBracketMatch('${slotId}',${phaseId},${JSON.stringify(slot.teamA)},${JSON.stringify(slot.teamB)},${roundIdx},${matchIdx},${twoLeg},${awayGoal})">Guardar</button>
+          <button class="btn btn-primary" onclick="saveBracketMatch('${slotId}',${phaseId},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))},${roundIdx},${matchIdx},${twoLeg},${awayGoal})">Guardar</button>
         </div>
       </div>
     </div>

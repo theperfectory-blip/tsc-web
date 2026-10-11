@@ -118,6 +118,8 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
 | H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
+| H-30 | `openPlayoffLegModal` recibe los nombres de los equipos y `savePlayoffLeg` los guarda como `teamA`/`teamB` del partido en vez de los ids; `getWinner` compara contra ids. Latente: en el snapshot no hay legs de playoff guardados así. Hallado en 3.1, va a M5 (Opus) |
+| H-31 | El presidente no puede cambiar su @usuario: la verificación de unicidad de `profile.js` lista `users` por `username`, y las reglas no dejan listar `users` a un no admin (nunca lo dejaron). Requiere `usernames/{nombre}` o quitar el campo. Hallado en 3.2, va a 3.7 |
 
 ---
 
@@ -453,6 +455,7 @@ ser opcional.
 ## M3 — Seguridad completa
 
 ### 3.1 · Mapa de confianza y barrido de sinks (H-05)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.1-3.2.md`. 3 sinks de atributo/JS explotables pese a la regla de 0.1 (modal de equipo, handlers de playoff, `uid` pisado en Usuarios admin) y unos 40 de texto o URL corregidos. Barrido dinámico con `scripts/emu-xss.mjs`: 0 inyecciones en `tsc-src` y `dist`.
 - Tabla de qué campos puede escribir cada rol:
   - Anónimo: nada.
   - Usuario registrado: su `users/{uid}`.
@@ -464,6 +467,7 @@ ser opcional.
   `title=`. Migrarlos al helper de 0.1.
 
 ### 3.2 · Reglas Firestore endurecidas y suite de tests (H-06)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.1-3.2.md`. `npm run test:rules`: 21/21 + 350/350 (324/350 contra las reglas anteriores). Falta desplegar las reglas (M-3).
 - `users.create`:
   - `keys().hasOnly([...])` con los campos de alta reales (sacarlos de
     `auth.js`).
@@ -515,6 +519,9 @@ ser opcional.
 - Exigir email verificado para que el admin asigne equipo.
 - Qué pasa al borrar la propia cuenta: ¿queda el equipo apuntando a un
   presidente inexistente? ¿Quedan tokens FCM huérfanos?
+- H-31: @usuario sin verificación de unicidad posible para el presidente.
+- `users.email` queda viejo tras `verifyBeforeUpdateEmail` (las reglas no
+  dejan reescribirlo).
 
 ---
 

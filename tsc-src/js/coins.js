@@ -50,8 +50,8 @@ function renderCoinsTable(teams, maxCoins){
     const coins = t.yunacoin||0;
     const pct   = maxCoins>0 ? Math.round((coins/maxCoins)*100) : 0;
     return `<tr>
-      <td><div style="width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${t.color||'#333'};">
-        ${t.logo?`<img src="${t.logo}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${_esc(t.ini||'?')}</span>`}
+      <td><div style="width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(t.color,'#333')};">
+        ${safeImgUrl(t.logo)?`<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${_esc(t.ini||'?')}</span>`}
       </div></td>
       <td style="font-weight:600;">${_esc(t.name)}</td>
       <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${String(p).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
@@ -92,9 +92,9 @@ async function openCoinsModal(teamId, mode){
       </div>
       <div class="modal-body">
         <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--card2);border-radius:var(--r);margin-bottom:14px;">
-          <div style="width:36px;height:36px;border-radius:50%;background:${team.color||'#333'};display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:13px;color:#fff;flex-shrink:0;">${team.ini||'?'}</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team.color,'#333')};display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:13px;color:#fff;flex-shrink:0;">${escHtml(team.ini||'?')}</div>
           <div>
-            <div style="font-size:16px;font-weight:600;">${team.name}</div>
+            <div style="font-size:16px;font-weight:600;">${escHtml(team.name)}</div>
             <div style="font-size:13px;color:var(--txt2);">Saldo actual: <strong style="color:var(--gold);">${(team.yunacoin||0).toLocaleString('es-CL')} coins</strong></div>
           </div>
         </div>
@@ -157,7 +157,7 @@ async function openCoinsHistory(teamId){
   <div class="modal-overlay open">
     <div class="modal" style="max-width:500px;">
       <div class="modal-hdr">
-        <div class="modal-title">Historial · ${team.name}</div>
+        <div class="modal-title">Historial · ${escHtml(team.name)}</div>
         <button class="modal-close" onclick="document.getElementById('coins-history-wrap').innerHTML=''">×</button>
       </div>
       <div class="modal-body" style="padding:0;">
@@ -171,7 +171,7 @@ async function openCoinsHistory(teamId){
               const fecha=d.toLocaleDateString('es-CL')+' '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
               return `<tr>
                 <td style="font-size:13px;color:var(--txt3);white-space:nowrap;">${fecha}</td>
-                <td><div style="font-size:14px;">${RLABELS[t.reason]||t.reason}</div>${t.note?`<div style="font-size:12px;color:var(--txt3);">${t.note}</div>`:''}</td>
+                <td><div style="font-size:14px;">${escHtml(RLABELS[t.reason]||t.reason)}</div>${t.note?`<div style="font-size:12px;color:var(--txt3);">${escHtml(t.note)}</div>`:''}</td>
                 <td style="text-align:right;font-family:'Bebas Neue';font-size:19px;color:${isAdd?'var(--green)':'var(--red)'};">${isAdd?'+':'-'}${t.amount.toLocaleString('es-CL')}</td>
                 <td style="text-align:right;font-family:'Bebas Neue';font-size:17px;color:var(--gold);">${t.after.toLocaleString('es-CL')}</td>
               </tr>`;
