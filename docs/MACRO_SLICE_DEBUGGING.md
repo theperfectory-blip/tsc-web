@@ -66,6 +66,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-7 | Aprobar el borrado de archivos locales (lista exacta en 1.7) | Slice 1.7 |
 | M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
 | M-9 | `firebase deploy --only functions` (runtime Node 22) y probar una vez el botón de "stream de hoy" | Slice 6.1 · **deploy hecho 2026-10-11** (falta probar el botón en el próximo stream) |
+| M-10 | Publicar un release nuevo de la APK (`versionCode 19` / `1.6.3`, build firmado con tu keystore y `update.json`) con Capacitor parcheado, y probarlo en un teléfono real: inicio de sesión, token de notificaciones guardado, un aviso recibido y la actualización 1.6.2 → 1.6.3 desde la app. Pasos en `docs/reportes/MS-6.2-6.3.md` | Slices 6.2 y 6.3 (H-37, H-38) |
 
 ---
 
@@ -124,7 +125,10 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-32 | El usuario escribe su propio `fcmTokens` (hasta 20 strings): un presidente podría registrar el token de otro dispositivo y mandarle los avisos de su equipo. Baja, sin datos sensibles. Hallado en 6.1 |
 | H-33 | Dedup de push no atómico (lee y después escribe): la task de arranque y el trigger de vivo en el mismo segundo pueden duplicar un aviso de "a continuación". Baja, aceptada. Hallado en 6.1 |
 | H-34 | `notifyRecipients` escribe todo en un solo batch (límite 500): alcanza para ~150 destinatarios por corrida. Latente. Hallado en 6.1 |
-| H-35 | `firebase-hosting.yml` corre el build con Node 20. Hallado en 6.1, va a 6.2 |
+| H-35 | `firebase-hosting.yml` corría el build con Node 20. Hallado en 6.1. **Cerrado en 6.2** (Node 22; el `dist/` sale idéntico con Node 22 y 25) |
+| H-36 | `esbuild` está en `devDependencies` de la raíz y nada lo usa (los builds concatenan con Node puro). Baja. Hallado en 6.2, candidato a 7.x |
+| H-37 | **El APK v1.6.2 en circulación lleva Capacitor Android 8.4.1**, dentro del rango del aviso crítico GHSA-rvm3-566m-v7fv (CVSS 9.3: el WebView carga contenido arbitrario en el origen de la app por la ruta interna del proxy, si la víctima activa un enlace). La superficie es chica (los campos de usuario se escapan) pero el arreglo solo llega con un release nuevo. En el repo ya está Capacitor 8.5.3 (el rango vulnerable incluye 8.5.0, mínimo `^8.5.1`). Hallado en 6.2, acción M-10 |
+| H-38 | En móviles la CSP bloquea `https://apis.google.com/js/api.js`: Firebase Auth inicia su iframe de sesión de forma proactiva en navegadores móviles, Safari e iOS y el SDK ignora el fallo. Efecto: 1 violación por carga (APK en enforce; web móvil por el código del SDK). Auth y correo/contraseña no se ven afectados (verificado el arranque en la APK; falta el inicio de sesión real, M-10). **No agregar `apis.google.com` a `script-src`** (endpoints JSONP). La «0 violaciones» de 3.5 se midió en escritorio. Hallado en 6.3 |
 
 ---
 
@@ -513,6 +517,10 @@ ser opcional.
 - `<meta>` equivalente para la APK, que no recibe los headers de hosting.
 - **Cierra cuando** el modo Report-Only lleva una semana sin violaciones
   legítimas y se pasa a modo enforce.
+- **Antes de pasar a enforce (hallado en 6.3, H-38):** en móviles hay 1
+  violación por carga, `apis.google.com/js/api.js` de Firebase Auth. Es
+  inocua (el SDK la ignora) y no se debe permitir ese dominio; no cuenta como
+  violación legítima.
 
 ### 3.6 · Configuración externa (H-08)
 > **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. M-4 y M-5 hechos por el dueño y verificados: las 2 API keys restringidas (403 desde fuera, web y APK funcionando) y el preset `tsc_logos` limitado (más `cobral_fotos`, hallado de paso). App Check: no por ahora (APK fuera de Play).
@@ -595,11 +603,13 @@ sandbox de 2.1.**
 > **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-6.1.md`. Task de continuación privada por IAM (403 sin credenciales, `invoker: 'private'` explícito), callable con rol leído de Firestore, trigger de vivo sin campos del cliente. Payload de la task validado; limpieza también de tokens mal formados. Node 22, firebase-admin 14.5, firebase-functions 7.4, `npm audit` 15 → 0. Harness 1-9, cleanup 9/9, reglas 379/379. Desplegado (M-9): las 4 funciones en `nodejs22`, 403/401 sin credenciales. Hallazgos nuevos H-32 a H-35.
 
 ### 6.2 · Dependencias
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-6.2-6.3.md`. `npm audit` de la raíz 18 (3 críticas) → 3 moderadas sin parche upstream (`uuid` vía `xcode`, ruta iOS); producción siempre en 0. Capacitor 8.4.1 → 8.5.3 (aviso crítico del runtime nativo, H-37). `@capacitor/assets` fuera de las dependencias (sin uso y sin parche); `firebase` fijado en 12.14.0 con override de `@grpc/grpc-js`. Coherencia: SDK `gstatic` 12.14.0 = `package.json`; los archivos de three 0.147 vendorizados son idénticos al paquete npm. H-35 cerrado (Node 22 en CI).
 - `npm audit` en la raíz (Capacitor).
 - Coherencia de versiones: el SDK de Firebase de `gstatic` (12.14.0) contra
   `package.json`, y three 0.147 vendorizado.
 
 ### 6.3 · Android
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-6.2-6.3.md`. `build-www` sin excluidos y con la `<meta>` de CSP; el APK (Capacitor 8.5.3) compila, su bundle web coincide con `tsc-src/` (104 archivos por hash) y la configuración de firma funciona (probada con una clave descartable). En un emulador: arranque, 6 páginas públicas y la Sala de Trofeos 3D sin errores bajo la CSP, actualizador contra el `update.json` real OK, token FCM nativo registrado. Proceso de subida de versión documentado en `docs/android-build.md`. **Falta lo que exige un teléfono real y tu keystore: M-10** (release nuevo, inicio de sesión, entrega de un aviso y actualización desde la app). Hallazgos H-36 a H-38.
 - `build-www` con la exclusión compartida de 0.2.
 - `cap sync`, firma, push en un dispositivo real.
 - Actualizador contra el `update.json` del último GitHub Release.

@@ -21,7 +21,7 @@ jobs:
       # ejecutara los hooks de predeploy.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: node scripts/build-web.mjs
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
