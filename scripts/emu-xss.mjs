@@ -14,6 +14,11 @@
 //       de tsc-src (como emu-dist.mjs) y arma sandbox/site/xss.html con el
 //       detector (y sandbox/dist/xss.html si existe la variante dist).
 //
+//   node scripts/emu-xss.mjs csp    → sandbox/{site,dist}/csp.html: la CSP de
+//       scripts/csp.mjs en modo enforce (<meta>, más los orígenes de los
+//       emuladores) y un colector de violaciones: window.__CSP__ (MS-3.5).
+//       Correr después de `page` (o de emu-dist.mjs para la variante dist).
+//
 // Luego abrir localhost:3001/xss.html, recorrer páginas y modales, y leer
 // window.__XSS__.report(). Solo habla con 127.0.0.1.
 import { readFileSync, writeFileSync, copyFileSync, existsSync, cpSync, rmSync } from 'node:fs';
@@ -89,7 +94,21 @@ if (cmd === 'data') {
     writeFileSync(join(base, 'xss.html'), html.replace(/<head>/i, '<head>\n<script src="_xss.js"></script>'));
     console.log(`[emu-xss] sandbox/${dir}/xss.html listo`);
   }
+} else if (cmd === 'csp') {
+  const { cspString } = await import('./csp.mjs');
+  const emu = ['http://localhost:8080', 'http://localhost:9099', 'http://localhost:5001'];
+  const policy = cspString({ meta: true, extra: { 'connect-src': emu } });
+  const collector = `<script>window.__CSP__=[];document.addEventListener('securitypolicyviolation',function(e){window.__CSP__.push({directive:e.effectiveDirective,blocked:e.blockedURI,source:(e.sourceFile||'')+':'+e.lineNumber,sample:e.sample})});</script>`;
+  for (const dir of ['site', 'dist']) {
+    const base = join(SANDBOX, dir);
+    if (!existsSync(join(base, 'index.html'))) continue;
+    const html = readFileSync(join(base, 'index.html'), 'utf8');
+    writeFileSync(join(base, 'csp.html'), html.replace(/(<meta charset[^>]*>)/i, `$1
+<meta http-equiv="Content-Security-Policy" content="${policy}">
+${collector}`));
+    console.log(`[emu-xss] sandbox/${dir}/csp.html listo`);
+  }
 } else {
-  console.error('Uso: node scripts/emu-xss.mjs data|users|page');
+  console.error('Uso: node scripts/emu-xss.mjs data|users|page|csp');
   process.exit(1);
 }

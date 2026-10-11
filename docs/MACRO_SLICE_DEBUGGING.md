@@ -81,7 +81,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | H-05 | Media | No hay CSP. Hay más de 200 `innerHTML` y unos 300 handlers `onclick=` inline | `firebase.json`, `tsc-src/index.html` |
 | H-06 | Media | `users.create` no tiene allowlist de campos. Ni create ni update validan tipos ni tamaños (`displayName`, `photoURL`, `username`) | `firebase/firestore.rules` (bloque `users`) |
 | H-07 | Media | Las reglas se despliegan a mano, así que producción puede diferir del repo | Nota en `.github/workflows/firebase-hosting.yml` |
-| H-08 | Media (a verificar) | Sin confirmar que estén restringidas: las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
+| H-08 | Media (confirmado en 3.6) | Sin restringir (medido 2026-10-11): las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
 | H-09 | Baja | `.gitignore` lista `firebase-config.js` y `cloudinary.js`, pero están trackeados. Contradice `CLAUDE.md` y `SECURITY.md` | `git ls-files -ci --exclude-standard` |
 
 Barrido del historial completo (todas las ramas): sin claves privadas,
@@ -482,17 +482,20 @@ ser opcional.
   - El presidente no toca equipos ajenos.
 
 ### 3.3 · Storage cerrado (H-04)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. `logos/**` sin escritura; nada usa Storage salvo la lectura de `trophies/`. Falta desplegar (M-3).
 - `logos/**` pasa a `allow write: if false`. Antes, confirmar con `grep`
   que nada usa `firebase.storage`; hoy ni se carga ese SDK. Desplegar con
   M-3.
 
 ### 3.4 · Drift de reglas y despliegue reproducible (H-07)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. Sin drift (lo publicado = repo antes de 3.2/3.3). `scripts/rules-drift.mjs` y tests de reglas en CI (`rules-tests.yml`). El deploy desde CI queda para cuando se haga M-6.
 - Comparar las reglas activas en la consola con las del repo y tomar el
   repo como fuente de verdad.
 - Si el dueño hace M-6, agregar el deploy de `firestore:rules,storage` al
   workflow, condicionado a que pasen los tests de 3.2.
 
 ### 3.5 · CSP (H-05)
+> **Estado:** ABIERTO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. Report-Only en `firebase.json` y `<meta>` en la APK (fuente única `scripts/csp.mjs`); 0 violaciones en enforce en el sandbox (`tsc-src` y `dist`). Cierra una semana después del deploy, al pasar a enforce.
 - Header `Content-Security-Policy` en `firebase.json`, primero en modo
   `-Report-Only`. Directivas:
   - `default-src 'self'`
@@ -507,6 +510,7 @@ ser opcional.
   legítimas y se pasa a modo enforce.
 
 ### 3.6 · Configuración externa (H-08)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.3-3.6.md`. H-08 confirmado: las 2 API keys sin restringir. Checklists exactos para M-4 y M-5 (el preset de Cloudinary también lo usa la galería: 10 MB, no 2). App Check: no por ahora (APK fuera de Play).
 - Checklist exacto para M-4 y M-5:
   - Referrers permitidos: `teamsubscup.web.app`, `tsc-web-yuna.web.app`,
     `tsc-web-yuna.firebaseapp.com`, `localhost`.
