@@ -77,6 +77,18 @@ service cloud.firestore {
     function validIsoDate(v)     { return v is string && v.size() <= 40; }
     function userChanged(k)      { return k in request.resource.data.diff(resource.data).affectedKeys(); }
     function userField(k)        { return request.resource.data.get(k, null); }
+    // Claims del token de la sesión (los pone Firebase Auth, no el cliente).
+    function tokenEmail()        { return request.auth.token.get('email', null); }
+    function tokenVerified()     { return request.auth.token.get('email_verified', false) == true; }
+    // Admin asignando equipo (3.7, D7): solo a cuentas con email verificado.
+    // `emailVerified` lo escribe el propio usuario y solo si su token lo
+    // respalda (regla de update). El admin queda exento en su propia cuenta.
+    function adminTeamChangeOk(uid) {
+      return !userChanged('teamId')
+          || userField('teamId') == null
+          || resource.data.get('emailVerified', false) == true
+          || request.auth.uid == uid;
+    }
 
     match /users/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
@@ -108,15 +120,22 @@ service cloud.firestore {
       // cambia, para que un valor histórico no bloquee editar otro.
       // fcmTokens/pushEnabled/pushPlatform/pushUpdatedAt: ver tsc-src/js/push.js
       // (Fase 8, notificaciones FCM) y docs/android-push-notifications.md.
-      allow update: if isAdmin()
+      allow update: if (isAdmin() && adminTeamChangeOk(uid))
                     || (signedIn() && request.auth.uid == uid
                         && request.resource.data.diff(resource.data)
                               .affectedKeys().hasOnly([
                                 'displayName', 'username', 'photoURL', 'timezone',
-                                'fcmTokens', 'pushEnabled', 'pushPlatform', 'pushUpdatedAt'
+                                'fcmTokens', 'pushEnabled', 'pushPlatform', 'pushUpdatedAt',
+                                'email', 'emailVerified'
                               ])
                         && (!userChanged('displayName')   || validDisplayName(userField('displayName')))
-                        && (!userChanged('username')      || validUsername(userField('username')))
+                        // El @usuario se reserva en usernames/{nombre} en el mismo lote (H-31).
+                        && (!userChanged('username')      || (validUsername(userField('username'))
+                              && (userField('username') == null
+                                  || getAfter(/databases/$(database)/documents/usernames/$(userField('username'))).data.uid == request.auth.uid)))
+                        // email: solo para alinearlo con el del token (cambio por verifyBeforeUpdateEmail).
+                        && (!userChanged('email')         || userField('email') == tokenEmail())
+                        && (!userChanged('emailVerified') || (userField('emailVerified') == true && tokenVerified()))
                         && (!userChanged('photoURL')      || validPhotoURL(userField('photoURL')))
                         && (!userChanged('timezone')      || validTimezone(userField('timezone')))
                         && (!userChanged('fcmTokens')     || (userField('fcmTokens') is list && userField('fcmTokens').size() <= 20))
@@ -124,8 +143,28 @@ service cloud.firestore {
                         && (!userChanged('pushPlatform')  || userField('pushPlatform') in ['android', 'ios', 'web'])
                         && (!userChanged('pushUpdatedAt') || validIsoDate(userField('pushUpdatedAt'))));
 
-      // Cada quien puede borrar su propia cuenta; el admin, cualquiera.
-      allow delete: if isAdmin() || request.auth.uid == uid;
+      // Cada quien puede borrar su propio perfil; el admin, cualquiera. No hay
+      // botón de "borrar cuenta" en la app. El perfil guarda el vínculo con
+      // el equipo (users.teamId) y los tokens FCM, así que borrarlo no deja
+      // nada colgado. Lo que sí deja un perfil huérfano es borrar la cuenta
+      // en Auth desde la consola: lo limpia la función onAuthUserDeleted.
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+    }
+
+    // --- Reserva de @usuario (H-31, slice 3.7) ---
+    // usernames/{nombre} = { uid }. Se crea y se borra en el mismo lote que
+    // actualiza users.username; la regla de users exige (getAfter) que la
+    // reserva sea del propio usuario. Se puede leer un nombre (para avisar
+    // "ya en uso") pero no listar la colección.
+    match /usernames/{name} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isAdmin()
+                    || (signedIn() && name.matches('[a-z0-9_]{1,30}')
+                        && request.resource.data.keys().hasOnly(['uid'])
+                        && request.resource.data.uid == request.auth.uid);
+      allow update: if false;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
     }
 
     // --- Contadores de IDs enteros (emulan autoIncrement) ---

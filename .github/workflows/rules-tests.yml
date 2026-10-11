@@ -10,7 +10,8 @@ on:
   pull_request:
     paths:
       - 'firebase/**'
-      - 'functions/test/rules-*.js'
+      - 'functions/test/**'
+      - 'functions/lib/**'
       - 'firebase.json'
       - '.github/workflows/rules-tests.yml'
   push:
@@ -19,8 +20,10 @@ on:
       - 'claude/**'
     paths:
       - 'firebase/**'
-      - 'functions/test/rules-*.js'
+      - 'functions/test/**'
+      - 'functions/lib/**'
       - 'firebase.json'
+      - '.github/workflows/rules-tests.yml'
 
 permissions:
   contents: read
@@ -38,10 +41,15 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm install -g firebase-tools@15.19.0
-      # Los tests no usan dependencias de functions/ (API REST del emulador).
+      # Los tests de reglas no usan dependencias de functions/ (API REST del emulador).
       - run: npm run test:rules
         working-directory: functions
       - run: npm run test:rules:storage
+        working-directory: functions
+      # Functions (usa firebase-admin: hace falta instalar las dependencias).
+      - run: npm ci --no-audit --no-fund
+        working-directory: functions
+      - run: npm run test:cleanup
         working-directory: functions
       # La CSP de firebase.json tiene que coincidir con scripts/csp.mjs (3.5).
       - run: node scripts/csp.mjs --check

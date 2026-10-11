@@ -200,6 +200,43 @@ async function _loadProfile(user){
   return profile;
 }
 
+/* ---- Alinea el perfil con la sesión (slice 3.7) ----
+   - emailVerified: el admin no puede ver Auth, así que el propio usuario deja
+     escrito en su perfil que verificó el email. La regla de Firestore solo lo
+     acepta si el token de la sesión trae email_verified, por eso se refresca
+     el usuario y el token antes de escribirlo.
+   - email: si lo cambió por verifyBeforeUpdateEmail, el perfil quedaba con el
+     viejo. La regla solo deja igualarlo al del token.
+   - @usuario: los perfiles anteriores a 3.7 no tienen reserva en
+     usernames/{nombre}; se crea acá (si el nombre ya es de otro, no pasa nada).
+   Todo es best-effort: si falla, el login sigue igual. */
+async function _syncAccountFlags(user, profile){
+  try {
+    const ref = _usersCol().doc(user.uid);
+    const upd = {};
+    if (!profile.emailVerified){
+      if (!user.emailVerified){ try { await user.reload(); } catch(e){} }
+      if (user.emailVerified){
+        await user.getIdToken(true);
+        upd.emailVerified = true;
+      }
+    }
+    if (user.email && profile.email !== user.email){
+      await user.getIdToken(true);
+      upd.email = user.email;
+    }
+    if (Object.keys(upd).length){
+      await ref.update(upd);
+      Object.assign(profile, upd);
+    }
+    if (profile.username){
+      const claim = firebase.firestore().collection('usernames').doc(profile.username);
+      const cur = await claim.get();
+      if (!cur.exists) await claim.set({ uid: user.uid });
+    }
+  } catch(e){ console.warn('[auth] no se pudo sincronizar el perfil:', e.code || e.message); }
+}
+
 /* ---- Listener principal del estado de autenticación ---- */
 function onAuthInit(){
   if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function') return;
@@ -210,6 +247,7 @@ function onAuthInit(){
       try { profile = await _loadProfile(user); }
       catch(e){ profile = { role:'president', teamId:null, displayName:user.email }; }
       AUTH = { user, role: profile.role || 'president', teamId: (profile.teamId ?? null), profile };
+      if (profile.uid) _syncAccountFlags(user, profile);   // sin esperar: no bloquea el arranque
       // Si este dispositivo ya tenía un token FCM local (registrado como
       // invitado, o de una sesión previa), asociarlo a la cuenta recién
       // logueada. No pide permiso ni toca el plugin nativo — solo Firestore.

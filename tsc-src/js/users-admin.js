@@ -28,6 +28,7 @@ async function renderAdmUsuarios(){
     // uid sale del id del documento y va al final: un campo `uid` dentro del
     // perfil (lo escribe el propio usuario al registrarse) no puede pisarlo.
     users = snap.docs.map(d => ({ ...d.data(), uid: d.id }));
+    _uaBackfillUsernames(users);   // sin esperar
     teams = teamsRaw;
   } catch(e){
     el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${_uaEsc(e.code||e.message)}</div>`;
@@ -52,8 +53,10 @@ async function renderAdmUsuarios(){
   }
 
   const selStyle = "padding:5px 8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;min-width:130px;";
-  const teamOpts = (sel)=> `<option value="">— sin club —</option>` +
-    teamsSorted.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''}>${_uaEsc(t.name)}</option>`).join('');
+  // Solo se asigna club a cuentas con el email verificado (slice 3.7, D7;
+  // lo exigen también las reglas). Se puede seguir quitando el club.
+  const teamOpts = (sel, canAssign)=> `<option value="">— sin club —</option>` +
+    teamsSorted.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''} ${(!canAssign && t.id!==sel)?'disabled':''}>${_uaEsc(t.name)}</option>`).join('');
 
   el.innerHTML = `
     <div style="color:var(--txt3);font-size:13px;margin-bottom:12px;">
@@ -74,7 +77,11 @@ async function renderAdmUsuarios(){
             const isMe = u.uid===myUid;
             return `<tr>
               <td style="padding:8px 10px;font-weight:600;">${_uaEsc(u.displayName||'(sin nombre)')}${isMe?' <span style="color:var(--gold);font-size:11px;">(tú)</span>':''}</td>
-              <td style="padding:8px 10px;color:var(--txt2);">${_uaEsc(u.email||'')}</td>
+              <td style="padding:8px 10px;color:var(--txt2);">${_uaEsc(u.email||'')}
+                ${u.emailVerified===true
+                  ? '<span title="Email verificado" style="margin-left:6px;font-size:11px;color:var(--green);">verificado</span>'
+                  : '<span title="Esta cuenta aún no verificó su email (o no inició sesión desde que existe la verificación): no se le puede asignar club" style="margin-left:6px;font-size:11px;color:var(--gold);">sin verificar</span>'}
+              </td>
               <td style="padding:8px 10px;">
                 <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} onchange="adminSetUserRole(${escAttr(JSON.stringify(u.uid))}, this.value)">
                   <option value="president" ${u.role==='president'?'selected':''}>Presidente</option>
@@ -82,7 +89,7 @@ async function renderAdmUsuarios(){
                 </select>
               </td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null)}</select>
+                <select style="${selStyle}" ${(!u.emailVerified && !isMe)?'title="Email sin verificar: no se puede asignar club"':''} onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null, u.emailVerified===true || isMe)}</select>
               </td>
               <td style="padding:8px 10px;text-align:center;">
                 <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
@@ -92,6 +99,20 @@ async function renderAdmUsuarios(){
         </tbody>
       </table>
     </div>`;
+}
+
+/* Reserva en usernames/{nombre} el @usuario de las cuentas anteriores a 3.7
+   (idempotente: solo crea las que faltan; solo admin, la regla le deja crear
+   a nombre de otro). Si dos cuentas tuvieran el mismo, gana la primera. */
+async function _uaBackfillUsernames(users){
+  try {
+    const col = firebase.firestore().collection('usernames');
+    for(const u of users){
+      if(!u.username || !/^[a-z0-9_]{1,30}$/.test(u.username)) continue;
+      const ref = col.doc(u.username);
+      if(!(await ref.get()).exists) await ref.set({ uid: u.uid });
+    }
+  } catch(e){ console.warn('[usuarios] reserva de @usuario:', e.code||e.message); }
 }
 
 async function adminSetUserLock(uid, locked){
@@ -137,6 +158,7 @@ async function loadUsersForSelect(){
       name: d.data().displayName || d.data().email || '(sin nombre)',
       teamId: d.data().teamId ?? null,
       role: d.data().role,
+      emailVerified: d.data().emailVerified === true,
     }));
   } catch(e){ console.warn('[users] no se pudo cargar:', e.code||e.message); return []; }
 }

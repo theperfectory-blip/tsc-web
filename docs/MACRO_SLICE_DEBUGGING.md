@@ -119,7 +119,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
 | H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
 | H-30 | `openPlayoffLegModal` recibe los nombres de los equipos y `savePlayoffLeg` los guarda como `teamA`/`teamB` del partido en vez de los ids; `getWinner` compara contra ids. Latente: en el snapshot no hay legs de playoff guardados así. Hallado en 3.1, va a M5 (Opus) |
-| H-31 | El presidente no puede cambiar su @usuario: la verificación de unicidad de `profile.js` lista `users` por `username`, y las reglas no dejan listar `users` a un no admin (nunca lo dejaron). Requiere `usernames/{nombre}` o quitar el campo. Hallado en 3.2, va a 3.7 |
+| H-31 | El presidente no podía cambiar su @usuario: la verificación de unicidad listaba `users`, que las reglas no dejan a un no admin. **Cerrado en 3.7** con la reserva `usernames/{nombre}` |
 
 ---
 
@@ -520,6 +520,7 @@ ser opcional.
 - Evaluar App Check (opcional).
 
 ### 3.7 · Cuentas (D7)
+> **Estado:** CERRADO · 2026-10-11 · ver `docs/reportes/MS-3.7.md`. `emailVerified` escrito por el usuario y respaldado por el token; el admin solo asigna equipo a cuentas verificadas. @usuario por reserva atómica en `usernames/{nombre}` (cierra H-31). `users.email` se alinea con el token. Trigger `onAuthUserDeleted` para perfiles huérfanos. Reglas: 379/379. Falta desplegar reglas y la función (M-3).
 - Exigir email verificado para que el admin asigne equipo.
 - Qué pasa al borrar la propia cuenta: ¿queda el equipo apuntando a un
   presidente inexistente? ¿Quedan tokens FCM huérfanos?

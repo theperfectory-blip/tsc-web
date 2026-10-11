@@ -110,9 +110,11 @@ CSP: fuente única en `scripts/csp.mjs` (header Report-Only en
 el sandbox, `window.__CSP__`). Drift de reglas publicadas vs repo:
 `node scripts/rules-drift.mjs` (solo lectura, sesión del CLI).
 
-Tests (emulador de Firestore, desde `functions/`): `npm run test:emulator`
-(Functions) y `npm run test:rules` (`rules-teams.js` + `rules-suite.js`:
-todas las colecciones con los 5 roles).
+Tests (emulador, desde `functions/`): `npm run test:emulator` (Functions),
+`npm run test:cleanup` (limpieza de perfiles huérfanos), `npm run test:rules`
+(`rules-teams.js` + `rules-suite.js`: todas las colecciones con los roles) y
+`npm run test:rules:storage`. El CI (`rules-tests.yml`) corre estos tres
+últimos.
 
 ## Mapa de código — `tsc-src/`
 

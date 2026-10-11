@@ -21,7 +21,7 @@ const ROOT = `http://${HOST}/v1/projects/${PROJECT}/databases/(default)/document
 const CLOUD = 'https://res.cloudinary.com/dnjijd8mx/image/upload/v1712345678/tsc-logos/avatar.png';
 
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
-function mockToken(uid, email){
+function mockToken(uid, email, verified = false){
   const now = Math.floor(Date.now() / 1000);
   const claims = {
     iss: `https://securetoken.google.com/${PROJECT}`, aud: PROJECT,
@@ -29,7 +29,7 @@ function mockToken(uid, email){
     sub: uid, user_id: uid,
     firebase: { sign_in_provider: 'password', identities: {} },
   };
-  if (email) { claims.email = email; claims.email_verified = false; }
+  if (email) { claims.email = email; claims.email_verified = verified; }
   return [b64({ alg: 'none', kid: 'fakekid', typ: 'JWT' }), b64(claims), ''].join('.');
 }
 
@@ -40,6 +40,8 @@ const AS = {
   pres:   mockToken('pres5', 'pres5@test.dev'),
   locked: mockToken('locked', 'locked@test.dev'),
   admin:  mockToken('admin1', 'admin1@test.dev'),
+  verified: mockToken('verif1', 'verif1@test.dev', true),
+  newmail:  mockToken('chg1', 'nuevo@test.dev', true),
   owner:  'owner',
 };
 
@@ -108,6 +110,12 @@ async function seed(){
   await put('users/admin1', { ...base, uid: 'admin1', displayName: 'Admin', role: 'admin', teamId: null, lockEdits: false });
   // Perfil histórico con un valor que hoy no pasaría la validación: no
   // debe bloquear la edición de otros campos.
+  // Cuenta con email verificado (el flag lo escribió ella misma) y una con
+  // email viejo en el perfil que ya cambió en Auth.
+  await put('users/verif1', { ...base, uid: 'verif1', email: 'verif1@test.dev', emailVerified: true, displayName: 'Verificado', role: 'president', teamId: null, lockEdits: true });
+  await put('users/chg1',   { ...base, uid: 'chg1',   email: 'viejo@test.dev', displayName: 'Cambia Mail', role: 'president', teamId: null, lockEdits: true });
+  await put('usernames/ya_tomado', { uid: 'pres5' });
+  await put('usernames/mio',       { uid: 'user1' });
   await put('users/legacy', { ...base, uid: 'legacy', displayName: 'Viejo <b>', role: 'president', teamId: null, lockEdits: true });
   await put('teams/5', { name: 'Club Cinco', logo: null });
   await put('teams/6', { name: 'Club Seis', logo: null });
@@ -206,7 +214,6 @@ add('users.update: displayName válido',         () => op.update('users/user1', 
 add('users.update: displayName con < >',        () => op.update('users/user1', { displayName: 'a<script>' }, AS.user), 403);
 add('users.update: displayName de 65',          () => op.update('users/user1', { displayName: 'x'.repeat(65) }, AS.user), 403);
 add('users.update: displayName no string',      () => op.update('users/user1', { displayName: 7 }, AS.user), 403);
-add('users.update: username válido',            () => op.update('users/user1', { username: 'usuario_1' }, AS.user), 200);
 add('users.update: username null',              () => op.update('users/user1', { username: null }, AS.user), 200);
 add('users.update: username con comilla',       () => op.update('users/user1', { username: "a'b" }, AS.user), 403);
 add('users.update: username de 31',             () => op.update('users/user1', { username: 'a'.repeat(31) }, AS.user), 403);
@@ -231,7 +238,49 @@ add('users.update: campo nuevo',                () => op.update('users/user1', {
 add('users.update: perfil ajeno',               () => op.update('users/pres5', { displayName: 'Hack' }, AS.user), 403);
 add('users.update: anónimo',                    () => op.update('users/user1', { displayName: 'Hack' }, AS.anon), 403);
 add('users.update: valor histórico no bloquea', () => op.update('users/legacy', { timezone: 'UTC' }, mockToken('legacy')), 200);
-add('users.update: admin asigna rol y equipo',  () => op.update('users/user1', { role: 'president', teamId: 6, lockEdits: false }, AS.admin), 200);
+add('users.update: admin cambia rol y bloqueo', () => op.update('users/user1', { role: 'president', lockEdits: false }, AS.admin), 200);
+add('users.update: admin asigna equipo a cuenta sin verificar', () => op.update('users/user1', { teamId: 6 }, AS.admin), 403);
+add('users.update: admin asigna equipo a cuenta verificada',    () => op.update('users/verif1', { teamId: 6 }, AS.admin), 200);
+add('users.update: admin quita equipo (sin exigir verificación)', () => op.update('users/pres5', { teamId: null }, AS.admin), 200);
+add('users.update: admin se asigna equipo a sí mismo',          () => op.update('users/admin1', { teamId: 5 }, AS.admin), 200);
+
+// --- users: email verificado y email alineado con el token (3.7) ---
+add('users.update: emailVerified con token verificado',   () => op.update('users/chg1', { emailVerified: true }, AS.newmail), 200);
+add('users.update: emailVerified con token sin verificar', () => op.update('users/user1', { emailVerified: true }, AS.user), 403);
+add('users.update: emailVerified en cuenta ajena',        () => op.update('users/user1', { emailVerified: true }, AS.verified), 403);
+add('users.update: emailVerified = false',                () => op.update('users/verif1', { emailVerified: false }, AS.verified), 403);
+add('users.update: emailVerified no bool',                () => op.update('users/verif1', { emailVerified: 'si' }, AS.verified), 403);
+add('users.update: email igual al del token',             () => op.update('users/chg1', { email: 'nuevo@test.dev' }, AS.newmail), 200);
+add('users.update: email distinto al del token',          () => op.update('users/user1', { email: 'otro@test.dev' }, AS.user), 403);
+add('users.update: email de otra cuenta',                 () => op.update('users/pres5', { email: 'user1@test.dev' }, AS.user), 403);
+
+// --- usernames: reserva de @usuario (H-31, 3.7) ---
+const batch = async (writes, auth) => {
+  const res = await fetch(`${ROOT}:commit`, { method: 'POST', headers: headers(auth), body: JSON.stringify({ writes }) });
+  return res.status;
+};
+const docName = p => `projects/${PROJECT}/databases/(default)/documents/${p}`;
+const wSet = (p, d) => ({ update: { name: docName(p), fields: toFields(d) } });
+const wDel = p => ({ delete: docName(p) });
+const wUpd = (p, d) => ({ update: { name: docName(p), fields: toFields(d) }, updateMask: { fieldPaths: Object.keys(d) } });
+add('usernames: anónimo no lee',            () => op.get('usernames/mio', AS.anon), 403);
+add('usernames: registrado lee uno',        () => op.get('usernames/mio', AS.user), 200);
+add('usernames: nadie lista',               () => op.list('usernames', AS.user), 403);
+add('usernames: admin tampoco lista',       () => op.list('usernames', AS.admin), 403);
+add('usernames: reserva para sí mismo',     () => op.create('usernames/nuevo_1', { uid: 'user1' }, AS.user), 200);
+add('usernames: reserva a nombre de otro',  () => op.create('usernames/robado', { uid: 'pres5' }, AS.user), 403);
+add('usernames: nombre inválido',           () => op.create('usernames/MAYUS', { uid: 'user1' }, AS.user), 403);
+add('usernames: campo extra',               () => op.create('usernames/extra_1', { uid: 'user1', x: 1 }, AS.user), 403);
+add('usernames: pisar uno ajeno',           () => op.update('usernames/ya_tomado', { uid: 'user1' }, AS.user), 403);
+add('usernames: borrar uno ajeno',          () => op.del('usernames/ya_tomado', AS.user), 403);
+add('usernames: borrar uno propio',         () => op.del('usernames/mio', AS.user), 200);
+add('usernames: admin crea para otro',      () => op.create('usernames/de_admin', { uid: 'pres5' }, AS.admin), 200);
+add('usernames: admin borra',               () => op.del('usernames/de_admin', AS.admin), 200);
+add('username: lote reserva + users',       () => batch([wSet('usernames/lote_ok', { uid: 'user1' }), wUpd('users/user1', { username: 'lote_ok' })], AS.user), 200);
+add('username: users sin reserva',          () => op.update('users/user1', { username: 'sin_reserva' }, AS.user), 403);
+add('username: reserva de otro',            () => batch([wUpd('users/user1', { username: 'ya_tomado' })], AS.user), 403);
+add('username: lote con nombre tomado',     () => batch([wSet('usernames/ya_tomado', { uid: 'user1' }), wUpd('users/user1', { username: 'ya_tomado' })], AS.user), 403);
+add('username: cambio atómico (borra el viejo)', () => batch([wSet('usernames/lote_2', { uid: 'user1' }), wDel('usernames/lote_ok'), wUpd('users/user1', { username: 'lote_2' })], AS.user), 200);
 
 // --- users: baja ---
 add('users.delete: anónimo',        () => op.del('users/user1', AS.anon), 403);

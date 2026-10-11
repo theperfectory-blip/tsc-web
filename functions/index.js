@@ -13,3 +13,4 @@ setGlobalOptions({ region: TASKS_REGION });
 exports.notifyStreamToday = require('./lib/notifyStreamToday').notifyStreamToday;
 exports.notifyStartupContinuation = require('./lib/notifyStartupContinuation').notifyStartupContinuation;
 exports.onMatchWentLive = require('./lib/onMatchWentLive').onMatchWentLive;
+exports.onAuthUserDeleted = require('./lib/onAuthUserDeleted').onAuthUserDeleted;

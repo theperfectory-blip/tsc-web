@@ -842,18 +842,39 @@ async function saveProfile(){
       upd.displayName = newName;
     }
 
-    // 3. Nombre de usuario (@handle) con verificación de unicidad
-    if (newUsername !== (AUTH.profile?.username || '')){
+    // 3. Nombre de usuario (@handle). La unicidad se resuelve reservando
+    //    usernames/{nombre} en el mismo lote que actualiza el perfil: si el
+    //    nombre ya es de otro, la reserva falla y no se guarda nada (H-31).
+    //    Antes se consultaba `users where username == …`, que las reglas nunca
+    //    dejaron a un no admin.
+    const oldUsername = AUTH.profile?.username || '';
+    let usernameBatch = null, alreadyMine = false;
+    if (newUsername !== oldUsername){
       if (newUsername){
         if (!/^[a-z0-9_]{1,30}$/.test(newUsername)){ showToast('El usuario admite hasta 30 caracteres: a-z, 0-9 y _','error'); return; }
-        const snap = await firebase.firestore().collection('users').where('username','==',newUsername).get();
-        if (snap.docs.some(d => d.id !== AUTH.user.uid)){ showToast('Ese nombre de usuario ya está en uso','error'); return; }
+        const taken = await firebase.firestore().collection('usernames').doc(newUsername).get();
+        if (taken.exists && taken.data().uid !== AUTH.user.uid){ showToast('Ese nombre de usuario ya está en uso','error'); return; }
+        alreadyMine = taken.exists;   // reserva propia ya creada: set() sería un update y la regla no lo deja
       }
       upd.username = newUsername || null;
+      usernameBatch = { oldUsername, newUsername };
     }
 
     if (Object.keys(upd).length){
-      await userRef.update(upd);
+      if (usernameBatch){
+        const fs = firebase.firestore();
+        const batch = fs.batch();
+        if (usernameBatch.newUsername && !alreadyMine) batch.set(fs.collection('usernames').doc(usernameBatch.newUsername), { uid: AUTH.user.uid });
+        if (usernameBatch.oldUsername && usernameBatch.oldUsername !== usernameBatch.newUsername) batch.delete(fs.collection('usernames').doc(usernameBatch.oldUsername));
+        batch.update(userRef, upd);
+        try { await batch.commit(); }
+        catch(e){
+          if (e.code === 'permission-denied'){ showToast('Ese nombre de usuario ya está en uso','error'); return; }
+          throw e;
+        }
+      } else {
+        await userRef.update(upd);
+      }
       Object.assign(AUTH.profile, upd);
     }
 
