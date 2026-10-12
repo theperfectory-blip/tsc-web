@@ -303,6 +303,9 @@ function renderAuthUI(){
         <svg class="tp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>`;
     if (btnMode) btnMode.style.display = (AUTH.role === 'admin') ? '' : 'none';
+    // Sesión sin rol admin (otra cuenta, o el perfil no cargó y quedó como
+    // presidente): no puede quedar dentro del panel.
+    if (AUTH.role !== 'admin' && STATE.mode === 'admin' && typeof setMode === 'function') setMode('public');
   } else {
     area.innerHTML = `<button class="mode-btn" onclick="openAuthModal()">Entrar</button>`;
     if (btnMode) btnMode.style.display = 'none';

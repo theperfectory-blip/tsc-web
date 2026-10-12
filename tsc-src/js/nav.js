@@ -230,7 +230,24 @@ function goPublicPage(page, navEl){
 /* ----------------------------------------------------------
    NAVEGACIÓN ADMIN
    ---------------------------------------------------------- */
+/* Páginas del panel admin (las del switch de renderAdminPage). Sirve para
+   validar la página restaurada desde localStorage: una guardada que ya no
+   existe dejaba el panel en blanco, sin ninguna página activa. */
+const _ADMIN_PAGES = ['dashboard','equipos-admin','usuarios-admin','competiciones-admin','fases-admin',
+  'partidos-admin','sorteo-admin','coins-admin','temporadas-admin','datos-admin','historial-admin',
+  'historial-tabla-admin','palmares-admin','calendario-admin'];
+function isAdminPage(page){ return _ADMIN_PAGES.includes(page); }
+
 function goAdminPage(page, navEl){
+  if(!isAdminPage(page)) page = 'dashboard';
+  // Entrar al panel siempre pasa por setMode, que exige el rol admin y arma
+  // el layout (sidebar, topnav oculta). Antes, el acceso «Panel admin» del
+  // perfil abría el dashboard dentro del layout público.
+  if(STATE.mode !== 'admin'){
+    STATE.adminPage = page;
+    setMode('admin');
+    return;
+  }
   if(typeof liveStop==='function') liveStop();   // sin tiempo real en modo admin
   if(typeof liveRadarStop==='function') liveRadarStop();
   STATE.adminPage = page;
@@ -481,7 +498,17 @@ async function _focusPublicSectionInner(page, options){
   return true;
 }
 
+/* Los llamadores no esperan el render (goAdminPage, onSeasonChange…): un
+   fallo de lectura (sin red, permiso) quedaba como promesa sin capturar y la
+   sección vacía sin aviso. */
 async function renderAdminPage(page){
+  try { await _renderAdminPage(page); }
+  catch(e){
+    console.error('[admin] render de '+page+':', e);
+    showToast('No se pudo cargar la sección: '+dbErrorMsg(e),'error');
+  }
+}
+async function _renderAdminPage(page){
   switch(page){
     case 'dashboard':           await renderAdmDashboard();   break;
     case 'equipos-admin':       await renderAdmTeams();       break;
@@ -622,13 +649,15 @@ async function renderAdmDashboard(){
     getForSeason('matches'),
   ]);
   const currentSeason = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
-  const seasonName = getSeasonName(currentSeason);
+  const seasonName = currentSeason ? getSeasonName(currentSeason) : '—';
+  // Es la temporada seleccionada, que puede estar finalizada.
+  const seasonLbl = currentSeason?.status==='finished' ? 'Temporada (finalizada)' : 'Temporada activa';
   el.innerHTML = `
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${teams.length}</div><div class="stat-lbl">Equipos</div></div>
     <div class="stat-card"><div class="stat-num">${comps.length}</div><div class="stat-lbl">Competiciones</div></div>
     <div class="stat-card"><div class="stat-num">${matches.length}</div><div class="stat-lbl">Partidos</div></div>
-    <div class="stat-card"><div class="stat-num">${seasonName}</div><div class="stat-lbl">Temporada activa</div></div>
+    <div class="stat-card"><div class="stat-num">${escHtml(seasonName)}</div><div class="stat-lbl">${seasonLbl}</div></div>
   </div>
   <div class="section-lbl">Acciones rápidas</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -643,7 +672,7 @@ async function loadSeasons(){
   const seasons = await dbGetAll('seasons');
   const sel = document.getElementById('season-sel');
   sel.innerHTML = '<option value="">Temporada...</option>' +
-    seasons.map(s=>`<option value="${s.number}" ${s.number===STATE.season?'selected':''}>${getSeasonName(s)} ${s.status==='active'?'●':''}</option>`).join('');
+    seasons.map(s=>`<option value="${s.number}" ${s.number===STATE.season?'selected':''}>${escHtml(getSeasonName(s))} ${s.status==='active'?'●':''}</option>`).join('');
 }
 
 async function onSeasonChange(val){

@@ -179,7 +179,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
   const allMatches = await dbGetAll('matches', m=>m.phaseId===phaseId);
 
   // Nombres de equipos para criterio alfabético
-  const _allTeams = await dbGetAll('teams', t=>t.season===STATE.season||!t.season);
+  const _allTeams = await getForSeason('teams');
   const teamNamesById = {};
   _allTeams.forEach(t=>{ teamNamesById[t.id] = t.name||''; });
 

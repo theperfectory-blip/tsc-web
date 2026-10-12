@@ -424,7 +424,25 @@ function dbSubscribe(store, filter, cb){
 }
 
 /* Helpers con filtro por temporada */
-function getForSeason(store){ return dbGetAll(store, r=>r.season===STATE.season||!r.season); }
+/* `teams` es un plantel global (todas las altas guardan season:1 fijo): si se
+   filtrara por temporada, desde la T2 en adelante el dashboard, el calendario,
+   el bracket y la asignación a grupos verían 0 equipos. */
+function getForSeason(store){
+  if(store==='teams') return dbGetAll(store);
+  return dbGetAll(store, r=>r.season===STATE.season||!r.season);
+}
+
+/* Texto corto para un toast a partir de un error de escritura/lectura. El
+   mensaje crudo de un rechazo de reglas repite «evaluation error…» una vez
+   por documento del lote (cientos de líneas en un borrado en cascada). */
+function dbErrorMsg(err){
+  const code = err?.code || '';
+  if(code==='permission-denied' || /PERMISSION_DENIED/.test(err?.message||''))
+    return 'Sin permiso: solo un administrador puede hacer esto.';
+  if(code==='unavailable') return 'Sin conexión con el servidor. Inténtalo de nuevo.';
+  const msg = String(err?.message || err || 'Error desconocido');
+  return msg.length > 160 ? msg.slice(0,160)+'…' : msg;
+}
 
 /* Helper para obtener el nombre de la temporada (custom name o T{número}) */
 function getSeasonName(seasonObj){

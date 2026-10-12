@@ -840,7 +840,7 @@ window.addEventListener('load', async ()=>{
       STATE.publicPage = savedPublicPage;
     }
     const savedAdminPage = localStorage.getItem('tsc_admin_page');
-    if(savedAdminPage) STATE.adminPage = savedAdminPage;
+    if(savedAdminPage && (typeof isAdminPage!=='function' || isAdminPage(savedAdminPage))) STATE.adminPage = savedAdminPage;
   }catch(e){}
 
   await _bootStep('loadSeasons', loadSeasons);

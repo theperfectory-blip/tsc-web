@@ -434,7 +434,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
   const ngroups = config.ngroups||2;
   const zones = phase.zones||[];
   const allMatches = await dbGetAll('matches', m=>m.phaseId===phaseId);
-  const _allTeams = await dbGetAll('teams', t=>t.season===STATE.season||!t.season);
+  const _allTeams = await getForSeason('teams');
   const teamNamesById = {}, teamById = {};
   _allTeams.forEach(t=>{ teamNamesById[t.id]=t.name||''; teamById[t.id]=t; });
   const groupAssignments = phase.groups||{};
