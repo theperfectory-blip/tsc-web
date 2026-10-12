@@ -137,7 +137,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-44 | **Alta.** `getForSeason('teams')` filtraba el plantel por `season`, y toda alta de equipo guarda `season: 1` fijo: desde la T2, dashboard, calendario, bracket, asignación a grupos, tabla pública de grupos y export veían 0 equipos. **Cerrado en 5.2** (`teams` es global) |
 | H-45 | **Alta (integridad).** Borrar una temporada dejaba sus fases huérfanas: se borraban por `season`, campo que las fases no tienen (cuelgan de `compId`). También apuntaba a `palmares` por número (su `season` es texto, nunca coincidía). **Cerrado en 5.2** |
 | H-46 | Baja. El acceso «Panel admin» del perfil abría el dashboard con `goAdminPage` sin pasar por `setMode` (layout público). **Cerrado en 5.1** |
-| H-47 | Baja. Crear una temporada no finaliza la anterior: pueden quedar dos «Activa». Decidir con el dueño; encaja en 5.14–5.16 |
+| H-47 | Baja. Crear una temporada no finaliza la anterior: pueden quedar dos «Activa». Decidir con el dueño; va a 5.16 |
 
 ---
 
@@ -592,10 +592,10 @@ sandbox de 2.1.**
 | 5.10 | Sorteo (admin) | `sorteo.js` |
 | 5.11 | Palmarés, historial y tabla histórica (admin) | `palmares.js`, `history.js` |
 | 5.12 | Calendario y etiquetas de día (admin) | `calendar.js` |
-| 5.13 | Datos: exportar e importar. Import atómico (H-19): backup automático antes de sobrescribir, borrado en lote con `dbDeleteMany` y validación completa antes de tocar nada | `data.js` |
+| 5.13 | Datos: exportar e importar. Import atómico (H-19): backup automático antes de sobrescribir, borrado en lote con `dbDeleteMany` y validación completa antes de tocar nada. Incluye (de MS-5.2): el export arma las fases con `getForSeason('phases')`, que trae las de todas las temporadas (no tienen `season`); filtrar por `compId` y probarlo | `data.js` |
 | 5.14 | Temporadas archivadas (D8) · generador: script que lee de producción (solo GET, como `emu-snapshot`) una temporada finalizada y escribe `tsc-src/data/temporadas/<id>.json` con todo lo suyo (`competitions`, `phases`, `matches`, `matchHistory`, `coins`, `sorteo`, `sorteoEvents`, `calDayLabels`) y los nombres de equipo como estaban al cerrar. Índice `data/temporadas/index.json`. Validación: conteos y una huella por colección contra Firestore | `scripts/`, `data/` |
 | 5.15 | Temporadas archivadas · lectura: la capa de datos sirve una temporada archivada desde su archivo (todas las secciones públicas y admin, en solo lectura). Historial y tabla histórica suman JSON de PES 1-3 + archivos + temporada actual. La APK baja del hosting los archivos que no trae. Sandbox: T3 desde archivo idéntica a T3 desde Firestore (capturas y conteos) | `db.js`, `history.js`, `nav.js`, `seasons.js` |
-| 5.16 | Temporadas archivadas · cierre: el admin no puede editar, reactivar ni borrar una temporada archivada (UI + regla que rechace escrituras con `season` archivada). Respaldo completo y luego borrado de los documentos de T3 en Firestore (M-8, lo confirma el dueño). Medir lecturas por visita antes y después con `emu-probe` | `seasons.js`, `firestore.rules`, `scripts/` |
+| 5.16 | Temporadas archivadas · cierre: el admin no puede editar, reactivar ni borrar una temporada archivada (UI + regla que rechace escrituras con `season` archivada). Respaldo completo y luego borrado de los documentos de T3 en Firestore (M-8, lo confirma el dueño). Medir lecturas por visita antes y después con `emu-probe`. Incluye H-47 (de MS-5.2): decidir con el dueño si crear una temporada ofrece finalizar la activa, implementarlo y probarlo en el sandbox | `seasons.js`, `firestore.rules`, `scripts/` |
 
 > **Estado 5.1 y 5.2:** CERRADO · 2026-10-12 · ver `docs/reportes/MS-5.1-5.2.md`. Verificado en el sandbox en `dist` y `tsc-src`, 0 errores de consola, paridad OK. 5.1: «Panel admin» del perfil pasa por `setMode` (H-46), página admin restaurada validada, render admin con fallo controlado, sesión sin rol admin sale del panel, `dbErrorMsg` para toasts. 5.2: equipos globales en `getForSeason` (H-44), cascada de borrado sin fases huérfanas y sin tocar palmarés (H-45), doble clic al crear, «Ir» persistente, confirmaciones con texto correcto, C9 con mensaje claro. Abre H-47.
 
