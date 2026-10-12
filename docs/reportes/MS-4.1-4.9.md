@@ -83,12 +83,22 @@ Mismo sandbox (emuladores) y las dos variantes; partidos de prueba escritos en e
 - **`updater.js` y `push.js` con Capacitor simulado:** `node scripts/smoke-native.cjs` (nuevo, 14 comprobaciones): misma versión, 1.10.0 contra 1.9.0 por versionCode, manifiesto como objeto o texto, 404, JSON inválido, sin versionCode, sin red, build no numérico, descarga concurrente y URL vacía; permiso denegado, token registrado con `arrayUnion`, invitado sin escrituras, `arrayRemove` al cerrar sesión, `disable` y `handleNotificationData` con entradas raras. Todas pasan.
 - `smoke-parity` sigue en OK (905 globales, 26 listeners) y 0 errores de consola.
 
+## Tercera pasada: Sala 3D dentro de la APK (emulador de Android)
+
+AVD descartable `tsc_test` (misma imagen API 36.1 que el del dueño, que no se tocó; ya borrado), APK **debug** reconstruido con el código de esta rama (`npm run build:www`, `cap copy`, `gradlew :app:assembleDebug`). Producción en solo lectura (`__TSC_READONLY__ = true`, puesto por DevTools del WebView); sin sesión.
+
+- **Sala abierta en la APK:** `Capacitor.isNativePlatform()` es `true` (android), el ancho es 411 px y aun así la Sala usa la rama **3D** (`_PALM_PUB.salaUsesSvg = false`, como corresponde en la APK): carga Three + GLTFLoader + Draco bajo la CSP, 1 canvas en `#sala-cup`, el loader sale y la Sala queda abierta. **0 errores y 0 avisos de consola.** Captura: `docs/reportes/MS-4.1-4.9-sala-apk.jpg` (copa 3D, focos, collage, placa «ESCARLATAS FC · CAMPEÓN · T3 · PES 4 · 2026», flechas y puntos).
+- **Tiempo de apertura:** unos 22 s hasta que la Sala queda abierta en un emulador sin GPU (renderizado por software, 2 GB de RAM y el primer arranque aún asentándose); es el mismo orden que ya midió 6.3 (12 s solo el decodificado Draco). En un teléfono real es mucho menor.
+- **Toque real:** un deslizamiento horizontal (`adb input swipe`) cambió de competición («TSC 1ra División» a «Copa del Emperador», con su campeón y su placa) con el canvas 3D intacto.
+- **No se alcanzó a verificar en la APK:** el deslizamiento vertical (cambio de campeón) y el cierre con limpieza. El emulador se cerró solo en ese punto (sin traza de fallo en su registro) y no se relanzó; ambos caminos son los mismos que en Chrome (verificados en la primera pasada: cierre sin canvas ni listeners residuales, cambio de campeón).
+- Para repetirlo: `ANDROID_HOME=D:\AndroidData\Sdk`, JDK `D:\Desktop\Android Studio\jbr` y `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=<~/.cache/firebase>` (si no, Gradle falla con «Unable to establish loopback connection», igual que el emulador de Firestore). El AVD se crea copiando el `config.ini` del existente. En el primer arranque en frío conviene esperar a que baje la carga (Play Store se actualiza) o desactivar `com.android.vending`.
+
 ## Pendientes / hallazgos nuevos
 
 - **H-40** (media, **cerrado en 4.1**): la sección guardada se marcaba pero no se mostraba al recargar.
 - **H-41** (media, **cerrado en 4.7 y 4.8**): la vista pública escribía en Firestore y fallaba para un visitante (sorteo de una temporada sin registro; historial con registros `live` de temporadas pasadas sin congelar).
 - **H-42** (baja, abierto, va a 5.4 o a reglas con Opus): cuando el presidente renombra su club desde el perfil no se guarda `previousNames` (la regla solo deja `name` y `logo`), así que el historial, que enlaza por nombre, pierde el vínculo con el club. El admin sí lo guarda.
 - Código muerto para 7.2 (C7): `#pub-sidebar` y su cadena (`togglePubSidebar`, `closePubSidebar`, `_applyPubSidebar`, `_initPubSidebarHover`, `renderPubSidebarComps`, `renderPubSidebarHistorial`, `#pub-menu-btn`, el indicador de `motion.js:_initChrome`); `renderPubComps` y la página `competiciones` (H-26); `_TROPHY_STORAGE_BASE` (palmares); `liveAvailable`. Copias del helper de escape: `_esc` ×8 más `_tkEsc`, `_pbEsc`, `_pfEsc`, `_authEsc`, `_updEsc` (7.1).
-- Lo que quedó fuera de la primera pasada se cubrió después (sección siguiente). Sigue sin probarse en un dispositivo real: la Sala 3D dentro de la APK (en la APK la Sala usa 3D aunque el ancho sea chico) y las notificaciones y la actualización con el teléfono (referencia: 6.3).
+- Lo que quedó fuera de la primera pasada se cubrió después (secciones siguientes). Las notificaciones (FCM) las probó el dueño en el teléfono: dado por probado.
 
 Acción del dueño requerida: ninguna. Los cambios van en `tsc-src` y salen con el merge a `main` (deploy de hosting por CI); no tocan reglas ni funciones.
