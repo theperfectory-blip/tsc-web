@@ -237,8 +237,8 @@ mecánico o lo guía un checklist):
 | 3.6 Config externa · 3.7 Cuentas | Sonnet 5.5 | medium |
 | M4 (4.1–4.9) secciones públicas | Sonnet 5.5 | medium |
 | 4.2 Palmarés (3,7k líneas, 3D) | Sonnet 5.5 | high |
-| M5 (5.1–5.12) secciones admin | Sonnet 5.5 | medium |
-| 5.1 Acceso admin · 5.2 Temporadas (cascada) · 5.7 Bracket | Opus 5.5 | medium |
+| M5 (5.1–5.12) secciones admin, salvo las de la fila siguiente | Sonnet 5.5 | medium |
+| 5.1 Acceso admin · 5.2 Temporadas (cascada) · 5.4 Equipos y usuarios (incluye H-42, toca reglas) · 5.7 Bracket | Opus 5.5 | medium |
 | 5.13 Import atómico | Opus 5.5 | high |
 | 5.14–5.16 Temporadas archivadas | Opus 5.5 | high |
 | 6.1 Cloud Functions | Opus 5.5 | medium |
