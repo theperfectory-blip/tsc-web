@@ -133,6 +133,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-40 | Al recargar, la sección pública guardada en `localStorage` se marcaba en la barra pero el scroll quedaba arriba, en Palmarés (la barra decía «Equipos» y se veía Palmarés). **Cerrado en 4.1** (`redesign-shell.js`) |
 | H-41 | La vista pública escribía en Firestore y fallaba para un visitante con `PERMISSION_DENIED`: `SORTEO.init` creaba el registro de una temporada sin sorteo, e `historial` congelaba registros `live` de temporadas pasadas. El rechazo tumbaba el historial («No pudimos cargar el historial») y dejaba Equipos con 0 partidos. **Cerrado en 4.7 y 4.8** (solo el admin escribe) |
 | H-42 | Cuando el presidente renombra su club desde el perfil no se guarda `previousNames` (la regla solo deja `name` y `logo`), y el historial enlaza por nombre: el club pierde su historial y su tabla histórica. El admin sí lo guarda. Baja. Hallado en 4.9, va a 5.4 (con Opus: toca reglas) |
+| H-43 | El ticker de resultados no se actualizaba en vivo: un partido que pasaba a «en vivo» o un resultado nuevo no aparecía hasta recargar. **Cerrado en 4.6** (`public.js`, suscripción propia a `matches`) |
 
 ---
 
@@ -564,7 +565,7 @@ Cada sección pasa el **checklist C1–C7** (sección 5) en `tsc-src` y en
 | 4.8 | Historial, H2H y tabla histórica | `history.js`, `data/historial-seed.json` |
 | 4.9 | Cuenta: login, registro, recuperación, perfil, panel del presidente (edición de nombre y logo, relacionado con H-01), push opt-in, promo APK, actualizador | `auth.js`, `profile.js`, `push.js`, `apk-promo.js`, `updater.js` |
 
-> **Estado M4:** CERRADO · 2026-10-11 (slices 4.1 a 4.9 en una sola sesión) · ver `docs/reportes/MS-4.1-4.9.md`. Verificado en el sandbox (emuladores) en `tsc-src` y `dist`, 390 / 768 / escritorio, tema claro y oscuro; paridad OK y 0 errores de consola. Arreglos: H-40 (sección restaurada al recargar), H-41 (escrituras públicas rechazadas en sorteo e historial), pager móvil del bracket con movimiento reducido, fuegos del campeón (sonido global y listener), título comp/fase cortado en móvil, «hoy» del calendario con la zona elegida, Equipos en vivo desde vacío, validación del nombre de club del presidente, Enter en el login. H-26 resuelto (código muerto). Abre H-42.
+> **Estado M4:** CERRADO · 2026-10-11 (slices 4.1 a 4.9 en una sola sesión) · ver `docs/reportes/MS-4.1-4.9.md`. Verificado en el sandbox (emuladores) en `tsc-src` y `dist`, 390 / 768 / escritorio, tema claro y oscuro; paridad OK y 0 errores de consola. Arreglos: H-40 (sección restaurada al recargar), H-41 (escrituras públicas rechazadas en sorteo e historial), pager móvil del bracket con movimiento reducido, fuegos del campeón (sonido global y listener), título comp/fase cortado en móvil, «hoy» del calendario con la zona elegida, Equipos en vivo desde vacío, validación del nombre de club del presidente, Enter en el login. H-26 resuelto (código muerto). Abre H-42 y cierra H-43 (ticker en vivo). Verificados después: hero del Calendario próximo y en vivo, zona horaria, Sala en táctil, alta de cuenta, `updater`/`push` con Capacitor simulado (`scripts/smoke-native.cjs`).
 
 ---
 

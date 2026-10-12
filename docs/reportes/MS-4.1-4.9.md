@@ -1,6 +1,6 @@
 # MS-4.1 a 4.9 · Modo público, sección por sección · 2026-10-11
 
-Hallazgos que cierra: H-26 (la ruta `competiciones` es inalcanzable: código muerto, va a 7.2) y los nuevos H-40 y H-41. Abre H-42.
+Hallazgos que cierra: H-26 (la ruta `competiciones` es inalcanzable: código muerto, va a 7.2) y los nuevos H-40 y H-41. Abre H-42. La segunda pasada cierra además H-43.
 
 Cómo se verificó (todo en el sandbox: emuladores de Firestore y Auth, nunca producción):
 
@@ -70,12 +70,25 @@ Cambios:
 
 Verificado con la cuenta de presidente del emulador (login por Enter, perfil, guardar con 41 caracteres y con `<b>`: aviso claro y sin escritura; nombre válido guardado y restaurado; cierre de sesión). `push.js` y `updater.js` solo existen en la APK: revisados en código (el plugin nativo ya limita la URL de descarga al host permitido); la prueba en teléfono real de 6.3 sigue siendo la referencia.
 
+## Segunda pasada: lo que no se había cubierto
+
+Mismo sandbox (emuladores) y las dos variantes; partidos de prueba escritos en el emulador con el Admin SDK (`match.cjs`, fuera del repo).
+
+- **Hero del Calendario, próximo:** con un partido de mañana (20:00 de Lima) aparece «Próximo partido», con cuenta atrás que avanza y los equipos correctos.
+- **Hero del Calendario, en vivo:** al marcar el partido en vivo el hero pasa a «En vivo» con el marcador, el radar arranca y se detiene al salir de la sección; el día de hoy queda como ancla del metro.
+- **Zona horaria:** con la zona elegida en Configuración distinta de la del dispositivo (Auckland, Los Ángeles) la hora y el día del hero se convierten bien (20:00 de Lima → martes 13, 14:00 en Auckland) y `_calViewerTodayStr()` usa la zona elegida.
+- **H-43 (nuevo, cerrado):** el ticker de resultados solo se pintaba al entrar en modo público y al cambiar de temporada; un partido que pasaba a «en vivo» o un resultado nuevo no aparecía hasta recargar (visto al probar el hero en vivo). `js/public.js`: suscripción propia a `matches` (comparte el listener del espejo), con debounce, solo en modo público y cerrada al pasar a admin; si los datos no cambian no se toca el DOM, para no reiniciar la marquesina. Verificado en `tsc-src` y en `dist`: el partido en vivo aparece primero, con su punto rojo, sin recargar y sin acumular clones de la marquesina.
+- **Sala en táctil (390 px):** abre con la rama SVG (sin Three ni canvas), el deslizar a la izquierda cambia de competición, el deslizar hacia arriba cambia de campeón y el botón de cerrar restaura el estado. Los toques son simulados.
+- **Alta de cuenta de punta a punta (emulador de Auth):** nombre con `<` rechazado con aviso; email ya usado, con aviso y sin dejar el nombre pendiente (`_pendingSignupName` en `null`); alta correcta enviando con Enter: perfil creado como presidente, sin equipo y con edición bloqueada; el perfil muestra «Aún no tienes un club vinculado»; guardar nombre y @usuario reserva `usernames/qa_nuevo`; cerrar sesión.
+- **`updater.js` y `push.js` con Capacitor simulado:** `node scripts/smoke-native.cjs` (nuevo, 14 comprobaciones): misma versión, 1.10.0 contra 1.9.0 por versionCode, manifiesto como objeto o texto, 404, JSON inválido, sin versionCode, sin red, build no numérico, descarga concurrente y URL vacía; permiso denegado, token registrado con `arrayUnion`, invitado sin escrituras, `arrayRemove` al cerrar sesión, `disable` y `handleNotificationData` con entradas raras. Todas pasan.
+- `smoke-parity` sigue en OK (905 globales, 26 listeners) y 0 errores de consola.
+
 ## Pendientes / hallazgos nuevos
 
 - **H-40** (media, **cerrado en 4.1**): la sección guardada se marcaba pero no se mostraba al recargar.
 - **H-41** (media, **cerrado en 4.7 y 4.8**): la vista pública escribía en Firestore y fallaba para un visitante (sorteo de una temporada sin registro; historial con registros `live` de temporadas pasadas sin congelar).
 - **H-42** (baja, abierto, va a 5.4 o a reglas con Opus): cuando el presidente renombra su club desde el perfil no se guarda `previousNames` (la regla solo deja `name` y `logo`), así que el historial, que enlaza por nombre, pierde el vínculo con el club. El admin sí lo guarda.
 - Código muerto para 7.2 (C7): `#pub-sidebar` y su cadena (`togglePubSidebar`, `closePubSidebar`, `_applyPubSidebar`, `_initPubSidebarHover`, `renderPubSidebarComps`, `renderPubSidebarHistorial`, `#pub-menu-btn`, el indicador de `motion.js:_initChrome`); `renderPubComps` y la página `competiciones` (H-26); `_TROPHY_STORAGE_BASE` (palmares); `liveAvailable`. Copias del helper de escape: `_esc` ×8 más `_tkEsc`, `_pbEsc`, `_pfEsc`, `_authEsc`, `_updEsc` (7.1).
-- No cubierto: la Sala 3D en táctil/APK, una cuenta nueva (alta) de punta a punta, el hero del Calendario con partido en vivo o próximo, y las cuentas con zona horaria distinta del dispositivo (solo código).
+- Lo que quedó fuera de la primera pasada se cubrió después (sección siguiente). Sigue sin probarse en un dispositivo real: la Sala 3D dentro de la APK (en la APK la Sala usa 3D aunque el ancho sea chico) y las notificaciones y la actualización con el teléfono (referencia: 6.3).
 
 Acción del dueño requerida: ninguna. Los cambios van en `tsc-src` y salen con el merge a `main` (deploy de hosting por CI); no tocan reglas ni funciones.
