@@ -184,3 +184,29 @@ instalado, comprobar:
 
 Si quieres, la próxima sesión hace el bump y deja listo el commit; el build
 firmado y la publicación son tuyos.
+
+## Resultado de M-10 · 2026-10-11
+
+- **Release publicado:** `v1.6.3` sobre `26e89a8` (el merge del PR #8, con el
+  bump `1099ed0`). Build firmado por el dueño en su máquina. Verificado sobre
+  su APK antes de publicar: `versionCode 19` / `1.6.3`, los mismos 7 permisos,
+  firma con el DN y el SHA-256 del gate (`7727c9a7…2a72`), y los 104 archivos
+  web idénticos a `tsc-src/` por hash. SHA-256 del APK:
+  `fab1cdb31878ec39f91003ff43ac8310d7530a35c828d3b340544fd283cb7fff`.
+- **Servible desde las URLs de nombre fijo:** `update.json` 200 con
+  `versionCode 19`; `TEAM-SUBS-CUP.apk` 200, 48.925.559 bytes y el mismo
+  SHA-256. Se publicó como borrador, se verificaron los 3 assets (tamaño y
+  digest) y recién ahí se publicó, para que el manifiesto nunca anuncie un APK
+  que todavía no está.
+- **Pruebas en el teléfono:** las hizo el dueño (actualización desde la app,
+  inicio de sesión, activar notificaciones) y las reportó en el chat; no hay
+  más evidencia que esa. Los avisos reales sí quedaron registrados en la base
+  (ver el reporte de 6.1, «Prueba del botón»): `today` y 65 s después
+  `continuation`, a los 2 tokens, con éxito, y el dueño confirmó que llegaron
+  los dos.
+- **Observación, no es un fallo:** al desactivar y volver a activar las
+  notificaciones en la app, Android no vuelve a mostrar su diálogo de permiso.
+  La app no puede revocarse el permiso del sistema (`disable()` solo saca el
+  token y apaga el aviso de su lado) y el diálogo solo sale cuando el permiso
+  no está concedido.
+- H-37 queda cerrado. H-38 sigue como nota para la revisión de 3.5.

@@ -97,5 +97,20 @@ funciones en `nodejs22`, con las mismas regiones (`notifyStreamToday` y
 `notifyStartupContinuation` en `southamerica-east1`, `onMatchWentLive` en
 `southamerica-west1`, `onAuthUserDeleted` en `us-central1`). Las llamadas
 sin credenciales devuelven lo mismo que antes: `notifyStartupContinuation`
-403 (IAM) y `notifyStreamToday` 401. Falta probar el botón "notificar stream
-de hoy" en el próximo stream.
+403 (IAM) y `notifyStreamToday` 401. El botón "notificar stream de hoy" se
+probó ese mismo día (abajo).
+
+**Prueba del botón (2026-10-11, cerrada).** Con un partido de prueba de hoy
+(FK TUPADRE, equipo del dueño, contra un equipo sin presidente asignado, así
+que nadie más recibió nada) se apretó "notificar stream de hoy" en
+producción. `notificationEvents`: a las 01:47:27 UTC salió `today` a los 2
+tokens del dueño y a las 01:48:32 UTC (65 s después) `continuation` a los
+mismos 2, los cuatro con `success: true` y sin código de error; en
+`notificationRuns` quedaron `today_1_2026-10-11_61` y
+`continuation_1114_61`. Los dos avisos llegaron al teléfono. Eso prueba de
+punta a punta que Cloud Tasks puede invocar la función con `invoker:
+'private'` (la cuenta de Cloud Tasks tiene `roles/run.invoker` a nivel de
+proyecto; la política propia de la función está vacía a propósito). El partido
+de prueba (id 1114) hay que borrarlo después de la prueba: mientras exista
+aparece en la fecha 14 del calendario público. Hallazgo menor H-39 (texto de
+la hora).
