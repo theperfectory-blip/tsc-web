@@ -14,6 +14,16 @@ function _calTodayStr(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+/* «Hoy» en la zona del que mira (la elegida en Configuración, no la del
+   dispositivo). Los encabezados de día del calendario público se calculan con
+   esa zona (_calLocalDateStr); comparar contra el «hoy» del dispositivo daba
+   un día de diferencia, y por tanto «hoy»/«pasado» mal clasificados, cuando
+   ambas zonas difieren (MS-4.6). */
+function _calViewerTodayStr(){
+  try{ return _calLocalDateStr(new Date()) || _calTodayStr(); }
+  catch(e){ return _calTodayStr(); }
+}
+
 /* ── Zona horaria de los partidos ─────────────────────────────
    scheduledDate/scheduledTime se guardan en hora de Lima (Luis teclea su
    propia hora ahí — el input y el guardado NO cambian, esto es solo
@@ -1111,7 +1121,7 @@ function _calResolveAnchorPhase(matches, phaseById){
   const live = matches.find(m => m.live && m.teamA && m.teamB && inScope(m));
   if(live) return inScope(live);
 
-  const today = _calTodayStr();
+  const today = _calViewerTodayStr();
   const upcoming = matches
     .filter(m => m.scheduledDate && m.scheduledDate>=today && m.goalsA==null && inScope(m))
     .sort((a,b)=>{
@@ -1208,7 +1218,7 @@ async function renderPubCalendar(){
   const phaseById  = Object.fromEntries(allPhases.map(p=>[p.id, p]));
   const compById   = Object.fromEntries(comps.map(c=>[c.id, c]));
   const labelByDate= Object.fromEntries(dayLabels.map(l=>[l.date, {text:l.text||'', type:l.type||''}]));
-  const today      = _calTodayStr();
+  const today      = _calViewerTodayStr();
 
   /* Próximos (foco del hero): futuros sin resultado, ordenados por fecha/hora. */
   const upcoming = allMatches

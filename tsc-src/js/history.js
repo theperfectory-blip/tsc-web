@@ -261,7 +261,14 @@ async function resolveHistoryRecord(h){
       penA: h.penA, penB: h.penB,
       resultado: computeResultado(h.golesA, h.golesB, h.penA, h.penB),
     };
-    await dbPut('matchHistory', {...h, ...out});
+    // Congelar los campos solo lo hace el admin: la regla rechaza la escritura
+    // de un visitante y ese rechazo tumbaba el historial entero ("No pudimos
+    // cargar el historial") al ver una temporada pasada sin campos congelados
+    // (MS-4.8, H-41). El resultado se devuelve igual, sin persistir.
+    if(typeof AUTH !== 'undefined' && AUTH.role === 'admin'){
+      try{ await dbPut('matchHistory', {...h, ...out}); }
+      catch(e){ console.warn('[Historial] no se pudo congelar el registro', h.id, e); }
+    }
     return out;
   }
   return h;

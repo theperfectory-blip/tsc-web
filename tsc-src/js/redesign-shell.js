@@ -189,6 +189,17 @@
     }
     refreshPublicScrollSections();
     const initial = _pages().includes(STATE.publicPage) ? STATE.publicPage : 'palmares';
+    /* Sección restaurada desde localStorage (reload) o al volver de admin: el
+       foco por sí solo marca la pestaña pero deja el scroll arriba (Palmarés),
+       y el observer no corrige porque ninguna sección cambia de estado — la
+       barra decía «Equipos» mientras se veía Palmarés (MS-4.1, H-40). Se baja
+       a la sección guardada, sin animar. */
+    if(initial !== _pages()[0] && typeof window.scrollToPublicSection === 'function'){
+      window.scrollToPublicSection(initial, { instant:true })
+        .then(ok=>{ if(!ok && typeof window.focusPublicSection === 'function') window.focusPublicSection(initial); })
+        .catch(()=>{});
+      return;
+    }
     if(typeof window.focusPublicSection === 'function'){
       window.focusPublicSection(initial);
     }
@@ -229,12 +240,13 @@
       throw error;
     }
     scrollLockUntil = Date.now() + SCROLL_LOCK_MS;
+    const behavior = (opts.instant || _rdpReduced()) ? 'auto' : 'smooth';
     const top = section.getBoundingClientRect().top + window.scrollY - _chromeH();
-    window.scrollTo({ top:Math.max(0, top), behavior:_rdpReduced() ? 'auto' : 'smooth' });
+    window.scrollTo({ top:Math.max(0, top), behavior });
     window.setTimeout(()=>{
       if(!_publicScrollEnabled() || STATE.publicPage !== page) return;
       const settledTop = section.getBoundingClientRect().top + window.scrollY - _chromeH();
-      window.scrollTo({ top:Math.max(0, settledTop), behavior:_rdpReduced() ? 'auto' : 'smooth' });
+      window.scrollTo({ top:Math.max(0, settledTop), behavior });
     }, 420);
     return true;
   }

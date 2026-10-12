@@ -358,7 +358,15 @@ function _pbBracketMount(el, roundCards, compName, phase, copaKey){
     const rail = vp.querySelector('.gbr-mobile-rail');
     if(!rail){ renderStatic(toPi); return; }
     requestAnimationFrame(()=>{ requestAnimationFrame(()=>rail.classList.add('go')); });
-    rail.addEventListener('transitionend', ()=>renderStatic(toPi), { once:true });
+    // Con movimiento reducido (transition:none) o con la pestaña oculta,
+    // transitionend no llega nunca y el bracket quedaba en el riel doble sin
+    // asentar ni fuegos del campeón (MS-4.4). Además solo cuenta el
+    // transitionend del propio riel, no el de un hijo que burbujea. Respaldo
+    // por tiempo, que dispara una sola vez.
+    let settled = false;
+    const settle = ()=>{ if(settled) return; settled = true; clearTimeout(fallback); renderStatic(toPi); };
+    const fallback = setTimeout(settle, 520);
+    rail.addEventListener('transitionend', e=>{ if(e.target === rail) settle(); });
   };
 
   let _pi = 0, _animating = false;

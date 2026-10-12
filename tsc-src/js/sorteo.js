@@ -349,7 +349,10 @@
       stateRecordId = rec.id;
     } else {
       state = emptyState();
-      stateRecordId = await dbAdd('sorteo', {
+      // Solo el modo admin crea el registro de la temporada. En la vista
+      // pública (solo lectura) la regla rechaza la escritura de un visitante y
+      // el init entero fallaba con PERMISSION_DENIED (MS-4.7, H-41).
+      stateRecordId = readOnly ? null : await dbAdd('sorteo', {
         season, bombos: state.bombos, activeId: state.activeId, updatedAt: Date.now()
       });
     }

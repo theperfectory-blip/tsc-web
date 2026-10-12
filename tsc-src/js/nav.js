@@ -595,18 +595,18 @@ async function renderPubSidebarComps(){
     const isSel = c.id===selComp.id;
     const col   = c.color || 'var(--gold)';
     html += `<div class="pub-sub-comp${isSel?' active':''}"
-      onclick="pubSelectComp(${c.id})"
-      title="${c.name}"
-      ${isSel?`style="color:${col};border-left-color:${col};"`:''}>
-      ${c.name}
+      onclick="pubSelectComp(${Number(c.id)})"
+      title="${escAttr(c.name)}"
+      ${isSel?`style="color:${escAttr(col)};border-left-color:${escAttr(col)};"`:''}>
+      ${escHtml(c.name)}
     </div>`;
     if(isSel){
       for(const p of phases){
         const isPSel = p.id===selPhaseId;
         html += `<div class="pub-sub-phase${isPSel?' active':''}"
-          onclick="pubSelectPhase(${p.id})"
-          title="${p.name}">
-          <span class="pub-sub-dot"></span>${p.name}
+          onclick="pubSelectPhase(${Number(p.id)})"
+          title="${escAttr(p.name)}">
+          <span class="pub-sub-dot"></span>${escHtml(p.name)}
         </div>`;
       }
     }

@@ -116,7 +116,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-23 | Si el SDK de Firebase no carga, `USE_FIRESTORE` queda en `false`. Hay que verificar si en ese caso la app corre sobre un IndexedDB local vacío y `seedInitialData` siembra 60 equipos falsos (`ui-utils.js:628`) |
 | H-24 | Assets: 75 MB en `tsc-src/assets` (trofeos `.glb`, `palmares_theme.mp3` de 4,7 MB, PNG de 1,6 a 2,2 MB con su par `.webp` ya generado) |
 | H-25 | `functions/` declara Node 20, que está fuera de soporte desde 2026-04-30. **Cerrado en 6.1** (Node 22, deps sin vulnerabilidades; falta el deploy, M-9) |
-| H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. Verificar si es alcanzable |
+| H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. **Resuelto en 4.3:** es inalcanzable (`goPublicPage` y `focusPublicSection` la redirigen a `panel`); `renderPubComps`, `#page-competiciones` y `#pub-comps-content` son código muerto, va a 7.2 |
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1, va a 5.7) |
 | H-28 | H-01 tenía un 8.º sink de `logo` (`standings.js:806`, corregido en 0.1). Quedan sinks de `teams.name` sin escape fuera de los archivos de 0.1; los mitiga la regla nueva (sin `<>` desde el presidente). Barrido en 3.1 |
 | H-29 | Guardar o borrar un equipo tarda minutos: `saveTeam`/`deleteTeam` → `notifyTeamChanged` → `refreshHistoryForSeason` reescribe con `appendOrUpdateHistory`, uno por uno y en serie, cada partido jugado de la temporada (422, ~820 ms cada uno en el emulador: ~6 min con el modal abierto). Hallado en 2.1, va a 2.5 |
@@ -130,6 +130,9 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-37 | **El APK v1.6.2 en circulación lleva Capacitor Android 8.4.1**, dentro del rango del aviso crítico GHSA-rvm3-566m-v7fv (CVSS 9.3: el WebView carga contenido arbitrario en el origen de la app por la ruta interna del proxy, si la víctima activa un enlace). La superficie es chica (los campos de usuario se escapan) pero el arreglo solo llega con un release nuevo. En el repo ya está Capacitor 8.5.3 (el rango vulnerable incluye 8.5.0, mínimo `^8.5.1`). Hallado en 6.2. **Cerrado el 2026-10-11** con el release v1.6.3 (M-10) |
 | H-38 | En móviles la CSP bloquea `https://apis.google.com/js/api.js`: Firebase Auth inicia su iframe de sesión de forma proactiva en navegadores móviles, Safari e iOS y el SDK ignora el fallo. Efecto: 1 violación por carga (APK en enforce; web móvil por el código del SDK). Auth y correo/contraseña no se ven afectados (verificado el arranque en la APK; falta el inicio de sesión real, M-10). **No agregar `apis.google.com` a `script-src`** (endpoints JSONP). La «0 violaciones» de 3.5 se midió en escritorio. Hallado en 6.3. El inicio de sesión en el teléfono con el APK nuevo lo probó el dueño |
 | H-39 | El aviso "¡Tu equipo juega hoy!" dice "hoy a las HH:MM (tu hora)" aunque la hora, convertida a la zona del presidente, caiga después de medianoche (partido de las 23:45 en Lima, visto desde Santiago: "hoy a las 01:45", que ya es mañana). Baja, solo texto (`formatKickoffForRecipient` en `functions/lib/notify.js`). Hallado en la prueba de M-9 |
+| H-40 | Al recargar, la sección pública guardada en `localStorage` se marcaba en la barra pero el scroll quedaba arriba, en Palmarés (la barra decía «Equipos» y se veía Palmarés). **Cerrado en 4.1** (`redesign-shell.js`) |
+| H-41 | La vista pública escribía en Firestore y fallaba para un visitante con `PERMISSION_DENIED`: `SORTEO.init` creaba el registro de una temporada sin sorteo, e `historial` congelaba registros `live` de temporadas pasadas. El rechazo tumbaba el historial («No pudimos cargar el historial») y dejaba Equipos con 0 partidos. **Cerrado en 4.7 y 4.8** (solo el admin escribe) |
+| H-42 | Cuando el presidente renombra su club desde el perfil no se guarda `previousNames` (la regla solo deja `name` y `logo`), y el historial enlaza por nombre: el club pierde su historial y su tabla histórica. El admin sí lo guarda. Baja. Hallado en 4.9, va a 5.4 (con Opus: toca reglas) |
 
 ---
 
@@ -560,6 +563,8 @@ Cada sección pasa el **checklist C1–C7** (sección 5) en `tsc-src` y en
 | 4.7 | Sorteo en vivo: tiempo real, chibi, sonido | `sorteo.js` |
 | 4.8 | Historial, H2H y tabla histórica | `history.js`, `data/historial-seed.json` |
 | 4.9 | Cuenta: login, registro, recuperación, perfil, panel del presidente (edición de nombre y logo, relacionado con H-01), push opt-in, promo APK, actualizador | `auth.js`, `profile.js`, `push.js`, `apk-promo.js`, `updater.js` |
+
+> **Estado M4:** CERRADO · 2026-10-11 (slices 4.1 a 4.9 en una sola sesión) · ver `docs/reportes/MS-4.1-4.9.md`. Verificado en el sandbox (emuladores) en `tsc-src` y `dist`, 390 / 768 / escritorio, tema claro y oscuro; paridad OK y 0 errores de consola. Arreglos: H-40 (sección restaurada al recargar), H-41 (escrituras públicas rechazadas en sorteo e historial), pager móvil del bracket con movimiento reducido, fuegos del campeón (sonido global y listener), título comp/fase cortado en móvil, «hoy» del calendario con la zona elegida, Equipos en vivo desde vacío, validación del nombre de club del presidente, Enter en el login. H-26 resuelto (código muerto). Abre H-42.
 
 ---
 

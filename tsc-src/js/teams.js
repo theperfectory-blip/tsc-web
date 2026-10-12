@@ -715,7 +715,13 @@ async function _refreshPubTeams(){
 
   /* Re-render las tarjetas ya visibles */
   const el = document.getElementById('pub-teams-grid');
-  if(!el) return;
+  if(!el){
+    /* Sin grilla porque no había equipos activos al montar ("Sin equipos
+       activos."): si ahora llegan, se arma la vista completa en vez de quedar
+       el mensaje vacío hasta recargar (MS-4.5). */
+    if(fresh.length) await renderPubTeams();
+    return;
+  }
   el.innerHTML = reconPool.slice(0, newShown).map(_pubTeamCardHtml).join('');
   _pubBindTeamsSpotlight();
   _updateLoadMoreBtn();

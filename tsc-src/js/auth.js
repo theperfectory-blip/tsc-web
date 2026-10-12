@@ -58,6 +58,13 @@ function _injectAuthModal(){
       </div>
     </div>`;
   document.body.appendChild(div);
+  // Enter en cualquier campo envía el formulario (los campos no están dentro de un <form>).
+  div.addEventListener('keydown', e=>{
+    if (e.key === 'Enter' && ['auth-name','auth-email','auth-pass'].includes(e.target.id)){
+      e.preventDefault();
+      authSubmit();
+    }
+  });
 }
 
 function openAuthModal(){
@@ -146,6 +153,9 @@ async function authSubmit(){
     closeModal('auth-modal');
     document.getElementById('auth-pass').value = '';
   } catch(e){
+    // Si el alta falló (p. ej. email ya en uso), el nombre tecleado no debe
+    // quedar pendiente para el perfil de OTRA cuenta creada después en esta sesión.
+    _pendingSignupName = null;
     errEl.textContent = _authErrorMsg(e);
   } finally {
     btn.disabled = false;

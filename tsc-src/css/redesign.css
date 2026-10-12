@@ -608,6 +608,11 @@ body.sala-open{overflow:hidden;}
 @media(max-width:560px){
   .comp-title::after{display:none;}
   .cc-view::before,.cc-view::after{width:20px;}
+  /* Competición y fase juntas no caben en una línea (a 390 px «Fase Final 1ra
+     División» quedaba cortada contra el borde): la fase baja a su propia fila. */
+  .comp-title{flex-wrap:wrap;row-gap:4px;}
+  .comp-title .cc-sep{display:none;}
+  .comp-title .cc-fase,.comp-title .pub-fase-single{flex:0 0 100%;}
 }
 /* === INICIO: COMPETICIONES PUBLIC === */
 /* Cabecera del navegador comp/fase en el panel público real (sin el sticky del
