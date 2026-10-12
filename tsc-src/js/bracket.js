@@ -87,7 +87,11 @@ function teamLogoHtml(name, team, size=28){
   };
 
   // Sonido de cohete subiendo: silbido ascendente
+  /* Respeta el sonido GLOBAL (Configuración): con SFX apagado no suena nada. */
+  function _fwSoundOff(){ return !!(window.SFX && window.SFX.enabled === false); }
+
   function _soundRocketLaunch(volScale){
+    if(_fwSoundOff()) return;
     try{
       const ctx = _getAudioCtx();
       const vol = volScale||0.18;
@@ -106,6 +110,7 @@ function teamLogoHtml(name, team, size=28){
 
   // Sonido de explosión: burst de ruido + boom grave
   function _soundExplosion(volScale){
+    if(_fwSoundOff()) return;
     try{
       const ctx = _getAudioCtx();
       const vol = volScale||0.28;
@@ -374,14 +379,15 @@ function teamLogoHtml(name, team, size=28){
         _fwCanvas=null;
       }
       window.removeEventListener('resize',resize);
+      document.removeEventListener('click',_onClick);
       if(_fwRAF) cancelAnimationFrame(_fwRAF);
     }
 
-    // Cancelar si el usuario hace click (para no molestar)
-    document.addEventListener('click', function once(){
-      _cleanup();
-      document.removeEventListener('click',once);
-    }, {once:true});
+    // Cancelar si el usuario hace click (para no molestar). Se quita también
+    // al terminar sola: antes quedaba pendiente y el primer click, mucho
+    // después, cancelaba los fuegos de OTRA fase lanzada entre medio.
+    function _onClick(){ _cleanup(); }
+    document.addEventListener('click', _onClick);
   };
 })();
 

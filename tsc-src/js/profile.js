@@ -313,7 +313,7 @@ async function renderProfileBody(){
     </button>
     <div id="profile-club-section" class="pp-disclosure" hidden>
       ${locked ? `<div class="pp-lock"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>El administrador bloqueó la edición del club.</span></div>` : ''}
-      <div class="form-group" style="margin:0;"><label for="profile-team-name">Nombre del club</label><input type="text" id="profile-team-name" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
+      <div class="form-group" style="margin:0;"><label for="profile-team-name">Nombre del club</label><input type="text" id="profile-team-name" maxlength="40" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
     </div>`;
   } else {
     if(AUTH.role==='president') bd += '<div class="pp-empty">Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.</div>';
@@ -820,6 +820,18 @@ async function saveProfile(){
   const newName     = document.getElementById('profile-name')?.value.trim();
   const newUsername = document.getElementById('profile-username')?.value.trim();
   const team        = window._profileTeam;
+  // Nombre del club: mismo límite que validTeamName en firestore.rules (1-40
+  // caracteres, sin < ni >). Se valida ANTES de escribir nada: antes, un nombre
+  // largo guardaba primero foto/nombre/usuario y recién al final la regla
+  // rechazaba el equipo, con un genérico «permission-denied» y el perfil a
+  // medias (MS-4.9).
+  if (team && !(AUTH.profile && AUTH.profile.lockEdits)){
+    const tn = document.getElementById('profile-team-name')?.value.trim();
+    if (tn && tn !== team.name && (tn.length > 40 || /[<>]/.test(tn))){
+      showToast('El nombre del club admite hasta 40 caracteres, sin < ni >','error');
+      return;
+    }
+  }
   try {
     const userRef = firebase.firestore().collection('users').doc(AUTH.user.uid);
     const upd     = {};
@@ -1301,7 +1313,7 @@ async function _pfCurrentSeasonSpots(team, publicView=false){
     // slice Calendario). Acá la pregunta es literalmente "cuándo", no "qué
     // jornada", así que scheduledDate es la fuente correcta.
     const phaseIds = new Set(spots.map(s => s.phaseId));
-    const today = _calTodayStr();
+    const today = typeof _calViewerTodayStr === 'function' ? _calViewerTodayStr() : _calTodayStr();
     const upcoming = (await dbGetAll('matches', m =>
       phaseIds.has(m.phaseId) &&
       (m.teamA === team.id || m.teamB === team.id) &&

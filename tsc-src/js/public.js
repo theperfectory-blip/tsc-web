@@ -669,8 +669,29 @@ function _stopTickerMarquee(){
   if(track) track.style.transform = '';
 }
 
+/* El ticker se pintaba solo al entrar en modo público y al cambiar de
+   temporada: un partido que pasaba a «en vivo» o un resultado nuevo no aparecía
+   hasta recargar (MS-4.6). Una suscripción propia a `matches` (comparte el
+   listener del espejo de db.js) lo repinta con debounce; solo en modo público. */
+let _tickerLiveUnsub = null, _tickerLiveTimer = null;
+function _startTickerLive(){
+  if(_tickerLiveUnsub) return;
+  if(typeof USE_FIRESTORE==='undefined' || !USE_FIRESTORE || typeof dbSubscribe!=='function') return;
+  let first = true;
+  _tickerLiveUnsub = dbSubscribe('matches', m=>m.season===STATE.season || !m.season, ()=>{
+    if(first){ first = false; return; }      // el primer snapshot ya se pintó con la lectura normal
+    clearTimeout(_tickerLiveTimer);
+    _tickerLiveTimer = setTimeout(()=>{ renderPublicTicker(); }, 400);
+  });
+}
+function _stopTickerLive(){
+  clearTimeout(_tickerLiveTimer); _tickerLiveTimer = null;
+  if(_tickerLiveUnsub){ try{ _tickerLiveUnsub(); }catch(e){} _tickerLiveUnsub = null; }
+}
+
 function hidePublicTicker(){
   _publicTickerSeq++;                       // invalida cualquier render en vuelo
+  _stopTickerLive();
   _stopTickerMarquee();
   const ticker = document.getElementById('ticker');
   const track  = document.getElementById('ticker-track');
@@ -691,6 +712,7 @@ async function renderPublicTicker(){
 
   // Solo en modo público (chequeo inicial síncrono)
   if(typeof STATE==='undefined' || STATE.mode!=='public'){ hideTicker(); return; }
+  _startTickerLive();
 
   let matches;
   try{ matches = await dbGetAll('matches', m => m.season===STATE.season || !m.season); }
@@ -718,7 +740,7 @@ async function renderPublicTicker(){
   // Punto "en vivo": SVG, nunca emoji
   const liveDot = `<svg class="tk-live" viewBox="0 0 24 24" width="9" height="9" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="var(--red)"/></svg>`;
 
-  track.innerHTML = ordered.map(m => {
+  const html = ordered.map(m => {
     const comp  = compOf(m);
     const a     = nameOf(m.teamA), b = nameOf(m.teamB);
     const score = `${m.goalsA ?? 0}-${m.goalsB ?? 0}`;
@@ -728,6 +750,9 @@ async function renderPublicTicker(){
       + `${_tkEsc(a)} <b>${_tkEsc(score)}</b> ${_tkEsc(b)}`
       + `</span>`;
   }).join('');
+  // Mismos datos que ya se ven: no se toca el DOM (evita reiniciar la marquesina).
+  if(track.innerHTML === html && ticker.style.display === 'flex') return;
+  track.innerHTML = html;
 
   _stopTickerMarquee();                     // limpia marquesina previa (clon + rAF)
   ticker.style.display = 'flex';
