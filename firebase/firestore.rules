@@ -49,14 +49,37 @@ service cloud.firestore {
               && l.matches('https://res[.]cloudinary[.]com/dnjijd8mx/[A-Za-z0-9_./,:%=+~-]+'));
     }
 
+    // H-42 (MS-5.4): al renombrar, el presidente guarda el nombre que deja en
+    // previousNames (el historial enlaza por nombre). Solo así: el nombre
+    // anterior al frente y los que ya estaban, sin tocar nada más; y solo en
+    // el mismo cambio que renombra. historyNames es la copia legacy en texto.
+    // Renombrar sin previousNames sigue valiendo (APK 1.6.3 y anteriores).
+    function validTeamPrevNames() {
+      let oldPrev = resource.data.get('previousNames', []);
+      let newPrev = request.resource.data.get('previousNames', null);
+      return !teamChanged('previousNames')
+          || (teamChanged('name') && resource.data.get('name', null) is string
+              && oldPrev is list && newPrev is list && newPrev.size() <= 50
+              && newPrev == [resource.data.name].concat(oldPrev));
+    }
+    function validTeamHistoryNames() {
+      let newPrev = request.resource.data.get('previousNames', null);
+      return !teamChanged('historyNames')
+          || (teamChanged('previousNames') && newPrev is list
+              && request.resource.data.get('historyNames', null) == newPrev.join(' → '));
+    }
+
     match /teams/{teamId} {
       allow read: if true;
       allow update: if isAdmin()
                     || (isPresident() && me().teamId != null && string(me().teamId) == teamId
                         && me().lockEdits != true
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'logo'])
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['name', 'logo', 'previousNames', 'historyNames'])
                         && validTeamName()
-                        && validTeamLogo());
+                        && validTeamLogo()
+                        && validTeamPrevNames()
+                        && validTeamHistoryNames());
       allow create, delete: if isAdmin();
     }
 

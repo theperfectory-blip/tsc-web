@@ -4,8 +4,11 @@ const COMP_TYPES = [
   {id:'league',  icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', name:'Liga / Grupos',       desc:'Round robin por grupos'},
   {id:'cup',     icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', name:'Eliminación directa', desc:'Bracket con ida/vuelta'},
   {id:'playoff', icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>', name:'Playoff cruzado',     desc:'Cruza clasificados'},
-  {id:'super',   icon:'★', name:'Superclásico',        desc:'Partido único o serie'},
+  {id:'super',   icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', name:'Superclásico',        desc:'Partido único o serie'},
 ];
+
+/* Ícono de borrar (Lucide x) para los botones de eliminar de competiciones y fases. */
+const _ICON_X = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 const PHASE_TYPES = [
   {id:'groups',  name:'Fase de grupos',      desc:'Round robin por grupos'},
@@ -60,7 +63,7 @@ async function renderCompsGrid(comps){
   if(!comps.length){
     el.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--txt3);border:1px dashed var(--brd2);border-radius:var(--rl);">
       <div style="font-size:16px;margin-bottom:12px;">No hay competiciones en esta temporada.</div>
-      <button class="btn btn-primary" onclick="openCompModal()">+ Crear primera</button>
+      ${window._seasonFinalized?'':'<button class="btn btn-primary" onclick="openCompModal()">+ Crear primera</button>'}
     </div>`;
     return;
   }
@@ -71,7 +74,7 @@ async function renderCompsGrid(comps){
     const statusCls = c.status==='active'?'badge-green':c.status==='finished'?'badge-gold':'badge-gray';
     const statusLbl = c.status==='active'?'Activa':c.status==='finished'?'Finalizada':'Borrador';
     return `
-    <div class="card" style="border-top:4px solid ${c.color||'var(--gold)'};transition:border-color 0.15s;" onmouseover="this.style.boxShadow='0 0 0 1px ${c.color||'var(--gold)'}'" onmouseout="this.style.boxShadow=''">
+    <div class="card" style="border-top:4px solid ${safeCssColor(c.color,'var(--gold)')};transition:border-color 0.15s;" onmouseover="this.style.boxShadow='0 0 0 1px ${safeCssColor(c.color,'var(--gold)')}'" onmouseout="this.style.boxShadow=''">
       <div class="card-hdr">
         <div>
           <div style="font-size:17px;font-weight:600;">${_esc(c.name)}</div>
@@ -88,9 +91,9 @@ async function renderCompsGrid(comps){
         </div>
         ${c.desc?`<div style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:10px;">${_esc(c.desc)}</div>`:''}
         <div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--brd);">
-          <button class="btn btn-sm" data-cid="${c.id}" data-cname="${c.name.replace(/"/g,'&quot;')}" onclick="openFasesForComp(this.dataset.cid,this.dataset.cname)">Ver fases</button>
+          <button class="btn btn-sm" data-cid="${c.id}" data-cname="${escAttr(c.name)}" onclick="openFasesForComp(this.dataset.cid,this.dataset.cname)">Ver fases</button>
           <button class="btn btn-sm" onclick="openCompModal(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteComp(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✕</button>
+          <button class="btn btn-sm btn-danger" title="Eliminar competición" aria-label="Eliminar competición" onclick="deleteComp(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button>
         </div>
       </div>
     </div>`;
@@ -107,7 +110,7 @@ async function openCompModal(id=null){
   let selColor = comp?.color || PALETTE[1];
 
   const seasons = await dbGetAll('seasons');
-  const seasonOpts = seasons.map(s=>`<option value="${s.number}" ${s.number===STATE.season?'selected':''}>${getSeasonName(s)}</option>`).join('');
+  const seasonOpts = seasons.map(s=>`<option value="${s.number}" ${s.number===(comp?.season??STATE.season)?'selected':''}>${escHtml(getSeasonName(s))}</option>`).join('');
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="comp-modal">
@@ -119,7 +122,7 @@ async function openCompModal(id=null){
       <div class="modal-body">
         <div class="form-group">
           <label>Nombre de la competición</label>
-          <input type="text" id="cf-name" value="${comp?.name||''}" placeholder="Liga 1ra División · T1">
+          <input type="text" id="cf-name" value="${escAttr(comp?.name||'')}" maxlength="60" placeholder="Liga 1ra División · T1">
         </div>
         <div class="form-group">
           <label>Tipo de formato</label>
@@ -147,13 +150,13 @@ async function openCompModal(id=null){
           <label>Color identificador</label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
             <div id="comp-color-preview" style="width:32px;height:32px;border-radius:6px;background:${selColor};border:1px solid var(--brd2);cursor:pointer;flex-shrink:0;" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })"></div>
-            <span id="comp-color-hex" style="font-size:13px;color:var(--txt2);font-family:monospace;">${selColor}</span>
+            <span id="comp-color-hex" style="font-size:13px;color:var(--txt2);font-family:monospace;">${escHtml(selColor)}</span>
             <button class="btn btn-sm" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Cambiar color</button>
           </div>
         </div>
         <div class="form-group" style="margin-bottom:0;">
           <label>Descripción (opcional)</label>
-          <textarea id="cf-desc" placeholder="Ej: 2 grupos de 9 equipos, clasifica al bracket final...">${comp?.desc||''}</textarea>
+          <textarea id="cf-desc" maxlength="500" placeholder="Ej: 2 grupos de 9 equipos, clasifica al bracket final...">${escHtml(comp?.desc||'')}</textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -185,7 +188,10 @@ async function openCompModal(id=null){
 
 function closeCompModal(){ document.getElementById('comp-modal-wrap').innerHTML=''; }
 
+let _compSaving = false;
+
 async function saveComp(id){
+  if(_compSaving) return;   // doble clic en «Guardar» creaba dos competiciones
   const name   = document.getElementById('cf-name').value.trim();
   const season = parseInt(document.getElementById('cf-season').value);
   const teams  = parseInt(document.getElementById('cf-teams').value)||null;
@@ -195,48 +201,97 @@ async function saveComp(id){
   const color  = window._compColorGetter?.() || PALETTE[1];
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
+  if(teams!=null && teams<2){ showToast('El total de equipos debe ser 2 o más','error'); return; }
 
   const data = {name, type, season, totalTeams:teams, status, color, desc, updatedAt:new Date().toISOString()};
 
-  if(id){
-    const existing = await dbGet('competitions',id);
-    await dbPut('competitions',{...existing,...data});
-    showToast('Competición actualizada');
-  } else {
-    await dbAdd('competitions',{...data, createdAt:new Date().toISOString()});
-    showToast('Competición creada');
+  _compSaving = true;
+  try {
+    const target = (await dbGetAll('seasons')).find(s=>s.number===season);
+    if(!target){ showToast('La temporada elegida no existe','error'); return; }
+    if(target.status==='finished'){ showToast(`${getSeasonName(target)} está finalizada: no admite cambios`,'error'); return; }
+    if(id){
+      const existing = await dbGet('competitions',id);
+      if(!existing){ showToast('La competición ya no existe','error'); closeCompModal(); renderAdmComps(); return; }
+      await dbPut('competitions',{...existing,...data});
+      showToast('Competición actualizada');
+    } else {
+      await dbAdd('competitions',{...data, createdAt:new Date().toISOString()});
+      showToast('Competición creada');
+    }
+    closeCompModal();
+    renderAdmComps();
+  } catch(err){
+    showToast('No se pudo guardar la competición: '+dbErrorMsg(err),'error');
+  } finally {
+    _compSaving = false;
   }
-  closeCompModal();
-  renderAdmComps();
 }
+
+/* Todo lo que cuelga de un conjunto de fases: sus partidos (matches.phaseId)
+   y el registro de historial de cada partido (matchHistory.matchRef).
+   Lo comparten el borrado de fase y el de competición (MS-5.3): antes se
+   borraba solo la fase y sus partidos quedaban huérfanos (se seguían
+   contando en el historial, la tabla histórica y la ficha del club). */
+async function _collectPhaseCascade(phaseIds){
+  const pids = new Set(phaseIds.map(Number));
+  const matches = pids.size ? await dbGetAll('matches', m=>pids.has(m.phaseId)) : [];
+  const mids = new Set(matches.map(m=>m.id));
+  const matchHist = mids.size ? await dbGetAll('matchHistory', h=>mids.has(h.matchRef)) : [];
+  return { matches, matchHist };
+}
+
+/* Borra hijos primero (historial → partidos → fases): si algo falla a mitad,
+   el padre sigue en pantalla y se puede volver a eliminar para terminar. */
+async function _deletePhaseCascade(phases, c){
+  const ids = rows => rows.map(r=>r.id);
+  await dbDeleteMany('matchHistory', ids(c.matchHist));
+  await dbDeleteMany('matches',      ids(c.matches));
+  await dbDeleteMany('phases',       ids(phases));
+  if(typeof invalidateStandingsCache==='function') phases.forEach(p=>invalidateStandingsCache(p.id));
+}
+
+function _cascadeSummary(phases, c){
+  const n = (k, one, many) => `${k} ${k===1?one:many}`;
+  return [
+    phases.length      && n(phases.length, 'fase', 'fases'),
+    c.matches.length   && n(c.matches.length, 'partido', 'partidos'),
+    c.matchHist.length && n(c.matchHist.length, 'registro del historial', 'registros del historial'),
+  ].filter(Boolean);
+}
+
+let _compDeleting = false;
 
 async function deleteComp(id){
   id = parseInt(id);
-  console.log('[deleteComp] id recibido:', id, 'tipo:', typeof id);
-  const comp = await dbGet('competitions',id);
-  console.log('[deleteComp] comp encontrada:', comp);
-  showConfirm(
-    '¿Eliminar competición?',
-    `Se eliminará "${comp?.name||'esta competición'}" y todas sus fases.`,
-    async()=>{
-      console.log('[deleteComp] callback ejecutado, borrando id:', id);
-      try{
-        await dbDelete('competitions',id);
-        console.log('[deleteComp] dbDelete competitions OK');
-        // verificar que se borró
-        const check = await dbGet('competitions',id);
-        console.log('[deleteComp] verificación post-delete:', check);
-        const fases = await dbGetAll('phases', p=>parseInt(p.compId)===id);
-        console.log('[deleteComp] fases a borrar:', fases.length);
-        for(const f of fases) await dbDelete('phases',f.id);
-        showToast('Competición eliminada');
-        await renderAdmComps();
-      }catch(e){
-        console.error('[deleteComp] ERROR:', e);
-        showToast('Error al eliminar: '+e?.message,'error');
+  try {
+    const comp = await dbGet('competitions',id);
+    if(!comp){ showToast('La competición ya no existe','error'); renderAdmComps(); return; }
+    const fases = await dbGetAll('phases', p=>parseInt(p.compId)===id);
+    const parts = _cascadeSummary(fases, await _collectPhaseCascade(fases.map(f=>f.id)));
+    showConfirm(
+      '¿Eliminar competición?',
+      `Se eliminará "${comp.name}"`+(parts.length?` junto con ${parts.join(', ')}`:'')+'. Esta acción no se puede deshacer.',
+      async()=>{
+        if(_compDeleting) return;
+        _compDeleting = true;
+        try{
+          // Se vuelve a leer al confirmar: pudo cambiar con el aviso abierto.
+          const fasesNow = await dbGetAll('phases', p=>parseInt(p.compId)===id);
+          await _deletePhaseCascade(fasesNow, await _collectPhaseCascade(fasesNow.map(f=>f.id)));
+          await dbDelete('competitions',id);
+          showToast('Competición eliminada');
+        }catch(e){
+          showToast('Error al eliminar: '+dbErrorMsg(e),'error');
+        }finally{
+          _compDeleting = false;
+          await renderAdmComps();
+        }
       }
-    }
-  );
+    );
+  } catch(err){
+    showToast('Error al preparar el borrado: '+dbErrorMsg(err),'error');
+  }
 }
 
 /* ----------------------------------------------------------
@@ -300,7 +355,7 @@ function _renderCompReorderList(){
         </svg>
       </span>
       <span style="font-size:12px;font-weight:700;color:var(--txt3);min-width:16px;">${i+1}.</span>
-      <div style="width:10px;height:10px;border-radius:50%;background:${c.color||'var(--gold)'};flex-shrink:0;"></div>
+      <div style="width:10px;height:10px;border-radius:50%;background:${safeCssColor(c.color,'var(--gold)')};flex-shrink:0;"></div>
       <span style="font-size:14px;flex:1;">${_esc(c.name)}</span>
     </div>`;
   }).join('');
@@ -364,12 +419,16 @@ function closeCompReorderModal(){
 async function saveCompOrder(){
   const order = window._compOrderDraft || [];
   const map   = window._compOrderMap || {};
-  for(let i=0;i<order.length;i++){
-    const c = map[order[i]];
-    if(!c || c.order===i) continue; // sin cambio
-    await dbPut('competitions', {...c, order:i});
+  try {
+    for(let i=0;i<order.length;i++){
+      const c = map[order[i]];
+      if(!c || c.order===i) continue; // sin cambio
+      await dbPut('competitions', {...c, order:i});
+    }
+    showToast('Orden guardado');
+  } catch(err){
+    showToast('No se pudo guardar el orden: '+dbErrorMsg(err),'error');
   }
   closeCompReorderModal();
-  showToast('Orden guardado');
   renderAdmComps();
 }

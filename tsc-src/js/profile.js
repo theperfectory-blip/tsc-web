@@ -831,6 +831,11 @@ async function saveProfile(){
       showToast('El nombre del club admite hasta 40 caracteres, sin < ni >','error');
       return;
     }
+    // Nombre de otro club (actual o anterior): el historial los mezclaría.
+    if (tn && tn.toLowerCase() !== String(team.name||'').toLowerCase() && typeof _teamNameOwner === 'function'){
+      const owner = await _teamNameOwner(tn, team.id);
+      if (owner){ showToast(`"${tn}" ya es o fue el nombre de otro club`,'error'); return; }
+    }
   }
   try {
     const userRef = firebase.firestore().collection('users').doc(AUTH.user.uid);
@@ -898,9 +903,23 @@ async function saveProfile(){
       const locked = !!(AUTH.profile && AUTH.profile.lockEdits);
       if (!locked){
         const newTeamName = document.getElementById('profile-team-name')?.value.trim();
+        // Copia fresca: con el modal abierto el admin pudo cambiar el equipo,
+        // y dbPut reescribe el documento entero (la regla rechazaría campos ajenos).
+        const team = (await dbGet('teams', window._profileTeam.id)) || window._profileTeam;
         const updTeam = { ...team };
         let changed = false;
-        if (newTeamName && newTeamName !== team.name){ updTeam.name = newTeamName; changed = true; }
+        if (newTeamName && newTeamName !== team.name){
+          updTeam.name = newTeamName; changed = true;
+          // El historial enlaza por nombre: el nombre que se deja va a
+          // previousNames (H-42), igual que cuando renombra el admin. La regla
+          // solo acepta exactamente [nombre anterior, ...los que ya estaban].
+          const prev = Array.isArray(team.previousNames) ? team.previousNames : [];
+          const known = prev.some(p => String(p).trim().toLowerCase() === String(team.name||'').trim().toLowerCase());
+          if (team.name && !known && prev.length < 50){
+            updTeam.previousNames = [team.name, ...prev];
+            updTeam.historyNames  = updTeam.previousNames.join(' → ');
+          }
+        }
         if (_profileLogoTouched){
           let newLogo = _profileLogoData ?? null;
           if (_profileLogoFile){

@@ -107,7 +107,7 @@ function renderTeamsTable(teams){
       <td>
         <div style="display:flex;gap:4px;">
           <button class="btn btn-xs" onclick="openTeamModal(${t.id})">Editar</button>
-          <button class="btn btn-xs btn-danger" onclick="deleteTeam(${t.id})">✕</button>
+          <button class="btn btn-xs btn-danger" title="Eliminar equipo" aria-label="Eliminar equipo" onclick="deleteTeam(${t.id})">${_ICON_X}</button>
         </div>
       </td>
     </tr>`;
@@ -159,7 +159,7 @@ async function openTeamModal(id=null){
           <div style="flex:1;">
             <div class="form-group">
               <label>Nombre del equipo</label>
-              <input type="text" id="tf-name" value="${escAttr(team?.name||'')}" placeholder="YUNAITED FC">
+              <input type="text" id="tf-name" value="${escAttr(team?.name||'')}" maxlength="40" placeholder="YUNAITED FC">
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -207,22 +207,22 @@ async function openTeamModal(id=null){
         <div class="form-group">
           <label>Colores del equipo</label>
           <div style="display:flex;align-items:center;gap:10px;">
-            <input type="color" id="tf-color" value="${team?.color||'#1A4A7A'}"
+            <input type="color" id="tf-color" value="${escAttr(safeCssColor(team?.color,'#1A4A7A'))}"
               style="width:44px;height:36px;padding:2px;border-radius:var(--r);border:1px solid var(--brd);cursor:pointer;background:transparent;"
               oninput="updateColorPreview(this.value,'primary')">
-            <input type="text" id="tf-color-hex" value="${team?.color||'#1A4A7A'}"
+            <input type="text" id="tf-color-hex" value="${escAttr(safeCssColor(team?.color,'#1A4A7A'))}"
               style="width:100px;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:16px;"
               oninput="syncColorPicker(this.value,'primary')">
-            <div id="color-swatch" style="width:36px;height:36px;border-radius:50%;background:${team?.color||'#1A4A7A'};border:2px solid var(--brd2);"></div>
+            <div id="color-swatch" style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team?.color,'#1A4A7A')};border:2px solid var(--brd2);"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-            <input type="color" id="tf-color2" value="${team?.color2||team?.color||'#C9A84C'}"
+            <input type="color" id="tf-color2" value="${escAttr(safeCssColor(team?.color2||team?.color,'#C9A84C'))}"
               style="width:44px;height:36px;padding:2px;border-radius:var(--r);border:1px solid var(--brd);cursor:pointer;background:transparent;"
               oninput="updateColorPreview(this.value,'secondary')">
-            <input type="text" id="tf-color2-hex" value="${team?.color2||team?.color||'#C9A84C'}"
+            <input type="text" id="tf-color2-hex" value="${escAttr(safeCssColor(team?.color2||team?.color,'#C9A84C'))}"
               style="width:100px;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:16px;"
               oninput="syncColorPicker(this.value,'secondary')">
-            <div id="color2-swatch" style="width:36px;height:36px;border-radius:50%;background:${team?.color2||team?.color||'#C9A84C'};border:2px solid var(--brd2);"></div>
+            <div id="color2-swatch" style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team?.color2||team?.color,'#C9A84C')};border:2px solid var(--brd2);"></div>
             <span style="font-size:12px;color:var(--txt3);">Secundario</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
@@ -280,7 +280,7 @@ function addPrevName(value){
   row.className = 'tf-prev-row';
   row.style.cssText = 'display:flex;gap:6px;align-items:center;';
   row.innerHTML = `
-    <input type="text" class="tf-prev-input" value="${String(value||'').replace(/"/g,'&quot;')}" placeholder="Ej: NOMBRE ANTERIOR"
+    <input type="text" class="tf-prev-input" value="${escAttr(value||'')}" maxlength="40" placeholder="Ej: NOMBRE ANTERIOR"
       style="flex:1;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
     <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove();_normalizePrevContainer()" title="Quitar">×</button>
   `;
@@ -320,7 +320,7 @@ function removeLogo(){
   const preview = document.getElementById('logo-preview');
   if(preview){
     preview.style.background = color;
-    preview.innerHTML = `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${ini.toUpperCase()}</span>`;
+    preview.innerHTML = `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${escHtml(ini.toUpperCase())}</span>`;
   }
 }
 
@@ -371,7 +371,28 @@ function setTeamColor(color, target='primary'){
   }
 }
 
+let _teamSaving = false;
+
 async function saveTeam(id){
+  if(_teamSaving) return;   // doble clic en «Guardar» creaba dos equipos
+  _teamSaving = true;
+  try { await _saveTeam(id); }
+  catch(err){ showToast('No se pudo guardar el equipo: '+dbErrorMsg(err),'error'); }
+  finally { _teamSaving = false; }
+}
+
+/* El historial y la tabla histórica enlazan los partidos por nombre (actual
+   o anterior): dos equipos con el mismo nombre mezclarían sus historiales.
+   Devuelve el equipo que ya usa `name` (sin contar `selfId`) o null. */
+async function _teamNameOwner(name, selfId){
+  const norm = v => String(v||'').trim().toLowerCase();
+  const q = norm(name);
+  const teams = await dbGetAll('teams');
+  return teams.find(t => t.id!==selfId
+    && (norm(t.name)===q || (Array.isArray(t.previousNames) && t.previousNames.some(p=>norm(p)===q)))) || null;
+}
+
+async function _saveTeam(id){
   const name  = document.getElementById('tf-name').value.trim();
   const ini   = document.getElementById('tf-ini').value.trim().toUpperCase();
   // `pres` (texto legacy) solo existe en modo sin cuentas; si hay selector, se preserva el valor previo.
@@ -383,6 +404,17 @@ async function saveTeam(id){
   const coins = parseInt(document.getElementById('tf-coins').value)||0;
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
+  if(name.length>40){ showToast('El nombre admite hasta 40 caracteres','error'); return; }
+  // Solo si el nombre es nuevo o cambia: un choque viejo no bloquea editar otros campos.
+  const _prevName = id ? (await dbGet('teams',id))?.name : null;
+  const owner = (!id || String(_prevName||'').trim().toLowerCase()!==name.toLowerCase())
+    ? await _teamNameOwner(name, id) : null;
+  if(owner){
+    showToast(owner.name.trim().toLowerCase()===name.toLowerCase()
+      ? `Ya existe un equipo llamado "${owner.name}"`
+      : `"${name}" es un nombre anterior de ${owner.name}: el historial los mezclaría`, 'error');
+    return;
+  }
 
   // Subir el logo nuevo a la nube (Cloudinary) → guardamos solo la URL.
   let logoUrl = window._logoData || null;
@@ -426,6 +458,7 @@ async function saveTeam(id){
   let teamId = id;
   if(id){
     const existing = await dbGet('teams',id);
+    if(!existing){ showToast('El equipo ya no existe','error'); closeTeamModal(); renderAdmTeams(); return; }
     // Si el nombre cambió, agregar el nombre anterior automáticamente al historial
     if(existing.name && existing.name !== name){
       // Agregar nombre anterior solo si no está ya en previousNames
@@ -454,18 +487,68 @@ async function saveTeam(id){
   renderAdmTeams();
 }
 
+/* Dónde se usa un equipo. Un equipo con partidos, títulos, movimientos de
+   YuNaCoins o lugar en un grupo/sorteo no se borra: dejaría referencias
+   rotas (partidos sin rival, palmarés sin club) y borrar todo eso en cascada
+   destruiría historia de otros clubes. Se marca «Inactivo» (MS-5.4). */
+async function _teamReferences(id){
+  const [matches, coins, palmares, phases, sorteo, sorteoEv] = await Promise.all([
+    dbGetAll('matches',      m=>m.teamA===id || m.teamB===id),
+    dbGetAll('coins',        c=>c.teamId===id),
+    dbGetAll('palmares',     p=>p.teamId===id),
+    dbGetAll('phases'),
+    dbGetAll('sorteo'),
+    dbGetAll('sorteoEvents', e=>e.teamId===id),
+  ]);
+  const inGroups = phases.filter(p=>
+    Object.values(p.groups||{}).some(g=>Array.isArray(g) && g.some(t=>Number(t)===id))
+    || (p.slotRefs||[]).some(r=>r && r.type==='team' && Number(r.teamId)===id));
+  const inSorteo = sorteo.filter(s=>(s.bombos||[]).some(b=>(b.teamIds||[]).some(t=>Number(t)===id)));
+  const n = (k, one, many) => `${k} ${k===1?one:many}`;
+  return [
+    matches.length  && n(matches.length, 'partido', 'partidos'),
+    palmares.length && n(palmares.length, 'título del palmarés', 'títulos del palmarés'),
+    coins.length    && n(coins.length, 'movimiento de YuNaCoins', 'movimientos de YuNaCoins'),
+    inGroups.length && n(inGroups.length, 'fase (grupo o cuadro)', 'fases (grupos o cuadros)'),
+    (inSorteo.length || sorteoEv.length) && 'el sorteo',
+  ].filter(Boolean);
+}
+
+let _teamDeleting = false;
+
 async function deleteTeam(id){
-  const team = await dbGet('teams',id);
-  showConfirm(
-    '¿Eliminar equipo?',
-    `Se eliminará "${team?.name}" permanentemente.`,
-    async ()=>{
-      await dbDelete('teams',id);
-      showToast('Equipo eliminado');
-      await notifyTeamChanged(id);
-      renderAdmTeams();
+  try {
+    const team = await dbGet('teams',id);
+    if(!team){ showToast('El equipo ya no existe','error'); renderAdmTeams(); return; }
+    const refs = await _teamReferences(id);
+    if(refs.length){
+      showToast(`No se puede eliminar "${team.name}": aparece en ${refs.join(', ')}. Márcalo como Inactivo.`,'error');
+      return;
     }
-  );
+    showConfirm(
+      '¿Eliminar equipo?',
+      `Se eliminará "${team.name}" permanentemente. No tiene partidos, títulos ni movimientos. Si una cuenta de presidente lo tiene vinculado, queda sin club.`,
+      async ()=>{
+        if(_teamDeleting) return;
+        _teamDeleting = true;
+        try {
+          if((await _teamReferences(id)).length){ showToast('El equipo empezó a usarse: no se eliminó','error'); return; }
+          // Primero el vínculo del presidente: si falla, el equipo sigue.
+          if(typeof updatePresidentLink==='function') await updatePresidentLink(id, null, { strict:true });
+          await dbDelete('teams',id);
+          showToast('Equipo eliminado');
+          await notifyTeamChanged(id);
+        } catch(err){
+          showToast('Error al eliminar el equipo: '+dbErrorMsg(err),'error');
+        } finally {
+          _teamDeleting = false;
+          renderAdmTeams();
+        }
+      }
+    );
+  } catch(err){
+    showToast('Error al preparar el borrado: '+dbErrorMsg(err),'error');
+  }
 }
 
 /* ----------------------------------------------------------

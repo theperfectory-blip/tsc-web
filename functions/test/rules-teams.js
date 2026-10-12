@@ -35,14 +35,16 @@ function mockToken(uid){
   ].join('.');
 }
 
+function toValue(v){
+  if (v === null) return { nullValue: null };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toValue) } };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (Number.isInteger(v)) return { integerValue: String(v) };
+  return { stringValue: String(v) };
+}
 function toFields(obj){
   const f = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === null) f[k] = { nullValue: null };
-    else if (typeof v === 'boolean') f[k] = { booleanValue: v };
-    else if (Number.isInteger(v)) f[k] = { integerValue: String(v) };
-    else f[k] = { stringValue: String(v) };
-  }
+  for (const [k, v] of Object.entries(obj)) f[k] = toValue(v);
   return f;
 }
 
@@ -67,6 +69,9 @@ async function seed(){
   // nombre no debe quedar bloqueado por él.
   assert.strictEqual(await put('teams/5', { name: 'Club Cinco', ini: 'CC5', color: '#123456', logo: 'assets/legacy.png' }), 200);
   assert.strictEqual(await put('teams/7', { name: 'Club Siete', logo: null }), 200);
+  // H-42: equipo para la secuencia de renombres con previousNames.
+  assert.strictEqual(await put('users/pres8',  { role: 'president', teamId: 8, lockEdits: false }), 200);
+  assert.strictEqual(await put('teams/8', { name: 'Club Ocho', logo: null }), 200);
 }
 
 const CASES = [
@@ -92,6 +97,20 @@ const CASES = [
   ['presidente: equipo ajeno',                      'teams/5', { logo: CLOUD }, 'pres6', 403],
   ['presidente bloqueado (lockEdits)',              'teams/7', { logo: CLOUD }, 'locked', 403],
   ['admin: logo libre (sin cambios de política)',   'teams/5', { logo: 'assets/otro.png' }, 'admin1', 200],
+  // H-42 (MS-5.4): previousNames solo al renombrar, con el nombre que deja al frente.
+  // Los casos corren en orden: cada 200 cambia el estado de teams/8.
+  ['H-42: previousNames sin renombrar',              'teams/8', { previousNames: ['Club Ocho'] }, 'pres8', 403],
+  ['H-42: renombrar + nombre anterior (1.º)',        'teams/8', { name: 'Ocho FC', previousNames: ['Club Ocho'], historyNames: 'Club Ocho' }, 'pres8', 200],
+  ['H-42: renombrar + anterior + los previos (2.º)', 'teams/8', { name: 'Ocho United', previousNames: ['Ocho FC', 'Club Ocho'], historyNames: 'Ocho FC → Club Ocho' }, 'pres8', 200],
+  ['H-42: nombre inventado al frente',               'teams/8', { name: 'Ocho X', previousNames: ['Inventado', 'Ocho United', 'Ocho FC', 'Club Ocho'] }, 'pres8', 403],
+  ['H-42: borrar nombres previos',                   'teams/8', { name: 'Ocho X', previousNames: ['Ocho United'] }, 'pres8', 403],
+  ['H-42: anterior sin los previos (orden)',         'teams/8', { name: 'Ocho X', previousNames: ['Club Ocho', 'Ocho FC', 'Ocho United'] }, 'pres8', 403],
+  ['H-42: previousNames no lista',                   'teams/8', { name: 'Ocho X', previousNames: 'Ocho United' }, 'pres8', 403],
+  ['H-42: historyNames que no coincide',             'teams/8', { name: 'Ocho X', previousNames: ['Ocho United', 'Ocho FC', 'Club Ocho'], historyNames: '<b>x</b>' }, 'pres8', 403],
+  ['H-42: historyNames solo, sin renombrar',         'teams/8', { historyNames: 'Lo que sea' }, 'pres8', 403],
+  ['H-42: renombrar sin previousNames (APK vieja)',  'teams/8', { name: 'Ocho City' }, 'pres8', 200],
+  ['H-42: presidente ajeno',                         'teams/8', { name: 'Hack', previousNames: ['Ocho City', 'Ocho FC', 'Club Ocho'] }, 'pres5', 403],
+  ['H-42: bloqueado (lockEdits)',                    'teams/7', { name: 'Siete FC', previousNames: ['Club Siete'] }, 'locked', 403],
 ];
 
 (async () => {
