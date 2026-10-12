@@ -1,6 +1,6 @@
 # MS-4.1 a 4.9 · Modo público, sección por sección · 2026-10-11
 
-Hallazgos que cierra: H-26 (la ruta `competiciones` es inalcanzable: código muerto, va a 7.2) y los nuevos H-40 y H-41. Abre H-42. La segunda pasada cierra además H-43.
+Estado: **CERRADO** (2026-10-12). Hallazgos que cierra: H-26 (la ruta `competiciones` es inalcanzable: código muerto, va a 7.2) y los nuevos H-40 y H-41. Abre H-42. La segunda pasada cierra además H-43.
 
 Cómo se verificó (todo en el sandbox: emuladores de Firestore y Auth, nunca producción):
 
@@ -90,7 +90,7 @@ AVD descartable `tsc_test` (misma imagen API 36.1 que el del dueño, que no se t
 - **Sala abierta en la APK:** `Capacitor.isNativePlatform()` es `true` (android), el ancho es 411 px y aun así la Sala usa la rama **3D** (`_PALM_PUB.salaUsesSvg = false`, como corresponde en la APK): carga Three + GLTFLoader + Draco bajo la CSP, 1 canvas en `#sala-cup`, el loader sale y la Sala queda abierta. **0 errores y 0 avisos de consola.** Captura: `docs/reportes/MS-4.1-4.9-sala-apk.jpg` (copa 3D, focos, collage, placa «ESCARLATAS FC · CAMPEÓN · T3 · PES 4 · 2026», flechas y puntos).
 - **Tiempo de apertura:** unos 22 s hasta que la Sala queda abierta en un emulador sin GPU (renderizado por software, 2 GB de RAM y el primer arranque aún asentándose); es el mismo orden que ya midió 6.3 (12 s solo el decodificado Draco). En un teléfono real es mucho menor.
 - **Toque real:** un deslizamiento horizontal (`adb input swipe`) cambió de competición («TSC 1ra División» a «Copa del Emperador», con su campeón y su placa) con el canvas 3D intacto.
-- **No se alcanzó a verificar en la APK:** el deslizamiento vertical (cambio de campeón) y el cierre con limpieza. El emulador se cerró solo en ese punto (sin traza de fallo en su registro) y no se relanzó; ambos caminos son los mismos que en Chrome (verificados en la primera pasada: cierre sin canvas ni listeners residuales, cambio de campeón).
+- **Cierre de la APK:** el deslizamiento vertical y el cierre de la Sala no se alcanzaron a ver en el emulador (se cerró solo, sin traza de fallo). El dueño confirmó en su teléfono que la vitrina 3D funciona sin problemas en la APK v1.6.3: queda verificada.
 - Para repetirlo: `ANDROID_HOME=D:\AndroidData\Sdk`, JDK `D:\Desktop\Android Studio\jbr` y `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=<~/.cache/firebase>` (si no, Gradle falla con «Unable to establish loopback connection», igual que el emulador de Firestore). El AVD se crea copiando el `config.ini` del existente. En el primer arranque en frío conviene esperar a que baje la carga (Play Store se actualiza) o desactivar `com.android.vending`.
 
 ## Pendientes / hallazgos nuevos
