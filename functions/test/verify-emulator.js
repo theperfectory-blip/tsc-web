@@ -309,7 +309,46 @@ async function run() {
   assert.strictEqual(r8c.length, 0, 'pushEnabled=false sigue excluyendo, sea admin o presidente');
   console.log('  ✓ pushEnabled=false sigue excluyendo también para un admin-presidente');
 
-  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-8) ===');
+  // ---- Escenario 9 (MS-6.1): la task de continuación solo la invoca Cloud
+  // Tasks y valida su payload; un token mal formado se limpia igual que uno
+  // dado de baja. ----
+  assert.deepStrictEqual(notifyStartupContinuation.__endpoint.taskQueueTrigger.invoker, ['private'],
+    'notifyStartupContinuation debe desplegarse privada (sin allUsers como invoker)');
+  console.log('[9] ✓ notifyStartupContinuation declara invoker private');
+
+  const callsBefore9 = sendCalls;
+  for (const data of [{ season: SEASON, date: '2026-07-15T00:00' }, { season: SEASON, date: 'hoy' }, { season: 'x', date: DATE }]) {
+    const r9 = await notifyStartupContinuation.run({ data });
+    assert.strictEqual(r9, undefined, 'payload inválido debe cortarse antes de leer partidos: ' + JSON.stringify(data));
+  }
+  assert.strictEqual(sendCalls, callsBefore9, 'un payload inválido no debe enviar nada');
+  console.log('  ✓ payload con fecha o temporada inválida se descarta sin enviar');
+
+  await db.collection('users').doc('presMalformed').set({
+    role: 'president', teamId: 777, pushEnabled: true, fcmTokens: ['malformedTok', 'okTok777'], timezone: 'America/Lima',
+  });
+  const sendBefore9 = messaging.sendEachForMulticast;
+  messaging.sendEachForMulticast = async (message) => {
+    if (!message.tokens.includes('malformedTok')) return sendBefore9(message);
+    sendCalls++;
+    const responses = message.tokens.map(t => t === 'malformedTok'
+      ? { success: false, error: { code: 'messaging/invalid-registration-token' } }
+      : { success: true, messageId: 'mock-' + t });
+    return { responses, successCount: 1, failureCount: 1 };
+  };
+  const r9c = await notifyRecipients(db, messaging, {
+    type: 'today',
+    recipients: [{ uid: 'presMalformed', teamId: 777, tokens: ['malformedTok', 'okTok777'], timezone: 'America/Lima' }],
+    dedupKeyFor: () => 'today_9999_2099-01-02_777',
+    buildMessage: () => ({ title: 'x', body: 'y', data: {} }),
+  });
+  messaging.sendEachForMulticast = sendBefore9;
+  assert.strictEqual(r9c.invalidTokensRemoved, 1, 'el token mal formado debe contarse como limpiado');
+  const presMalformed = (await db.collection('users').doc('presMalformed').get()).data();
+  assert.deepStrictEqual(presMalformed.fcmTokens, ['okTok777'], 'invalid-registration-token debe salir de fcmTokens y el token sano quedar');
+  console.log('  ✓ messaging/invalid-registration-token limpia el token (el sano queda)');
+
+  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-9) ===');
 }
 
 run().then(() => process.exit(0)).catch(e => { console.error('FALLÓ:', e); process.exit(1); });

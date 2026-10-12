@@ -1,5 +1,8 @@
 'use strict';
 
+/* Fecha de partido 'YYYY-MM-DD' (scheduledDate). */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /* Orden compartido de "cuál es el 1º / 2º / siguiente partido del día".
    El arranque del stream (Parte 4a) y el trigger de "puesto en vivo"
    (Parte 4b) usan ESTA MISMA función — no puede haber dos criterios
@@ -30,4 +33,4 @@ async function getOrderedMatchesForDate(db, season, dateStr) {
   return sortMatchesByKickoff(matches);
 }
 
-module.exports = { sortMatchesByKickoff, getOrderedMatchesForDate };
+module.exports = { DATE_RE, sortMatchesByKickoff, getOrderedMatchesForDate };
