@@ -132,12 +132,15 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-39 | El aviso "¡Tu equipo juega hoy!" dice "hoy a las HH:MM (tu hora)" aunque la hora, convertida a la zona del presidente, caiga después de medianoche (partido de las 23:45 en Lima, visto desde Santiago: "hoy a las 01:45", que ya es mañana). Baja, solo texto (`formatKickoffForRecipient` en `functions/lib/notify.js`). Hallado en la prueba de M-9 |
 | H-40 | Al recargar, la sección pública guardada en `localStorage` se marcaba en la barra pero el scroll quedaba arriba, en Palmarés (la barra decía «Equipos» y se veía Palmarés). **Cerrado en 4.1** (`redesign-shell.js`) |
 | H-41 | La vista pública escribía en Firestore y fallaba para un visitante con `PERMISSION_DENIED`: `SORTEO.init` creaba el registro de una temporada sin sorteo, e `historial` congelaba registros `live` de temporadas pasadas. El rechazo tumbaba el historial («No pudimos cargar el historial») y dejaba Equipos con 0 partidos. **Cerrado en 4.7 y 4.8** (solo el admin escribe) |
-| H-42 | Cuando el presidente renombra su club desde el perfil no se guarda `previousNames` (la regla solo deja `name` y `logo`), y el historial enlaza por nombre: el club pierde su historial y su tabla histórica. El admin sí lo guarda. Baja. Hallado en 4.9, va a 5.4 (con Opus: toca reglas) |
+| H-42 | Cuando el presidente renombra su club desde el perfil no se guarda `previousNames` (la regla solo deja `name` y `logo`), y el historial enlaza por nombre: el club pierde su historial y su tabla histórica. El admin sí lo guarda. Baja. Hallado en 4.9. **Cerrado en 5.4** (regla + perfil; la APK 1.6.3 sigue sin guardarlo hasta el próximo release) |
 | H-43 | El ticker de resultados no se actualizaba en vivo: un partido que pasaba a «en vivo» o un resultado nuevo no aparecía hasta recargar. **Cerrado en 4.6** (`public.js`, suscripción propia a `matches`) |
 | H-44 | **Alta.** `getForSeason('teams')` filtraba el plantel por `season`, y toda alta de equipo guarda `season: 1` fijo: desde la T2, dashboard, calendario, bracket, asignación a grupos, tabla pública de grupos y export veían 0 equipos. **Cerrado en 5.2** (`teams` es global) |
 | H-45 | **Alta (integridad).** Borrar una temporada dejaba sus fases huérfanas: se borraban por `season`, campo que las fases no tienen (cuelgan de `compId`). También apuntaba a `palmares` por número (su `season` es texto, nunca coincidía). **Cerrado en 5.2** |
 | H-46 | Baja. El acceso «Panel admin» del perfil abría el dashboard con `goAdminPage` sin pasar por `setMode` (layout público). **Cerrado en 5.1** |
 | H-47 | Baja. Crear una temporada no finaliza la anterior: pueden quedar dos «Activa». Decidir con el dueño; va a 5.16 |
+| H-48 | Baja. El campo «YuNaCoins actuales» del modal de equipo cambia el saldo sin dejar movimiento en `coins`. Hallado en 5.4, va a 5.9 |
+| H-49 | Media. En una temporada finalizada solo la UI bloquea los cambios; código y reglas aceptan escribir. Hallado en 5.3, va a 5.16 (regla de temporadas archivadas) |
+| H-50 | Baja. Código muerto en `openPhaseModal`: `gpOpts` (`originPhaseId`) no se pinta y el listener de `pf-tpg` no tiene input. Hallado en 5.3, va a 7.2 |
 
 ---
 
@@ -598,6 +601,8 @@ sandbox de 2.1.**
 | 5.16 | Temporadas archivadas · cierre: el admin no puede editar, reactivar ni borrar una temporada archivada (UI + regla que rechace escrituras con `season` archivada). Respaldo completo y luego borrado de los documentos de T3 en Firestore (M-8, lo confirma el dueño). Medir lecturas por visita antes y después con `emu-probe`. Incluye H-47 (de MS-5.2): decidir con el dueño si crear una temporada ofrece finalizar la activa, implementarlo y probarlo en el sandbox | `seasons.js`, `firestore.rules`, `scripts/` |
 
 > **Estado 5.1 y 5.2:** CERRADO · 2026-10-12 · ver `docs/reportes/MS-5.1-5.2.md`. Verificado en el sandbox en `dist` y `tsc-src`, 0 errores de consola, paridad OK. 5.1: «Panel admin» del perfil pasa por `setMode` (H-46), página admin restaurada validada, render admin con fallo controlado, sesión sin rol admin sale del panel, `dbErrorMsg` para toasts. 5.2: equipos globales en `getForSeason` (H-44), cascada de borrado sin fases huérfanas y sin tocar palmarés (H-45), doble clic al crear, «Ir» persistente, confirmaciones con texto correcto, C9 con mensaje claro. Abre H-47.
+
+> **Estado 5.3 y 5.4:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.3-5.4.md`. Verificado en el sandbox en `dist` y `tsc-src`, 0 errores de consola, paridad OK, reglas 33/33 y 379/379. 5.3: borrar fase o competición borra sus partidos y su historial (quedaban huérfanos), «Ver fases» abría la primera competición, doble clic, temporada finalizada, escapes, C9. 5.4: H-42 (regla + perfil), equipos con referencias no se borran, nombre único (actual y anteriores), un club = un presidente con vínculo en lote. Abre H-48 a H-50. **Acción del dueño:** `firebase deploy --only firestore:rules`.
 
 ---
 
