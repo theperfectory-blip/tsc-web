@@ -56,4 +56,4 @@ Verificado (`dist`):
 - **H-50** (baja, abierto, va a 7.2): código muerto en `openPhaseModal` (`gpOpts` de `originPhaseId`, no se pinta) y el listener de `pf-tpg` (el input no existe).
 - Observación de pruebas: en el SDK compat, `get({source:'server'})` mezcla las escrituras locales pendientes; para ver un rechazo hay que esperar el `commit` o leer por REST.
 
-Acción del dueño requerida: **`firebase deploy --only firestore:rules`** (la regla de `teams` cambió por H-42). El resto sale con el merge a `main`.
+Acción del dueño: `firebase deploy --only firestore:rules` (la regla de `teams` cambió por H-42). **Hecho 2026-10-19**; `node scripts/rules-drift.mjs`: Firestore y Storage iguales al repo. El resto sale con el merge a `main`.
