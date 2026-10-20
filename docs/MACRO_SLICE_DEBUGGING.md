@@ -152,6 +152,8 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-57 | Media (decisión). Entre fases no hay bloqueo: si cambia la tabla de un grupo o el ganador de una llave después de que el cruce que lo recibe ya se jugó, la sincronización no toca ese partido (bien) pero queda con un equipo que ya no clasifica, sin aviso. Dentro de un bracket se bloquea desde 5.7. Decidir: avisar o bloquear al guardar el resultado de origen. Hallado en 5.7 |
 | H-58 | Baja. `updateBracketTeamsDynamic` / `updateBracketDOM` (`bracket.js`) son código muerto: buscan elementos `tlogo-` que no existen y leen todos los equipos en cada render. Hallado en 5.7, va a 7.2 |
 | H-59 | **Cerrado en 5.8.** `livematch.js` guardaba el partido y su historial por separado al terminar un partido en vivo (resto de H-53); ahora van en un lote. Hallado en 5.7 |
+| H-60 | Baja. `removeHistoryByMatchRef` (`history.js`) quedó sin uso tras 5.8 y 5.10 (el borrado de historial va por `_mxDeleteOps`). Candidata a código muerto. Hallado en 5.10, va a 7.2 |
+| H-61 | Baja. Los vínculos del sorteo de tipo grupo y bracket no se invalidan cuando la fase se edita fuera del sorteo («Equipos por grupo», referencias de cruce): el distintivo «→ Grupo A · pos 1» queda viejo. Para playoff sí existe `SORTEO.invalidatePlayoffLink`. Hallado en 5.10, decidir en 7.x |
 
 ---
 
@@ -624,6 +626,8 @@ sandbox de 2.1.**
 > **Estado 5.8:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.8.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, Functions 10/10 escenarios, sin cambios de reglas. Finalizar un partido en vivo guarda partido e historial en un lote (H-59, cierra H-53); cola de escrituras (los goles seguidos no se pierden), un partido ya finalizado o descartado no vuelve a ponerse en vivo, temporada finalizada rechazada desde el código, penales solo cuando hacen falta, descartar conserva un cruce programado y borra su historial, C9. Functions: los avisos ya no salen por partidos jugados (**M-12**, deploy de functions a mano).
 
 > **Estado 5.9:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.9.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. Cierra H-48 (el modal de equipo ya no edita el saldo: solo lectura, se cambia en YuNaCoins). Movimiento y saldo en un lote, masivo en un lote con confirmación, cantidades enteras de 1 a 1.000.000, restar más del saldo rechazado (individual) o limitado al saldo (masivo, el movimiento registra lo restado), temporada finalizada rechazada, doble clic, C9.
+
+> **Estado 5.10:** CERRADO · 2026-10-20 · ver `docs/reportes/MS-5.10.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. Cada acción del sorteo (vincular a grupo, bracket o playoff, desvincular, reiniciar, eliminar bombo, selector de equipos, deshacer) escribe en un solo lote a partir del registro fresco; doble clic en «Sortear» ya no sortea dos equipos; temporada finalizada rechazada desde el código; confirmaciones que dicen qué se pierde; cruces con resultados o en vivo y equipos con partidos en su grupo protegidos; C9. Abre H-60 y H-61.
 
 ---
 
