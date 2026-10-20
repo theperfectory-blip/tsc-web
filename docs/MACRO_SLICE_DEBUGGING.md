@@ -111,7 +111,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | ID | Hallazgo |
 |---|---|
 | H-18 | **Espejo en memoria nuevo (v1.6.2)**: `db.js` abre un `onSnapshot` por colección y sirve `dbGetAll` desde memoria. Es código nuevo y central, sin verificación independiente. Riesgos: datos viejos después de escrituras propias o transacciones, listeners que no se cierran, fallback silencioso, y costo de leer colecciones completas a medida que crece el historial |
-| H-19 | `importDB` en modo sobrescribir borra registro por registro, sin atomicidad: si falla a mitad, la base queda medio vacía (`data.js:145`) |
+| H-19 | `importDB` en modo sobrescribir borra registro por registro, sin atomicidad: si falla a mitad, la base queda medio vacía (`data.js:145`). **Cerrado en 5.13** (copia previa descargada, escribir antes de borrar, lotes con reversión) |
 | H-20 | En `dist`, un error al cargar un módulo corta el resto de su bundle; antes solo cortaba ese archivo. Hoy no se verifica `dist` |
 | H-21 | No hay entorno aislado: los flujos de escritura del admin no se pueden probar sin riesgo |
 | H-22 | Unas 20 copias de la función de escape; 8 de ellas se llaman `_esc` y comparten el scope global |
@@ -156,6 +156,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-61 | Baja. Los vínculos del sorteo de tipo grupo y bracket no se invalidan cuando la fase se edita fuera del sorteo («Equipos por grupo», referencias de cruce): el distintivo «→ Grupo A · pos 1» queda viejo. Para playoff sí existe `SORTEO.invalidatePlayoffLink`. Hallado en 5.10, decidir en 7.x |
 | H-62 | Baja (decisión). Quitar un título de palmarés con galería deja las imágenes subidas en Cloudinary sin título al que mostrarse; el cliente no puede borrarlas. Hoy la confirmación lo avisa. Hallado en 5.11 |
 | H-63 | Baja. `history.js` carga SheetJS desde `cdn.jsdelivr.net` sin SRI al exportar (la CSP lo permite por host). Fijar un hash de integridad o servirla desde el hosting. Hallado en 5.11, va a 6.x o 7.x |
+| H-64 | Baja. Un import de más de 500 escrituras no puede ser atómico desde el cliente: va por lotes con reversión, pero si otro admin edita esas colecciones durante el import, la reversión vuelve sus cambios al estado leído al empezar. Hallado en 5.13 |
 
 ---
 
@@ -634,6 +635,8 @@ sandbox de 2.1.**
 > **Estado 5.11:** CERRADO · 2026-10-20 · ver `docs/reportes/MS-5.11.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. Palmarés admin: una escritura a la vez con errores claros, año de 4 cifras, duplicados por temporada rechazados, orden de campeones en un lote y encolado, confirmaciones que dicen qué se pierde, una copa con títulos ya no se elimina (los dejaba huérfanos), limpieza única en un lote, C9. Historial: exportar una vez por clic. Abre H-62 y H-63.
 
 > **Estado 5.12:** CERRADO · 2026-10-20 · ver `docs/reportes/MS-5.12.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. El calendario admin ya no lista las fases de otras temporadas; fecha y hora validadas, guardados encadenados y en lote con errores claros, partido en vivo y temporada finalizada rechazados; quitar programación pide confirmación; etiquetas de día en un lote (el día vacío borra su documento); «Notificar stream de hoy» usa la fecha de Lima, no la del dispositivo; C9.
+
+> **Estado 5.13:** CERRADO · 2026-10-20 (Opus) · ver `docs/reportes/MS-5.13.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK. H-19 cerrado: copia previa descargada antes de importar, escribir antes de borrar, un lote atómico si entra en 500 y, si no, lotes con reversión (probado con un fallo en el 2.º de 3 lotes: base idéntica). Validación con campos mínimos y aviso de referencias rotas. Export de temporada con fases por `compId` y marcado parcial (no se puede usar para sobrescribir). Abre H-64.
 
 ---
 
