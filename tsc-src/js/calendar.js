@@ -94,30 +94,84 @@ function _calLogo(team, size, fallbackLabel){
    ================================================================ */
 const _calTimer = {};
 
+/* ----------------------------------------------------------
+   Guardas de escritura del calendario (MS-5.12)
+   - Los guardados de una misma fila se encadenan: dos ediciones cercanas
+     podían ambas ver «el cruce no tiene documento» y crear dos.
+   - Un guardado que falla (red, permisos) avisa; antes era una promesa sin
+     capturar dentro de un setTimeout y la fila parpadeaba como guardada.
+   - Se valida la fecha y la hora; una hora sin fecha no se guarda.
+   - Temporada finalizada y partido en vivo: el código se niega. Un partido
+     en vivo recibe goles continuamente; reescribirlo entero desde una lectura
+     vieja (como hace el guardado de la fecha) podía pisar un gol.
+   ---------------------------------------------------------- */
+const _calChain = {};
+function _calEnqueue(key, fn, what){
+  const prev = _calChain[key] || Promise.resolve();
+  const run  = prev.then(fn);
+  _calChain[key] = run.catch(()=>{});
+  return run.catch(err=>{
+    console.error('[Calendario]', err);
+    showToast((what ? what+': ' : '') + dbErrorMsg(err), 'error');
+  });
+}
+
+/* Mensaje de error de una fecha/hora, o null si valen (o si ambas están vacías: quitar la programación). */
+function _calWhenError(dateStr, timeStr){
+  if(!dateStr && !timeStr) return null;
+  if(!dateStr) return 'Elige la fecha antes de la hora';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const d = m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null;
+  if(!d || d.getFullYear()!==Number(m[1]) || d.getMonth()!==Number(m[2])-1 || d.getDate()!==Number(m[3])
+     || d.getFullYear()<2000 || d.getFullYear()>2100) return 'La fecha no es válida';
+  if(timeStr && !/^([01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) return 'La hora no es válida';
+  return null;
+}
+
+/* ¿La temporada del partido/fase está finalizada? (H-49: la UI lo ve, el código también). */
+async function _calSeasonLocked(phaseId){
+  if(phaseId!=null && typeof _mxSeasonLocked==='function') return _mxSeasonLocked(phaseId);
+  const season = (await dbGetAll('seasons')).find(x=>x.number===STATE.season);
+  if(season?.status==='finished'){
+    showToast(`${getSeasonName(season)} está finalizada: no admite cambios`,'error');
+    return true;
+  }
+  return false;
+}
+function _calLiveMsg(){ showToast('El partido está en vivo: no se puede cambiar su fecha hasta que termine','error'); }
+
 /* Grupo: actualiza doc de partido existente */
 function _calSave(matchId, dateStr, timeStr, rkey){
   const key = rkey || String(matchId);
   clearTimeout(_calTimer[key]);
-  _calTimer[key] = setTimeout(async ()=>{
+  const bad = _calWhenError(dateStr, timeStr);
+  if(bad){ showToast(bad,'error'); return; }
+  _calTimer[key] = setTimeout(()=>_calEnqueue(key, async ()=>{
     const m = await dbGet('matches', matchId);
     if(!m) return;
-    await dbPut('matches', {...m, scheduledDate: dateStr||null, scheduledTime: timeStr||null});
+    if(await _calSeasonLocked(m.phaseId)) return;
+    if(m.live){ _calLiveMsg(); return; }
+    await dbWriteBatch([{type:'set', store:'matches', data:{...m, scheduledDate: dateStr||null, scheduledTime: dateStr ? (timeStr||null) : null}}]);
     _calRowOk(key);
-  }, 700);
+  }, 'No se pudo guardar la fecha'), 700);
 }
 
 /* Bracket / playoff: crea o actualiza placeholder doc */
 function _calSaveSlot(phaseId, slotId, teamA, teamB, labelA, labelB, matchIdx, roundIdx, leg, dateStr, timeStr, rkey){
   const key = rkey || slotId;
   clearTimeout(_calTimer[key]);
-  _calTimer[key] = setTimeout(async ()=>{
+  const bad = _calWhenError(dateStr, timeStr);
+  if(bad){ showToast(bad,'error'); return; }
+  _calTimer[key] = setTimeout(()=>_calEnqueue(key, async ()=>{
+    if(await _calSeasonLocked(phaseId)) return;
     const existing = await dbGetAll('matches', m => m.slotId===slotId && m.phaseId===phaseId);
+    const when = { scheduledDate: dateStr||null, scheduledTime: dateStr ? (timeStr||null) : null };
     if(existing.length){
-      // Preservar resultado si ya existe — solo actualizar schedule
-      for(const doc of existing){
-        await dbPut('matches', {...doc, scheduledDate: dateStr||null, scheduledTime: timeStr||null});
-      }
+      if(existing.some(m=>m.live)){ _calLiveMsg(); return; }
+      // Preservar resultado si ya existe — solo actualizar schedule (en un lote)
+      await dbWriteBatch(existing.map(doc=>({type:'set', store:'matches', data:{...doc, ...when}})));
     } else {
+      if(!dateStr) return;   // nada que programar: no se crea un documento vacío
       const data = {
         slotId,
         phaseId,
@@ -128,16 +182,15 @@ function _calSaveSlot(phaseId, slotId, teamA, teamB, labelA, labelB, matchIdx, r
         goalsA: null,
         goalsB: null,
         season: STATE.season,
-        scheduledDate: dateStr||null,
-        scheduledTime: timeStr||null,
+        ...when,
       };
       if(matchIdx != null) data.matchIdx = matchIdx;
       if(roundIdx != null) data.roundIdx = roundIdx;
       if(leg      != null) data.leg      = leg;
-      await dbAdd('matches', data);
+      await dbWriteBatch([{type:'add', store:'matches', data}]);
     }
     _calRowOk(key);
-  }, 700);
+  }, 'No se pudo guardar la fecha'), 700);
 }
 
 function _calRowOk(key){
@@ -169,22 +222,36 @@ function _calOnChange(input){
 }
 
 async function calClearSchedule(matchId, phaseId, slotId){
+  // Qué se toca: un partido de grupo (solo se quita la fecha) o los documentos
+  // de un cruce (se borran los que no tienen resultado; los jugados conservan su resultado).
+  let docs;
   if(matchId!=null && matchId!=='null'){
     const m = await dbGet('matches', parseInt(matchId));
-    if(m) await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
+    docs = m ? [m] : [];
   } else if(slotId && phaseId!=null){
     const pid = parseInt(phaseId);
-    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===pid);
-    for(const m of existing){
-      if(m.goalsA==null && m.goalsB==null){
-        await dbDelete('matches', m.id);
-      } else {
-        await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
-      }
-    }
-  }
-  showToast('Programación eliminada');
-  await renderAdmCalendar();
+    docs = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===pid);
+  } else { return; }
+  if(!docs.length){ await renderAdmCalendar(); return; }
+  if(await _calSeasonLocked(docs[0].phaseId)) return;
+  if(docs.some(m=>m.live)){ _calLiveMsg(); return; }
+  const teamName = async (id, lbl) => (id!=null ? (await dbGet('teams', id))?.name : null) || lbl || 'Por definir';
+  const d0 = docs[0];
+  const label = `${await teamName(d0.teamA, d0.labelA)} vs ${await teamName(d0.teamB, d0.labelB)}`;
+  const when  = [d0.scheduledDate, d0.scheduledTime].filter(Boolean).join(' ');
+  const willDelete = docs.some(m=>m.goalsA==null && m.goalsB==null && m.slotId);
+  showConfirm('¿Quitar la programación?',
+    `Se quita la fecha${when?` (${when})`:''} de ${label}.`
+    + (willDelete ? ' El cruce vuelve a «sin programar» y se borra su documento programado (todavía no tiene resultado).' : ''),
+    () => _calEnqueue('clear:'+d0.id, async ()=>{
+      const fresh = await dbGetAll('matches', m=>docs.some(d=>d.id===m.id));
+      if(fresh.some(m=>m.live)){ _calLiveMsg(); return; }
+      await dbWriteBatch(fresh.map(m => (m.slotId && m.goalsA==null && m.goalsB==null)
+        ? {type:'delete', store:'matches', id:m.id}
+        : {type:'set', store:'matches', data:{...m, scheduledDate:null, scheduledTime:null}}));
+      showToast('Programación eliminada');
+      await renderAdmCalendar();
+    }, 'No se pudo quitar la programación'));
 }
 
 /* ================================================================
@@ -207,12 +274,21 @@ function _notifyStreamTodayCallable(){
   return fns.httpsCallable('notifyStreamToday');
 }
 
+/* «Hoy» del torneo: las fechas programadas están en hora de Lima, así que el
+   «hoy» que se manda a la función también. Con la fecha del dispositivo, un
+   admin en otra zona avisaba a los equipos del día equivocado cerca de la
+   medianoche. */
+function _calLimaTodayStr(){
+  try{ return new Intl.DateTimeFormat('en-CA', {timeZone:'America/Lima', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date()); }
+  catch(_){ return _calTodayStr(); }
+}
+
 async function notifyStreamTodayClick(){
   const btn = document.getElementById('btn-notify-stream-today');
   const run = async ()=>{
     if(btn){ btn.disabled = true; }
     try {
-      const date = _calTodayStr();
+      const date = _calLimaTodayStr();
       const res  = await _notifyStreamTodayCallable()({ date, season: STATE.season });
       const d = res.data || {};
       if(!d.matchesToday){
@@ -225,15 +301,17 @@ async function notifyStreamTodayClick(){
       }
     } catch(e){
       console.error('[notifyStreamToday]', e);
-      showToast(e?.message || 'No se pudo enviar la notificación', 'error');
+      const code = String(e?.code||'');
+      showToast(/permission-denied/.test(code) ? 'Solo un administrador puede notificar el stream' : (e?.message || 'No se pudo enviar la notificación'), 'error');
     } finally {
       if(btn){ btn.disabled = false; }
     }
   };
   if(typeof showConfirm==='function'){
+    if(await _calSeasonLocked()) return;
     showConfirm(
       '¿Notificar stream de hoy?',
-      'Se enviará un aviso push a todos los presidentes que juegan hoy. Esta acción no se puede deshacer.',
+      `Se enviará un aviso push a todos los presidentes que juegan hoy (${_calLimaTodayStr()}, hora de Lima) y, un minuto después, el aviso de «a continuación». Los que ya fueron avisados hoy no lo reciben otra vez. Esta acción no se puede deshacer.`,
       run
     );
   } else {
@@ -249,7 +327,7 @@ async function renderAdmCalendar(){
   if(!el) return;
   el.innerHTML = '<div class="cal-loading">Cargando...</div>';
 
-  const [allMatches, teams, allPhases, comps] = await Promise.all([
+  const [allMatches, teams, allPhasesRaw, comps] = await Promise.all([
     getForSeason('matches'),
     getForSeason('teams'),
     getForSeason('phases'),
@@ -258,6 +336,10 @@ async function renderAdmCalendar(){
 
   const teamById  = Object.fromEntries(teams.map(t=>[t.id, t]));
   const compById  = Object.fromEntries(comps.map(c=>[c.id, c]));
+  // Las fases no llevan `season` (las trae todas getForSeason): solo van las de
+  // las competiciones de la temporada seleccionada. Antes el calendario admin
+  // de la T4 listaba como «sin programar» los cruces de las fases de la T3.
+  const allPhases = allPhasesRaw.filter(ph => compById[ph.compId]);
 
   /* agrupar matches por phaseId para búsqueda rápida */
   const byPhase = {};
@@ -649,27 +731,38 @@ function _calSaveDayLabel(dateStr){
 
 async function _calDoSaveDayLabel(dateStr){
   try {
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr)) || _calWhenError(dateStr,'')) { showToast('La fecha del día no es válida','error'); return; }
+    if(await _calSeasonLocked()) return;
     const inp  = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
     const sel  = document.querySelector(`.cal-lbl-type[data-date="${CSS.escape(dateStr)}"]`);
-    const text = inp ? (inp.value || '') : '';
-    const type = sel ? (sel.value || '') : '';
+    const text = (inp ? (inp.value || '') : '').slice(0, 64);
+    const typeRaw = sel ? (sel.value || '') : '';
+    const type = ['libre','sorteo'].includes(typeRaw) ? typeRaw : '';
     const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
     const payload = { season: STATE.season, date: dateStr, text, type };
+    const ops = [];
     if(existing.length){
-      /* Auto-reparación: si quedaron duplicados de una carrera vieja, esta
-         edición los consolida — el primero se actualiza con el valor actual
-         del DOM (da igual cuál sea "el primero", Firestore no garantiza
-         orden) y el resto se borra por id. */
-      await dbPut('calDayLabels', {...existing[0], ...payload});
-      for(const dup of existing.slice(1)) await dbDelete('calDayLabels', dup.id);
+      if(!text.trim() && !type){
+        /* Día sin etiqueta ni tipo: se borra el documento (antes quedaba uno
+           vacío por cada día que se había tocado). */
+        existing.forEach(d => ops.push({type:'delete', store:'calDayLabels', id:d.id}));
+      } else {
+        /* Auto-reparación: si quedaron duplicados de una carrera vieja, esta
+           edición los consolida — el primero se actualiza con el valor actual
+           del DOM (da igual cuál sea "el primero", Firestore no garantiza
+           orden) y el resto se borra por id. Todo en un lote. */
+        ops.push({type:'set', store:'calDayLabels', data:{...existing[0], ...payload}});
+        existing.slice(1).forEach(d => ops.push({type:'delete', store:'calDayLabels', id:d.id}));
+      }
     } else if(text.trim() || type){
-      await dbAdd('calDayLabels', payload);
+      ops.push({type:'add', store:'calDayLabels', data:payload});
     }
+    if(ops.length) await dbWriteBatch(ops);
     /* feedback visual en el input */
     if(inp){ inp.classList.add('cal-lbl-inp--saved'); setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900); }
   } catch(e){
     console.warn('[calDayLabels] Error al guardar:', e.code || e.message);
-    showToast('Error al guardar. Verifica permisos de Firestore.');
+    showToast('No se pudo guardar la etiqueta: ' + dbErrorMsg(e), 'error');
   }
 }
 
@@ -687,7 +780,15 @@ async function renderAdmCalendarLabels(){
   const el = document.getElementById('adm-calendar-labels');
   if(!el) return;
 
-  const labels = await dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]);
+  let labels;
+  try{ labels = await dbGetAll('calDayLabels', r => r.season === STATE.season); }
+  catch(err){
+    // Antes un fallo de lectura mostraba el cronograma vacío, y escribir encima
+    // creaba etiquetas duplicadas de las que no se veían.
+    console.error('[calDayLabels]', err);
+    el.innerHTML = `<div class="cal-empty"><p>No se pudo cargar el cronograma: ${_esc(dbErrorMsg(err))}</p></div>`;
+    return;
+  }
   const labelByDate = Object.fromEntries(labels.map(l => [l.date, {text: l.text||'', type: l.type||''}]));
 
   const today = _calTodayStr();

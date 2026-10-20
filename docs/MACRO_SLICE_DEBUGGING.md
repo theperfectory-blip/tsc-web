@@ -633,6 +633,8 @@ sandbox de 2.1.**
 
 > **Estado 5.11:** CERRADO · 2026-10-20 · ver `docs/reportes/MS-5.11.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. Palmarés admin: una escritura a la vez con errores claros, año de 4 cifras, duplicados por temporada rechazados, orden de campeones en un lote y encolado, confirmaciones que dicen qué se pierde, una copa con títulos ya no se elimina (los dejaba huérfanos), limpieza única en un lote, C9. Historial: exportar una vez por clic. Abre H-62 y H-63.
 
+> **Estado 5.12:** CERRADO · 2026-10-20 · ver `docs/reportes/MS-5.12.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. El calendario admin ya no lista las fases de otras temporadas; fecha y hora validadas, guardados encadenados y en lote con errores claros, partido en vivo y temporada finalizada rechazados; quitar programación pide confirmación; etiquetas de día en un lote (el día vacío borra su documento); «Notificar stream de hoy» usa la fecha de Lima, no la del dispositivo; C9.
+
 ---
 
 ## M6 — Backend y Android
