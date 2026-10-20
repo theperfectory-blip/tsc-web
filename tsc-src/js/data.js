@@ -51,7 +51,9 @@ async function renderDBInfo(){
 
 async function exportFullDB(){
   try{
-    const entries=await Promise.all(STORES.map(async store=>[store,await dbGetAll(store)]));
+    // Solo lo que vive en Firestore: las temporadas archivadas están en el repo
+    // (data/temporadas) y no se pueden importar de vuelta.
+    const entries=await Promise.all(STORES.map(async store=>[store,await dbGetAllLive(store)]));
     const stores=Object.fromEntries(entries);
     downloadJSON({
       version:'TSC_v5',
@@ -214,7 +216,7 @@ function _dataWarnings(v){
 async function _dataApplyImport(mode,validated){
   const stores=STORES.filter(s=>validated[s]);
   const before={};
-  for(const store of stores) before[store]=await dbGetAll(store);
+  for(const store of stores) before[store]=await dbGetAllLive(store);
   const stamp=new Date().toISOString().replace(/[:.]/g,'-');
   downloadJSON({version:'TSC_v5',schemaVersion:1,kind:'pre-import',exportedAt:new Date().toISOString(),manifest:{stores},stores:before},
     `TSC_antes_de_importar_${stamp}.json`);
@@ -284,7 +286,16 @@ async function importDB(mode){
     partial = data?.partial===true || (data?.season!=null && !data?.stores);
     const backupStores=_dataBackupStores(data);
     validatedStores=_dataValidateBackup(backupStores); // valida TODO antes de mostrar el confirm o tocar la DB
+    // Registros de temporadas archivadas: son de solo lectura y viven en el
+    // repo; se dejan fuera del import (si no, el lote entero fallaría).
+    let skipped=0;
+    for(const st of Object.keys(validatedStores)){
+      const keep=validatedStores[st].filter(r=>!_archBlocked(st,r));
+      skipped+=validatedStores[st].length-keep.length;
+      validatedStores[st]=keep;
+    }
     warnings=_dataWarnings(validatedStores);
+    if(skipped) warnings.unshift(`${skipped} registro${skipped===1?'':'s'} de temporadas archivadas, que se ignoran`);
   }catch(err){
     console.error('[Datos] Error leyendo backup:',err);
     showToast('No se pudo leer el backup: '+err.message,'error');

@@ -797,6 +797,8 @@ async function _bootStep(name, fn){
 window.addEventListener('load', async ()=>{
   const dbOk = await _bootStep('initDB', initDB);
   if(!dbOk) showToast('No se pudo abrir la base de datos','error');
+  // Temporadas archivadas que no cargaron: faltarían datos, no se calla (MS-5.15).
+  if(dbOk && typeof dbArchiveInfo==='function' && dbArchiveInfo().error) showToast('No se pudieron cargar las temporadas archivadas: faltan datos de temporadas pasadas. Recarga la página.','error');
   await _bootStep('setTheme', ()=>setTheme(localStorage.getItem('tsc_theme')||'dark'));
   if(dbOk){
     await _bootStep('seedInitialData', seedInitialData);

@@ -298,6 +298,48 @@ for (const col of ['notificationRuns', 'notificationEvents']) {
   }
 }
 
+// --- Temporadas archivadas (D8, MS-5.16) ---
+// Documentos de la temporada 9 (sembrados en seedArchive) y archive/seasons
+// creado por el admin en el primer caso: desde ahí nadie escribe la 9.
+const ARCH_SEED = async () => {
+  const put = (path, data) => fetch(`${ROOT}/${path}`, { method: 'PATCH', headers: headers('owner'), body: JSON.stringify({ fields: toFields(data) }) });
+  await put('matches/a9', { season: 9, phaseId: 90 });
+  await put('phases/a90', { compId: 90, name: 'F' });
+  await put('competitions/a9', { season: 9, name: 'C' });
+  await put('matchHistory/a9', { seasonRef: 9, golesA: 1 });
+  await put('coins/a9', { season: 9, amount: 1 });
+  await put('sorteo/a9', { season: 9 });
+  await put('sorteoEvents/a9', { season: 9 });
+  await put('calDayLabels/a9', { season: 9, date: '2026-01-01' });
+  await put('seasons/a9', { number: 9, status: 'finished' });
+  // 450 partidos de una temporada abierta para el lote grande.
+  const writes = [];
+  for (let i = 0; i < 450; i++) writes.push(wSet(`matches/big${i}`, { season: 1, phaseId: 1 }));
+  await batch(writes, 'owner');
+};
+add('archive: (siembra)', async () => { await ARCH_SEED(); return 200; }, 200);
+add('archive: anónimo lee', () => op.get('archive/seasons', AS.anon), 404);
+add('archive: presidente no crea', () => op.create('archive/seasons', { numbers: [9], compIds: [90] }, AS.pres), 403);
+add('archive: admin no crea otro doc', () => op.create('archive/otro', { numbers: [9], compIds: [90] }, AS.admin), 403);
+add('archive: admin no crea con campo extra', () => op.create('archive/seasons', { numbers: [9], compIds: [90], x: 1 }, AS.admin), 403);
+add('archive: admin crea', () => op.create('archive/seasons', { numbers: [9], compIds: [90] }, AS.admin), 200);
+add('archive: no se quita una temporada', () => op.update('archive/seasons', { numbers: [], compIds: [90] }, AS.admin), 403);
+add('archive: no se quita una competición', () => op.update('archive/seasons', { numbers: [9], compIds: [] }, AS.admin), 403);
+add('archive: se agrega una temporada', () => op.update('archive/seasons', { numbers: [9, 8], compIds: [90, 80] }, AS.admin), 200);
+add('archive: nadie lo borra', () => op.del('archive/seasons', AS.admin), 403);
+for (const [col, field] of [['matches', 'season'], ['competitions', 'season'], ['coins', 'season'], ['sorteo', 'season'],
+                            ['sorteoEvents', 'season'], ['calDayLabels', 'season'], ['matchHistory', 'seasonRef'], ['seasons', 'number']]) {
+  add(`archivada: admin no modifica ${col}`, () => op.update(`${col}/a9`, { x: 1 }, AS.admin), 403);
+  add(`archivada: admin no borra ${col}`,    () => op.del(`${col}/a9`, AS.admin), 403);
+  add(`archivada: admin no crea ${col} con la 9`, () => op.create(`${col}/n9`, { [field]: 9 }, AS.admin), 403);
+  add(`archivada: admin no saca ${col} de la 9`, () => op.update(`${col}/a9`, { [field]: 1 }, AS.admin), 403);
+}
+add('archivada: admin no modifica una fase de competición archivada', () => op.update('phases/a90', { name: 'X' }, AS.admin), 403);
+add('archivada: admin no crea fase en competición archivada', () => op.create('phases/n90', { compId: 90 }, AS.admin), 403);
+add('abierta: admin sigue creando partidos de la 1', () => op.create('matches/n1', { season: 1, phaseId: 1 }, AS.admin), 200);
+add('abierta: admin crea fase en otra competición', () => op.create('phases/n1', { compId: 1 }, AS.admin), 200);
+add('abierta: lote de 450 bajas con archive/seasons', () => batch(Array.from({ length: 450 }, (_, i) => wDel(`matches/big${i}`)), AS.admin), 200);
+
 // --- Colección no declarada: cerrada por defecto ---
 add('colección sin regla: admin no escribe', () => op.create('otra/x', { x: 1 }, AS.admin), 403);
 add('colección sin regla: anónimo no lee',   () => op.get('otra/x', AS.anon), 403);

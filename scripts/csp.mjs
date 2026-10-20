@@ -32,6 +32,8 @@ export const CSP_DIRECTIVES = {
     'https://southamerica-east1-tsc-web-yuna.cloudfunctions.net',
     'https://api.cloudinary.com',
     'https://firebasestorage.googleapis.com',
+    // La APK baja del hosting las temporadas archivadas que no trae (MS-5.15).
+    'https://teamsubscup.web.app',
   ],
   'worker-src': ["'self'", 'blob:'],
   'frame-src': ['https://tsc-web-yuna.firebaseapp.com'],

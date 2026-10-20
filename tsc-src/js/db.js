@@ -28,6 +28,189 @@ function _assertWritable(op, store){
   }
 }
 
+/* ------------------------------------------------------------
+   TEMPORADAS ARCHIVADAS (D8, MS-5.15)
+   ------------------------------------------------------------
+   Una temporada finalizada pasa a un archivo fijo del repo
+   (data/temporadas/<número>.json, generado por scripts/season-archive.mjs)
+   y sus documentos se borran de Firestore (MS-5.16). Al arrancar se carga
+   el índice y cada archivo; dbGetAll / dbGet / dbSubscribe suman esas filas
+   a las de Firestore (si un registro está en los dos lados, gana el
+   archivo), así que todas las pantallas la ven sin cambiar su código.
+   Es de solo lectura para todos: cualquier escritura sobre un registro
+   archivado, o un registro nuevo que cuelgue de una temporada archivada,
+   lanza un error con code 'archived'. La APK baja del hosting el índice y
+   los archivos que no trae en su paquete. */
+const ARCHIVE_STORES = ['competitions','phases','matches','matchHistory','coins','sorteo','sorteoEvents','calDayLabels'];
+// Colecciones donde `season` es el número de temporada (en `teams` es un 1
+// fijo y en `palmares` una etiqueta de texto: no cuentan).
+const _ARCH_SEASON_FIELD = new Set(['competitions','matches','coins','sorteo','sorteoEvents','calDayLabels']);
+const _ARCH_REMOTE = 'https://teamsubscup.web.app/data/temporadas/';
+const _ARCH = { numbers:new Set(), keys:new Set(), rows:{}, compIds:new Set(), phaseIds:new Set(), seasons:[], error:null };
+
+function _archNative(){
+  return !!(typeof window!=='undefined' && window.Capacitor && typeof window.Capacitor.isNativePlatform==='function' && window.Capacitor.isNativePlatform());
+}
+function _archFreeze(o){
+  if(o && typeof o==='object' && !Object.isFrozen(o)){ Object.values(o).forEach(_archFreeze); Object.freeze(o); }
+  return o;
+}
+/* Lee un archivo de data/temporadas. remoteFirst (índice en la APK): primero
+   el hosting, que trae las temporadas archivadas después del build. null si
+   no existe (404) en ningún lado; lanza si no se pudo leer. */
+async function _archFetchJSON(file, remoteFirst){
+  const local = 'data/temporadas/'+file;
+  const urls = !_archNative() ? [local] : (remoteFirst ? [_ARCH_REMOTE+file, local] : [local, _ARCH_REMOTE+file]);
+  let lastErr = null, notFound = 0;
+  for(const url of urls){
+    try{
+      const res = await fetch(url, { cache:'no-cache' });
+      if(res.status===404){ notFound++; continue; }
+      if(!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+      return await res.json();
+    }catch(err){ lastErr = err; }
+  }
+  if(notFound===urls.length) return null;
+  throw lastErr || new Error('No se pudo leer '+file);
+}
+
+async function _archLoad(){
+  try{
+    const index = await _archFetchJSON('index.json', true);
+    if(!index) return;   // todavía no hay temporadas archivadas
+    if(index.format!=='tsc-season-archive-index' || !Array.isArray(index.seasons)) throw new Error('índice de temporadas archivadas inválido');
+    for(const entry of index.seasons){
+      const arch = await _archFetchJSON(entry.file, false);
+      if(!arch) throw new Error(`falta ${entry.file}`);
+      if(arch.format!=='tsc-season-archive' || arch.season?.number!==entry.number) throw new Error(`${entry.file} no corresponde a la temporada ${entry.number}`);
+      for(const st of ARCHIVE_STORES){
+        const rows = arch.stores?.[st] || [];
+        if(rows.length!==arch.counts?.[st]) throw new Error(`${entry.file}: ${st} tiene ${rows.length} y el archivo declara ${arch.counts?.[st]}`);
+      }
+      _archAdd(arch);
+    }
+  }catch(err){
+    _ARCH.error = err;
+    console.error('[db] temporadas archivadas:', err);
+  }
+}
+
+function _archAdd(arch){
+  const n = arch.season.number;
+  _ARCH.numbers.add(n);
+  const seasonRow = _archFreeze({ ...arch.season, status:'finished', archived:true });
+  (_ARCH.rows.seasons ||= []).push(seasonRow);
+  _ARCH.keys.add('seasons/'+seasonRow.id);
+  _ARCH.seasons.push({ number:n, name:arch.season.name, generatedAt:arch.generatedAt, teamsAtClose:arch.teamsAtClose||[] });
+  for(const st of ARCHIVE_STORES){
+    for(const r of (arch.stores[st]||[])){
+      (_ARCH.rows[st] ||= []).push(_archFreeze(r));
+      _ARCH.keys.add(st+'/'+r.id);
+      if(st==='competitions') _ARCH.compIds.add(r.id);
+      if(st==='phases') _ARCH.phaseIds.add(r.id);
+    }
+  }
+}
+
+/* Filas de Firestore + filas archivadas (el archivo gana si se repite el id).
+   Copia de primer nivel: las filas archivadas están congeladas. */
+function _archMergeRows(store, rows){
+  const arch = _ARCH.rows[store];
+  if(!arch || !arch.length) return rows;
+  const out = rows.filter(r=>!_ARCH.keys.has(store+'/'+r.id));
+  for(const r of arch) out.push({ ...r });
+  // Mismo orden que Firestore (id como texto: "1009" antes que "101"): hay
+  // pantallas que muestran en el orden recibido, sin ordenar.
+  out.sort((a,b)=>{ const x=String(a.id), y=String(b.id); return x<y?-1:x>y?1:0; });
+  return out;
+}
+
+/* JSON canónico (claves ordenadas): compara registros sin depender del orden. */
+function _archCanon(v){
+  if(Array.isArray(v)) return '['+v.map(_archCanon).join(',')+']';
+  if(v && typeof v==='object') return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+_archCanon(v[k])).join(',')+'}';
+  return JSON.stringify(v);
+}
+
+/* Lo que Firestore todavía guarda de una temporada archivada (MS-5.16).
+   same: documentos idénticos a su copia del archivo (se pueden borrar);
+   changed: con el mismo id pero distintos; extra: de esa temporada y que no
+   están en el archivo (creados después de generarlo). Si changed o extra no
+   están vacíos, no se borra nada: hay que regenerar el archivo. */
+async function dbArchivedSeasonLiveCheck(number){
+  number = Number(number);
+  if(!_ARCH.numbers.has(number)) throw new Error('Esa temporada no está archivada');
+  const byKey = new Map();
+  for(const st of ARCHIVE_STORES) (_ARCH.rows[st]||[]).forEach(r=>byKey.set(st+'/'+r.id, r));
+  const out = { same:[], changed:[], extra:[] };
+  for(const st of ARCHIVE_STORES){
+    const live = await dbGetAllLive(st);
+    for(const r of live){
+      const arch = byKey.get(st+'/'+r.id);
+      if(arch){
+        if(!_archOfSeason(st, arch, number)) continue;   // de otra temporada archivada
+        (_archCanon(arch)===_archCanon(r) ? out.same : out.changed).push({ store:st, row:r });
+      } else if(_archBlocked(st, r) && _archOfSeason(st, r, number)){
+        out.extra.push({ store:st, row:r });
+      }
+    }
+  }
+  return out;
+}
+function _archOfSeason(store, r, number){
+  if(_ARCH_SEASON_FIELD.has(store)) return r.season===number;
+  if(store==='matchHistory') return r.seasonRef===number || _ARCH.keys.has('matches/'+r.matchRef);
+  return true;   // phases: cuelgan de competiciones archivadas
+}
+
+/* Borra de Firestore los documentos de una temporada archivada que son
+   idénticos al archivo (dbArchivedSeasonLiveCheck), en lotes, y anota la
+   temporada en archive/seasons para que las reglas rechacen escrituras
+   nuevas con ese número. No pasa por _archGuard a propósito: es la única
+   escritura permitida sobre lo archivado. Si se corta a mitad, la app sigue
+   mostrando la temporada completa desde el archivo; se puede reintentar. */
+async function dbPurgeArchivedSeason(number, check){
+  _assertWritable('dbPurgeArchivedSeason', 'archive');
+  if(!_isFS()) throw new Error('Solo con Firestore');
+  number = Number(number);
+  if(check.changed.length || check.extra.length) throw new Error('El archivo no coincide con Firestore: regenera el archivo antes de borrar');
+  const rows = check.same;
+  for(let i=0;i<rows.length;i+=DB_BATCH_MAX){
+    const batch = db.batch();
+    rows.slice(i, i+DB_BATCH_MAX).forEach(({store,row})=>batch.delete(db.collection(store).doc(String(row.id))));
+    await batch.commit();
+  }
+  const ref = db.collection('archive').doc('seasons');
+  const cur = (await ref.get()).data() || { numbers:[], compIds:[] };
+  const numbers = [...new Set([...(cur.numbers||[]), number])].sort((a,b)=>a-b);
+  const compIds = [...new Set([...(cur.compIds||[]), ...(_ARCH.rows.competitions||[]).filter(c=>c.season===number).map(c=>c.id)])].sort((a,b)=>a-b);
+  await ref.set({ numbers, compIds, updatedAt:new Date().toISOString() });
+  dbMirrorInvalidate(...ARCHIVE_STORES);
+  return { deleted:rows.length };
+}
+
+function dbIsArchivedSeason(number){ return _ARCH.numbers.has(Number(number)); }
+function dbArchiveInfo(){ return { seasons:_ARCH.seasons.slice(), error:_ARCH.error }; }
+
+function _archBlocked(store, rec, id){
+  if(!_ARCH.numbers.size) return false;
+  if(id!=null && _ARCH.keys.has(store+'/'+id)) return true;
+  if(!rec) return false;
+  if(rec.id!=null && _ARCH.keys.has(store+'/'+rec.id)) return true;
+  if(store==='seasons') return _ARCH.numbers.has(rec.number);
+  if(_ARCH_SEASON_FIELD.has(store) && _ARCH.numbers.has(rec.season)) return true;
+  if(store==='matchHistory' && _ARCH.numbers.has(rec.seasonRef)) return true;
+  if(store==='phases' && _ARCH.compIds.has(rec.compId)) return true;
+  if(store==='matches' && _ARCH.phaseIds.has(rec.phaseId)) return true;
+  return false;
+}
+function _archGuard(op, store, rec, id){
+  if(!_archBlocked(store, rec, id)) return;
+  const err = new Error(`Temporada archivada: solo lectura (${op} en ${store}).`);
+  err.code = 'archived';
+  throw err;
+}
+
 function initDB(){
   if (_isFS()) {
     db = firebase.firestore();
@@ -39,13 +222,13 @@ function initDB(){
       ['seasons','settings','teams','competitions','phases','matches','palmares','palmares-comps']
         .forEach(store => { try { _fsMirror(store); } catch(_){} });
     }
-    return Promise.resolve();
+    return _archLoad();
   }
   // ---------- IndexedDB (local) ----------
   return new Promise((res,rej)=>{
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onerror = ()=>rej(req.error);
-    req.onsuccess = ()=>{ db=req.result; res(); };
+    req.onsuccess = ()=>{ db=req.result; _archLoad().then(res); };
     req.onupgradeneeded = (e)=>{
       const idb = e.target.result;
       STORES.forEach(s=>{
@@ -224,7 +407,9 @@ function _fsGetAllDirect(store, filter, m){
   });
 }
 
-function dbGetAll(store, filter){
+/* Solo Firestore (o IndexedDB), sin las temporadas archivadas: para export,
+   import y todo lo que necesita lo que vive en la base. */
+function dbGetAllLive(store, filter){
   if (_isFS()) {
     if (!_fsMirrorEnabled()) return _fsGetAllDirect(store, filter);
     const m = _fsMirror(store);
@@ -249,7 +434,19 @@ function dbGetAll(store, filter){
   });
 }
 
+function dbGetAll(store, filter){
+  if(!_ARCH.rows[store]) return dbGetAllLive(store, filter);
+  return dbGetAllLive(store).then(rows=>{
+    const all = _archMergeRows(store, rows);
+    return filter ? all.filter(filter) : all;
+  });
+}
+
 function dbGet(store, id){
+  if(_ARCH.keys.has(store+'/'+id)){
+    const r = _ARCH.rows[store].find(x=>String(x.id)===String(id));
+    return Promise.resolve(r ? { ...r } : undefined);
+  }
   if (_isFS()) {
     // Solo usa el espejo si la colección ya está espejada y fresca: un get
     // suelto no justifica suscribirse a la colección entera.
@@ -274,6 +471,7 @@ function dbGet(store, id){
 
 async function dbAdd(store, data){
   _assertWritable('dbAdd', store);
+  _archGuard('dbAdd', store, data);
   if (_isFS()) {
     const id = await _fsNextId(store);
     await db.collection(store).doc(String(id)).set({ ...data, id });
@@ -305,6 +503,7 @@ function _fsReserveIds(store, n){
 async function dbAddMany(store, items){
   _assertWritable('dbAddMany', store);
   if(!Array.isArray(items) || !items.length) return [];
+  items.forEach(it=>_archGuard('dbAddMany', store, it));
   if (_isFS()) {
     const ids = await _fsReserveIds(store, items.length);
     for(let i=0;i<items.length;i+=450){
@@ -336,6 +535,7 @@ async function dbAddMany(store, items){
 async function dbDeleteMany(store, ids){
   _assertWritable('dbDeleteMany', store);
   if(!Array.isArray(ids) || !ids.length) return;
+  ids.forEach(id=>_archGuard('dbDeleteMany', store, null, id));
   if (_isFS()) {
     for(let i=0;i<ids.length;i+=450){
       const batch = db.batch();
@@ -381,6 +581,7 @@ async function dbNewIds(store, n){
 async function dbWriteBatch(ops){
   if(!Array.isArray(ops) || !ops.length) return [];
   ops.forEach(o => _assertWritable('dbWriteBatch', o.store));
+  ops.forEach(o => _archGuard('dbWriteBatch', o.store, o.type==='delete' ? null : o.data, o.type==='delete' ? o.id : null));
   if (_isFS()) {
     if(ops.length > DB_BATCH_MAX) throw new Error(`Lote de ${ops.length} escrituras: el máximo atómico es ${DB_BATCH_MAX}`);
     const addsByStore = {};
@@ -425,6 +626,7 @@ async function dbWriteBatch(ops){
 
 async function dbPut(store, data){
   _assertWritable('dbPut', store);
+  _archGuard('dbPut', store, data);
   if (_isFS()) {
     let id = data.id;
     if (id == null) id = await _fsNextId(store); // por si llaman put sin id
@@ -441,6 +643,7 @@ async function dbPut(store, data){
 
 function dbDelete(store, id){
   _assertWritable('dbDelete', store);
+  _archGuard('dbDelete', store, null, id);
   if (_isFS()) {
     return db.collection(store).doc(String(id)).delete();
   }
@@ -469,7 +672,7 @@ function dbSubscribe(store, filter, cb){
     // se llama a `cb` cuando el contenido realmente difiere.
     let prevJSON = null;
     const deliver = snap => {
-      let result = snap.docs.map(d=>d.data());
+      let result = _archMergeRows(store, snap.docs.map(d=>d.data()));
       if(filter) result = result.filter(filter);
       const json = JSON.stringify(result);
       if(json === prevJSON) return;
@@ -506,6 +709,7 @@ function getForSeason(store){
    por documento del lote (cientos de líneas en un borrado en cascada). */
 function dbErrorMsg(err){
   const code = err?.code || '';
+  if(code==='archived') return 'Temporada archivada: es de solo lectura (sus datos viven en un archivo fijo).';
   if(code==='permission-denied' || /PERMISSION_DENIED/.test(err?.message||''))
     return 'Sin permiso: solo un administrador puede hacer esto.';
   if(code==='unavailable') return 'Sin conexión con el servidor. Inténtalo de nuevo.';

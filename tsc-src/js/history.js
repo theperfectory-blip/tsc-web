@@ -284,6 +284,8 @@ async function resolveHistoryRecord(h){
 
 /* Re-genera todas las filas live de una temporada (cuando cambia su nombre o juego). */
 async function refreshHistoryForSeason(seasonNumber){
+  // Temporada archivada: su historial está en el archivo, fijo (MS-5.15).
+  if(typeof dbIsArchivedSeason==='function' && dbIsArchivedSeason(seasonNumber)) return;
   const matches = await dbGetAll('matches', m=>m.season===seasonNumber);
   for(const m of matches){
     if(m.goalsA!=null && m.goalsB!=null){

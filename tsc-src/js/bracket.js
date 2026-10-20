@@ -665,7 +665,8 @@ function _bkPatch(patched, doc, fields){
   patched.set(doc.id, Object.assign(cur, fields));
 }
 async function _bkWritePatched(patched){
-  const docs = [...patched.values()];
+  // Partidos de una temporada archivada: solo lectura (MS-5.15).
+  const docs = [...patched.values()].filter(d=>!_archBlocked('matches', d));
   for(let i=0; i<docs.length; i+=DB_BATCH_MAX){
     await dbWriteBatch(docs.slice(i, i+DB_BATCH_MAX).map(d=>({type:'set', store:'matches', data:d})));
   }

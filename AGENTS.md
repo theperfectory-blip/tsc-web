@@ -37,6 +37,14 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
     lanza (nunca devuelve una caché vacía como dato).
     `window.TSC_FS_MIRROR = false` lo apaga en caliente.
   - IDs enteros autoincrementales vía contadores en `_counters/{store}`.
+  - **Temporadas archivadas (D8, MS-5.14–5.16):** una temporada finalizada
+    pasa a `data/temporadas/<número>.json` (`node scripts/season-archive.mjs
+    --season N`, con `--verify`). `initDB` carga el índice y los archivos;
+    `dbGetAll`/`dbGet`/`dbSubscribe` los suman a Firestore y toda escritura
+    sobre algo archivado lanza (code `archived`). `dbGetAllLive` = solo
+    Firestore (export/import). Las reglas rechazan escrituras de las
+    temporadas listadas en `archive/seasons`, que escribe «Liberar Firestore»
+    (panel de Temporadas) después de verificar y borrar.
 - **Arranque** (`ui-utils.js`, evento `load`): `initDB` → seeds y
   migraciones (`seedInitialData`, `seedHistoryIfEmpty`,
   `seedPalmaresIfEmpty`, `migrate*`) → restaurar temporada/página/modo
@@ -124,7 +132,7 @@ Tests (emulador, desde `functions/`): `npm run test:emulator` (Functions),
 ```
 index.html          Shell: topbar, sidebars, páginas, modales globales y el orden de <script>
 css/                variables · layout · components · redesign · palmares · calendar · sorteo
-data/               historial-seed.json, palmares-seed.json
+data/               historial-seed.json, palmares-seed.json, temporadas/ (temporadas archivadas)
 assets/             imágenes, sonidos, trofeos .glb, vendor/ (three.js, draco)
 js/
   Núcleo
