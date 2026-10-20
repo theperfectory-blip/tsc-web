@@ -533,6 +533,13 @@ async function deleteCopa(key){
     if (typeof showToast === 'function') showToast('No se pueden borrar copas predefinidas');
     return false;
   }
+  // Una copa con títulos no se borra: sus títulos quedarían apuntando a una
+  // competición que ya no existe y desaparecerían del palmarés.
+  const used = await dbGetAll('palmares', r => r.competition === key);
+  if (used.length) {
+    showToast(`La copa tiene ${used.length} título${used.length===1?'':'s'} registrado${used.length===1?'':'s'}: quítalos antes de eliminarla`, 'error');
+    return false;
+  }
   const all = await dbGetAll('palmares-comps');
   const rec = all.find(c => c.key === key);
   if (!rec) return false;
@@ -947,17 +954,20 @@ async function _palmResetBadOrderOnce(){
     const flag = await dbGetAll('settings', s => s.key === 'palmaresOrderResetV1');
     if(flag.length) return;
     const recs = await getAllPalmaresRecords();
-    let cleared = 0;
+    // Un solo lote con la marca de «ya corrió»: antes eran puts sueltos y un
+    // corte dejaba parte de los registros limpios sin la marca.
+    const ops = [];
     for(const r of recs){
       if(r.pending || r.teamId == null) continue; // no tocar el order del pendiente "¿?"
       if(typeof r.order === 'number'){
         const { order, ...rest } = r;
-        await dbPut('palmares', rest);   // setDoc reemplaza: el campo order desaparece
-        cleared++;
+        ops.push({ type:'set', store:'palmares', data:rest });   // set reemplaza: el campo order desaparece
       }
     }
-    await dbAdd('settings', { key:'palmaresOrderResetV1', value:true });
-    if(cleared) console.log(`[palmares] reset de order viejo: ${cleared} registros`);
+    ops.push({ type:'add', store:'settings', data:{ key:'palmaresOrderResetV1', value:true } });
+    if(ops.length > DB_BATCH_MAX) return;
+    await dbWriteBatch(ops);
+    if(ops.length > 1) console.log(`[palmares] reset de order viejo: ${ops.length-1} registros`);
   } catch(e){ /* si no es admin la escritura falla; se ignora */ }
 }
 
@@ -1040,7 +1050,7 @@ async function renderAdmPalmares(){
               </span>
             </div>`;
           }).join('')}
-          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;">↕ Ordenar campeones</button>` : ''}
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg> Ordenar campeones</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1097,7 +1107,7 @@ async function openPalmaresReorder(compKey){
         <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
       </div>
       <div class="modal-body">
-        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Arrastrá las tarjetas para ordenar (o flechas ↑↓ con foco en una fila). <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Arrastrá las tarjetas para ordenar (o las flechas arriba y abajo con foco en una fila). <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
         <div id="palm-reorder-list">${_palmReorderListHTML(list, teamById)}</div>
       </div>
     </div>
@@ -1126,12 +1136,33 @@ function _palmReorderListHTML(list, teamById){
    persiste solo los registros cuyo order cambió. Reusado por el drag&drop y
    por el fallback de teclado. */
 async function _palmPersistOrder(list){
-  for(let i=0; i<list.length; i++){
-    if(list[i].order !== i+1){
-      await dbPut('palmares', {...list[i], order: i+1});
-      list[i].order = i+1;
-    }
-  }
+  // Un solo lote: antes eran puts sueltos y un corte dejaba el orden a medias
+  // (dos campeones con la misma posición).
+  const ops = [];
+  list.forEach((r, i) => { if(r.order !== i+1) ops.push({type:'set', store:'palmares', data:{...r, order:i+1}}); });
+  if(!ops.length) return;
+  if(ops.length > DB_BATCH_MAX) throw new Error(`Son demasiados títulos para ordenar de una vez (${ops.length})`);
+  await dbWriteBatch(ops);
+  list.forEach((r, i) => { r.order = i+1; });
+}
+
+/* Los cambios de orden se encolan: dos flechas seguidas leían el mismo orden
+   y se pisaban; y un fallo del soltar-arrastrar era una promesa sin capturar.
+   Si falla, la lista se vuelve a pintar con lo que hay guardado. */
+let _palmOrderQ = Promise.resolve();
+function _palmOrderEnqueue(fn, compKey){
+  const run = _palmOrderQ.then(fn);
+  _palmOrderQ = run.catch(()=>{});
+  return run.catch(async err => {
+    console.error('[Palmarés]', err);
+    showToast('No se pudo guardar el orden: ' + dbErrorMsg(err), 'error');
+    try{
+      const recs = await getAllPalmaresRecords();
+      const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+      const cont = document.getElementById('palm-reorder-list');
+      if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+    }catch(_){}
+  });
 }
 
 /* Fallback de teclado (foco en una fila, ↑/↓): mismo swap adyacente que el
@@ -1140,16 +1171,18 @@ async function _palmReorderKeydown(e, compKey, recId){
   if(e.key!=='ArrowUp' && e.key!=='ArrowDown') return;
   e.preventDefault();
   const dir = e.key==='ArrowUp' ? -1 : 1;
-  const recs = await getAllPalmaresRecords();
-  const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
-  const idx = list.findIndex(r => r.id === recId);
-  const ni = idx + dir;
-  if(idx < 0 || ni < 0 || ni >= list.length) return;
-  [list[idx], list[ni]] = [list[ni], list[idx]];
-  await _palmPersistOrder(list);
-  const cont = document.getElementById('palm-reorder-list');
-  if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
-  cont?.querySelectorAll('.palm-reorder-row')[ni]?.focus();
+  return _palmOrderEnqueue(async () => {
+    const recs = await getAllPalmaresRecords();
+    const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+    const idx = list.findIndex(r => r.id === recId);
+    const ni = idx + dir;
+    if(idx < 0 || ni < 0 || ni >= list.length) return;
+    [list[idx], list[ni]] = [list[ni], list[idx]];
+    await _palmPersistOrder(list);
+    const cont = document.getElementById('palm-reorder-list');
+    if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+    cont?.querySelectorAll('.palm-reorder-row')[ni]?.focus();
+  }, compKey);
 }
 
 /* ---- Drag & drop (pointer events — funciona con mouse y táctil) ---- */
@@ -1232,12 +1265,14 @@ function _palmReorderPointerUp(){ _palmReorderFinish(true); }
 function _palmReorderPointerCancel(){ _palmReorderFinish(false); }
 
 async function _palmReorderCommit(compKey, orderedIds){
-  const recs = await getAllPalmaresRecords();
-  const byId = new Map(recs.filter(r=>r.competition===compKey).map(r=>[r.id, r]));
-  const list = orderedIds.map(id=>byId.get(id)).filter(Boolean);
-  await _palmPersistOrder(list);
-  const cont = document.getElementById('palm-reorder-list');
-  if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+  return _palmOrderEnqueue(async () => {
+    const recs = await getAllPalmaresRecords();
+    const byId = new Map(recs.filter(r=>r.competition===compKey).map(r=>[r.id, r]));
+    const list = orderedIds.map(id=>byId.get(id)).filter(Boolean);
+    await _palmPersistOrder(list);
+    const cont = document.getElementById('palm-reorder-list');
+    if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+  }, compKey);
 }
 
 /* Modal: agregar título */
@@ -1276,36 +1311,42 @@ async function openPalmaresAddModal(presetTeamId=null){
     </div>
   </div>`;
 }
-async function savePalmaresAdd(){
-  const teamIdRaw = document.getElementById('palm-team').value;
-  const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
-  const competition = document.getElementById('palm-comp').value;
-  const yearRaw = document.getElementById('palm-year').value.trim();
-  const seasonRaw = document.getElementById('palm-season').value.trim();
-  const juegoRaw = document.getElementById('palm-juego').value.trim();
-  const rec = { teamId, competition };
-  if (yearRaw) rec.year = parseInt(yearRaw);
-  if (seasonRaw) rec.season = seasonRaw;
-  if (juegoRaw) rec.juego = juegoRaw;
-  if (teamId == null) {
-    // Título pendiente ("¿?"): forzar un order por debajo del mínimo actual
-    // de esa copa para que quede vigente (arriba de todo) sin necesitar un
-    // reordenamiento manual — así se puede crear en caliente, minutos antes
-    // del último partido, y ya aparece en la Sala con el signo de
-    // interrogación. Un order fijo (0) no alcanza: si ya hay un pendiente
-    // anterior con order 0 (o cualquier otro registro con order <= 0), el
-    // empate lo resuelve _palmCompareChrono por año/id — no determinista
-    // entre pendientes sin año, y Firestore no garantiza orden de lectura.
-    rec.pending = true;
-    const compRecs = await dbGetAll('palmares', r => r.competition === competition);
-    const orders = compRecs.map(r => r.order).filter(o => typeof o === 'number');
-    rec.order = Math.min(1, ...orders) - 1;
-  }
-  rec.createdAt = new Date().toISOString();
-  await dbAdd('palmares', rec);
-  if (typeof showToast === 'function') showToast(teamId == null ? 'Título pendiente creado — ya aparece en la Sala con "¿?"' : 'Título registrado');
-  closePalmaresModals();
-  renderAdmPalmares();
+function savePalmaresAdd(){
+  return _palmRun(async () => {
+    const teamIdRaw = document.getElementById('palm-team').value;
+    const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
+    const competition = document.getElementById('palm-comp').value;
+    const year = _palmYear(document.getElementById('palm-year').value);
+    const season = _palmTxt(document.getElementById('palm-season').value, 20);
+    const juego = _palmTxt(document.getElementById('palm-juego').value, 30);
+    if (Number.isNaN(year)) { showToast(_PALM_YEAR_MSG, 'error'); return; }
+    if (!palmaresCompByKey(competition)) { showToast('La competición ya no existe', 'error'); return; }
+    if (teamId != null && !(await dbGet('teams', teamId))) { showToast('El equipo ya no existe', 'error'); return; }
+    if (await _palmDuplicate(teamId, competition, season, null)) { showToast(_palmDupMsg(season), 'error'); return; }
+    const rec = { teamId, competition };
+    if (year !== undefined) rec.year = year;
+    if (season) rec.season = season;
+    if (juego) rec.juego = juego;
+    if (teamId == null) {
+      // Título pendiente ("¿?"): forzar un order por debajo del mínimo actual
+      // de esa copa para que quede vigente (arriba de todo) sin necesitar un
+      // reordenamiento manual — así se puede crear en caliente, minutos antes
+      // del último partido, y ya aparece en la Sala con el signo de
+      // interrogación. Un order fijo (0) no alcanza: si ya hay un pendiente
+      // anterior con order 0 (o cualquier otro registro con order <= 0), el
+      // empate lo resuelve _palmCompareChrono por año/id — no determinista
+      // entre pendientes sin año, y Firestore no garantiza orden de lectura.
+      rec.pending = true;
+      const compRecs = await dbGetAll('palmares', r => r.competition === competition);
+      const orders = compRecs.map(r => r.order).filter(o => typeof o === 'number');
+      rec.order = Math.min(1, ...orders) - 1;
+    }
+    rec.createdAt = new Date().toISOString();
+    await dbAdd('palmares', rec);
+    showToast(teamId == null ? 'Título pendiente creado — ya aparece en la Sala con "¿?"' : 'Título registrado');
+    closePalmaresModals();
+    renderAdmPalmares();
+  }, 'No se pudo guardar el título');
 }
 
 /* Modal: editar títulos en una celda (team × competición). Cada fila
@@ -1358,34 +1399,55 @@ async function openPalmaresCellEdit(teamId, compKey){
     </div>
   </div>`;
 }
-async function addPalmaresRecord(teamId, compKey){
-  const yearRaw = document.getElementById('palm-cell-year').value.trim();
-  const seasonRaw = document.getElementById('palm-cell-season').value.trim();
-  const juegoRaw = document.getElementById('palm-cell-juego').value.trim();
-  const rec = { teamId, competition: compKey, createdAt: new Date().toISOString() };
-  if (yearRaw) rec.year = parseInt(yearRaw);
-  if (seasonRaw) rec.season = seasonRaw;
-  if (juegoRaw) rec.juego = juegoRaw;
-  await dbAdd('palmares', rec);
-  if (typeof showToast === 'function') showToast('Título agregado');
-  await openPalmaresCellEdit(teamId, compKey);
-  renderAdmPalmares();
+function addPalmaresRecord(teamId, compKey){
+  return _palmRun(async () => {
+    const year = _palmYear(document.getElementById('palm-cell-year').value);
+    const season = _palmTxt(document.getElementById('palm-cell-season').value, 20);
+    const juego = _palmTxt(document.getElementById('palm-cell-juego').value, 30);
+    if (Number.isNaN(year)) { showToast(_PALM_YEAR_MSG, 'error'); return; }
+    if (!(await dbGet('teams', teamId))) { showToast('El equipo ya no existe', 'error'); return; }
+    if (await _palmDuplicate(teamId, compKey, season, null)) { showToast(_palmDupMsg(season), 'error'); return; }
+    const rec = { teamId, competition: compKey, createdAt: new Date().toISOString() };
+    if (year !== undefined) rec.year = year;
+    if (season) rec.season = season;
+    if (juego) rec.juego = juego;
+    await dbAdd('palmares', rec);
+    showToast('Título agregado');
+    await openPalmaresCellEdit(teamId, compKey);
+    renderAdmPalmares();
+  }, 'No se pudo agregar el título');
+}
+/* Texto que dice exactamente qué se pierde al quitar un título. */
+function _palmDeleteMsg(rec, teamName){
+  const comp = palmaresCompByKey(rec.competition)?.label || rec.competition;
+  const when = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
+  const imgs = _palmGallerySafeItems(rec.gallery).length;
+  return `Se quita el título de ${teamName} en ${comp}${when ? ' (' + when + ')' : ''}`
+    + (imgs ? ` y su galería de ${imgs} imagen${imgs===1?'':'es'} (los archivos subidos quedan en el almacenamiento, sin título al que mostrarse)` : '')
+    + '. El campeón vigente puede cambiar.';
 }
 async function deletePalmaresRecord(recId, teamId, compKey){
-  if (!confirm('¿Quitar este título del palmarés?')) return;
-  await dbDelete('palmares', recId);
-  if (typeof showToast === 'function') showToast('Título eliminado');
-  await openPalmaresCellEdit(teamId, compKey);
-  renderAdmPalmares();
+  const rec = await dbGet('palmares', recId);
+  if (!rec) { showToast('El título ya no existe', 'error'); await openPalmaresCellEdit(teamId, compKey); return; }
+  const team = await dbGet('teams', teamId);
+  showConfirm('¿Quitar este título?', _palmDeleteMsg(rec, team?.name || '#'+teamId), () => _palmRun(async () => {
+    await dbDelete('palmares', recId);
+    showToast('Título eliminado');
+    await openPalmaresCellEdit(teamId, compKey);
+    renderAdmPalmares();
+  }, 'No se pudo quitar el título'));
 }
 
 /* Igual que deletePalmaresRecord, pero para un título pendiente ("¿?") —
    no tiene equipo, así que no hay celda (team × comp) a la que volver. */
 async function deletePendingPalmaresRecord(recId, compKey){
-  if (!confirm('¿Quitar este título pendiente?')) return;
-  await dbDelete('palmares', recId);
-  if (typeof showToast === 'function') showToast('Título pendiente eliminado');
-  renderAdmPalmares();
+  const rec = await dbGet('palmares', recId);
+  if (!rec) { showToast('El título ya no existe', 'error'); renderAdmPalmares(); return; }
+  showConfirm('¿Quitar este título pendiente?', _palmDeleteMsg(rec, '«Campeón por definir»'), () => _palmRun(async () => {
+    await dbDelete('palmares', recId);
+    showToast('Título pendiente eliminado');
+    renderAdmPalmares();
+  }, 'No se pudo quitar el título'));
 }
 
 /* Modal: editar un registro (cambiar equipo / año / temporada) */
@@ -1427,23 +1489,28 @@ async function openPalmaresEditRecord(recId){
     </div>
   </div>`;
 }
-async function savePalmaresEditRecord(recId){
-  const rec = await dbGet('palmares', recId);
-  if (!rec) return;
-  const teamIdRaw = document.getElementById('palm-edit-team').value;
-  const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
-  const yearRaw = document.getElementById('palm-edit-year').value.trim();
-  const seasonRaw = document.getElementById('palm-edit-season').value.trim();
-  const juegoRaw = document.getElementById('palm-edit-juego').value.trim();
-  const next = { ...rec, teamId, pending: teamId == null };
-  if (yearRaw) next.year = parseInt(yearRaw); else delete next.year;
-  if (seasonRaw) next.season = seasonRaw; else delete next.season;
-  if (juegoRaw) next.juego = juegoRaw; else delete next.juego;
-  next.updatedAt = new Date().toISOString();
-  await dbPut('palmares', next);
-  if (typeof showToast === 'function') showToast('Título actualizado');
-  closePalmaresModals();
-  renderAdmPalmares();
+function savePalmaresEditRecord(recId){
+  return _palmRun(async () => {
+    const rec = await dbGet('palmares', recId);
+    if (!rec) { showToast('El título ya no existe', 'error'); closePalmaresModals(); renderAdmPalmares(); return; }
+    const teamIdRaw = document.getElementById('palm-edit-team').value;
+    const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
+    const year = _palmYear(document.getElementById('palm-edit-year').value);
+    const season = _palmTxt(document.getElementById('palm-edit-season').value, 20);
+    const juego = _palmTxt(document.getElementById('palm-edit-juego').value, 30);
+    if (Number.isNaN(year)) { showToast(_PALM_YEAR_MSG, 'error'); return; }
+    if (teamId != null && !(await dbGet('teams', teamId))) { showToast('El equipo ya no existe', 'error'); return; }
+    if (await _palmDuplicate(teamId, rec.competition, season, rec.id)) { showToast(_palmDupMsg(season), 'error'); return; }
+    const next = { ...rec, teamId, pending: teamId == null };
+    if (year !== undefined) next.year = year; else delete next.year;
+    if (season) next.season = season; else delete next.season;
+    if (juego) next.juego = juego; else delete next.juego;
+    next.updatedAt = new Date().toISOString();
+    await dbPut('palmares', next);
+    showToast('Título actualizado');
+    closePalmaresModals();
+    renderAdmPalmares();
+  }, 'No se pudo guardar el título');
 }
 
 const _PALM_GALLERY = {
@@ -1783,20 +1850,31 @@ function selectTrophyStyle(styleId, labelEl){
   if (radio) radio.checked = true;
 }
 
-async function saveNewCopa(){
-  const label = document.getElementById('nueva-copa-label').value.trim();
-  const short = document.getElementById('nueva-copa-short').value.trim();
-  const color = document.getElementById('nueva-copa-color').value;
-  const trophy = document.querySelector('input[name="trophy-style"]:checked')?.value;
+/* Validación común de una copa nueva o editada. Devuelve el mensaje de error o null. */
+function _palmCopaError(label, short, trophy, color, selfKey){
+  if (!label || label.length < 3) return 'Nombre debe tener al menos 3 caracteres';
+  if (label.length > 40) return 'El nombre admite hasta 40 caracteres';
+  if (!short || short.length < 2) return 'Abreviatura debe tener al menos 2 caracteres';
+  if (!trophy || !getTrophyStyles().some(t => t.id === trophy)) return 'Selecciona un estilo de trofeo';
+  if (!_palmIsHex(color)) return 'El color no es válido';
+  const dup = PALMARES_COMPS.find(c => c.key !== selfKey && String(c.label).trim().toLowerCase() === label.toLowerCase());
+  if (dup) return `Ya existe una copa llamada «${dup.label}»`;
+  return null;
+}
 
-  if (!label || label.length < 3) { if (typeof showToast === 'function') showToast('Nombre debe tener al menos 3 caracteres'); return; }
-  if (!short || short.length < 2) { if (typeof showToast === 'function') showToast('Abreviatura debe tener al menos 2 caracteres'); return; }
-  if (!trophy) { if (typeof showToast === 'function') showToast('Selecciona un estilo de trofeo'); return; }
-
-  await createNewCopa(label, short, trophy, color);
-  if (typeof showToast === 'function') showToast('Nueva copa creada');
-  closePalmaresModals();
-  renderAdmPalmares();
+function saveNewCopa(){
+  return _palmRun(async () => {
+    const label = document.getElementById('nueva-copa-label').value.trim();
+    const short = document.getElementById('nueva-copa-short').value.trim().slice(0, 6);
+    const color = document.getElementById('nueva-copa-color').value;
+    const trophy = document.querySelector('input[name="trophy-style"]:checked')?.value;
+    const err = _palmCopaError(label, short, trophy, color, null);
+    if (err) { showToast(err, 'error'); return; }
+    await createNewCopa(label, short, trophy, color);
+    showToast('Nueva copa creada');
+    closePalmaresModals();
+    renderAdmPalmares();
+  }, 'No se pudo crear la copa');
 }
 
 /* Modal: gestionar TODAS las copas (predefinidas + personalizadas) */
@@ -1852,11 +1930,17 @@ async function openManagedCopaModal(){
 }
 
 async function deleteCopaAndRefresh(key){
-  if (!confirm(`¿Eliminar la copa "${palmaresCompByKey(key)?.label}"?\n\nNota: Los títulos registrados en esta copa se mantendrán, solo desaparecerá la copa del listado.`)) return;
-  await deleteCopa(key);
-  if (typeof showToast === 'function') showToast('Copa eliminada');
-  await openManagedCopaModal();
-  renderAdmPalmares();
+  const label = palmaresCompByKey(key)?.label || key;
+  const used = await dbGetAll('palmares', r => r.competition === key);
+  if (used.length) {
+    showToast(`«${label}» tiene ${used.length} título${used.length===1?'':'s'} registrado${used.length===1?'':'s'}: quítalos antes de eliminarla`, 'error');
+    return;
+  }
+  showConfirm(`¿Eliminar la copa «${label}»?`, 'Se quita la copa del listado. No tiene títulos registrados.', () => _palmRun(async () => {
+    if (await deleteCopa(key)) showToast('Copa eliminada');
+    await openManagedCopaModal();
+    renderAdmPalmares();
+  }, 'No se pudo eliminar la copa'));
 }
 
 /* Modal: editar copa (predefinida o personalizada) */
@@ -1869,7 +1953,7 @@ async function openEditCopaModal(key){
 
   const isPredefined = PALMARES_COMPS_DEFAULT.find(c => c.key === key);
   const resetBtn = isPredefined
-    ? `<button class="btn btn-xs" style="margin-left:auto;" onclick="resetCopaToDefault('${_escAttr(key)}')">↺ Restaurar original</button>`
+    ? `<button class="btn btn-xs" style="margin-left:auto;" onclick="resetCopaToDefault('${_escAttr(key)}')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restaurar original</button>`
     : '';
   const noteText = '';
   const trophyStyles = getTrophyStyles();
@@ -1923,34 +2007,70 @@ function selectTrophyStyleEdit(styleId, labelEl){
 }
 
 async function resetCopaToDefault(key){
-  if (!confirm('¿Restaurar esta copa a sus valores originales?')) return;
-  const all = await dbGetAll('palmares-comps');
-  const rec = all.find(c => c.key === key);
-  if (rec) await dbDelete('palmares-comps', rec.id);
-  await loadPalmaresComps();
-  if (typeof showToast === 'function') showToast('Copa restaurada a valores originales');
-  closePalmaresModals();
-  renderAdmPalmares();
-  renderPubPalmares();
+  const copa = palmaresCompByKey(key);
+  showConfirm(`¿Restaurar «${copa?.label || key}»?`, 'Se pierden los cambios de nombre, abreviatura, color y trofeo de esta copa: vuelve a sus valores originales. Los títulos registrados no cambian.', () => _palmRun(async () => {
+    const all = await dbGetAll('palmares-comps');
+    const rec = all.find(c => c.key === key);
+    if (rec) await dbDelete('palmares-comps', rec.id);
+    await loadPalmaresComps();
+    showToast('Copa restaurada a valores originales');
+    closePalmaresModals();
+    renderAdmPalmares();
+    renderPubPalmares();
+  }, 'No se pudo restaurar la copa'));
 }
 
-async function saveEditCopa(key){
-  const label = document.getElementById('edit-copa-label').value.trim();
-  const short = document.getElementById('edit-copa-short').value.trim();
-  const color = document.getElementById('edit-copa-color').value;
-  const trophy = document.querySelector('input[name="trophy-style-edit"]:checked')?.value;
-
-  if (!label || label.length < 3) { if (typeof showToast === 'function') showToast('Nombre debe tener al menos 3 caracteres'); return; }
-  if (!short || short.length < 2) { if (typeof showToast === 'function') showToast('Abreviatura debe tener al menos 2 caracteres'); return; }
-  if (!trophy) { if (typeof showToast === 'function') showToast('Selecciona un estilo de trofeo'); return; }
-
-  const success = await editCopa(key, label, short, trophy, color);
-  if (!success) { if (typeof showToast === 'function') showToast('Error al guardar la copa'); return; }
-  if (typeof showToast === 'function') showToast('Copa actualizada');
-  closePalmaresModals();
-  renderAdmPalmares();
-  renderPubPalmares();
+function saveEditCopa(key){
+  return _palmRun(async () => {
+    const label = document.getElementById('edit-copa-label').value.trim();
+    const short = document.getElementById('edit-copa-short').value.trim().slice(0, 6);
+    const color = document.getElementById('edit-copa-color').value;
+    const trophy = document.querySelector('input[name="trophy-style-edit"]:checked')?.value;
+    const err = _palmCopaError(label, short, trophy, color, key);
+    if (err) { showToast(err, 'error'); return; }
+    const success = await editCopa(key, label, short, trophy, color);
+    if (!success) { showToast('Error al guardar la copa', 'error'); return; }
+    showToast('Copa actualizada');
+    closePalmaresModals();
+    renderAdmPalmares();
+    renderPubPalmares();
+  }, 'No se pudo guardar la copa');
 }
+
+/* ---------------- Guardas de escritura del admin (MS-5.11) ----------------
+   Una sola escritura a la vez (doble clic), errores de red o de reglas como
+   aviso claro, y valores validados (el año aceptaba «20x4» como 20 y vacío
+   como NaN). */
+let _palmBusy = false;
+async function _palmRun(fn, what){
+  if(_palmBusy) return;
+  _palmBusy = true;
+  try{ return await fn(); }
+  catch(err){
+    console.error('[Palmarés]', err);
+    showToast((what ? what+': ' : '') + dbErrorMsg(err), 'error');
+  }
+  finally{ _palmBusy = false; }
+}
+/* Año de un input: undefined si está vacío, NaN si no son 4 cifras entre 1900 y 2100. */
+function _palmYear(raw){
+  const t = String(raw==null?'':raw).trim();
+  if(!t) return undefined;
+  if(!/^\d{4}$/.test(t)) return NaN;
+  const n = Number(t);
+  return n>=1900 && n<=2100 ? n : NaN;
+}
+const _PALM_YEAR_MSG = 'El año debe ser un número de 4 cifras entre 1900 y 2100';
+function _palmTxt(raw, max){ return String(raw==null?'':raw).trim().slice(0, max); }
+/* ¿El equipo ya tiene un título de esa copa en esa temporada? */
+async function _palmDuplicate(teamId, competition, season, selfId){
+  if(teamId==null || !season) return null;
+  const q = season.toLowerCase();
+  const recs = await dbGetAll('palmares', r => r.teamId===teamId && r.competition===competition
+    && String(r.season||'').trim().toLowerCase()===q && r.id!==selfId);
+  return recs[0] || null;
+}
+function _palmDupMsg(season){ return `Ese equipo ya tiene un título de esa copa en la temporada ${season}`; }
 
 /* ---------------- Utils ---------------- */
 function _esc(s){

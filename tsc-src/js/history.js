@@ -911,7 +911,7 @@ function _renderFiltersZone(el, all, isAdmin){
 
   const juegos = [...new Set(all.map(r=>r.juego).filter(Boolean))].sort();
   const exportBtn = isAdmin
-    ? `<button class="btn btn-primary btn-sm" onclick="exportHistoryToExcel()">⤓ Exportar Excel</button>`
+    ? `<button class="btn btn-primary btn-sm" onclick="exportHistoryToExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar Excel</button>`
     : '';
 
   zone.innerHTML = `
@@ -1188,7 +1188,10 @@ async function _loadXLSXLib(){
   return window.XLSX;
 }
 
+let _histExporting = false;
 async function exportHistoryToExcel(){
+  if(_histExporting) return;   // doble clic: dos descargas
+  _histExporting = true;
   try {
     showToast('Preparando Excel...');
     const XLSX = await _loadXLSXLib();
@@ -1215,7 +1218,7 @@ async function exportHistoryToExcel(){
   } catch(err){
     console.error(err);
     showToast('Error al exportar Excel: '+err.message,'error');
-  }
+  } finally { _histExporting = false; }
 }
 
 /* ==========================================================
@@ -1239,7 +1242,7 @@ const _histStdState = {
 /* Encabezado de columna ordenable (con flecha si está activa) */
 function _histStdTh(label, key){
   const active = _histStdState.sortBy === key;
-  const arrow  = active ? (_histStdState.sortDir==='asc' ? ' ▲' : ' ▼') : '';
+  const arrow  = active ? (_histStdState.sortDir==='asc' ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px"><polyline points="18 15 12 9 6 15"/></svg>' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px"><polyline points="6 9 12 15 18 9"/></svg>') : '';
   const col    = active ? 'color:var(--gold);font-weight:700;' : '';
   return `<th onclick="histStdSort('${key}')" title="Ordenar por ${label}" style="text-align:center;cursor:pointer;user-select:none;white-space:nowrap;${col}">${label}${arrow}</th>`;
 }
