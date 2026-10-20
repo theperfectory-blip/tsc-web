@@ -235,10 +235,13 @@ async function openTeamModal(id=null){
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:0;">
+        ${team ? `<div class="form-group" style="margin-bottom:0;">
           <label>YuNaCoins actuales</label>
-          <input type="number" id="tf-coins" value="${team?.yunacoin||0}" min="0">
-        </div>
+          <div style="padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${(team.yunacoin||0).toLocaleString('es-CL')}</strong>
+            <span style="font-size:12px;color:var(--txt3);">Solo lectura: el saldo se cambia en la sección YuNaCoins, que deja el movimiento en el historial.</span>
+          </div>
+        </div>` : ''}
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="closeTeamModal()">Cancelar</button>
@@ -401,7 +404,6 @@ async function _saveTeam(id){
   const color = document.getElementById('tf-color').value;
   const color2 = document.getElementById('tf-color2')?.value || color;
   const status= document.getElementById('tf-status').value;
-  const coins = parseInt(document.getElementById('tf-coins').value)||0;
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
   if(name.length>40){ showToast('El nombre admite hasta 40 caracteres','error'); return; }
@@ -448,7 +450,6 @@ async function _saveTeam(id){
 
   const data = {
     name, ini, pres, color, color2, status,
-    yunacoin: coins,
     previousNames,                                  // ← nuevo (array)
     historyNames: previousNames.join(' → '),        // ← compatibilidad legacy (string)
     logo: logoUrl,
@@ -473,7 +474,7 @@ async function _saveTeam(id){
     // Notificar cambio de equipo para recargar vistas dinámicas
     await notifyTeamChanged(id);
   } else {
-    teamId = await dbAdd('teams',{...data, season:1, createdAt:new Date().toISOString()});
+    teamId = await dbAdd('teams',{...data, yunacoin:0, season:1, createdAt:new Date().toISOString()});
     showToast('Equipo creado');
     // Notificar cambio de equipo para recargar vistas dinámicas (mismo trato que editar)
     await notifyTeamChanged(teamId);

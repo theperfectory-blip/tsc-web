@@ -4,6 +4,46 @@
 
 function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/* ----------------------------------------------------------
+   Guardas de escritura (MS-5.9)
+   - Cada movimiento escribe el registro en `coins` y el saldo del equipo en
+     UN lote (H-53): antes eran dos escrituras y un corte entre ambas dejaba
+     un movimiento sin saldo (o al revés).
+   - Una sola operación a la vez (doble clic) y errores de red o de reglas
+     como aviso claro.
+   - Los movimientos llevan la temporada seleccionada: en una temporada
+     finalizada el código se niega (el archivo de la temporada, D8, no debe
+     recibir movimientos nuevos).
+   ---------------------------------------------------------- */
+const COINS_MAX = 1000000;
+let _coinsBusy = false;
+async function _coinsRun(fn){
+  if(_coinsBusy) return;
+  _coinsBusy = true;
+  try{ return await fn(); }
+  catch(err){ console.error('[coins]', err); showToast(dbErrorMsg(err),'error'); }
+  finally{ _coinsBusy = false; }
+}
+
+async function _coinsSeasonLocked(){
+  const season = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
+  if(season?.status==='finished'){
+    showToast(`${getSeasonName(season)} está finalizada: elige la temporada activa para mover YuNaCoins`,'error');
+    return true;
+  }
+  return false;
+}
+
+/* Cantidad de un input: entero de 1 a COINS_MAX, o NaN. parseInt aceptaba
+   «12abc» y «1.5» (como 12 y 1). */
+function _coinsAmount(raw){
+  const t = String(raw==null?'':raw).trim();
+  if(!/^\d+$/.test(t)) return NaN;
+  const n = Number(t);
+  return n>=1 && n<=COINS_MAX ? n : NaN;
+}
+const _COINS_AMOUNT_MSG = `La cantidad debe ser un número entero entre 1 y ${COINS_MAX.toLocaleString('es-CL')}`;
+
 async function renderAdmCoins(){
   const el = document.getElementById('adm-coins-content');
   const teams = await dbGetAll('teams');
@@ -19,7 +59,7 @@ async function renderAdmCoins(){
     <div class="stat-card"><div class="stat-num">${total.toLocaleString('es-CL')}</div><div class="stat-lbl">Total circulación</div></div>
     <div class="stat-card"><div class="stat-num">${promedio.toLocaleString('es-CL')}</div><div class="stat-lbl">Promedio por equipo</div></div>
     <div class="stat-card"><div class="stat-num">${teams.length}</div><div class="stat-lbl">Equipos</div></div>
-    <div class="stat-card"><div class="stat-num">${Math.max(...teams.map(t=>t.yunacoin||0)).toLocaleString('es-CL')}</div><div class="stat-lbl">Mayor saldo</div></div>
+    <div class="stat-card"><div class="stat-num">${Math.max(0,...teams.map(t=>t.yunacoin||0)).toLocaleString('es-CL')}</div><div class="stat-lbl">Mayor saldo</div></div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
     <div class="section-lbl" style="margin:0;">Saldos por equipo</div>
@@ -74,13 +114,14 @@ function renderCoinsTable(teams, maxCoins){
 async function filterCoinsTable(){
   const search = (document.getElementById('coins-search')?.value||'').toLowerCase();
   let teams = await dbGetAll('teams');
-  if(search) teams = teams.filter(t=>t.name.toLowerCase().includes(search)||t.pres?.toLowerCase().includes(search));
+  if(search) teams = teams.filter(t=>String(t.name||'').toLowerCase().includes(search)||String(t.pres||'').toLowerCase().includes(search));
   const maxCoins = Math.max(...teams.map(t=>t.yunacoin||0),1);
   renderCoinsTable(teams, maxCoins);
 }
 
 async function openCoinsModal(teamId, mode){
   const team = await dbGet('teams', teamId);
+  if(!team){ showToast('El equipo ya no existe','error'); renderAdmCoins(); return; }
   const wrap = document.getElementById('coins-modal-wrap');
   const isAdd = mode==='add';
   wrap.innerHTML = `
@@ -124,27 +165,41 @@ async function openCoinsModal(teamId, mode){
 }
 
 function updateCoinsPreview(current, mode){
-  const amount = parseInt(document.getElementById('ci-amount')?.value)||0;
-  const newTotal = mode==='add' ? current+amount : Math.max(0,current-amount);
+  const amount = _coinsAmount(document.getElementById('ci-amount')?.value);
   const el = document.getElementById('coins-preview');
-  if(el) el.innerHTML = `Nuevo saldo: <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${newTotal.toLocaleString('es-CL')}</strong> coins`;
+  if(!el) return;
+  if(isNaN(amount)){ el.innerHTML = `<span style="color:var(--txt3);font-size:14px;">${_COINS_AMOUNT_MSG}</span>`; return; }
+  if(mode!=='add' && amount>current){ el.innerHTML = `<span style="color:var(--red);font-size:14px;">Saldo insuficiente: el equipo tiene ${current.toLocaleString('es-CL')} coins</span>`; return; }
+  const newTotal = mode==='add' ? current+amount : current-amount;
+  el.innerHTML = `Nuevo saldo: <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${newTotal.toLocaleString('es-CL')}</strong> coins`;
 }
 
 function closeCoinsModal(){ document.getElementById('coins-modal-wrap').innerHTML=''; }
 
-async function saveCoinsTransaction(teamId, mode){
-  const amount = parseInt(document.getElementById('ci-amount').value)||0;
-  const reason = document.getElementById('ci-reason').value;
-  const note   = document.getElementById('ci-note').value.trim();
-  if(amount<=0){ showToast('Ingresa una cantidad válida','error'); return; }
-  const team = await dbGet('teams', teamId);
-  const current  = team.yunacoin||0;
-  const newTotal = mode==='add' ? current+amount : Math.max(0,current-amount);
-  await dbAdd('coins',{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:STATE.season,date:new Date().toISOString()});
-  await dbPut('teams',{...team,yunacoin:newTotal});
-  showToast(`${mode==='add'?'+':'-'}${amount} coins a ${team.name}`);
-  closeCoinsModal();
-  renderAdmCoins();
+function saveCoinsTransaction(teamId, mode){
+  return _coinsRun(async ()=>{
+    if(mode!=='add' && mode!=='sub') return;
+    const amount = _coinsAmount(document.getElementById('ci-amount')?.value);
+    const reason = document.getElementById('ci-reason')?.value || 'otro';
+    const note   = (document.getElementById('ci-note')?.value||'').trim().slice(0,200);
+    if(isNaN(amount)){ showToast(_COINS_AMOUNT_MSG,'error'); return; }
+    if(await _coinsSeasonLocked()) return;
+    const team = await dbGet('teams', teamId);
+    if(!team){ showToast('El equipo ya no existe','error'); closeCoinsModal(); renderAdmCoins(); return; }
+    const current = Number(team.yunacoin)||0;
+    if(mode==='sub' && amount>current){
+      showToast(`${team.name} tiene ${current.toLocaleString('es-CL')} coins: no se pueden restar ${amount.toLocaleString('es-CL')}`,'error');
+      return;
+    }
+    const newTotal = mode==='add' ? current+amount : current-amount;
+    await dbWriteBatch([
+      {type:'add', store:'coins', data:{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:STATE.season,date:new Date().toISOString()}},
+      {type:'set', store:'teams', data:{...team,yunacoin:newTotal}},
+    ]);
+    showToast(`${mode==='add'?'+':'-'}${amount.toLocaleString('es-CL')} coins a ${team.name}`);
+    closeCoinsModal();
+    renderAdmCoins();
+  });
 }
 
 async function openCoinsHistory(teamId){
@@ -222,20 +277,41 @@ function setBulkMode(mode){
   });
 }
 
-async function saveBulkCoins(){
-  const amount=(parseInt(document.getElementById('bulk-amount').value)||0);
-  const reason=(document.getElementById('bulk-reason').value.trim()||'Masivo');
-  const mode=window._bulkMode||'add';
-  if(amount<=0){showToast('Ingresa cantidad válida','error');return;}
-  const teams=await dbGetAll('teams',t=>t.status==='ACTIVO');
-  for(const team of teams){
-    const cur=team.yunacoin||0;
-    const nxt=mode==='add'?cur+amount:Math.max(0,cur-amount);
-    await dbAdd('coins',{teamId:team.id,teamName:team.name,mode,amount,reason,note:'Masivo',before:cur,after:nxt,season:STATE.season,date:new Date().toISOString()});
-    await dbPut('teams',{...team,yunacoin:nxt});
-  }
-  showToast(`${mode==='add'?'+':'-'}${amount} coins a ${teams.length} equipos`);
-  closeCoinsModal();
-  renderAdmCoins();
+function saveBulkCoins(){
+  return _coinsRun(async ()=>{
+    const amount = _coinsAmount(document.getElementById('bulk-amount')?.value);
+    const reason = (document.getElementById('bulk-reason')?.value||'').trim().slice(0,60) || 'Masivo';
+    const mode   = window._bulkMode==='sub' ? 'sub' : 'add';
+    if(isNaN(amount)){ showToast(_COINS_AMOUNT_MSG,'error'); return; }
+    if(await _coinsSeasonLocked()) return;
+    const teams = await dbGetAll('teams',t=>t.status==='ACTIVO');
+    // Restar nunca deja saldo negativo: a cada equipo se le resta lo que tiene,
+    // hasta la cantidad pedida, y el movimiento registra lo restado de verdad.
+    const plan = teams.map(team=>{
+      const cur = Number(team.yunacoin)||0;
+      const delta = mode==='add' ? amount : Math.min(cur, amount);
+      return {team, cur, delta};
+    }).filter(p=>p.delta>0);
+    if(!plan.length){ showToast('Ningún equipo activo tiene saldo para restar','error'); return; }
+    if(plan.length*2 > DB_BATCH_MAX){ showToast(`Son demasiados equipos para un solo lote (${plan.length}): el máximo es ${DB_BATCH_MAX/2}`,'error'); return; }
+    const moved = plan.reduce((sum,p)=>sum+p.delta,0);
+    const short = mode==='sub' ? plan.filter(p=>p.delta<amount).length : 0;
+    const msg = mode==='add'
+      ? `Se agregan ${amount.toLocaleString('es-CL')} coins a cada uno de los ${plan.length} equipos activos (${moved.toLocaleString('es-CL')} en total). Motivo: ${reason}.`
+      : `Se restan hasta ${amount.toLocaleString('es-CL')} coins a ${plan.length} equipos activos (${moved.toLocaleString('es-CL')} en total)${short?`; ${short} tienen menos saldo y quedan en 0`:''}. Motivo: ${reason}.`;
+    const apply = ()=>_coinsRun(async ()=>{
+      const date = new Date().toISOString();
+      const ops = [];
+      for(const {team,cur,delta} of plan){
+        const nxt = mode==='add' ? cur+delta : cur-delta;
+        ops.push({type:'add', store:'coins', data:{teamId:team.id,teamName:team.name,mode,amount:delta,reason,note:'Masivo',before:cur,after:nxt,season:STATE.season,date}});
+        ops.push({type:'set', store:'teams', data:{...team,yunacoin:nxt}});
+      }
+      await dbWriteBatch(ops);
+      showToast(`${mode==='add'?'+':'-'}${amount.toLocaleString('es-CL')} coins a ${plan.length} equipos`);
+      closeCoinsModal();
+      renderAdmCoins();
+    });
+    showConfirm('¿Aplicar asignación masiva?', msg, apply);
+  });
 }
-

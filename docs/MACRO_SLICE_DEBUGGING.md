@@ -140,7 +140,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-45 | **Alta (integridad).** Borrar una temporada dejaba sus fases huérfanas: se borraban por `season`, campo que las fases no tienen (cuelgan de `compId`). También apuntaba a `palmares` por número (su `season` es texto, nunca coincidía). **Cerrado en 5.2** |
 | H-46 | Baja. El acceso «Panel admin» del perfil abría el dashboard con `goAdminPage` sin pasar por `setMode` (layout público). **Cerrado en 5.1** |
 | H-47 | Baja. Crear una temporada no finaliza la anterior: pueden quedar dos «Activa». Decidir con el dueño; va a 5.16 |
-| H-48 | Baja. El campo «YuNaCoins actuales» del modal de equipo cambia el saldo sin dejar movimiento en `coins`. Hallado en 5.4, va a 5.9 |
+| H-48 | **Cerrado en 5.9.** El campo «YuNaCoins actuales» del modal de equipo cambiaba el saldo sin dejar movimiento en `coins`; ahora el modal muestra el saldo en solo lectura y el saldo se cambia solo desde YuNaCoins. Hallado en 5.4 |
 | H-49 | Media. En una temporada finalizada solo la UI bloquea los cambios; código y reglas aceptan escribir. Hallado en 5.3, va a 5.16 (regla de temporadas archivadas) |
 | H-50 | Baja. Código muerto en `openPhaseModal`: `gpOpts` (`originPhaseId`) no se pinta y el listener de `pf-tpg` no tiene input. Hallado en 5.3, va a 7.2 |
 | H-51 | Baja. Código muerto en `matches.js`: `openMatchInputModal`, `saveMatchResult`, `updateMatchInputTeams`, `updateMatchPreview`, `closeMatchInputModal` (nadie las llama; el botón `btn-registrar-partido` no existe) y `window._matchRondaActual`, que solo lee esa rama. Hallado en 5.5, va a 7.2 |
@@ -622,6 +622,8 @@ sandbox de 2.1.**
 > **Estado 5.7:** CERRADO · 2026-10-19 (Opus) · ver `docs/reportes/MS-5.7.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, 0 errores no provocados. Cierra H-27 (escudos en el bracket admin) y H-30 (playoff con ids), y H-53 en bracket y playoff (resultado + historial en un lote, `dbNewIds`). Bloqueo al cambiar un ganador ya propagado a una ronda jugada; empate a partido único exige penales; sincronización de cruces que pisaba el lado A arreglada; reasignar una llave avisa qué resultados se borran (la supercopa dejaba el historial huérfano). Abre H-57 a H-59.
 
 > **Estado 5.8:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.8.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, Functions 10/10 escenarios, sin cambios de reglas. Finalizar un partido en vivo guarda partido e historial en un lote (H-59, cierra H-53); cola de escrituras (los goles seguidos no se pierden), un partido ya finalizado o descartado no vuelve a ponerse en vivo, temporada finalizada rechazada desde el código, penales solo cuando hacen falta, descartar conserva un cruce programado y borra su historial, C9. Functions: los avisos ya no salen por partidos jugados (**M-12**, deploy de functions a mano).
+
+> **Estado 5.9:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.9.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas ni de functions. Cierra H-48 (el modal de equipo ya no edita el saldo: solo lectura, se cambia en YuNaCoins). Movimiento y saldo en un lote, masivo en un lote con confirmación, cantidades enteras de 1 a 1.000.000, restar más del saldo rechazado (individual) o limitado al saldo (masivo, el movimiento registra lo restado), temporada finalizada rechazada, doble clic, C9.
 
 ---
 
