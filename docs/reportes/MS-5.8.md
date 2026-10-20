@@ -60,3 +60,5 @@ Cómo se verificó (todo en el sandbox, nunca producción):
 - `onMatchWentLive` usa `onDocumentUpdated`: un partido creado ya en vivo (cruce sin documento previo) no dispara el aviso. No importa hoy porque ese cruce no tiene `scheduledDate`, y sin fecha el aviso no aplica; queda anotado por si algún día se programan cruces sin documento.
 
 Acción del dueño requerida: **M-12** (`firebase deploy --only functions`) para que el filtro de partidos jugados llegue a producción. No hay cambios de reglas.
+
+**M-12 hecha (2026-10-20):** `firebase deploy --only functions` desde el worktree; `notifyStreamToday`, `notifyStartupContinuation`, `onMatchWentLive` y `onAuthUserDeleted` con «Successful update operation». El primer intento falló por el timeout de 10 s del análisis del CLI en Windows; con `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60` pasó.

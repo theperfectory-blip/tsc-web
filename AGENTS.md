@@ -18,6 +18,9 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
   - Reglas en `firebase/firestore.rules` y `firebase/storage.rules`. Se
     despliegan **a mano** (`firebase deploy --only firestore:rules,storage`);
     el CI (`rules-tests.yml`) solo corre los tests.
+  - Functions también a mano: `firebase deploy --only functions`. En Windows,
+    si falla con «Timeout after 10000», antes en PowerShell:
+    `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60`.
 - **Capa de datos (`js/db.js`):** API única `dbGetAll / dbGet / dbAdd /
   dbAddMany / dbPut / dbDelete / dbDeleteMany / dbSubscribe / getForSeason`.
   - `USE_FIRESTORE` (lo define `firebase-config.js`) elige el backend. Si el
