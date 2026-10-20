@@ -67,6 +67,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-8 | Confirmar el borrado de los documentos de T3 en Firestore, después del deploy del archivo y de verificar el respaldo | Slice 5.16 |
 | M-9 | `firebase deploy --only functions` (runtime Node 22) y probar una vez el botón de "stream de hoy" | Slice 6.1 · **hecho 2026-10-11** (deploy y prueba del botón con un partido de prueba: aviso "juega hoy" y, a los 65 s, "a continuación", a 2 tokens, ambos con éxito) |
 | M-10 | Publicar un release nuevo de la APK (`versionCode 19` / `1.6.3`, build firmado con tu keystore y `update.json`) con Capacitor parcheado, y probarlo en un teléfono real: inicio de sesión, token de notificaciones guardado, un aviso recibido y la actualización 1.6.2 → 1.6.3 desde la app. Pasos en `docs/reportes/MS-6.2-6.3.md` | Slices 6.2 y 6.3 (H-37, H-38) · **hecho 2026-10-11**: release `v1.6.3` publicado (APK firmado con la clave de siempre, `update.json` con `versionCode 19`); pruebas en teléfono real hechas por el dueño |
+| M-11 | **Recordatorio, al terminar todo (después del merge final a `main`):** comprobar que la CSP quedó en enforce. Desde cualquier terminal: `curl -sD - -o /dev/null https://teamsubscup.web.app/` (en PowerShell, `curl.exe -sD - -o NUL https://teamsubscup.web.app/`) debe mostrar `Content-Security-Policy:` sin `-Report-Only`. Después abrir la web en el celular e iniciar sesión. Si algo se rompe, volver la clave a `-Report-Only` en `firebase.json` y desplegar | Después del merge final (cierre de 3.5) |
 
 ---
 
