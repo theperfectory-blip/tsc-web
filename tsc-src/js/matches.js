@@ -28,34 +28,31 @@ async function _mxSeasonLocked(phaseId){
   return false;
 }
 
-/* Borra partidos con su registro de historial, en lote. El historial va
-   primero: si algo falla a medias queda un partido sin historial (se
-   regenera al guardar su resultado), nunca un historial huérfano. */
-async function _mxDeleteMatches(matchIds){
-  if(!matchIds.length) return;
-  await _mxDeleteHistory(matchIds);
-  await dbDeleteMany('matches', matchIds);
-}
-
-async function _mxDeleteHistory(matchIds){
-  if(!matchIds.length) return;
+/* Operaciones de lote (dbWriteBatch) para borrar partidos con su registro
+   de historial. Todo lo que guarda o borra una fecha o un partido va en UN
+   lote atómico (H-53): antes se escribía documento por documento y un corte
+   de red a mitad dejaba la fecha a medias (partidos sin historial, cruces
+   viejos y nuevos mezclados, equipo libre sin partidos). */
+async function _mxDeleteOps(matchIds){
+  if(!matchIds.length) return [];
   const idSet = new Set(matchIds);
   const hist = await dbGetAll('matchHistory', h=>idSet.has(h.matchRef));
-  await dbDeleteMany('matchHistory', hist.map(h=>h.id));
+  return [
+    ...hist.map(h=>({type:'delete', store:'matchHistory', id:h.id})),
+    ...matchIds.map(id=>({type:'delete', store:'matches', id})),
+  ];
 }
 
-/* Si la fecha se quedó sin partidos, su equipo libre y su fecha sugerida
-   ya no significan nada (y el libre seguía contando como «ya fue libre»). */
-async function _mxCleanRondaMeta(phaseId, groupIdx, ronda){
-  const left = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
-  if(left.length) return;
-  const phase = await dbGet('phases', phaseId);
-  if(!phase) return;
+/* Fase con el equipo libre y la fecha sugerida de una ronda quitados (si la
+   ronda se queda sin partidos ya no significan nada, y el libre seguía
+   contando como «ya fue libre»). null si no había nada que quitar. */
+function _mxPhaseWithoutRondaMeta(phase, groupIdx, ronda){
+  if(!phase) return null;
   const meta = {...(phase.rondaMeta||{})};
   const k = `${groupIdx}_${ronda}`;
-  if(!(k in meta) && !((k+'_date') in meta)) return;
+  if(!(k in meta) && !((k+'_date') in meta)) return null;
   delete meta[k]; delete meta[k+'_date'];
-  await dbPut('phases', {...phase, rondaMeta:meta});
+  return {...phase, rondaMeta:meta};
 }
 
 /* ----------------------------------------------------------
@@ -643,22 +640,19 @@ async function saveJornadaDate(phaseId, groupIdx, ronda, applyAll){
     // (spread de ...m antes de pisar scheduledDate).
     const matches = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
     try{
-      await dbPut('phases', {...phase, rondaMeta:meta});
+      // Fase y partidos en un solo lote (H-53).
+      const ops = [{type:'set', store:'phases', data:{...phase, rondaMeta:meta}}];
       if(applyAll){
         const playedAtISO = new Date(dateStr+'T12:00:00').toISOString();
-        for(const m of matches){
-          await dbPut('matches', {...m, playedAt:playedAtISO, scheduledDate:dateStr});
-        }
-        showToast(`Fecha aplicada a ${matches.length} partido(s) de la Jornada ${ronda}`);
+        matches.forEach(m=>ops.push({type:'set', store:'matches', data:{...m, playedAt:playedAtISO, scheduledDate:dateStr}}));
       } else {
         // Solo los que todavía no tienen fecha propia — no pisar lo ya
         // programado a mano en la página Calendario.
-        const sinFecha = matches.filter(m=>!m.scheduledDate);
-        for(const m of sinFecha){
-          await dbPut('matches', {...m, scheduledDate:dateStr});
-        }
-        showToast(`Fecha programada para Jornada ${ronda}`);
+        matches.filter(m=>!m.scheduledDate)
+          .forEach(m=>ops.push({type:'set', store:'matches', data:{...m, scheduledDate:dateStr}}));
       }
+      await dbWriteBatch(ops);
+      showToast(applyAll ? `Fecha aplicada a ${matches.length} partido(s) de la Jornada ${ronda}` : `Fecha programada para Jornada ${ronda}`);
       closeAssignDateModal();
     } finally {
       // Si algo falló a medias, mostrar lo que quedó realmente guardado.
@@ -1144,8 +1138,12 @@ async function _commitRonda(){
     }
 
     try{
-      // 1) Crear los partidos nuevos (lote).
-      const nuevos = st.slots.filter(s=>!s.matchId).map(s=>({
+      // Todo en un solo lote atómico (H-53): altas, cambios de cruce, bajas
+      // y el equipo libre. Si falla, la fecha queda como estaba.
+      const ops = [];
+
+      // 1) Partidos nuevos.
+      st.slots.filter(s=>!s.matchId).forEach(s=>ops.push({type:'add', store:'matches', data:{
         phaseId, groupIdx,
         teamA:s.a, teamB:s.b,
         goalsA:null, goalsB:null,
@@ -1153,11 +1151,11 @@ async function _commitRonda(){
         season:STATE.season,
         date:null,
         luisTeam:s.luis ?? null,
-      }));
-      if(nuevos.length) await dbAddMany('matches', nuevos);
+      }}));
 
-      // 2) Actualizar los existentes. Si cambia el cruce, el resultado se va
-      //    con él (no puede quedar pegado a otros equipos).
+      // 2) Existentes. Si cambia el cruce, el resultado se va con él (no
+      //    puede quedar pegado a otros equipos), y también su historial.
+      const changedPairs = [];
       for(const s of st.slots){
         if(!s.matchId) continue;
         const m = existingById.get(s.matchId);
@@ -1166,23 +1164,30 @@ async function _commitRonda(){
         const pairChanged = m.teamA!==s.a || m.teamB!==s.b;
         if(!pairChanged && mLuis===sLuis) continue;
         if(pairChanged){
-          await _mxDeleteHistory([m.id]);
-          await dbPut('matches', {...m, teamA:s.a, teamB:s.b, ronda:targetR, luisTeam:sLuis,
-            goalsA:null, goalsB:null, playedAt:null, date:null});
+          changedPairs.push(m.id);
+          ops.push({type:'set', store:'matches', data:{...m, teamA:s.a, teamB:s.b, ronda:targetR, luisTeam:sLuis,
+            goalsA:null, goalsB:null, playedAt:null, date:null}});
         } else {
-          await dbPut('matches', {...m, luisTeam:sLuis});
+          ops.push({type:'set', store:'matches', data:{...m, luisTeam:sLuis}});
         }
       }
+      if(changedPairs.length){
+        const idSet = new Set(changedPairs);
+        (await dbGetAll('matchHistory', h=>idSet.has(h.matchRef)))
+          .forEach(h=>ops.push({type:'delete', store:'matchHistory', id:h.id}));
+      }
 
-      // 3) Quitar los que ya no están en los slots (con su historial).
+      // 3) Los que ya no están en los slots (con su historial).
       const keep = new Set(st.slots.map(s=>s.matchId).filter(Boolean));
-      await _mxDeleteMatches(existing.filter(m=>!keep.has(m.id)).map(m=>m.id));
+      ops.push(...await _mxDeleteOps(existing.filter(m=>!keep.has(m.id)).map(m=>m.id)));
 
       // 4) Equipo libre en rondaMeta (como ID number)
       const meta = {...(phase.rondaMeta||{})};
       if(st.libre!=null) meta[`${groupIdx}_${targetR}`] = st.libre;
       else delete meta[`${groupIdx}_${targetR}`];
-      await dbPut('phases', {...phase, rondaMeta:meta});
+      ops.push({type:'set', store:'phases', data:{...phase, rondaMeta:meta}});
+
+      await dbWriteBatch(ops);
 
       window._matchRondaActual = targetR;
       showToast(`Fecha ${targetR} guardada`);
@@ -1298,14 +1303,20 @@ async function saveEditResult(matchId, phaseId, groupIdx){
     const playedAtISO = playedAtStr ? new Date(playedAtStr+'T12:00:00').toISOString() : null;
 
     try{
-      await dbPut('matches',{
+      const updated = {
         ...m,
         goalsA: ga,
         goalsB: gb,
         playedAt: playedAtISO,
         date: new Date().toISOString(), // timestamp de cuándo se ingresó
-      });
-      await appendOrUpdateHistory(matchId);
+      };
+      // Resultado e historial juntos (H-53): antes, si fallaba el segundo, la
+      // tabla mostraba el resultado y el historial no.
+      const rec = await historyRecordFor(updated);
+      await dbWriteBatch([
+        {type:'set', store:'matches', data:updated},
+        ...(rec ? [{type:'set', store:'matchHistory', data:rec}] : []),
+      ]);
       showToast(`${teamAName} ${ga}-${gb} ${teamBName} registrado`);
       closeEditResultModal();
     } finally {
@@ -1525,8 +1536,13 @@ async function deleteMatch(id){
       if(!cur){ showToast('El partido ya no existe','error'); return; }
       if(cur.live){ showToast('El partido está en vivo: termínalo antes de eliminarlo','error'); return; }
       try{
-        await _mxDeleteMatches([id]);
-        if(cur.ronda!=null) await _mxCleanRondaMeta(cur.phaseId, cur.groupIdx, cur.ronda);
+        const ops = await _mxDeleteOps([id]);
+        if(cur.ronda!=null){
+          const left = await dbGetAll('matches', m=>m.id!==id && m.phaseId===cur.phaseId && m.groupIdx===cur.groupIdx && m.ronda===cur.ronda);
+          const phase = left.length ? null : _mxPhaseWithoutRondaMeta(await dbGet('phases', cur.phaseId), cur.groupIdx, cur.ronda);
+          if(phase) ops.push({type:'set', store:'phases', data:phase});
+        }
+        await dbWriteBatch(ops);
         showToast('Partido eliminado');
       } finally {
         invalidateStandingsAndSyncBrackets(cur.phaseId);
@@ -1547,14 +1563,10 @@ async function deleteRonda(phaseId, groupIdx, ronda){
       const toDelete = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
       if(toDelete.some(m=>m.live)){ showToast('Hay un partido en vivo en esta fecha: termínalo antes de borrarla','error'); return; }
       try{
-        await _mxDeleteMatches(toDelete.map(m=>m.id));
-        const phase = await dbGet('phases', phaseId);
-        if(phase){
-          const meta = {...(phase.rondaMeta||{})};
-          delete meta[`${groupIdx}_${ronda}`];
-          delete meta[`${groupIdx}_${ronda}_date`];
-          await dbPut('phases', {...phase, rondaMeta:meta});
-        }
+        const ops = await _mxDeleteOps(toDelete.map(m=>m.id));
+        const phase = _mxPhaseWithoutRondaMeta(await dbGet('phases', phaseId), groupIdx, ronda);
+        if(phase) ops.push({type:'set', store:'phases', data:phase});
+        await dbWriteBatch(ops);
         showToast(`Fecha ${ronda} eliminada (${toDelete.length} partido${toDelete.length===1?'':'s'})`);
       } finally {
         invalidateStandingsAndSyncBrackets(phaseId);

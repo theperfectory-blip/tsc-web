@@ -127,9 +127,18 @@ async function seedHistoryIfEmpty(){
    API — sync con matches store
    ---------------------------------------------------------- */
 async function appendOrUpdateHistory(matchId){
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  if(m.goalsA==null || m.goalsB==null) return;
+  const rec = await historyRecordFor(await dbGet('matches', matchId));
+  if(rec) await dbPut('matchHistory', rec);
+}
+
+/* Registro de historial que corresponde a un partido (con su id), o null si
+   no hay que escribir nada (sin resultado, o idéntico al guardado). Recibe
+   el partido ya armado para que el que guarda pueda escribir partido e
+   historial en el mismo lote (dbWriteBatch, H-53). */
+async function historyRecordFor(m){
+  if(!m) return null;
+  if(m.goalsA==null || m.goalsB==null) return null;
+  const matchId = m.id;
 
   const phase  = m.phaseId ? await dbGet('phases', m.phaseId) : null;
   const comp   = phase?.compId ? await dbGet('competitions', phase.compId) : null;
@@ -151,19 +160,18 @@ async function appendOrUpdateHistory(matchId){
     // al mostrar), así que refreshHistoryForSeason, que corre al guardar un
     // equipo, reescribía los ~420 partidos idénticos, uno por uno: minutos
     // con el modal abierto (H-29, MS-2.5).
-    if(Object.keys(data).every(k => existing[0][k] === data[k])) return;
-    await dbPut('matchHistory', {...existing[0], ...data});
-  } else {
-    // Continuar IDs después del max(estáticos, IDB)
-    const [staticRows, idbAll] = await Promise.all([
-      loadStaticHistory(),
-      dbGetAll('matchHistory'),
-    ]);
-    const maxStatic = staticRows.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
-    const maxIdb    = idbAll.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
-    const nextId    = Math.max(maxStatic, maxIdb) + 1;
-    await dbPut('matchHistory', {id:nextId, ...data, createdAt: new Date().toISOString()});
+    if(Object.keys(data).every(k => existing[0][k] === data[k])) return null;
+    return {...existing[0], ...data};
   }
+  // Continuar IDs después del max(estáticos, IDB)
+  const [staticRows, idbAll] = await Promise.all([
+    loadStaticHistory(),
+    dbGetAll('matchHistory'),
+  ]);
+  const maxStatic = staticRows.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
+  const maxIdb    = idbAll.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
+  const nextId    = Math.max(maxStatic, maxIdb) + 1;
+  return {id:nextId, ...data, createdAt: new Date().toISOString()};
 }
 
 async function removeHistoryByMatchRef(matchId){

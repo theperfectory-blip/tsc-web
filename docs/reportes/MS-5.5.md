@@ -52,8 +52,23 @@ Cómo se verificó (todo en el sandbox, nunca producción):
 
 - **H-51** (baja, va a 7.2): código muerto en `matches.js` (`openMatchInputModal` y compañía, `_matchRondaActual`).
 - **H-52** (baja, decisión de reglamento): «Enfrentamiento directo» solo compara el par, no una mini-tabla entre todos los empatados.
-- **H-53** (media, va a 5.13): escrituras de varios documentos sin atomicidad; falta `dbPutMany`. Mitigado, no resuelto.
+- **H-53** (media): escrituras de varios documentos sin atomicidad. **Cerrado en la segunda pasada** (abajo).
 - **H-54** (baja, dato): `phases/11.customCriterionName` = «5. Orden alfabético».
 - No tocado (fuera de alcance): el generador de fechas (5.6), los bracket que referencian posiciones de grupo (5.7) y el partido en vivo (5.8). `refBadgeHTML` (`bracket.js`) no escapa el segmento de posición del rótulo; los rótulos salen de números, riesgo bajo, para 5.7.
 
 Acción del dueño requerida: ninguna (no hay cambios de reglas). El resto sale con el merge a `main`.
+
+## Segunda pasada · H-53 (Opus, 2026-10-19)
+
+Cambios:
+- `js/db.js` `dbWriteBatch(ops)`: altas (`add`, ids reservados antes), reemplazos (`set`) y bajas (`delete`) de una o varias colecciones en **un** `writeBatch` de Firestore (en IndexedDB, una transacción sobre todas las colecciones). Más de 500 escrituras se rechazan en vez de partirse, porque partido ya no sería atómico.
+- `js/history.js` `historyRecordFor(match)`: calcula el registro de historial de un partido sin escribirlo; `appendOrUpdateHistory` lo usa, y quien guarda un resultado puede ponerlo en el mismo lote.
+- `js/matches.js`: guardar o editar una fecha (altas, cambios de cruce con su historial, bajas y equipo libre), aplicar la fecha a la jornada, resultado + historial, borrar un partido (+ limpieza del equipo libre) y borrar una fecha: cada uno en **un solo** `dbWriteBatch`. Se quitan `_mxDeleteMatches`, `_mxDeleteHistory` y `_mxCleanRondaMeta` (reemplazados por `_mxDeleteOps` y `_mxPhaseWithoutRondaMeta`).
+
+Verificado en el sandbox (`dist`, temporada de prueba, estado leído del servidor):
+- Fecha nueva (2 partidos + libre) → 2 partidos y `rondaMeta` con el libre; resultado 2-1 → partido e historial; «Aplicar a todos» → fecha en los 2 partidos y en `rondaMeta`; cambiar el cruce del partido con resultado → resultado e historial borrados; borrar partido con resultado → partido e historial borrados; borrar la fecha → 0 partidos y `rondaMeta` vacío.
+- **Atomicidad:** un `dbWriteBatch` con un cambio de partido y una escritura prohibida por las reglas (`notificationRuns`) → `permission-denied` y el partido sin cambios en el servidor. Mismo fallo inyectado dentro de «guardar fecha» → 0 partidos creados, `rondaMeta` sin tocar, aviso «Sin permiso…» (el único error de consola es el provocado).
+- `tsc-src`: fecha nueva → 2 partidos; resultado 1-1 → historial; borrar el partido → partido e historial borrados; borrar la fecha → 0 partidos y `rondaMeta` vacío; 0 errores de consola.
+- `smoke-parity` → `PARIDAD: OK`; `audit-wiring` → 0 handlers rotos.
+
+Pendiente del mismo patrón: `bracket.js`, `playoff.js` y `livematch.js` guardan partido e historial por separado; van a 5.7 y 5.8 usando `dbWriteBatch` + `historyRecordFor`.

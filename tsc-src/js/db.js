@@ -354,6 +354,64 @@ async function dbDeleteMany(store, ids){
   });
 }
 
+/* Varias escrituras, de una o más colecciones, como UNA operación atómica:
+   o se aplican todas o ninguna (H-53). Antes, guardar una fecha escribía
+   partido por partido y un corte a mitad dejaba la fecha a medias.
+   ops: { type:'set', store, data }   (data.id obligatorio; reemplaza el doc)
+        { type:'add', store, data }   (id nuevo; se devuelve en orden)
+        { type:'delete', store, id }
+   Firestore: los ids de las altas se reservan antes (una transacción por
+   colección; si el lote falla, esos números quedan sin usar, como con
+   dbAddMany) y todo va en un solo writeBatch, que admite hasta 500
+   operaciones: un lote más grande se rechaza en vez de partirlo, porque
+   partido ya no sería atómico.
+   IndexedDB: una sola transacción sobre todas las colecciones. */
+const DB_BATCH_MAX = 500;
+async function dbWriteBatch(ops){
+  if(!Array.isArray(ops) || !ops.length) return [];
+  ops.forEach(o => _assertWritable('dbWriteBatch', o.store));
+  if (_isFS()) {
+    if(ops.length > DB_BATCH_MAX) throw new Error(`Lote de ${ops.length} escrituras: el máximo atómico es ${DB_BATCH_MAX}`);
+    const addsByStore = {};
+    ops.forEach(o => { if(o.type==='add') addsByStore[o.store] = (addsByStore[o.store]||0) + 1; });
+    const reserved = {};
+    for(const [store, n] of Object.entries(addsByStore)) reserved[store] = await _fsReserveIds(store, n);
+    const batch = db.batch();
+    const newIds = [];
+    for(const o of ops){
+      if(o.type==='delete'){ batch.delete(db.collection(o.store).doc(String(o.id))); continue; }
+      let id;
+      if(o.type==='add') { id = reserved[o.store].shift(); newIds.push(id); }
+      else if(o.type==='set') {
+        id = o.data?.id;
+        if(id == null) throw new Error(`dbWriteBatch: set en ${o.store} sin id`);
+      } else throw new Error(`dbWriteBatch: tipo desconocido ${o.type}`);
+      batch.set(db.collection(o.store).doc(String(id)), { ...o.data, id });
+    }
+    await batch.commit();
+    return newIds;
+  }
+  const stores = [...new Set(ops.map(o=>o.store))];
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(stores,'readwrite');
+    const newIds = [];
+    ops.forEach(o=>{
+      const os = tx.objectStore(o.store);
+      if(o.type==='delete') os.delete(o.id);
+      else if(o.type==='set') os.put({...o.data});
+      else if(o.type==='add'){
+        const slot = newIds.length; newIds.push(null);
+        const { id, ...rest } = o.data || {};
+        const req = os.add(rest);
+        req.onsuccess = ()=>{ newIds[slot] = req.result; };
+      }
+    });
+    tx.oncomplete = ()=>res(newIds);
+    tx.onerror    = ()=>rej(tx.error);
+    tx.onabort    = ()=>rej(tx.error || new Error('Transaction aborted'));
+  });
+}
+
 async function dbPut(store, data){
   _assertWritable('dbPut', store);
   if (_isFS()) {
