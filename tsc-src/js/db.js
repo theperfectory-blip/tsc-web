@@ -367,6 +367,17 @@ async function dbDeleteMany(store, ids){
    partido ya no sería atómico.
    IndexedDB: una sola transacción sobre todas las colecciones. */
 const DB_BATCH_MAX = 500;
+
+/* Reserva n ids nuevos de `store` sin escribir nada, para armar un lote con
+   `set` cuando hace falta conocer el id antes del commit (p. ej. el
+   matchHistory de un partido nuevo apunta a su id: MS-5.7). */
+async function dbNewIds(store, n){
+  if(!(n > 0)) return [];
+  if (_isFS()) return _fsReserveIds(store, n);
+  const rows = await dbGetAll(store);
+  const max = rows.reduce((mx,r)=>Math.max(mx, Number(r.id)||0), 0);
+  return Array.from({length:n}, (_,i)=>max+1+i);
+}
 async function dbWriteBatch(ops){
   if(!Array.isArray(ops) || !ops.length) return [];
   ops.forEach(o => _assertWritable('dbWriteBatch', o.store));

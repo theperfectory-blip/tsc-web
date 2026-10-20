@@ -223,7 +223,9 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       const prevLegDone = (li===0) || (legData[li-1] && legData[li-1].goalsA!==null && legData[li-1].goalsB!==null && !legData[li-1].live);
       // En vivo (admin) abre el centro; si no, el editor de leg.
       const clickAttr = (isAdmin && isLegLive && ld.id!=null) ? `openLiveMatch(${ld.id})`
-        : (isAdmin && bothTeams && (ld.teamA&&ld.teamB)) ? `openPlayoffLegModal('${phaseId}','${ld.slotId}',${i},${legNo},${escAttr(JSON.stringify(String(ldTeamAName)))},${escAttr(JSON.stringify(String(ldTeamBName)))},${isAdmin})` : '';
+        // H-30: al modal van los ids del cruce (antes, los nombres, que se
+        // guardaban como teamA/teamB y getWinner compara contra ids).
+        : (isAdmin && bothTeams && prevLegDone) ? `openPlayoffLegModal('${phaseId}','${ld.slotId}',${i},${legNo},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))},${isAdmin})` : '';
       const sa = ld.goalsA!==null?ld.goalsA:'-', sb = ld.goalsB!==null?ld.goalsB:'-';
       const colA = isLegLive?'var(--red)':(ld.goalsA!==null&&ld.goalsA>ld.goalsB?'var(--gold)':'var(--txt)');
       const colB = isLegLive?'var(--red)':(ld.goalsB!==null&&ld.goalsB>ld.goalsA?'var(--gold)':'var(--txt)');
@@ -344,6 +346,9 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
 
   const phase=await dbGet('phases',parseInt(phaseId));
   const legsCount=parseInt(phase?.config?.legs)||2;
+  const teams=await dbGetAll('teams');
+  const nameA=teams.find(t=>t.id===_plTeamId(teamA, teams))?.name || String(teamA??'');
+  const nameB=teams.find(t=>t.id===_plTeamId(teamB, teams))?.name || String(teamB??'');
   const canSetPenalties = (leg===legsCount); // penales solo en partido decisivo de la serie
 
   wrap.innerHTML=`
@@ -355,15 +360,15 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:6px;">
-          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(teamA)}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(nameA)}</div>
           <div style="font-family:'Bebas Neue';font-size:19px;color:var(--txt3);">vs</div>
-          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(teamB)}</div>
+          <div style="font-size:14px;font-weight:600;text-align:center;">${escHtml(nameB)}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;">
-          <input type="number" id="pl-ga" min="0" value="${cur?.goalsA??0}"
+          <input type="number" id="pl-ga" min="0" value="${cur?.goalsA??''}" placeholder="0"
             style="padding:12px;text-align:center;font-family:'Bebas Neue';font-size:34px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);width:100%;">
           <div style="font-family:'Bebas Neue';font-size:26px;color:var(--txt3);">-</div>
-          <input type="number" id="pl-gb" min="0" value="${cur?.goalsB??0}"
+          <input type="number" id="pl-gb" min="0" value="${cur?.goalsB??''}" placeholder="0"
             style="padding:12px;text-align:center;font-family:'Bebas Neue';font-size:34px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);width:100%;">
         </div>
         ${canSetPenalties?`
@@ -394,60 +399,90 @@ function closePlayoffLegModal(){
   if(el) el.innerHTML='';
 }
 
+/* Id de equipo a partir de lo que tenga el cruce: un id, un id en texto o
+   (datos viejos, H-30) el nombre actual o uno anterior. null si no resuelve. */
+function _plTeamId(v, teams){
+  if(v==null || v==='') return null;
+  if(typeof v==='number') return v;
+  if(/^\d+$/.test(String(v))) return parseInt(v);
+  const q = String(v).trim().toLowerCase();
+  const t = teams.find(t=>String(t.name||'').trim().toLowerCase()===q
+    || (Array.isArray(t.previousNames) && t.previousNames.some(p=>String(p).trim().toLowerCase()===q)));
+  return t ? t.id : null;
+}
+
+/* Marcador de un input: null si está vacío, NaN si no es un entero 0-99. */
+function _plGoal(id){
+  const raw = String(document.getElementById(id)?.value ?? '').trim();
+  if(raw==='') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n>=0 && n<=99 ? n : NaN;
+}
+
+let _plBusy = false;
+async function _plRun(fn){
+  if(_plBusy) return;   // doble clic
+  _plBusy = true;
+  try { return await fn(); }
+  catch(err){ console.error('[playoff]', err); showToast(dbErrorMsg(err),'error'); }
+  finally { _plBusy = false; }
+}
+function _plRerender(phaseId){
+  const cid=document.querySelector('[id^="playoff-container-"]')?.id;
+  if(cid) renderPlayoff(parseInt(phaseId), cid, true);
+}
+
 async function deletePlayoffLeg(phaseId, slotId, matchIdx, leg){
-  showConfirm('¿Eliminar resultado?','Se borrará el resultado guardado de este partido del playoff.', async()=>{
-    const matches = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===parseInt(phaseId));
-    for(const m of matches){
-      await removeHistoryByMatchRef(m.id);
-      await dbDelete('matches', m.id);
-    }
-    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(parseInt(phaseId));
-    closePlayoffLegModal();
-    showToast(`${leg===1?'Ida':'Vuelta'} eliminada`);
-    const cid=document.querySelector('[id^="playoff-container-"]')?.id;
-    if(cid) renderPlayoff(parseInt(phaseId), cid, true);
-  });
+  phaseId = parseInt(phaseId);
+  showConfirm('¿Eliminar resultado?','Se borrará el resultado guardado de este partido del playoff y su registro del historial.', ()=>_plRun(async()=>{
+    try {
+      if(await _mxSeasonLocked(phaseId)) return;
+      const matches = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+      if(matches.some(m=>m.live)){ showToast('El partido está en vivo: termínalo antes de borrarlo','error'); return; }
+      // La vuelta sin la ida no tiene sentido: borrar la ida con vuelta jugada, no.
+      if(leg===1){
+        const vuelta = await dbGetAll('matches', m=>m.phaseId===phaseId && m.matchIdx===matchIdx && m.leg===2 && (m.goalsA!=null||m.goalsB!=null||m.live));
+        if(vuelta.length){ showToast('La vuelta ya tiene resultado: bórrala primero.','error'); return; }
+      }
+      await dbWriteBatch(await _mxDeleteOps(matches.map(m=>m.id)));
+      invalidateStandingsAndSyncBrackets(phaseId);
+      closePlayoffLegModal();
+      showToast(`${leg===1?'Ida':'Vuelta'} eliminada`);
+    } finally { _plRerender(phaseId); }
+  }));
 }
 
 async function savePlayoffLeg(phaseId, slotId, matchIdx, leg, teamA, teamB){
-  const ga=parseInt(document.getElementById('pl-ga').value)||0;
-  const gb=parseInt(document.getElementById('pl-gb').value)||0;
-  const paRaw=document.getElementById('pl-pa')?.value;
-  const pbRaw=document.getElementById('pl-pb')?.value;
-  const pa=(paRaw===''||paRaw==null)?null:(parseInt(paRaw)||0);
-  const pb=(pbRaw===''||pbRaw==null)?null:(parseInt(pbRaw)||0);
-  const existing=await dbGetAll('matches',m=>m.slotId===slotId&&m.phaseId===parseInt(phaseId));
+  phaseId = parseInt(phaseId);
+  const ga=_plGoal('pl-ga'), gb=_plGoal('pl-gb');
+  if(ga===null||gb===null||Number.isNaN(ga)||Number.isNaN(gb)){ showToast('Los goles deben ser números enteros entre 0 y 99','error'); return; }
+  const pa=_plGoal('pl-pa'), pb=_plGoal('pl-pb');
+  if(Number.isNaN(pa)||Number.isNaN(pb)){ showToast('Los penales deben ser números enteros entre 0 y 99','error'); return; }
   if((pa===null)!==(pb===null)){ showToast('Completa ambos campos de penales','error'); return; }
-  if(pa!==null && pb!==null && pa===pb){ showToast('En penales debe haber un ganador','error'); return; }
-  const data={slotId,phaseId:parseInt(phaseId),teamA,teamB,goalsA:ga,goalsB:gb,penA:pa,penB:pb,matchIdx,leg,season:STATE.season,date:new Date().toISOString()};
-  let savedId;
-  const sameLeg = existing.find(m=>m.leg===leg);
-  if(sameLeg){
-    savedId = sameLeg.id;
-    await dbPut('matches',{...sameLeg,...data});
-  } else {
-    savedId = await dbAdd('matches',data);
-  }
-  await appendOrUpdateHistory(savedId);
-  // Un resultado de playoff/single puede definir quién gana la llave — otras
-  // fases (bracket o playoff) pueden tener slots type:'playoff_winner'
-  // apuntando acá y materializados sin resultado todavía.
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(parseInt(phaseId));
-  // Resolver nombres para el toast (teamA/B pueden ser IDs)
-  const _resolveName = async (v)=>{
-    if(typeof v==='number' || Number.isFinite(parseInt(v))){
-      const t = await dbGet('teams', parseInt(v));
-      return t?.name || `#${v}`;
-    }
-    return v;
-  };
-  const nameA = await _resolveName(teamA);
-  const nameB = await _resolveName(teamB);
-  const penStr = pa!==null ? ` (pen ${pa}-${pb})` : '';
-  showToast(`${nameA} ${ga}-${gb}${penStr} ${nameB} (${leg===1?'ida':'vuelta'})`);
-  closePlayoffLegModal();
-  const cid=document.querySelector('[id^="playoff-container-"]')?.id;
-  if(cid) renderPlayoff(parseInt(phaseId), cid, true);
+  if(pa!==null && pa===pb){ showToast('En penales debe haber un ganador','error'); return; }
+
+  await _plRun(async()=>{
+    try {
+      if(await _mxSeasonLocked(phaseId)) return;
+      const teams = await dbGetAll('teams');
+      const idA = _plTeamId(teamA, teams), idB = _plTeamId(teamB, teams);
+      if(idA==null || idB==null){ showToast('No se reconocen los equipos del cruce: vuelve a asignarlos','error'); return; }
+      const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+      if(existing.some(m=>m.live)){ showToast('El partido está en vivo: termínalo desde el centro de partido','error'); return; }
+      const sameLeg = existing.find(m=>m.leg===leg) || existing[0];
+      const doc = {...(sameLeg||{}), slotId, phaseId, teamA:idA, teamB:idB, goalsA:ga, goalsB:gb, penA:pa, penB:pb,
+        matchIdx, leg, season:STATE.season, date:new Date().toISOString()};
+      // Partido e historial en un solo lote (H-53).
+      await dbWriteBatch(await _bkResultOps([{doc, history:true}]));
+      // Un resultado de playoff/single puede definir quién gana la llave, y
+      // otras fases pueden tener slots 'playoff_winner' apuntando acá.
+      invalidateStandingsAndSyncBrackets(phaseId);
+      const nm = id => teams.find(t=>t.id===id)?.name || `#${id}`;
+      const penStr = pa!==null ? ` (pen ${pa}-${pb})` : '';
+      showToast(`${nm(idA)} ${ga}-${gb}${penStr} ${nm(idB)} (${leg===1?'ida':'vuelta'})`);
+      closePlayoffLegModal();
+    } finally { _plRerender(phaseId); }
+  });
 }
 
 /* ----------------------------------------------------------
@@ -665,30 +700,45 @@ async function getBracketWinners(bracketPhaseId){
   return out;
 }
 
+/* Resultados guardados de una llave (para avisar qué se pierde). */
+async function _plSlotMatches(phaseId, matchIdx){
+  return dbGetAll('matches', m=>m.phaseId===phaseId && m.matchIdx===matchIdx);
+}
+function _plLostText(matches){
+  const played = matches.filter(m=>m.goalsA!=null && m.goalsB!=null);
+  return played.length
+    ? ` Se borra${played.length===1?'':'n'} ${played.length} resultado${played.length===1?'':'s'} ya cargado${played.length===1?'':'s'} (${played.map(m=>m.goalsA+'-'+m.goalsB).join(', ')}) y su registro del historial.`
+    : '';
+}
+
 async function clearPlayoffAssign(phaseId, matchIdx){
-  if(!confirm('¿Limpiar este cruce? Se borrarán equipos, referencias y resultados de la llave.')) return;
-  const phase=await dbGet('phases',phaseId);
-  const slots=phase?.playoffSlots||[];
-  if(slots[matchIdx]) slots[matchIdx]={teamA:null,teamB:null};
-  const refs=(phase?.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
-  await dbPut('phases',{...phase,playoffSlots:slots,slotRefs:refs});
-
-  // Borrar partidos de la llave (+ su historial) para evitar que reaparezcan
-  // desde matchMap o queden huérfanos en el historial (mismo patrón que
-  // deletePlayoffLeg).
-  const matches=await dbGetAll('matches',m=>m.phaseId===phaseId && m.matchIdx===matchIdx);
-  for(const m of matches){ await removeHistoryByMatchRef(m.id); await dbDelete('matches', m.id); }
-
-  // Consistencia bidireccional: si el Sorteo había vinculado alguno de los
-  // dos lados de este cruce, invalidar ese link (ambos lados, side=null).
-  if(typeof window.SORTEO?.invalidatePlayoffLink === 'function'){
-    await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, null);
-  }
-
-  showToast('Cruce limpiado');
-  closePlayoffAssignModal();
-  const cid=document.querySelector('[id^="playoff-container-"]')?.id;
-  if(cid) renderPlayoff(phaseId, cid, true);
+  phaseId = parseInt(phaseId);
+  const matches = await _plSlotMatches(phaseId, matchIdx);
+  if(matches.some(m=>m.live)){ showToast('Hay un partido en vivo en esta llave: termínalo antes','error'); return; }
+  showConfirm('¿Limpiar este cruce?', 'Se quitan los equipos y las referencias de la llave.'+_plLostText(matches), ()=>_plRun(async()=>{
+    try {
+      if(await _mxSeasonLocked(phaseId)) return;
+      const phase=await dbGet('phases',phaseId);
+      if(!phase){ showToast('La fase ya no existe','error'); return; }
+      const slots=[...(phase.playoffSlots||[])];
+      if(slots[matchIdx]) slots[matchIdx]={teamA:null,teamB:null};
+      const refs=(phase.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
+      // Fase y partidos (+ historial) en un solo lote.
+      const cur = await _plSlotMatches(phaseId, matchIdx);
+      await dbWriteBatch([
+        {type:'set', store:'phases', data:{...phase, playoffSlots:slots, slotRefs:refs}},
+        ...await _mxDeleteOps(cur.map(m=>m.id)),
+      ]);
+      // Consistencia bidireccional: si el Sorteo había vinculado alguno de los
+      // dos lados de este cruce, invalidar ese link (ambos lados, side=null).
+      if(typeof window.SORTEO?.invalidatePlayoffLink === 'function'){
+        await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, null);
+      }
+      invalidateStandingsAndSyncBrackets(phaseId);
+      showToast('Cruce limpiado');
+      closePlayoffAssignModal();
+    } finally { _plRerender(phaseId); }
+  }));
 }
 
 function closePlayoffAssignModal(){
@@ -696,45 +746,59 @@ function closePlayoffAssignModal(){
   if(el) el.innerHTML='';
 }
 
-async function savePlayoffAssign(phaseId, matchIdx){
-  // Los <option> ahora usan IDs como value: convertir a Number.
-  const taRaw=document.getElementById('pa-ta').value;
-  const tbRaw=document.getElementById('pa-tb').value;
+/* Guarda los equipos de una llave (playoff o supercopa). Si cambian y la
+   llave tenía resultados, se borran (con su historial) en el mismo lote que
+   la fase, después de confirmar qué se pierde (antes: sin aviso, y la
+   supercopa dejaba el historial huérfano). */
+async function _plSaveAssign(phaseId, matchIdx, taRaw, tbRaw, defaultMatchups, done){
+  phaseId = parseInt(phaseId);
   if(!taRaw||!tbRaw){showToast('Selecciona ambos equipos','error');return;}
   if(taRaw===tbRaw){showToast('Los equipos deben ser distintos','error');return;}
   const ta = Number.isFinite(parseInt(taRaw)) ? parseInt(taRaw) : taRaw;
   const tb = Number.isFinite(parseInt(tbRaw)) ? parseInt(tbRaw) : tbRaw;
-  const phase=await dbGet('phases',phaseId);
-  const slots=phase?.playoffSlots||Array(phase?.config?.matchups||3).fill(null).map(()=>({teamA:null,teamB:null}));
-  const prev = slots[matchIdx]||{};
-  const changedA = prev.teamA!==ta;
-  const changedB = prev.teamB!==tb;
-  const changed = changedA || changedB;
-  slots[matchIdx]={teamA:ta,teamB:tb};
+  const phase0 = await dbGet('phases',phaseId);
+  const prev0 = (phase0?.playoffSlots||[])[matchIdx]||{};
+  const changed0 = prev0.teamA!==ta || prev0.teamB!==tb;
+  const matches0 = changed0 ? await _plSlotMatches(phaseId, matchIdx) : [];
+  if(matches0.some(m=>m.live)){ showToast('Hay un partido en vivo en esta llave: termínalo antes','error'); return; }
 
-  // Si se asigna manualmente, esta llave deja de depender de refs dinámicas.
-  const refs=(phase?.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
+  const apply = ()=>_plRun(async()=>{
+    try {
+      if(await _mxSeasonLocked(phaseId)) return;
+      const phase=await dbGet('phases',phaseId);
+      if(!phase){ showToast('La fase ya no existe','error'); return; }
+      const slots=[...(phase.playoffSlots||Array(phase.config?.matchups||defaultMatchups).fill(null).map(()=>({teamA:null,teamB:null})))];
+      const prev = slots[matchIdx]||{};
+      const changedA = prev.teamA!==ta, changedB = prev.teamB!==tb;
+      slots[matchIdx]={teamA:ta,teamB:tb};
+      // Asignada a mano, la llave deja de depender de referencias dinámicas.
+      const refs=(phase.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
+      const old = (changedA||changedB) ? await _plSlotMatches(phaseId, matchIdx) : [];
+      if(old.some(m=>m.live)){ showToast('Hay un partido en vivo en esta llave: termínalo antes','error'); return; }
+      await dbWriteBatch([
+        {type:'set', store:'phases', data:{...phase, playoffSlots:slots, slotRefs:refs}},
+        ...await _mxDeleteOps(old.map(m=>m.id)),
+      ]);
+      // Consistencia bidireccional con el Sorteo: solo los lados que cambiaron.
+      if(typeof window.SORTEO?.invalidatePlayoffLink === 'function'){
+        if(changedA) await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, 'A');
+        if(changedB) await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, 'B');
+      }
+      invalidateStandingsAndSyncBrackets(phaseId);
+      showToast('Equipos asignados');
+      done();
+    } finally { _plRerender(phaseId); }
+  });
 
-  // Si cambian equipos, limpiar resultados previos (+ historial) de la llave
-  // para evitar mezcla de series (mismo patrón que deletePlayoffLeg).
-  if(changed){
-    const oldMatches=await dbGetAll('matches',m=>m.phaseId===phaseId && m.matchIdx===matchIdx);
-    for(const m of oldMatches){ await removeHistoryByMatchRef(m.id); await dbDelete('matches', m.id); }
-  }
+  const lost = _plLostText(matches0);
+  if(lost) showConfirm('¿Cambiar los equipos de la llave?', lost.trim(), apply);
+  else await apply();
+}
 
-  await dbPut('phases',{...phase,playoffSlots:slots,slotRefs:refs});
-
-  // Consistencia bidireccional: invalidar solo el/los lado(s) que efectivamente
-  // cambiaron, si el Sorteo los había vinculado (deja intacto el lado sin tocar).
-  if(typeof window.SORTEO?.invalidatePlayoffLink === 'function'){
-    if(changedA) await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, 'A');
-    if(changedB) await window.SORTEO.invalidatePlayoffLink(phaseId, matchIdx, 'B');
-  }
-
-  showToast('Equipos asignados');
-  closePlayoffAssignModal();
-  const cid=document.querySelector('[id^="playoff-container-"]')?.id;
-  if(cid) renderPlayoff(phaseId, cid, true);
+async function savePlayoffAssign(phaseId, matchIdx){
+  // Los <option> usan IDs como value.
+  await _plSaveAssign(phaseId, matchIdx,
+    document.getElementById('pa-ta').value, document.getElementById('pa-tb').value, 3, closePlayoffAssignModal);
 }
 
 /* ----------------------------------------------------------
@@ -792,30 +856,8 @@ function closeSupercopaAssignModal(){
 }
 
 async function saveSupercopaAssign(phaseId, matchIdx){
-  const taRaw=document.getElementById('sc-ta').value;
-  const tbRaw=document.getElementById('sc-tb').value;
-  if(!taRaw||!tbRaw){showToast('Selecciona ambos equipos','error');return;}
-  if(taRaw===tbRaw){showToast('Los equipos deben ser distintos','error');return;}
-  const ta = Number.isFinite(parseInt(taRaw)) ? parseInt(taRaw) : taRaw;
-  const tb = Number.isFinite(parseInt(tbRaw)) ? parseInt(tbRaw) : tbRaw;
-
-  const phase=await dbGet('phases',phaseId);
-  const slots=phase?.playoffSlots||Array(phase?.config?.matchups||1).fill(null).map(()=>({teamA:null,teamB:null}));
-  const prev=slots[matchIdx]||{};
-  const changed=prev.teamA!==ta||prev.teamB!==tb;
-  slots[matchIdx]={teamA:ta,teamB:tb};
-
-  const refs=(phase?.slotRefs||[]).filter(r=>r.slotIdx!==matchIdx);
-  if(changed){
-    const oldMatches=await dbGetAll('matches',m=>m.phaseId===phaseId&&m.matchIdx===matchIdx);
-    for(const m of oldMatches) await dbDelete('matches',m.id);
-  }
-
-  await dbPut('phases',{...phase,playoffSlots:slots,slotRefs:refs});
-  showToast('Equipos asignados');
-  closeSupercopaAssignModal();
-  const cid=document.querySelector('[id^="playoff-container-"]')?.id;
-  if(cid) renderPlayoff(parseInt(phaseId),cid,true);
+  await _plSaveAssign(phaseId, matchIdx,
+    document.getElementById('sc-ta').value, document.getElementById('sc-tb').value, 1, closeSupercopaAssignModal);
 }
 
 async function getPlayoffWinnersFromPhase(sourcePhaseId){

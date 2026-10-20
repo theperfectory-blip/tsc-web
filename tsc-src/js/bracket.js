@@ -604,6 +604,7 @@ async function _syncBracketSlotsForSourcePhase(sourcePhaseId, opts){
   // apuntando a "Fase 1"). Ambas guardan sus referencias en slotRefs.
   const targetPhases = await dbGetAll('phases', p=>p.type==='bracket' || p.type==='playoff');
   const changes = [];
+  const patched = new Map();
   for(const bp of targetPhases){
     const isBracket = bp.type==='bracket';
     const refs = (bp.slotRefs||[]).filter(r=>
@@ -647,11 +648,27 @@ async function _syncBracketSlotsForSourcePhase(sourcePhaseId, opts){
           before: { teamId: doc[teamField]??null, name: doc[teamField]!=null ? (nameById[doc[teamField]]??null) : null },
           after:  { teamId: liveTeamId, name: liveName },
         });
-        if(!dryRun) await dbPut('matches', {...doc, [teamField]: liveTeamId, [labelField]: liveName});
+        _bkPatch(patched, doc, {[teamField]: liveTeamId, [labelField]: liveName});
       }
     }
   }
+  if(!dryRun) await _bkWritePatched(patched);
   return changes;
+}
+
+/* Los dos lados de un mismo partido pueden cambiar en la misma pasada. Antes
+   cada lado hacía su propio dbPut partiendo de la copia leída al principio:
+   el segundo pisaba al primero y el lado A volvía al equipo viejo (MS-5.7).
+   Ahora se junta un parche por documento y se escribe todo en un lote. */
+function _bkPatch(patched, doc, fields){
+  const cur = patched.get(doc.id) || {...doc};
+  patched.set(doc.id, Object.assign(cur, fields));
+}
+async function _bkWritePatched(patched){
+  const docs = [...patched.values()];
+  for(let i=0; i<docs.length; i+=DB_BATCH_MAX){
+    await dbWriteBatch(docs.slice(i, i+DB_BATCH_MAX).map(d=>({type:'set', store:'matches', data:d})));
+  }
 }
 
 /* Re-sincroniza en la base los partidos de rondas ≥1 YA PERSISTIDOS de un
@@ -695,6 +712,7 @@ async function _syncOwnBracketRounds(phase, dryRun){
   const nameById = {}; teams.forEach(t=>{ nameById[t.id]=t.name; });
 
   const changes = [];
+  const patched = new Map();
   for(let ri=1; ri<rounds.length; ri++){
     for(let mi=0; mi<rounds[ri].matches; mi++){
       const slot = slots[ri]?.[mi];
@@ -719,11 +737,12 @@ async function _syncOwnBracketRounds(phase, dryRun){
             before: { teamId: doc[teamField]??null, name: doc[teamField]!=null ? (nameById[doc[teamField]]??null) : null },
             after:  { teamId: liveTeamId, name: liveName },
           });
-          if(!dryRun) await dbPut('matches', {...doc, [teamField]: liveTeamId, [labelField]: liveName});
+          _bkPatch(patched, doc, {[teamField]: liveTeamId, [labelField]: liveName});
         }
       }
     }
   }
+  if(!dryRun) await _bkWritePatched(patched);
   return changes;
 }
 
@@ -846,7 +865,7 @@ function refBadgeHTML(label, baseFs=11){
   return `<span style="font-size:${baseFs}px;font-weight:700;font-family:'Barlow Condensed';letter-spacing:0.3px;">` +
     `<span style="color:${gColor};">G${m[1]}</span>` +
     `<span style="color:var(--txt3);">-</span>` +
-    `<span style="color:${pColor};">${m[2]}</span>` +
+    `<span style="color:${pColor};">${escHtml(m[2])}</span>` +
     ctxHtml +
     `</span>`;
 }
@@ -1055,8 +1074,10 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
   function _bkEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function ini(n){ return n ? _bkEsc(n.substring(0,3).toUpperCase()) : '?'; }
 
-  function logoCircle(id, name){
-    return '<div id="'+id+'" style="width:34px;height:34px;border-radius:50%;background:var(--card2);border:2px solid var(--brd2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\';font-size:9px;font-weight:700;color:var(--txt3);">'+ini(name)+'</div>';
+  // data-team-id: loadBracketLogos pinta el escudo buscando por id de equipo
+  // (H-27: antes buscaba el nombre dentro del id del elemento, que no lo tiene).
+  function logoCircle(id, name, teamId){
+    return '<div id="'+id+'"'+(teamId!=null?' data-team-id="'+_bkEsc(teamId)+'"':'')+' style="width:34px;height:34px;border-radius:50%;background:var(--card2);border:2px solid var(--brd2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\';font-size:9px;font-weight:700;color:var(--txt3);">'+ini(name)+'</div>';
   }
 
   function teamRow(logoId, teamId, score, isWin, isTbd, label, clickFn){
@@ -1068,7 +1089,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
     var cur = clickFn ? 'cursor:pointer;' : '';
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+bdr+bg+op+cur+'transition:background 0.1s;" '
       +(clickFn?'onclick="'+clickFn+'"':'')+'>'
-      +logoCircle(logoId, name)
+      +logoCircle(logoId, name, teamId)
       +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:15px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+_bkEsc(txt)+'</span>'
       +'<span style="font-family:\'Bebas Neue\';font-size:20px;min-width:22px;text-align:right;color:'+(isWin?'var(--gold)':'var(--txt3)')+';">'+score+'</span>'
       +'</div>';
@@ -1167,7 +1188,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
         // Badge ✓ al lado del NOMBRE del ganador (no tras el marcador).
         var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
         return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
-          +logoCircle(lid,nm)
+          +logoCircle(lid,nm,tid)
           +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+_bkEsc(tx)+'</span>'
           +bdg
           +'<span style="flex:1;"></span>'
@@ -1356,9 +1377,8 @@ function loadBracketLogos(slots){
       const team = byId[ref] || byName[ref];
       const logo = safeImgUrl(team?.logo);
       if(!logo) continue;
-      const key = team.name?.substring(0,6) || String(ref);
-      document.querySelectorAll(`[id*="${CSS.escape(key)}"]`).forEach(el=>{
-        if(el.id.startsWith('blogo-')) el.innerHTML=`<img src="${logo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+      document.querySelectorAll(`[id^="blogo-"][data-team-id="${CSS.escape(String(ref))}"]`).forEach(el=>{
+        el.innerHTML=`<img src="${logo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
       });
     }
   },100);
@@ -1696,11 +1716,13 @@ async function saveSlotRef(phaseId, slotIdx, side){
     return;
   }
 
-  const phase = await dbGet('phases', phaseId);
-  const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
-  refs.push({ ...source, slotIdx, side });
-
-  await dbPut('phases', {...phase, slotRefs:refs});
+  try {
+    const phase = await _bkRefPhaseEditable(phaseId, slotIdx);
+    if(!phase) return;
+    const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
+    refs.push({ ...source, slotIdx, side });
+    await dbPut('phases', {...phase, slotRefs:refs});
+  } catch(err){ showToast('No se pudo guardar la referencia: '+dbErrorMsg(err),'error'); return; }
 
   document.getElementById('slot-ref-modal-wrap').innerHTML='';
   invalidateStandingsCache(phaseId);
@@ -1717,10 +1739,32 @@ function getPlayoffMatchupsCount(phase){
   return 1;
 }
 
-async function removeSlotRef(phaseId, slotIdx, side){
+/* Fase cuya referencia del cruce `slotIdx` (ronda 0 del bracket, o llave de
+   un playoff) se puede cambiar: existe, su temporada no está finalizada y
+   el cruce no tiene resultado ni está en vivo (cambiar el equipo dejaría
+   ese marcador pegado a otro club, MS-5.7). Avisa y devuelve null si no. */
+async function _bkRefPhaseEditable(phaseId, slotIdx){
   const phase = await dbGet('phases', phaseId);
-  const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
-  await dbPut('phases', {...phase, slotRefs:refs});
+  if(!phase){ showToast('La fase ya no existe','error'); return null; }
+  if(typeof _mxSeasonLocked==='function' && await _mxSeasonLocked(phaseId)) return null;
+  const isBracket = phase.type==='bracket';
+  const played = await dbGetAll('matches', m=>m.phaseId===phaseId && m.matchIdx===slotIdx
+    && (!isBracket || m.roundIdx===0 || m.roundIdx==null)
+    && (m.goalsA!=null || m.goalsB!=null || !!m.live));
+  if(played.length){
+    showToast('Este cruce ya tiene resultado o está en vivo: borra el resultado antes de cambiar el equipo.','error');
+    return null;
+  }
+  return phase;
+}
+
+async function removeSlotRef(phaseId, slotIdx, side){
+  try {
+    const phase = await _bkRefPhaseEditable(phaseId, slotIdx);
+    if(!phase) return;
+    const refs  = (phase.slotRefs||[]).filter(r=>!(r.slotIdx===slotIdx&&r.side===side));
+    await dbPut('phases', {...phase, slotRefs:refs});
+  } catch(err){ showToast('No se pudo quitar la referencia: '+dbErrorMsg(err),'error'); return; }
   document.getElementById('slot-ref-modal-wrap').innerHTML='';
   invalidateStandingsCache(phaseId);
   await rerenderPhaseFromRefTarget(phaseId, window._slotRefTargetType||'bracket');
@@ -1855,7 +1899,7 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        ${(twoLeg?(existingLeg1||existingLeg2):existing) ? `<button class="btn btn-danger btn-sm" onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">✕ Eliminar</button>` : '<div></div>'}
+        ${(twoLeg?(existingLeg1||existingLeg2):existing) ? `<button class="btn btn-danger btn-sm" onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">${typeof _ICON_X!=='undefined'?_ICON_X:''} Eliminar</button>` : '<div></div>'}
         <div style="display:flex;gap:8px;">
           <button class="btn" onclick="closeBracketMatchModal()">Cancelar</button>
           <button class="btn btn-primary" onclick="saveBracketMatch('${slotId}',${phaseId},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))},${roundIdx},${matchIdx},${twoLeg},${awayGoal})">Guardar</button>
@@ -1895,96 +1939,181 @@ function closeBracketMatchModal(){
   if(el) el.innerHTML='';
 }
 
+/* Marcador de un input: null si está vacío, NaN si no es un entero 0-99. */
+function _bkGoal(id){
+  const raw = String(document.getElementById(id)?.value ?? '').trim();
+  if(raw==='') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n>=0 && n<=99 ? n : NaN;
+}
+
+/* Lote (dbWriteBatch) para guardar partidos y su registro de historial
+   juntos (H-53). items: [{doc, history}]; un doc sin id recibe uno nuevo.
+   Dos registros de historial nuevos en el mismo lote calcularían el mismo
+   «siguiente id»: el segundo se corre. */
+async function _bkResultOps(items){
+  const missing = items.filter(it=>it.doc.id==null);
+  const ids = await dbNewIds('matches', missing.length);
+  missing.forEach((it,i)=>{ it.doc.id = ids[i]; });
+  const ops = items.map(it=>({type:'set', store:'matches', data:it.doc}));
+  const used = new Set();
+  for(const it of items){
+    if(!it.history) continue;
+    const rec = await historyRecordFor(it.doc);
+    if(!rec) continue;
+    if(used.has(rec.id)) rec.id = Math.max(...used) + 1;
+    used.add(rec.id);
+    ops.push({type:'set', store:'matchHistory', data:rec});
+  }
+  return ops;
+}
+
+/* Partidos guardados de un cruce del bracket (doc único o ida/vuelta). */
+async function _bkSlotDocs(phaseId, slotId){
+  return dbGetAll('matches', m=>m.phaseId===phaseId && (
+    m.slotId===slotId || m.slotId===slotId+'_leg1' || m.slotId===slotId+'_leg2'));
+}
+
+/* ¿El cruce que recibe al ganador de (roundIdx, matchIdx) ya se jugó? Si el
+   ganador cambia, ese partido quedaría con el equipo viejo y su marcador
+   (buildBracketSlots respeta los equipos guardados de un partido con
+   resultado), así que se bloquea. */
+async function _bkNextPlayed(phase, roundIdx, matchIdx){
+  const rounds = buildBracketRounds(phase.config?.teams||8);
+  if(roundIdx+1 >= rounds.length) return false;
+  const nextId = `${phase.id}_r${roundIdx+1}_m${Math.floor(matchIdx/2)}`;
+  const docs = await _bkSlotDocs(phase.id, nextId);
+  return docs.some(m=>m.goalsA!=null || m.goalsB!=null || !!m.live);
+}
+
+/* Ganador que deja un conjunto de partidos guardados de un cruce. */
+function _bkWinnerOfDocs(docs, teamA, teamB, twoLeg, awayGoal){
+  if(twoLeg){
+    const l1 = docs.find(m=>m.leg===1), l2 = docs.find(m=>m.leg===2);
+    const u  = docs.find(m=>m.leg==null);
+    if(!l1 && !l2 && u) return getWinner({...u, twoLeg:true, awayGoal});
+    return getWinner({teamA, teamB, twoLeg:true, awayGoal,
+      leg1a:l1?.goalsA??null, leg1b:l1?.goalsB??null, leg2a:l2?.goalsA??null, leg2b:l2?.goalsB??null,
+      penA:l2?.penA??null, penB:l2?.penB??null});
+  }
+  const d = docs[0];
+  return d ? getWinner({teamA, teamB, ga:d.goalsA??null, gb:d.goalsB??null, penA:d.penA??null, penB:d.penB??null}) : null;
+}
+
+let _bkBusy = false;
+
 async function deleteBracketMatch(slotId, phaseId, roundIdx, matchIdx){
-  showConfirm('¿Eliminar resultado?','Se borrará el resultado de este partido.',async()=>{
-    // Borrar doc unificado y docs per-leg (compatibilidad con ambos formatos)
-    const existing = await dbGetAll('matches', m=>m.phaseId===phaseId && (
-      m.slotId===slotId || m.slotId===slotId+'_leg1' || m.slotId===slotId+'_leg2'
-    ));
-    for(const m of existing){
-      await removeHistoryByMatchRef(m.id);
-      await dbDelete('matches', m.id);
+  phaseId = parseInt(phaseId);
+  showConfirm('¿Eliminar resultado?','Se borrará el resultado de este cruce (ida y vuelta si las hay) y su registro del historial.',async()=>{
+    if(_bkBusy) return;
+    _bkBusy = true;
+    try {
+      if(typeof _mxSeasonLocked==='function' && await _mxSeasonLocked(phaseId)) return;
+      const phase = await dbGet('phases', phaseId);
+      if(!phase){ showToast('La fase ya no existe','error'); return; }
+      const existing = await _bkSlotDocs(phaseId, slotId);
+      if(existing.some(m=>m.live)){ showToast('El partido está en vivo: termínalo antes de borrarlo','error'); return; }
+      if(await _bkNextPlayed(phase, roundIdx, matchIdx)){
+        showToast('La ronda siguiente ya tiene resultado con el ganador de este cruce: bórralo primero.','error'); return;
+      }
+      await dbWriteBatch(await _mxDeleteOps(existing.map(m=>m.id)));
+      // Borrar un resultado también puede dejar viejo el teamA/teamB de una
+      // ronda ≥1 ya programada: re-sincronizar esta misma fase.
+      invalidateStandingsAndSyncBrackets(phaseId);
+      closeBracketMatchModal();
+      showToast('Resultado eliminado');
+    } catch(err){
+      console.error('[bracket]', err);
+      showToast('No se pudo borrar el resultado: '+dbErrorMsg(err),'error');
+    } finally {
+      _bkBusy = false;
+      const cid = document.querySelector('[id^="bracket-container-"]')?.id;
+      if(cid) renderBracket(phaseId, cid, true);
     }
-    // Borrar un resultado también puede dejar viejo el teamA/teamB de una
-    // ronda ≥1 ya programada (que había propagado el ganador que ahora se
-    // acaba de borrar) — re-sincronizar esta misma fase bracket.
-    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-    closeBracketMatchModal();
-    showToast('Resultado eliminado');
-    const cid = document.querySelector('[id^="bracket-container-"]')?.id;
-    if(cid) renderBracket(phaseId, cid, true);
   });
 }
 
 async function saveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchIdx, twoLeg, awayGoal){
-  const hasPen = document.getElementById('bm-pen-toggle')?.checked;
-  const pa = hasPen ? (parseInt(document.getElementById('bm-pa').value)||0) : null;
-  const pb = hasPen ? (parseInt(document.getElementById('bm-pb').value)||0) : null;
+  if(_bkBusy) return;   // doble clic en «Guardar»
+  _bkBusy = true;
+  try { await _saveBracketMatch(slotId, parseInt(phaseId), teamA, teamB, roundIdx, matchIdx, twoLeg, awayGoal); }
+  catch(err){ console.error('[bracket]', err); showToast('No se pudo guardar el resultado: '+dbErrorMsg(err),'error'); }
+  finally { _bkBusy = false; }
+}
 
-  const _resolveName = async (v)=>{
-    if(typeof v==='number' || Number.isFinite(parseInt(v))){
-      const t = await dbGet('teams', parseInt(v)); return t?.name || `#${v}`;
-    }
-    return v;
-  };
-  const _doRender = ()=>{ const cid=document.querySelector('[id^="bracket-container-"]')?.id; if(cid) renderBracket(phaseId, cid, true); };
+async function _saveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchIdx, twoLeg, awayGoal){
+  const bad = v => Number.isNaN(v);
+  const hasPen = !!document.getElementById('bm-pen-toggle')?.checked;
+  let pa = hasPen ? _bkGoal('bm-pa') : null;
+  let pb = hasPen ? _bkGoal('bm-pb') : null;
+  if(bad(pa) || bad(pb)){ showToast('Los penales deben ser números enteros entre 0 y 99','error'); return; }
 
+  let l1a=null,l1b=null,l2a=null,l2b=null,ga=null,gb=null,allIn=false,totA=0,totB=0;
   if(twoLeg){
-    // ── Guarda Ida y Vuelta como docs separados ──────────────────────────
-    const _v=id=>{ const v=parseInt(document.getElementById(id)?.value); return isNaN(v)?null:v; };
-    const l1a=_v('bm-l1a'), l1b=_v('bm-l1b'), l2a=_v('bm-l2a'), l2b=_v('bm-l2b');
-    const allIn=[l1a,l1b,l2a,l2b].every(v=>v!==null);
-    const totA=(l1a||0)+(l2a||0), totB=(l1b||0)+(l2b||0);
-    if(allIn && totA===totB){
-      const awayDecides = awayGoal && (l2a||0)!==(l1b||0);
-      if(!awayDecides && (pa===null||pb===null||pa===pb)){
-        showToast('Global empatado: define un ganador por penales','error'); return;
-      }
-    }
-    const now = new Date().toISOString();
-    if(l1a!==null && l1b!==null){
-      const sid1=slotId+'_leg1';
-      const ex1=await dbGetAll('matches',m=>m.slotId===sid1&&m.phaseId===phaseId);
-      const d1={slotId:sid1,phaseId,teamA,teamB,goalsA:l1a,goalsB:l1b,leg:1,roundIdx,matchIdx,season:STATE.season,date:now};
-      let id1; if(ex1.length){id1=ex1[0].id;await dbPut('matches',{...ex1[0],...d1});}else{id1=await dbAdd('matches',d1);}
-      await appendOrUpdateHistory(id1);
-    }
-    if(l2a!==null && l2b!==null){
-      const sid2=slotId+'_leg2';
-      const ex2=await dbGetAll('matches',m=>m.slotId===sid2&&m.phaseId===phaseId);
-      const d2={slotId:sid2,phaseId,teamA,teamB,goalsA:l2a,goalsB:l2b,penA:pa,penB:pb,leg:2,roundIdx,matchIdx,season:STATE.season,date:now};
-      let id2; if(ex2.length){id2=ex2[0].id;await dbPut('matches',{...ex2[0],...d2});}else{id2=await dbAdd('matches',d2);}
-      if(allIn) await appendOrUpdateHistory(id2);
-    }
-    // Un resultado nuevo (o corregido) de esta ronda puede cambiar el
-    // ganador que se propaga a la siguiente — re-sincronizar la fase para
-    // que rondas ≥1 ya programadas no se queden con el equipo viejo.
-    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-    const nameA=await _resolveName(teamA), nameB=await _resolveName(teamB);
-    const toastScore=allIn?`${totA}-${totB} global`:'parcial';
-    const penStr=pa!==null?` (pen ${pa}-${pb})`:'';
-    showToast(`${nameA} ${toastScore}${penStr} ${nameB}`);
-    closeBracketMatchModal();
-    _doRender();
+    l1a=_bkGoal('bm-l1a'); l1b=_bkGoal('bm-l1b'); l2a=_bkGoal('bm-l2a'); l2b=_bkGoal('bm-l2b');
+    if([l1a,l1b,l2a,l2b].some(bad)){ showToast('Los goles deben ser números enteros entre 0 y 99','error'); return; }
+    if((l1a===null)!==(l1b===null) || (l2a===null)!==(l2b===null)){ showToast('Completa los dos marcadores de cada partido','error'); return; }
+    if(l1a===null && l2a===null){ showToast('Ingresa al menos el resultado de la ida','error'); return; }
+    if(l1a===null){ showToast('Carga la ida antes que la vuelta','error'); return; }
+    allIn = l2a!==null;
+    totA=l1a+(l2a||0); totB=l1b+(l2b||0);
+    const tiebreak = allIn && totA===totB && !(awayGoal && (l2a||0)!==(l1b||0));
+    if(tiebreak){
+      if(pa===null||pb===null||pa===pb){ showToast('Global empatado: define un ganador por penales','error'); return; }
+    } else { pa=null; pb=null; }   // penales solo cuando el global queda empatado
+  } else {
+    ga=_bkGoal('bm-ga'); gb=_bkGoal('bm-gb');
+    if(bad(ga)||bad(gb)||ga===null||gb===null){ showToast('Los goles deben ser números enteros entre 0 y 99','error'); return; }
+    if(ga===gb){
+      // Eliminación directa: un empate sin penales dejaba el cruce sin ganador.
+      if(pa===null||pb===null||pa===pb){ showToast('Empate: define un ganador por penales','error'); return; }
+    } else { pa=null; pb=null; }
+  }
+
+  if(typeof _mxSeasonLocked==='function' && await _mxSeasonLocked(phaseId)) return;
+  const phase = await dbGet('phases', phaseId);
+  if(!phase){ showToast('La fase ya no existe','error'); closeBracketMatchModal(); return; }
+  const existing = await _bkSlotDocs(phaseId, slotId);
+  if(existing.some(m=>m.live)){ showToast('El partido está en vivo: termínalo desde el centro de partido','error'); return; }
+
+  const now = new Date().toISOString();
+  const base = {phaseId, teamA, teamB, roundIdx, matchIdx, season:STATE.season, date:now};
+  let items;
+  if(twoLeg){
+    const ex1 = existing.find(m=>m.slotId===slotId+'_leg1');
+    const ex2 = existing.find(m=>m.slotId===slotId+'_leg2');
+    items = [{doc:{...(ex1||{}), ...base, slotId:slotId+'_leg1', goalsA:l1a, goalsB:l1b, leg:1}, history:true}];
+    if(allIn) items.push({doc:{...(ex2||{}), ...base, slotId:slotId+'_leg2', goalsA:l2a, goalsB:l2b, penA:pa, penB:pb, leg:2}, history:true});
+  } else {
+    const ex = existing.find(m=>m.slotId===slotId);
+    items = [{doc:{...(ex||{}), ...base, slotId, goalsA:ga, goalsB:gb, penA:pa, penB:pb}, history:true}];
+  }
+
+  // Si cambia el ganador y la ronda siguiente ya se jugó con el anterior, no.
+  const oldWinner = _bkWinnerOfDocs(existing, teamA, teamB, twoLeg, awayGoal);
+  const newWinner = _bkWinnerOfDocs(items.map(it=>it.doc), teamA, teamB, twoLeg, awayGoal);
+  if(oldWinner!==newWinner && await _bkNextPlayed(phase, roundIdx, matchIdx)){
+    showToast('La ronda siguiente ya tiene resultado con el ganador de este cruce: bórralo antes de cambiar este.','error');
     return;
   }
 
-  // ── Partido único ────────────────────────────────────────────────────
-  const ga = parseInt(document.getElementById('bm-ga').value)||0;
-  const gb = parseInt(document.getElementById('bm-gb').value)||0;
-  if(hasPen && ga===gb && pa===pb && pa!==null){ showToast('Los penales no pueden terminar en empate','error'); return; }
-  const existing = await dbGetAll('matches',m=>m.slotId===slotId&&m.phaseId===phaseId);
-  const data = { slotId, phaseId, teamA, teamB, goalsA:ga, goalsB:gb, penA:pa, penB:pb, roundIdx, matchIdx, season:STATE.season, date:new Date().toISOString() };
-  let savedId;
-  if(existing.length){ savedId=existing[0].id; await dbPut('matches',{...existing[0],...data}); } else { savedId=await dbAdd('matches',data); }
-  if(data.goalsA!=null && data.goalsB!=null) await appendOrUpdateHistory(savedId);
-  // Ver comentario equivalente en la rama ida/vuelta de arriba.
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-  const nameA=await _resolveName(teamA), nameB=await _resolveName(teamB);
-  const penStr=pa!==null?` (pen ${pa}-${pb})`:'';
-  showToast(`${nameA} ${ga}-${gb}${penStr} ${nameB}`);
+  const ops = await _bkResultOps(items);
+  // Vuelta vaciada en el modal (que la muestra precargada): se borra con su historial.
+  const ex2 = twoLeg ? existing.find(m=>m.slotId===slotId+'_leg2') : null;
+  if(twoLeg && !allIn && ex2) ops.push(...await _mxDeleteOps([ex2.id]));
+  await dbWriteBatch(ops);
+  // Un resultado nuevo (o corregido) puede cambiar el ganador que se propaga
+  // a la siguiente ronda: re-sincronizar la fase.
+  invalidateStandingsAndSyncBrackets(phaseId);
+
+  const nameOf = async v => (Number.isFinite(parseInt(v)) ? (await dbGet('teams', parseInt(v)))?.name : v) || `#${v}`;
+  const nameA = await nameOf(teamA), nameB = await nameOf(teamB);
+  const penStr = pa!==null ? ` (pen ${pa}-${pb})` : '';
+  const score = twoLeg ? (allIn ? `${totA}-${totB} global` : `${l1a}-${l1b} ida`) : `${ga}-${gb}`;
+  showToast(`${nameA} ${score}${penStr} ${nameB}`);
   closeBracketMatchModal();
-  _doRender();
+  const cid=document.querySelector('[id^="bracket-container-"]')?.id;
+  if(cid) renderBracket(phaseId, cid, true);
 }
 
 /* ----------------------------------------------------------
