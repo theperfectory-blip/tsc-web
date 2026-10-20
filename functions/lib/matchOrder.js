@@ -17,6 +17,14 @@ function sortMatchesByKickoff(matches) {
   });
 }
 
+/* ¿El partido sigue por jugarse? Un partido con marcador y fuera de vivo ya
+   terminó: no tiene sentido avisar «tu equipo juega hoy» ni «a continuación»
+   por él (MS-5.8). Uno en vivo cuenta: es el que dispara el aviso del
+   siguiente. */
+function isPendingOrLive(m) {
+  return !!m.live || m.goalsA == null || m.goalsB == null;
+}
+
 /* Partidos de `season` programados para `dateStr` ('YYYY-MM-DD'), ya
    ordenados por sortMatchesByKickoff. Lee la colección `matches` completa y
    filtra en memoria en vez de hacer una query compuesta de Firestore:
@@ -29,8 +37,8 @@ async function getOrderedMatchesForDate(db, season, dateStr) {
   const snap = await db.collection('matches').get();
   const matches = snap.docs
     .map(d => d.data())
-    .filter(m => m.season === season && m.scheduledDate === dateStr);
+    .filter(m => m.season === season && m.scheduledDate === dateStr && isPendingOrLive(m));
   return sortMatchesByKickoff(matches);
 }
 
-module.exports = { DATE_RE, sortMatchesByKickoff, getOrderedMatchesForDate };
+module.exports = { DATE_RE, isPendingOrLive, sortMatchesByKickoff, getOrderedMatchesForDate };

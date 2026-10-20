@@ -68,6 +68,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | M-9 | `firebase deploy --only functions` (runtime Node 22) y probar una vez el botón de "stream de hoy" | Slice 6.1 · **hecho 2026-10-11** (deploy y prueba del botón con un partido de prueba: aviso "juega hoy" y, a los 65 s, "a continuación", a 2 tokens, ambos con éxito) |
 | M-10 | Publicar un release nuevo de la APK (`versionCode 19` / `1.6.3`, build firmado con tu keystore y `update.json`) con Capacitor parcheado, y probarlo en un teléfono real: inicio de sesión, token de notificaciones guardado, un aviso recibido y la actualización 1.6.2 → 1.6.3 desde la app. Pasos en `docs/reportes/MS-6.2-6.3.md` | Slices 6.2 y 6.3 (H-37, H-38) · **hecho 2026-10-11**: release `v1.6.3` publicado (APK firmado con la clave de siempre, `update.json` con `versionCode 19`); pruebas en teléfono real hechas por el dueño |
 | M-11 | **Recordatorio, al terminar todo (después del merge final a `main`):** comprobar que la CSP quedó en enforce. Desde cualquier terminal: `curl -sD - -o /dev/null https://teamsubscup.web.app/` (en PowerShell, `curl.exe -sD - -o NUL https://teamsubscup.web.app/`) debe mostrar `Content-Security-Policy:` sin `-Report-Only`. Después abrir la web en el celular e iniciar sesión. Si algo se rompe, volver la clave a `-Report-Only` en `firebase.json` y desplegar | Después del merge final (cierre de 3.5) |
+| M-12 | `firebase deploy --only functions`: los avisos «juega hoy» y «a continuación» dejan de salir por partidos ya jugados (cambio en `functions/lib/matchOrder.js`, MS-5.8). Sin urgencia: hasta el deploy el comportamiento es el de siempre | Slice 5.8 |
 
 ---
 
@@ -150,7 +151,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-56 | Baja. Un grupo de 17 equipos o más a doble vuelta (o de 18 a una vuelta con muchas fechas previas) no se puede regenerar: bajas + altas superan las 500 escrituras del lote atómico y el generador se niega con un aviso (hay que borrar fechas antes). Con 16 equipos a doble vuelta son 481 y entra. Los grupos reales son de 8. Hallado en 5.6; decidir en 7.x si se parte por bloques con reconstrucción en dos pasos |
 | H-57 | Media (decisión). Entre fases no hay bloqueo: si cambia la tabla de un grupo o el ganador de una llave después de que el cruce que lo recibe ya se jugó, la sincronización no toca ese partido (bien) pero queda con un equipo que ya no clasifica, sin aviso. Dentro de un bracket se bloquea desde 5.7. Decidir: avisar o bloquear al guardar el resultado de origen. Hallado en 5.7 |
 | H-58 | Baja. `updateBracketTeamsDynamic` / `updateBracketDOM` (`bracket.js`) son código muerto: buscan elementos `tlogo-` que no existen y leen todos los equipos en cada render. Hallado en 5.7, va a 7.2 |
-| H-59 | Baja. `livematch.js` guarda el partido y su historial por separado al terminar un partido en vivo (resto de H-53). Hallado en 5.7, va a 5.8 |
+| H-59 | **Cerrado en 5.8.** `livematch.js` guardaba el partido y su historial por separado al terminar un partido en vivo (resto de H-53); ahora van en un lote. Hallado en 5.7 |
 
 ---
 
@@ -619,6 +620,8 @@ sandbox de 2.1.**
 > **Estado 5.6:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.6.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas. El generador de fechas escribe todo en un lote atómico (H-55), se niega en temporada finalizada, con partidos jugados, a medias o en vivo, revalida el grupo y la fase al guardar, avisa de los días asignados que se pierden, escapa nombres y no se dispara dos veces. Abre H-56.
 
 > **Estado 5.7:** CERRADO · 2026-10-19 (Opus) · ver `docs/reportes/MS-5.7.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, 0 errores no provocados. Cierra H-27 (escudos en el bracket admin) y H-30 (playoff con ids), y H-53 en bracket y playoff (resultado + historial en un lote, `dbNewIds`). Bloqueo al cambiar un ganador ya propagado a una ronda jugada; empate a partido único exige penales; sincronización de cruces que pisaba el lado A arreglada; reasignar una llave avisa qué resultados se borran (la supercopa dejaba el historial huérfano). Abre H-57 a H-59.
+
+> **Estado 5.8:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.8.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, Functions 10/10 escenarios, sin cambios de reglas. Finalizar un partido en vivo guarda partido e historial en un lote (H-59, cierra H-53); cola de escrituras (los goles seguidos no se pierden), un partido ya finalizado o descartado no vuelve a ponerse en vivo, temporada finalizada rechazada desde el código, penales solo cuando hacen falta, descartar conserva un cruce programado y borra su historial, C9. Functions: los avisos ya no salen por partidos jugados (**M-12**, deploy de functions a mano).
 
 ---
 

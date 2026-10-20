@@ -61,21 +61,90 @@ function _liveCanEdit(){
   return typeof STATE !== 'undefined' && STATE.mode === 'admin';
 }
 
-/* Devuelve OTRO partido que esté EN VIVO (distinto de exceptId), o null.
-   Solo puede haber un partido en vivo a la vez en todo el torneo. */
-async function _findOtherLiveMatch(exceptId){
-  try {
-    const all = await dbGetAll('matches', m=>!!m.live);
-    return all.find(m=>m.id!==exceptId) || null;
-  } catch(_){ return null; }
+/* ----------------------------------------------------------
+   Escrituras del centro en vivo (MS-5.8)
+   - Cola única: cada clic (gol, penal, finalizar...) espera al anterior, para
+     que dos clics seguidos no lean el mismo marcador y se pisen.
+   - Errores de red o de reglas como aviso claro, nunca promesa sin capturar.
+   - Un partido que ya no está en vivo (finalizado o descartado desde otra
+     pantalla) no se modifica: antes cada gol lo volvía a poner en vivo.
+   ---------------------------------------------------------- */
+let _lmQueue = Promise.resolve();
+function _lmEnqueue(fn, what){
+  const run = _lmQueue.then(fn);
+  _lmQueue = run.catch(()=>{});
+  return run.catch(err=>{
+    console.error('[LiveMatch]', err);
+    showToast((what ? what+': ' : '')+dbErrorMsg(err), 'error');
+  });
 }
 
-/* Salvaguarda silenciosa: true si ya hay otro partido en vivo (bloquea sin
-   avisar — el botón "En vivo" ya no debería estar visible en ese caso; esto
-   solo cubre una carrera de dos clicks casi simultáneos). */
+const _LM_ICON = {
+  clock:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  check:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="20 6 9 17 4 12"/></svg>',
+  undo:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+};
+
+/* Partido vigente y todavía en vivo, o null (con aviso). Rechaza también las
+   temporadas finalizadas (H-49: la UI ya lo bloquea, el código también). */
+async function _lmLiveDoc(matchId){
+  const m = await dbGet('matches', matchId);
+  if(!m){ showToast('Partido no encontrado','error'); return null; }
+  if(!m.live){
+    showToast('Este partido ya no está en vivo','error');
+    closeLiveMatch();
+    return null;
+  }
+  if(await _mxSeasonLocked(m.phaseId)) return null;
+  return m;
+}
+
+/* Devuelve OTRO partido que esté EN VIVO (distinto de exceptId), o null.
+   Solo puede haber un partido en vivo a la vez en todo el torneo. Si la
+   lectura falla, el error sube: antes devolvía null y dejaba pasar un
+   segundo partido en vivo. */
+async function _findOtherLiveMatch(exceptId){
+  const all = await dbGetAll('matches', m=>!!m.live);
+  return all.find(m=>m.id!==exceptId) || null;
+}
+
 async function _blockIfOtherLive(exceptId){
   const other = await _findOtherLiveMatch(exceptId);
+  if(other) showToast('Ya hay otro partido en vivo: finalízalo o descártalo primero','error');
   return !!other;
+}
+
+/* Pone un partido EN VIVO. existing: partido guardado (o null si el cruce
+   todavía no tiene documento); fresh: campos del documento nuevo. */
+async function _lmStart(phaseId, existing, fresh, ctx){
+  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+  if(await _mxSeasonLocked(phaseId)) return;
+  if(existing?.live){ _liveCtx = ctx; await openLiveMatch(existing.id); return; }
+  if(await _blockIfOtherLive(existing?.id)) return;
+  const teamA = existing ? existing.teamA : fresh.teamA;
+  const teamB = existing ? existing.teamB : fresh.teamB;
+  if(teamA==null || teamB==null){ showToast('El cruce todavía no tiene los dos equipos definidos','error'); return; }
+  // Un cruce ya jugado cuyo ganador pasó a una ronda jugada: ponerlo en vivo y
+  // cambiar el resultado dejaría esa ronda con un equipo que ya no gana.
+  if(existing && existing.goalsA!=null && existing.roundIdx!=null){
+    const phase = await dbGet('phases', phaseId);
+    if(phase?.type==='bracket' && typeof _bkNextPlayed==='function'
+       && await _bkNextPlayed(phase, existing.roundIdx, existing.matchIdx||0)){
+      showToast('La ronda siguiente ya tiene resultado con el ganador de este cruce: bórralo antes de ponerlo en vivo','error');
+      return;
+    }
+  }
+  const now = new Date().toISOString();
+  let id;
+  if(existing){
+    id = existing.id;
+    await dbPut('matches', { ...existing, goalsA: existing.goalsA??0, goalsB: existing.goalsB??0, live:true, liveStartAt: existing.liveStartAt||now, liveEndAt:null, playedAt: existing.playedAt||now });
+  } else {
+    id = await dbAdd('matches', { ...fresh, goalsA:0, goalsB:0, penA:null, penB:null, season:STATE.season, live:true, liveStartAt:now, liveEndAt:null, date:now });
+  }
+  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
+  _liveCtx = ctx;
+  await openLiveMatch(id);
 }
 
 /* Refresca la vista de admin de fondo (lista de fechas, bracket o playoff)
@@ -99,97 +168,40 @@ function _liveRefreshBackground(){
 }
 
 /* ---- Iniciar EN VIVO: fase de grupos ---- */
-async function startLiveGroupMatch(matchId, phaseId, groupIdx){
-  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
-  if(await _blockIfOtherLive(matchId)) return;
-  const m = await dbGet('matches', matchId);
-  if(!m){ showToast('Partido no encontrado','error'); return; }
-  const now = new Date().toISOString();
-  await dbPut('matches', {
-    ...m,
-    goalsA: m.goalsA!=null ? m.goalsA : 0,
-    goalsB: m.goalsB!=null ? m.goalsB : 0,
-    live: true,
-    liveStartAt: m.liveStartAt || now,
-    liveEndAt: null,
-    playedAt: m.playedAt || now,
-  });
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-  _liveCtx = { kind:'group', phaseId, groupIdx };
-  await openLiveMatch(matchId);
+function startLiveGroupMatch(matchId, phaseId, groupIdx){
+  return _lmEnqueue(async ()=>{
+    const m = await dbGet('matches', matchId);
+    if(!m){ showToast('Partido no encontrado','error'); return; }
+    await _lmStart(m.phaseId ?? phaseId, m, null, { kind:'group', phaseId, groupIdx });
+  }, 'No se pudo poner el partido en vivo');
 }
 
 /* ---- Iniciar EN VIVO: eliminatoria (bracket) ---- */
-async function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchIdx){
-  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+function startLiveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchIdx){
   phaseId = parseInt(phaseId, 10);
-  const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
-  if(await _blockIfOtherLive(existing[0]?.id)) return;
-  const now = new Date().toISOString();
-  let id;
-  if(existing.length){
-    id = existing[0].id;
-    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true, liveStartAt: existing[0].liveStartAt||now, liveEndAt:null });
-  } else {
-    id = await dbAdd('matches', {
-      slotId, phaseId, teamA, teamB,
-      goalsA:0, goalsB:0, penA:null, penB:null,
-      roundIdx, matchIdx, season:STATE.season,
-      live:true, liveStartAt:now, liveEndAt:null, date:now,
-    });
-  }
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-  _liveCtx = { kind:'bracket', phaseId };
-  await openLiveMatch(id);
+  return _lmEnqueue(async ()=>{
+    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+    await _lmStart(phaseId, existing[0]||null, { slotId, phaseId, teamA, teamB, roundIdx, matchIdx }, { kind:'bracket', phaseId });
+  }, 'No se pudo poner el partido en vivo');
 }
 
 /* ---- Iniciar EN VIVO: leg de bracket ida/vuelta ---- */
-async function startLiveBracketLeg(baseSlotId, phaseId, legNum, teamA, teamB, roundIdx, matchIdx){
-  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+function startLiveBracketLeg(baseSlotId, phaseId, legNum, teamA, teamB, roundIdx, matchIdx){
   phaseId = parseInt(phaseId, 10);
   const slotId = baseSlotId + '_leg' + legNum;
-  const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
-  if(await _blockIfOtherLive(existing[0]?.id)) return;
-  const now = new Date().toISOString();
-  let id;
-  if(existing.length){
-    id = existing[0].id;
-    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true, liveStartAt: existing[0].liveStartAt||now, liveEndAt:null });
-  } else {
-    id = await dbAdd('matches', {
-      slotId, phaseId, teamA, teamB,
-      goalsA:0, goalsB:0, penA:null, penB:null,
-      roundIdx, matchIdx, leg:legNum, season:STATE.season,
-      live:true, liveStartAt:now, liveEndAt:null, date:now,
-    });
-  }
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-  _liveCtx = { kind:'bracket', phaseId };
-  await openLiveMatch(id);
+  return _lmEnqueue(async ()=>{
+    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+    await _lmStart(phaseId, existing[0]||null, { slotId, phaseId, teamA, teamB, roundIdx, matchIdx, leg:legNum }, { kind:'bracket', phaseId });
+  }, 'No se pudo poner el partido en vivo');
 }
 
 /* ---- Iniciar EN VIVO: leg de playoff (serie ida/vuelta) ---- */
-async function startLivePlayoffLeg(phaseId, slotId, matchIdx, leg, teamA, teamB){
-  if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
+function startLivePlayoffLeg(phaseId, slotId, matchIdx, leg, teamA, teamB){
   phaseId = parseInt(phaseId, 10);
-  const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
-  if(await _blockIfOtherLive(existing[0]?.id)) return;
-  const now = new Date().toISOString();
-  let id;
-  if(existing.length){
-    id = existing[0].id;
-    await dbPut('matches', { ...existing[0], goalsA: existing[0].goalsA??0, goalsB: existing[0].goalsB??0, live:true, liveStartAt: existing[0].liveStartAt||now, liveEndAt:null });
-  } else {
-    id = await dbAdd('matches', {
-      slotId, phaseId, teamA, teamB,
-      goalsA:0, goalsB:0, penA:null, penB:null,
-      matchIdx, leg, season:STATE.season,
-      live:true, liveStartAt:now, liveEndAt:null, date:now,
-    });
-  }
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-  _liveCtx = { kind:'playoff', phaseId };
-  await openLiveMatch(id);
+  return _lmEnqueue(async ()=>{
+    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===phaseId);
+    await _lmStart(phaseId, existing[0]||null, { slotId, phaseId, teamA, teamB, matchIdx, leg }, { kind:'playoff', phaseId });
+  }, 'No se pudo poner el partido en vivo');
 }
 
 /* ---- Abrir el centro en vivo ---- */
@@ -236,11 +248,11 @@ async function openLiveMatch(matchId){
   footer += `<button class="btn btn-danger btn-sm" onclick="liveDiscard(${matchId})" title="Cancelar el en vivo (no queda como jugado)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Descartar</button>`;
   if(knockout){
     if(!m.extraTime){
-      footer += `<button class="btn" onclick="liveSetExtraTime(${matchId})" title="Entró en tiempo extra">⏱ Prórroga</button>`;
+      footer += `<button class="btn" onclick="liveSetExtraTime(${matchId})" title="Entró en tiempo extra">${_LM_ICON.clock} Prórroga</button>`;
     }
     footer += `<button class="btn" onclick="liveTogglePenalties(${matchId})">Penales</button>`;
   }
-  footer += `<button class="btn btn-primary" onclick="liveFinalize(${matchId})">✓ Finalizar</button>`;
+  footer += `<button class="btn btn-primary" onclick="liveFinalize(${matchId})">${_LM_ICON.check} Finalizar</button>`;
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="live-match-modal">
@@ -248,7 +260,7 @@ async function openLiveMatch(matchId){
       <div class="modal-hdr">
         <div class="modal-title" style="display:flex;align-items:center;gap:9px;">
           <span class="live-dot live-dot-red"></span>EN VIVO
-          ${m.extraTime?`<span style="font-size:11px;color:var(--gold);border:1px solid var(--gold-b);border-radius:10px;padding:1px 8px;letter-spacing:0.5px;">⏱ TIEMPO EXTRA</span>`:''}
+          ${m.extraTime?`<span style="font-size:11px;color:var(--gold);border:1px solid var(--gold-b);border-radius:10px;padding:1px 8px;letter-spacing:0.5px;">${_LM_ICON.clock} TIEMPO EXTRA</span>`:''}
         </div>
         <button class="modal-close" onclick="closeLiveMatch()">×</button>
       </div>
@@ -260,7 +272,7 @@ async function openLiveMatch(matchId){
         </div>
 
         <div style="display:flex;justify-content:center;margin-top:14px;">
-          <button class="btn btn-sm" onclick="liveReset(${matchId})" title="Reiniciar marcador a 0-0" style="color:var(--txt2);">↺ Reiniciar</button>
+          <button class="btn btn-sm" onclick="liveReset(${matchId})" title="Reiniciar marcador a 0-0" style="color:var(--txt2);">${_LM_ICON.undo} Reiniciar</button>
         </div>
 
         <div id="lm-penalty-section" style="margin-top:14px;display:${showPen?'block':'none'};">
@@ -286,45 +298,59 @@ async function openLiveMatch(matchId){
   </div>`;
 }
 
-/* Marca un gol (botón ⚽ GOL): +1 al equipo, persiste y refresca el número. */
-async function liveGoal(matchId, side){
-  await liveAdjust(matchId, side, 1);
+/* Marca un gol (botón GOL): +1 al equipo, persiste y refresca el número. */
+function liveGoal(matchId, side){
+  return liveAdjust(matchId, side, 1);
 }
 
 /* Reinicia el marcador a 0-0 (sin perder el estado EN VIVO). */
-async function liveReset(matchId){
+function liveReset(matchId){
   if(!_liveCanEdit()) return;
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  await dbPut('matches', { ...m, goalsA:0, goalsB:0, live:true });
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
-  const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = 0;
-  const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = 0;
-  _liveClearWarn();
+  return _lmEnqueue(async ()=>{
+    const m = await _lmLiveDoc(matchId);
+    if(!m) return;
+    const doReset = ()=>_lmEnqueue(async ()=>{
+      const cur = await _lmLiveDoc(matchId);
+      if(!cur) return;
+      await dbPut('matches', { ...cur, goalsA:0, goalsB:0 });
+      if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(cur.phaseId);
+      const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = 0;
+      const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = 0;
+      _liveClearWarn();
+    }, 'No se pudo reiniciar el marcador');
+    if((m.goalsA||0)+(m.goalsB||0) > 0 && typeof showConfirm==='function'){
+      showConfirm('¿Reiniciar el marcador?', `Se pierde el marcador actual (${m.goalsA||0}-${m.goalsB||0}) y vuelve a 0-0. El partido sigue en vivo.`, doReset);
+    } else { doReset(); }
+  }, 'No se pudo reiniciar el marcador');
 }
 
-/* Ajusta el marcador (clamp ≥0), persiste y refresca tabla + modal. */
-async function liveAdjust(matchId, side, delta){
+/* Ajusta el marcador (de 0 a 99), persiste y refresca tabla + modal. */
+function liveAdjust(matchId, side, delta){
   if(!_liveCanEdit()) return;
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  let ga = m.goalsA||0, gb = m.goalsB||0;
-  if(side==='ga') ga = Math.max(0, ga+delta);
-  else            gb = Math.max(0, gb+delta);
-  await dbPut('matches', { ...m, goalsA:ga, goalsB:gb, live:true });
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
-  const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = ga;
-  const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = gb;
-  _liveRefreshBackground();
-  _liveClearWarn();
+  return _lmEnqueue(async ()=>{
+    const m = await _lmLiveDoc(matchId);
+    if(!m) return;
+    let ga = m.goalsA||0, gb = m.goalsB||0;
+    if(side==='ga') ga = Math.min(99, Math.max(0, ga+delta));
+    else            gb = Math.min(99, Math.max(0, gb+delta));
+    if(ga===(m.goalsA||0) && gb===(m.goalsB||0)) return;
+    await dbPut('matches', { ...m, goalsA:ga, goalsB:gb });
+    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
+    const elA = document.getElementById('lm-ga'); if(elA) elA.textContent = ga;
+    const elB = document.getElementById('lm-gb'); if(elB) elB.textContent = gb;
+    _liveRefreshBackground();
+    _liveClearWarn();
+  }, 'No se pudo guardar el marcador');
 }
 
-async function liveSetExtraTime(matchId){
+function liveSetExtraTime(matchId){
   if(!_liveCanEdit()) return;
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  await dbPut('matches', { ...m, extraTime:true, live:true });
-  await openLiveMatch(matchId); // re-render para mostrar badge y ocultar el botón
+  return _lmEnqueue(async ()=>{
+    const m = await _lmLiveDoc(matchId);
+    if(!m) return;
+    await dbPut('matches', { ...m, extraTime:true });
+    await openLiveMatch(matchId); // re-render para mostrar badge y ocultar el botón
+  }, 'No se pudo marcar el tiempo extra');
 }
 
 function liveTogglePenalties(matchId){
@@ -332,18 +358,20 @@ function liveTogglePenalties(matchId){
   if(sec) sec.style.display = (sec.style.display==='none' || !sec.style.display) ? 'block' : 'none';
 }
 
-async function livePenAdjust(matchId, side, delta){
+function livePenAdjust(matchId, side, delta){
   if(!_liveCanEdit()) return;
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  let pa = m.penA||0, pb = m.penB||0;
-  if(side==='a') pa = Math.max(0, pa+delta);
-  else           pb = Math.max(0, pb+delta);
-  await dbPut('matches', { ...m, penA:pa, penB:pb, live:true });
-  const elA = document.getElementById('lm-pen-a'); if(elA) elA.textContent = pa;
-  const elB = document.getElementById('lm-pen-b'); if(elB) elB.textContent = pb;
-  _liveRefreshBackground();
-  _liveClearWarn();
+  return _lmEnqueue(async ()=>{
+    const m = await _lmLiveDoc(matchId);
+    if(!m) return;
+    let pa = m.penA||0, pb = m.penB||0;
+    if(side==='a') pa = Math.min(99, Math.max(0, pa+delta));
+    else           pb = Math.min(99, Math.max(0, pb+delta));
+    await dbPut('matches', { ...m, penA:pa, penB:pb });
+    const elA = document.getElementById('lm-pen-a'); if(elA) elA.textContent = pa;
+    const elB = document.getElementById('lm-pen-b'); if(elB) elB.textContent = pb;
+    _liveRefreshBackground();
+    _liveClearWarn();
+  }, 'No se pudo guardar los penales');
 }
 
 function _liveWarn(msg){ const w=document.getElementById('lm-warn'); if(w) w.textContent=msg; }
@@ -382,12 +410,21 @@ async function _playoffSeriesNeedsPenalties(m, phase){
   return true;                              // global empatado → penales
 }
 
-async function liveFinalize(matchId){
+function liveFinalize(matchId){
   if(!_liveCanEdit()){ showToast('Cambia a modo administrador para gestionar el partido','error'); return; }
-  const m = await dbGet('matches', matchId);
-  if(!m){ showToast('Partido no encontrado','error'); return; }
+  return _lmEnqueue(()=>_liveFinalize(matchId), 'No se pudo finalizar el partido');
+}
+
+async function _liveFinalize(matchId){
+  const m = await _lmLiveDoc(matchId);   // un doble clic en «Finalizar» llega aquí con el partido ya cerrado
+  if(!m) return;
   const phase = await dbGet('phases', m.phaseId);
   const ga = m.goalsA||0, gb = m.goalsB||0;
+  const okGoal = n => Number.isInteger(n) && n>=0 && n<=99;
+  if(!okGoal(ga) || !okGoal(gb) || (m.penA!=null && !okGoal(m.penA)) || (m.penB!=null && !okGoal(m.penB))){
+    _liveWarn('El marcador debe ser de números enteros entre 0 y 99. Usa «Reiniciar» y vuelve a cargarlo.');
+    return;
+  }
 
   // ¿Hace falta un desempate (prórroga/penales) que aún no está resuelto?
   // Default de legs DEBE coincidir con renderPlayoff (2 en playoff/single); si
@@ -424,15 +461,15 @@ async function liveFinalize(matchId){
     }
   }
 
+  // Los penales solo valen si el partido o la serie los necesitan; si se
+  // tocaron y después el marcador resolvió el cruce, no se guardan.
+  const penA = needsTiebreak ? m.penA : null;
+  const penB = needsTiebreak ? m.penB : null;
   const now = new Date().toISOString();
-  await dbPut('matches', {
-    ...m,
-    goalsA:ga, goalsB:gb,
-    live:false,
-    liveEndAt: now,
-    playedAt: m.playedAt || now,
-  });
-  if(typeof appendOrUpdateHistory==='function') await appendOrUpdateHistory(matchId);
+  const finalDoc = { ...m, goalsA:ga, goalsB:gb, penA, penB, live:false, liveEndAt: now, playedAt: m.playedAt || now };
+  // Partido e historial en UN lote (H-59): antes eran dos escrituras y un
+  // corte entre ambas dejaba el partido finalizado sin historial.
+  await dbWriteBatch(await _bkResultOps([{ doc:finalDoc, history:true }]));
   if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
   // Guardar contexto ANTES de cerrar (closeLiveMatch lo pone a null).
   const _savedCtx = _liveCtx ? {..._liveCtx} : null;
@@ -457,27 +494,37 @@ async function liveFinalize(matchId){
   }
 }
 
-/* Cancela el partido EN VIVO sin dejarlo como jugado.
-   - bracket/playoff (con slotId): borra el doc → vuelve a "por jugar".
-   - grupos: quita live y borra el marcador → vuelve a pendiente. */
-async function liveDiscard(matchId){
+/* Cancela el partido EN VIVO sin dejarlo como jugado. El partido y su
+   registro de historial se tocan en un solo lote.
+   - Cruce sin fecha asignada: se borra el documento (vuelve a «por jugar»).
+   - Con fecha asignada en el Calendario, o en fase de grupos: se conserva el
+     documento (fecha, hora y equipos) y solo se quita el marcador. Antes un
+     cruce programado perdía su fecha al descartarlo. */
+function liveDiscard(matchId){
   if(!_liveCanEdit()){ showToast('Cambia a modo administrador','error'); return; }
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  const doDiscard = async ()=>{
-    if(m.slotId){
-      if(typeof removeHistoryByMatchRef==='function') await removeHistoryByMatchRef(m.id);
-      await dbDelete('matches', m.id);
-    } else {
-      await dbPut('matches', { ...m, live:false, goalsA:null, goalsB:null, penA:null, penB:null, extraTime:false, liveStartAt:null, liveEndAt:null });
-    }
-    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(m.phaseId);
-    showToast('Partido en vivo descartado');
-    closeLiveMatch();
-  };
-  if(typeof showConfirm==='function'){
-    showConfirm('¿Descartar partido en vivo?', 'Se cancelará el EN VIVO y el partido volverá a "por jugar" (no queda como 0-0).', doDiscard);
-  } else { await doDiscard(); }
+  return _lmEnqueue(async ()=>{
+    const m = await _lmLiveDoc(matchId);
+    if(!m) return;
+    const hist = await dbGetAll('matchHistory', h=>h.matchRef===m.id);
+    const score = `${m.goalsA||0}-${m.goalsB||0}`;
+    const lost = hist.length
+      ? `Se pierde el marcador (${score}) y su registro de historial.`
+      : `Se pierde el marcador actual (${score}).`;
+    const doDiscard = ()=>_lmEnqueue(async ()=>{
+      const cur = await _lmLiveDoc(matchId);
+      if(!cur) return;
+      const curHist = await dbGetAll('matchHistory', h=>h.matchRef===cur.id);
+      const histOps = curHist.map(h=>({type:'delete', store:'matchHistory', id:h.id}));
+      const ops = (cur.slotId && !cur.scheduledDate)
+        ? [...histOps, {type:'delete', store:'matches', id:cur.id}]
+        : [{type:'set', store:'matches', data:{ ...cur, live:false, goalsA:null, goalsB:null, penA:null, penB:null, extraTime:false, liveStartAt:null, liveEndAt:null, playedAt:null }}, ...histOps];
+      await dbWriteBatch(ops);
+      if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(cur.phaseId);
+      showToast('Partido en vivo descartado');
+      closeLiveMatch();
+    }, 'No se pudo descartar el partido');
+    showConfirm('¿Descartar partido en vivo?', `Se cancela el EN VIVO y el partido vuelve a «por jugar» (no queda como 0-0). ${lost}`, doDiscard);
+  }, 'No se pudo descartar el partido');
 }
 
 function closeLiveMatch(){
