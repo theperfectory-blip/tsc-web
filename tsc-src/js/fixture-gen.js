@@ -62,14 +62,23 @@
    revalidación automática cuando se edita a mano.
    ============================================================ */
 
-function _fxEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
 /* Ícono SVG inline estilo Lucide (gamepad-2) — marca el partido de Luis en el
    preview del modal y en renderRondasAdmin (matches.js). Nunca emojis. */
 const _FX_GAMEPAD_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><rect x="2" y="6" width="20" height="12" rx="2"/></svg>`;
 
-/* Un partido bloquea la generación si ya se jugó o está en vivo. */
-function _fxIsPlayed(m){ return !!m.live || (m.goalsA!=null && m.goalsB!=null); }
+/* Un partido bloquea la generación si ya se jugó, está en vivo o tiene medio
+   marcador (un solo lado cargado: también es un dato que no se pisa). */
+function _fxIsPlayed(m){ return !!m.live || m.goalsA!=null || m.goalsB!=null; }
+
+/* Lo que se pierde al reemplazar las fechas que ya existen en el grupo:
+   solo fechas sin resultado, pero pueden tener día y hora asignados en el
+   calendario. */
+function _fxScheduledCount(matches){
+  return matches.filter(m=>m.scheduledDate || m.date || m.playedAt).length;
+}
+
+/* Máximo de escrituras de un lote atómico (db.js, DB_BATCH_MAX). */
+const FX_BATCH_MAX = 500;
 
 /* Fisher-Yates sobre una copia. */
 function _fxShuffle(arr){
@@ -331,7 +340,8 @@ async function fxGroupLockReason(phaseId, groupIdx){
    ------------------------------------------------------------ */
 async function openFixtureGenModal(phaseId, groupIdx){
   const phase = await dbGet('phases', phaseId);
-  if(!phase) return;
+  if(!phase){ showToast('La fase ya no existe','error'); return; }
+  if(await _mxSeasonLocked(phaseId)) return;
 
   // Mismo guard que openRondaModal: no generar con cupos por referencia sin fijar.
   if(typeof resolveGroupRefsFor==='function' && (phase.groupRefs||[]).some(r=>parseInt(r.tGroup)===parseInt(groupIdx))){
@@ -373,6 +383,8 @@ async function openFixtureGenModal(phaseId, groupIdx){
     legs: parseInt(phase.config?.legs,10)||1,
     existingIds: existing.map(m=>m.id),
     existingRondas: [...new Set(existing.map(m=>m.ronda).filter(r=>r!=null))].length,
+    existingScheduled: _fxScheduledCount(existing),
+    saving: false,
     rounds: null
   };
   fxShuffleAgain();
@@ -413,18 +425,18 @@ function renderFixtureGenModal(){
     <div style="padding:7px 10px;border-bottom:1px solid var(--brd);">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
         <span style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt2);">Fecha ${ronda}</span>
-        ${rd.libre!=null?`<span style="font-size:10px;color:var(--gold);">Libre: ${_fxEsc(nameOf(rd.libre))}</span>`:''}
+        ${rd.libre!=null?`<span style="font-size:10px;color:var(--gold);">Libre: ${escHtml(nameOf(rd.libre))}</span>`:''}
         ${luisHere.length===2?`<span style="font-size:10px;color:var(--gold);font-weight:600;">2 partidos de Luis</span>`:''}
       </div>
       ${rd.pairs.map(p=>{
         const luisEntry = luisHere.find(r=>_fxPairKey(r.teamA,r.teamB)===_fxPairKey(p.a,p.b));
         return `
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;font-size:12px;padding:2px 4px;${luisEntry?'background:rgba(201,168,76,0.10);border-radius:4px;':''}">
-          <span style="text-align:right;">${_fxEsc(nameOf(p.a))}</span>
+          <span style="text-align:right;">${escHtml(nameOf(p.a))}</span>
           <span style="color:var(--txt3);font-size:10px;">vs</span>
-          <span>${_fxEsc(nameOf(p.b))}</span>
+          <span>${escHtml(nameOf(p.b))}</span>
         </div>
-        ${luisEntry?`<div style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--gold);padding-bottom:3px;">${_FX_GAMEPAD_ICON}Luis maneja a ${_fxEsc(nameOf(luisEntry.maneja))}</div>`:''}`;
+        ${luisEntry?`<div style="display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;color:var(--gold);padding-bottom:3px;">${_FX_GAMEPAD_ICON}Luis maneja a ${escHtml(nameOf(luisEntry.maneja))}</div>`:''}`;
       }).join('')}
     </div>`;
   }).join('');
@@ -432,7 +444,7 @@ function renderFixtureGenModal(){
   const replaceWarn = st.existingIds.length ? `
     <div style="margin-bottom:10px;padding:8px 10px;background:rgba(201,168,76,0.12);border:1px solid var(--gold-b);border-radius:var(--r);font-size:12px;color:var(--gold);display:flex;gap:6px;align-items:flex-start;">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span>Se reemplazarán las ${st.existingRondas} fecha(s) vacía(s) que ya tiene el grupo. Ningún partido tiene resultado, así que no se pierde nada.</span>
+      <span>Se reemplazarán las ${st.existingRondas} fecha(s) que ya tiene el grupo (${st.existingIds.length} partido(s) sin resultado).${st.existingScheduled?` <strong>Se pierden el día y la hora asignados a ${st.existingScheduled} de ellos.</strong>`:' Ninguno tiene resultado ni día asignado, así que no se pierde nada.'}</span>
     </div>` : '';
 
   // El aviso lo decide `status` (calculado por _fxGenerateCalendarAndRoute), NUNCA una
@@ -471,7 +483,7 @@ function renderFixtureGenModal(){
       </div>
       <div class="modal-hdr">
         <div class="modal-title">Generar fechas · Grupo ${String.fromCharCode(65+st.groupIdx)}</div>
-        <button class="modal-close" onclick="closeFixtureGenModal()">×</button>
+        <button class="modal-close" onclick="closeFixtureGenModal()" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
         ${replaceWarn}
@@ -528,10 +540,16 @@ function _fxHideLoader(){ document.getElementById('fx-loader')?.classList.add('s
    ------------------------------------------------------------ */
 async function fxGenerate(){
   const st = window._fxState;
-  if(!st || !st.rounds?.length) return;
+  if(!st || !st.rounds?.length || st.saving) return;
+  st.saving = true;
   const {phaseId, groupIdx} = st;
 
   const btn = document.getElementById('fx-save-btn');
+  const resetBtn = ()=>{
+    st.saving = false;
+    const b = document.getElementById('fx-save-btn');
+    if(b){ b.disabled = false; b.style.opacity = ''; b.textContent = `Generar ${st.rounds.length} fechas`; }
+  };
   if(btn){ btn.disabled = true; btn.style.opacity = '0.5'; btn.textContent = 'Generando…'; }
 
   _fxSetLoaderProgress(0);
@@ -541,73 +559,107 @@ async function fxGenerate(){
     _fxHideLoader();
   };
 
-  try{
-    // Revalidar contra la DB: alguien pudo registrar un resultado con el modal abierto.
-    const current = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx);
-    const locked  = current.filter(_fxIsPlayed);
-    if(locked.length){
-      stopLoader();
-      showToast('El grupo ya tiene partidos jugados — no se generó nada','error');
-      closeFixtureGenModal();
-      await showMatchGroupTable(phaseId, groupIdx);
-      return;
-    }
+  let ran = false;
+  // _mxRun: una sola escritura de partidos a la vez (misma guarda que matches.js).
+  await _mxRun(async ()=>{
+    ran = true;
+    let refresh = false;
+    try{
+      if(await _mxSeasonLocked(phaseId)){ stopLoader(); closeFixtureGenModal(); return; }
 
-    // Fuera las fechas vacías previas (sin resultados: no hay historial que limpiar).
-    if(current.length){
-      _fxSetLoaderProgress(20);
-      await dbDeleteMany('matches', current.map(m=>m.id));
-    }
+      // Revalidar contra la DB: la fase, el grupo o los resultados pudieron cambiar
+      // con el modal abierto (otra sesión, otra pestaña).
+      const phase = await dbGet('phases', phaseId);
+      if(!phase){
+        stopLoader(); showToast('La fase ya no existe','error'); closeFixtureGenModal(); return;
+      }
+      const groupNow = (phase.groups?.[groupIdx]||[]).map(Number);
+      const sameTeams = groupNow.length===st.teamIds.length && st.teamIds.every(t=>groupNow.includes(Number(t)));
+      const legsNow = parseInt(phase.config?.legs,10)||1;
+      if(!sameTeams || legsNow!==st.legs){
+        stopLoader();
+        showToast('El grupo o la fase cambiaron mientras tenías el modal abierto. Ábrelo de nuevo.','error');
+        closeFixtureGenModal(); refresh = true; return;
+      }
 
-    const items = [];
-    st.rounds.forEach((rd, i)=>{
-      rd.pairs.forEach(p=>items.push({
-        phaseId, groupIdx,
-        teamA:p.a, teamB:p.b,
-        goalsA:null, goalsB:null,
-        ronda:i+1,
-        season:STATE.season,
-        date:null,
-      }));
-    });
+      const current = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx);
+      if(current.some(_fxIsPlayed)){
+        stopLoader();
+        showToast('El grupo ya tiene partidos jugados o en vivo — no se generó nada','error');
+        closeFixtureGenModal(); refresh = true; return;
+      }
 
-    // luisTeam: aditivo — solo los partidos del recorrido lo llevan. Si st.route es
-    // null (status 'impossible' o 'budget'), ningún item lo lleva y el calendario se
-    // guarda igual (ver header: "el calendario se genera igual, sin partidos marcados").
-    if(st.route){
-      st.route.forEach(r=>{
-        const key = _fxPairKey(r.teamA, r.teamB);
-        const item = items.find(it => it.ronda===r.ronda && _fxPairKey(it.teamA, it.teamB)===key);
-        if(item) item.luisTeam = r.maneja;
+      const items = [];
+      st.rounds.forEach((rd, i)=>{
+        rd.pairs.forEach(p=>items.push({
+          phaseId, groupIdx,
+          teamA:p.a, teamB:p.b,
+          goalsA:null, goalsB:null,
+          ronda:i+1,
+          season:STATE.season,
+          date:null,
+        }));
       });
+
+      // luisTeam: aditivo — solo los partidos del recorrido lo llevan. Si st.route es
+      // null (status 'impossible' o 'budget'), ningún item lo lleva y el calendario se
+      // guarda igual (ver header: "el calendario se genera igual, sin partidos marcados").
+      if(st.route){
+        st.route.forEach(r=>{
+          const key = _fxPairKey(r.teamA, r.teamB);
+          const item = items.find(it => it.ronda===r.ronda && _fxPairKey(it.teamA, it.teamB)===key);
+          if(item) item.luisTeam = r.maneja;
+        });
+      }
+
+      // rondaMeta: limpiar el grupo (libres y fechas programadas viejas) y grabar los libres nuevos.
+      const meta  = {...(phase.rondaMeta||{})};
+      const mine  = new RegExp(`^${groupIdx}_\\d+(_date)?$`);
+      Object.keys(meta).forEach(k=>{ if(mine.test(k)) delete meta[k]; });
+      st.rounds.forEach((rd, i)=>{ if(rd.libre!=null) meta[`${groupIdx}_${i+1}`] = rd.libre; });
+
+      // TODO el cambio en UN lote atómico (H-55): bajas de las fechas vacías previas
+      // (con su historial), altas del calendario nuevo y rondaMeta de la fase. Si algo
+      // falla, el grupo queda exactamente como estaba (antes: borrar, crear y guardar
+      // los libres eran 3 escrituras sueltas y un corte dejaba el grupo vacío).
+      _fxSetLoaderProgress(30);
+      const ops = [
+        ...await _mxDeleteOps(current.map(m=>m.id)),
+        ...items.map(data=>({type:'add', store:'matches', data})),
+        {type:'set', store:'phases', data:{...phase, rondaMeta:meta}},
+      ];
+      if(ops.length > FX_BATCH_MAX){
+        stopLoader();
+        showToast(`Este grupo necesita ${ops.length} escrituras y el máximo atómico es ${FX_BATCH_MAX}. No se generó nada: borra primero las fechas vacías del grupo.`,'error');
+        resetBtn();
+        return;
+      }
+
+      refresh = true;
+      _fxSetLoaderProgress(60);
+      await dbWriteBatch(ops);
+      _fxSetLoaderProgress(100);
+
+      // El navegador de fechas apuntaba a una ronda que ya no existe.
+      delete window[`ronda_view_${phaseId}_${groupIdx}`];
+      window._matchRondaActual = 1;
+
+      stopLoader();
+      showToast(`${st.rounds.length} fechas generadas · ${items.length} partidos`);
+      closeFixtureGenModal();
+    }catch(err){
+      stopLoader();
+      console.error('[fixture-gen]', err);
+      showToast(dbErrorMsg(err),'error');
+      resetBtn();
+    } finally {
+      // Mostrar siempre lo que quedó realmente guardado.
+      if(refresh){
+        invalidateStandingsAndSyncBrackets(phaseId);
+        try{ await showMatchGroupTable(phaseId, groupIdx); }catch(e){ console.error('[fixture-gen]', e); }
+      }
     }
-
-    _fxSetLoaderProgress(50);
-    await dbAddMany('matches', items);
-
-    // rondaMeta: limpiar el grupo (libres y fechas programadas viejas) y grabar los libres nuevos.
-    _fxSetLoaderProgress(80);
-    const phase = await dbGet('phases', phaseId);
-    const meta  = {...(phase?.rondaMeta||{})};
-    const mine  = new RegExp(`^${groupIdx}_\\d+(_date)?$`);
-    Object.keys(meta).forEach(k=>{ if(mine.test(k)) delete meta[k]; });
-    st.rounds.forEach((rd, i)=>{ if(rd.libre!=null) meta[`${groupIdx}_${i+1}`] = rd.libre; });
-    await dbPut('phases', {...phase, rondaMeta:meta});
-    _fxSetLoaderProgress(100);
-
-    // El navegador de fechas apuntaba a una ronda que ya no existe.
-    delete window[`ronda_view_${phaseId}_${groupIdx}`];
-    window._matchRondaActual = 1;
-    invalidateStandingsAndSyncBrackets(phaseId);
-
-    stopLoader();
-    showToast(`${st.rounds.length} fechas generadas · ${items.length} partidos`);
-    closeFixtureGenModal();
-    await showMatchGroupTable(phaseId, groupIdx);
-  }catch(err){
-    stopLoader();
-    console.error('[fixture-gen]', err);
-    showToast('Error al generar las fechas','error');
-    if(btn){ btn.disabled = false; btn.style.opacity = ''; btn.textContent = `Generar ${st.rounds.length} fechas`; }
-  }
+  });
+  // _mxRun no corrió (hay otra escritura de partidos en curso): soltar el botón.
+  if(!ran){ stopLoader(); resetBtn(); showToast('Hay otra operación de partidos en curso. Inténtalo de nuevo.','error'); }
 }
