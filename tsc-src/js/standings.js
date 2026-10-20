@@ -6,6 +6,10 @@
    CRITERIOS DE CLASIFICACIÓN (por competición)
    Por defecto: pts → dg → gf → enfrentamiento directo
    ---------------------------------------------------------- */
+/* Íconos Lucide (check, info) en lugar de los caracteres ✓ y ℹ. */
+const _STD_ICON_CHECK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;"><path d="M20 6 9 17l-5-5"/></svg>';
+const _STD_ICON_INFO  = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
+
 const DEFAULT_CRITERIA = [
   {id:'pts',    name:'Puntos',                 key:(a)=>a.pts},
   {id:'dg',     name:'Diferencia de goles',    key:(a)=>a.gf-a.gc},
@@ -43,15 +47,26 @@ async function saveCriteria(phaseId, criteriaIds, disabledIds=[], customName=nul
    CALCULAR STANDINGS con criterios configurables
    ---------------------------------------------------------- */
 function calcGroupStandings(teamIds, matchesInGroup, criteriaIds, allGroupMatches, teamNamesById={}){
-  // Init stats using teamIds as keys
+  // Init stats using teamIds as keys. El id se normaliza a número: el
+  // enfrentamiento directo compara contra parseInt(m.teamA) y con ids en
+  // texto nunca coincidía.
   const stats = {};
   teamIds.forEach(tid=>{
     const tidStr = String(tid);
-    stats[tidStr]={id:tid,pts:0,pj:0,v:0,e:0,p:0,gf:0,gc:0,results:[]};
+    const idN = Number(tid);
+    stats[tidStr]={id:Number.isFinite(idN)?idN:tid,pts:0,pj:0,v:0,e:0,p:0,gf:0,gc:0,results:[]};
+  });
+
+  // Procesar partidos en orden de juego (fecha y luego id): los «últimos 3»
+  // salían en el orden en que la base devolvía los documentos.
+  const _orden = (m)=>[m.ronda==null?1e9:m.ronda, m.playedAt||m.date||'', m.id||0];
+  const ordered = [...matchesInGroup].sort((x,y)=>{
+    const a=_orden(x), b=_orden(y);
+    return (a[0]-b[0]) || (a[1]<b[1]?-1:a[1]>b[1]?1:0) || (a[2]-b[2]);
   });
 
   // Procesar partidos — SOLO los que tienen resultado registrado
-  matchesInGroup.forEach(m=>{
+  ordered.forEach(m=>{
     const tidA = String(m.teamA), tidB = String(m.teamB);
     if(!stats[tidA]||!stats[tidB]) return;
     // v1.6: ignorar partidos pendientes (sin marcador). No suman PJ ni puntos.
@@ -115,7 +130,10 @@ function calcGroupStandings(teamIds, matchesInGroup, criteriaIds, allGroupMatche
    ---------------------------------------------------------- */
 function isMathConfirmed(standings, pos, advance, totalMatchdays, zones){
   const team = standings[pos];
-  const maxGames = standings.length - 1;
+  // Partidos totales por equipo: (n-1) a una vuelta, 2*(n-1) a ida y vuelta.
+  // Con ida y vuelta se usaba n-1 y la clasificación se «confirmaba» a mitad
+  // de la fase.
+  const maxGames = Number.isFinite(totalMatchdays) && totalMatchdays>0 ? totalMatchdays : standings.length - 1;
   const remaining = maxGames - team.pj;
 
   // Determinar zona actual del equipo
@@ -247,7 +265,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
 
     const rows = await Promise.all(standings.map(async (s,i)=>{
       const zone      = getZone(i, gi);
-      const confirmed = isMathConfirmed(standings, i, advance, standings.length-1, zones);
+      const confirmed = isMathConfirmed(standings, i, advance, (standings.length-1)*(parseInt(config.legs)===2?2:1), zones);
       const dg        = s.gf - s.gc;
       const last3     = s.results.slice(-3);
       while(last3.length<3) last3.unshift('empty');
@@ -258,12 +276,13 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
       const displayIni = teamData.ini;
       const displayColor = teamData.color;
 
+      const zColor = zone ? safeCssColor(zone.color, '#888') : null;
       const posStyle = zone
-        ? `background:${zone.color}22;color:${zone.color};`
+        ? `background:${zColor}22;color:${zColor};`
         : `background:var(--card2);color:var(--txt3);`;
 
       const confBadge = confirmed
-        ? `<span style="font-size:11px;font-weight:700;color:${zone?.color||'var(--txt3)'};margin-left:3px;">✓</span>`
+        ? `<span style="font-size:11px;font-weight:700;color:${zColor||'var(--txt3)'};margin-left:3px;">${_STD_ICON_CHECK}</span>`
         : '';
 
       // Badge para equipos que llegan por referencia (aún no fijados al grupo)
@@ -307,7 +326,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
     // Leyenda de zonas
     const legendItems = zones.map(z=>
       `<div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt2);">
-        <div style="width:10px;height:10px;border-radius:2px;background:${z.color};flex-shrink:0;"></div>${z.name}
+        <div style="width:10px;height:10px;border-radius:2px;background:${safeCssColor(z.color,'#888')};flex-shrink:0;"></div>${escHtml(z.name)}
       </div>`
     ).join('');
 
@@ -321,7 +340,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
             onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
             onmouseout="this.style.borderColor='var(--brd)';this.style.color='var(--txt2)'"
             title="Criterios de clasificación">
-            ℹ Criterios
+            ${_STD_ICON_INFO} Criterios
           </button>
         </div>
       </div>
@@ -369,7 +388,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
         <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--txt2);">
           <div style="width:8px;height:8px;border-radius:50%;background:#E84040;"></div>Derrota
         </div>
-        <div style="margin-left:auto;font-size:12px;color:var(--txt3);">✓ Clasificado matemáticamente</div>
+        <div style="margin-left:auto;font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:4px;">${_STD_ICON_CHECK} Posición matemáticamente definida</div>
       </div>
     </div>`;
   }
@@ -425,14 +444,14 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
   const _activeRows = activeItems.map((c,i)=>{
     const displayName = _criteriaItemName(c, customName);
     if(!isAdmin){
-      return `<div style="padding:6px 10px;font-size:14px;color:var(--txt);">${i+1}. ${displayName}</div>`;
+      return `<div style="padding:6px 10px;font-size:14px;color:var(--txt);">${i+1}. ${escHtml(displayName)}</div>`;
     }
     const nameCell = c.id==='custom'
-      ? `<input id="criteria-custom-name" value="${displayName.replace(/"/g,'&quot;')}"
+      ? `<input id="criteria-custom-name" maxlength="40" value="${escAttr(displayName)}"
            style="font-size:14px;flex:1;background:transparent;border:none;border-bottom:1px solid var(--brd2);color:var(--txt);outline:none;padding:1px 2px;"
            oninput="window._customCriterionName=this.value"
            placeholder="Nombre del criterio">`
-      : `<span style="font-size:14px;flex:1;">${i+1}. ${displayName}</span>`;
+      : `<span style="font-size:14px;flex:1;">${i+1}. ${escHtml(displayName)}</span>`;
     return `
     <div draggable="true" data-id="${c.id}"
       ondragstart="criteriaDragStart(event)"
@@ -461,7 +480,7 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
     <div style="display:flex;flex-direction:column;gap:5px;">
       ${disabledItems.map(c=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--card2);border:1px dashed var(--brd);border-radius:var(--r);opacity:0.7;">
-        <span style="font-size:13px;color:var(--txt2);">${_criteriaItemName(c,customName)}</span>
+        <span style="font-size:13px;color:var(--txt2);">${escHtml(_criteriaItemName(c,customName))}</span>
         <button onclick="criteriaRestore('${c.id}')" class="btn btn-xs" title="Restaurar criterio">+ Restaurar</button>
       </div>`).join('')}
     </div>` : '';
@@ -566,14 +585,22 @@ function _renderCriteriaModal(){
   openCriteriaModal(_criteriaPhaseId, _criteriaContainerId, _criteriaIsAdmin);
 }
 
+let _criteriaSaving = false;
+
 async function saveCriteriaAndRefresh(){
-  const phase = await dbGet('phases', _criteriaPhaseId);
-  const savedActive   = phase?.criteria || DEFAULT_CRITERIA.map(c=>c.id);
-  const savedDisabled = phase?.criteriaDisabled || [];
-  const savedCustom   = phase?.customCriterionName || 'Orden alfabético';
+  const phaseId = _criteriaPhaseId, containerId = _criteriaContainerId, isAdmin = _criteriaIsAdmin;
+  const phase = await dbGet('phases', phaseId);
+  if(!phase){ showToast('La fase ya no existe','error'); closeCriteriaModal(); return; }
+  const savedActive   = phase.criteria?.length>0 ? phase.criteria : DEFAULT_CRITERIA.map(c=>c.id);
+  const savedDisabled = phase.criteriaDisabled || [];
+  const savedCustom   = phase.customCriterionName || 'Orden alfabético';
   const newActive     = window._activeCriteria  || [];
   const newDisabled   = window._disabledCriteria || [];
-  const newCustom     = window._customCriterionName || 'Orden alfabético';
+  const newCustom     = (window._customCriterionName || '').trim().slice(0,40) || 'Orden alfabético';
+
+  // Sin criterios activos la base guardaba [] y al reabrir el modal volvían
+  // los de fábrica Y los mismos quedaban «en desuso» a la vez.
+  if(!newActive.length){ showToast('Deja al menos un criterio activo','error'); return; }
 
   const changed = JSON.stringify(newActive) !== JSON.stringify(savedActive)
                || JSON.stringify(newDisabled) !== JSON.stringify(savedDisabled)
@@ -585,16 +612,26 @@ async function saveCriteriaAndRefresh(){
     '¿Aplicar cambios a los criterios?',
     'La tabla de clasificación se recalculará en tiempo real con el nuevo orden.',
     async () => {
-      await saveCriteria(_criteriaPhaseId, newActive, newDisabled, newCustom);
-      // Los criterios nuevos son el mecanismo exacto que puede dar vuelta un
-      // desempate (GX-Nro pasa a resolver a otro equipo) — invalidar Y
-      // resincronizar los cruces de bracket que referencian esta fase, igual
-      // que al cargar un resultado. De paso resuelve que getStandingsForPhase
-      // seguía sirviendo el orden viejo desde el caché hasta recargar.
-      if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(_criteriaPhaseId);
-      closeCriteriaModal();
-      showToast('Criterios guardados. Tabla actualizada.');
-      renderGroupTable(_criteriaPhaseId, _criteriaContainerId, _criteriaIsAdmin);
+      if(_criteriaSaving) return;
+      _criteriaSaving = true;
+      try{
+        const comp = phase.compId!=null ? await dbGet('competitions', phase.compId) : null;
+        const season = (await dbGetAll('seasons')).find(x=>x.number===(comp?.season ?? STATE.season));
+        if(season?.status==='finished'){ showToast(`${getSeasonName(season)} está finalizada: no admite cambios`,'error'); return; }
+        await saveCriteria(phaseId, newActive, newDisabled, newCustom);
+        // Los criterios nuevos son el mecanismo exacto que puede dar vuelta un
+        // desempate (GX-Nro pasa a resolver a otro equipo) — invalidar Y
+        // resincronizar los cruces de bracket que referencian esta fase, igual
+        // que al cargar un resultado. De paso resuelve que getStandingsForPhase
+        // seguía sirviendo el orden viejo desde el caché hasta recargar.
+        if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
+        closeCriteriaModal();
+        showToast('Criterios guardados. Tabla actualizada.');
+        renderGroupTable(phaseId, containerId, isAdmin);
+      }catch(err){
+        console.error('[criterios]', err);
+        showToast(dbErrorMsg(err),'error');
+      }finally{ _criteriaSaving = false; }
     }
   );
 }
@@ -726,6 +763,9 @@ async function openGroupAssignModal(phaseId, groupIdx=null){
   window._assignPhaseId = phaseId;
   window._assignPhaseCompId = phase?.compId ?? null;
   window._assignAllTeams = teams;
+  // Nombres de TODOS los equipos (los inactivos ya asignados no están en la
+  // lista de disponibles y se veían como «Team 12»).
+  window._assignTeamLookup = await dbGetAll('teams');
   // Refs de siembra (staged): se persisten junto con los grupos al guardar.
   window._assignGroupRefs = phase?.groupRefs ? JSON.parse(JSON.stringify(phase.groupRefs)) : [];
   // Snapshot inicial para "Deshacer cambios" (deep clone, robusto ante sparse).
@@ -794,7 +834,7 @@ function renderAssignTeamsList(teams, groups){
     const comps = compsOf(t.id);
     const chips = comps.map(c=>{
       const safeName = _escTxt(c.name);
-      const color = c.color || 'var(--gold)';
+      const color = safeCssColor(c.color, '#C9A84C');
       return `<span title="${safeName}"
         style="font-size:10px;font-weight:600;color:${color};background:${color}22;border:1px solid ${color}44;border-radius:3px;padding:1px 6px;line-height:1.4;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;">
         ● ${safeName}
@@ -875,7 +915,7 @@ async function renderAssignGroupSlots(){
   const groups = window._assignGroups||{};
   const allTeams = window._assignAllTeams||[];
   const caps = window._assignGroupCapacities || [];
-  const teamById = {}; allTeams.forEach(t=>teamById[t.id]=t);
+  const teamById = {}; (window._assignTeamLookup||allTeams).forEach(t=>teamById[t.id]=t);
   const ngroups = Object.keys(groups).length;
   const el = document.getElementById('groups-slots');
   if(!el) return;
@@ -951,45 +991,70 @@ async function renderAssignGroupSlots(){
   }).join('');
 }
 
-async function saveGroupAssign(phaseId){
-  const phase = await dbGet('phases', phaseId);
-  const oldGroups = phase.groups || {};
-  const newGroups = window._assignGroups || {};
+let _groupAssignSaving = false;
 
-  // Guard: si un equipo con partidos jugados quedaría fuera (no está en
-  // ningún grupo del nuevo estado), bloquear el guardado.
-  const oldTeams = new Set(Object.values(oldGroups).flat().filter(t=>t!=null));
-  const newTeams = new Set(Object.values(newGroups).flat().filter(t=>t!=null));
-  const removed = [...oldTeams].filter(t => !newTeams.has(t));
-  if (removed.length) {
-    const phaseMatches = await dbGetAll('matches', m => m.phaseId === phaseId && m.goalsA != null && m.goalsB != null);
-    const teamsWithResults = new Set();
-    phaseMatches.forEach(m => { teamsWithResults.add(m.teamA); teamsWithResults.add(m.teamB); });
-    const risky = removed.filter(t => teamsWithResults.has(t));
-    if (risky.length) {
+async function saveGroupAssign(phaseId){
+  if(_groupAssignSaving) return;
+  _groupAssignSaving = true;
+  try{
+    const phase = await dbGet('phases', phaseId);
+    if(!phase){ showToast('La fase ya no existe','error'); closeGroupAssignModal(); return; }
+    const comp = phase.compId!=null ? await dbGet('competitions', phase.compId) : null;
+    const season = (await dbGetAll('seasons')).find(x=>x.number===(comp?.season ?? STATE.season));
+    if(season?.status==='finished'){ showToast(`${getSeasonName(season)} está finalizada: no admite cambios`,'error'); return; }
+
+    const oldGroups = phase.groups || {};
+    const newGroups = window._assignGroups || {};
+    const inGroup = (g, gi, tid) => (g[gi]||[]).some(t=>t!=null && Number(t)===Number(tid));
+
+    // Guard: un equipo que tiene partidos en un grupo (jugados o pendientes)
+    // no puede salir de ese grupo, ni quitándolo ni pasándolo a otro: sus
+    // partidos quedarían fuera de la tabla sin aviso. Antes solo se revisaban
+    // los equipos que salían de TODA la fase y solo los partidos con
+    // resultado, así que mover un equipo de grupo hacía desaparecer sus
+    // resultados de la tabla.
+    const phaseMatches = await dbGetAll('matches', m => m.phaseId === phaseId);
+    const blocked = new Map(); // teamId -> {grupo, partidos}
+    for(const m of phaseMatches){
+      for(const tid of [m.teamA, m.teamB]){
+        if(tid==null) continue;
+        if(inGroup(oldGroups, m.groupIdx, tid) && !inGroup(newGroups, m.groupIdx, tid)){
+          const b = blocked.get(Number(tid)) || {gi:m.groupIdx, n:0};
+          b.n++; blocked.set(Number(tid), b);
+        }
+      }
+    }
+    if(blocked.size){
       const allTeams = await dbGetAll('teams');
-      const names = risky.map(t => allTeams.find(x=>x.id===t)?.name || `#${t}`).join(', ');
-      showToast(`No se puede guardar: estos equipos tienen partidos con resultado y quedarían fuera de la fase: ${names}. Usá "Deshacer cambios" o devolvelos al grupo.`, 'error');
+      const names = [...blocked].map(([tid,b]) => {
+        const nm = allTeams.find(x=>x.id===tid)?.name || `#${tid}`;
+        return `${nm} (Grupo ${String.fromCharCode(65+(parseInt(b.gi)||0))}, ${b.n} partido${b.n===1?'':'s'})`;
+      }).join(', ');
+      showToast(`No se puede guardar: estos equipos tienen partidos en su grupo actual: ${names}. Borra esas fechas antes de moverlos, o usa "Deshacer cambios".`, 'error');
       return;
     }
-  }
 
-  await dbPut('phases',{...phase, groups:newGroups, groupRefs: window._assignGroupRefs||[]});
-  // Reasignar equipos cambia quién ocupa cada posición de la tabla — mismo
-  // motivo que el cambio de criterios: invalidar Y resincronizar los cruces
-  // de bracket que referencian esta fase.
-  if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
-  showToast('Grupos guardados');
-  closeGroupAssignModal();
-  // Refrescar si la tabla está visible
-  const containerId = `groups-container-${phaseId}`;
-  if(document.getElementById(containerId)){
-    renderGroupTable(phaseId, containerId, true);
-  }
-  // Notificar que cambió la asignación de grupos
-  if(typeof notifyTeamChanged === 'function'){
-    await notifyTeamChanged(null);
-  }
+    await dbPut('phases',{...phase, groups:newGroups, groupRefs: window._assignGroupRefs||[]});
+    // Reasignar equipos cambia quién ocupa cada posición de la tabla — mismo
+    // motivo que el cambio de criterios: invalidar Y resincronizar los cruces
+    // de bracket que referencian esta fase.
+    if(typeof invalidateStandingsAndSyncBrackets==='function') invalidateStandingsAndSyncBrackets(phaseId);
+    showToast('Grupos guardados');
+    closeGroupAssignModal();
+    // Refrescar si la tabla está visible
+    const containerId = `groups-container-${phaseId}`;
+    if(document.getElementById(containerId)){
+      renderGroupTable(phaseId, containerId, true);
+    }
+    // Notificar que cambió la asignación de grupos (también repinta la tabla
+    // de la pantalla de partidos admin)
+    if(typeof notifyTeamChanged === 'function'){
+      await notifyTeamChanged(null);
+    }
+  }catch(err){
+    console.error('[grupos]', err);
+    showToast(dbErrorMsg(err),'error');
+  }finally{ _groupAssignSaving = false; }
 }
 
 function undoAssignChanges(){
@@ -1007,6 +1072,7 @@ function closeGroupAssignModal(){
   delete window._assignOriginalGroups;
   delete window._assignOriginalGroupRefs;
   delete window._assignGroupRefs;
+  delete window._assignTeamLookup;
 }
 
 /* ----------------------------------------------------------

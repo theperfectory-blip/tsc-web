@@ -1,6 +1,64 @@
 function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ----------------------------------------------------------
+   Guardas de escritura (MS-5.5)
+   - _mxRun: una sola escritura de partidos a la vez (doble clic) y errores
+     de red o de reglas como aviso claro en vez de promesa sin capturar.
+   - _mxSeasonLocked: la UI ya deshabilita los botones de una temporada
+     finalizada, pero el código también debe negarse (H-49).
+   ---------------------------------------------------------- */
+let _mxBusy = false;
+async function _mxRun(fn){
+  if(_mxBusy) return;
+  _mxBusy = true;
+  try{ return await fn(); }
+  catch(err){ console.error('[matches]', err); showToast(dbErrorMsg(err),'error'); }
+  finally{ _mxBusy = false; }
+}
+
+async function _mxSeasonLocked(phaseId){
+  const phase = phaseId!=null ? await dbGet('phases', phaseId) : null;
+  const comp  = phase?.compId!=null ? await dbGet('competitions', phase.compId) : null;
+  const num   = comp?.season ?? STATE.season;
+  const season = (await dbGetAll('seasons')).find(s=>s.number===num);
+  if(season?.status==='finished'){
+    showToast(`${getSeasonName(season)} está finalizada: no admite cambios`,'error');
+    return true;
+  }
+  return false;
+}
+
+/* Borra partidos con su registro de historial, en lote. El historial va
+   primero: si algo falla a medias queda un partido sin historial (se
+   regenera al guardar su resultado), nunca un historial huérfano. */
+async function _mxDeleteMatches(matchIds){
+  if(!matchIds.length) return;
+  await _mxDeleteHistory(matchIds);
+  await dbDeleteMany('matches', matchIds);
+}
+
+async function _mxDeleteHistory(matchIds){
+  if(!matchIds.length) return;
+  const idSet = new Set(matchIds);
+  const hist = await dbGetAll('matchHistory', h=>idSet.has(h.matchRef));
+  await dbDeleteMany('matchHistory', hist.map(h=>h.id));
+}
+
+/* Si la fecha se quedó sin partidos, su equipo libre y su fecha sugerida
+   ya no significan nada (y el libre seguía contando como «ya fue libre»). */
+async function _mxCleanRondaMeta(phaseId, groupIdx, ronda){
+  const left = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
+  if(left.length) return;
+  const phase = await dbGet('phases', phaseId);
+  if(!phase) return;
+  const meta = {...(phase.rondaMeta||{})};
+  const k = `${groupIdx}_${ronda}`;
+  if(!(k in meta) && !((k+'_date') in meta)) return;
+  delete meta[k]; delete meta[k+'_date'];
+  await dbPut('phases', {...phase, rondaMeta:meta});
+}
+
+/* ----------------------------------------------------------
    TIEMPO REAL EN ADMIN (Fase 6A para admin)
    El modo público ya se suscribe a 'matches' (nav.js). Aquí hacemos
    lo mismo en admin: cualquier cambio en partidos (local o remoto)
@@ -63,7 +121,11 @@ async function renderAdmMatches(){
     phasesByComp[p.compId].push(p);
   }
 
-  const compOpts = comps.map(c=>{
+  const compsSorted = typeof _sortComps==='function' ? _sortComps(comps) : comps;
+  for(const k of Object.keys(phasesByComp)) phasesByComp[k].sort((a,b)=>(a.order??a.id)-(b.order??b.id));
+  const firstPhase = compsSorted.map(c=>(phasesByComp[c.id]||[])[0]).find(Boolean) || phases[0];
+
+  const compOpts = compsSorted.map(c=>{
     const cphases = phasesByComp[c.id]||[];
     if(!cphases.length) return '';
     return `<optgroup label="${_esc(c.name)}">${cphases.map(p=>`<option value="${p.id}">${_esc(p.name)}</option>`).join('')}</optgroup>`;
@@ -95,7 +157,7 @@ async function renderAdmMatches(){
   const desiredPhaseId =
     (rememberedPhaseId && phases.some(p=>p.id===rememberedPhaseId)) ? rememberedPhaseId :
     (Number.isFinite(storedPhaseId) && phases.some(p=>p.id===storedPhaseId)) ? storedPhaseId :
-    phases[0].id;
+    firstPhase.id;
 
   const phaseSel = document.getElementById('match-phase-sel');
   if(phaseSel) phaseSel.value = String(desiredPhaseId);
@@ -265,7 +327,7 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
       <td style="text-align:center;width:80px;padding:0 4px;">${scoreCell}</td>
       <td style="font-weight:500;padding:9px 14px;${fB}">${_esc(teamBName)}</td>
       ${timeCell}
-      ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})">✕</button></td>`:''}
+      ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" onclick="deleteMatch(${m.id})">${_ICON_X}</button></td>`:''}
     </tr>`;
   }
 
@@ -289,6 +351,8 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
 
   const stateKey=`ronda_view_${phaseId}_${groupIdx}`;
   if(window[stateKey]===undefined) window[stateKey]=rondaKeys[rondaKeys.length-1];
+  // La fecha recordada pudo borrarse: volver a la última existente.
+  if(rondaKeys.length && !rondaKeys.includes(window[stateKey])) window[stateKey]=rondaKeys[rondaKeys.length-1];
   const curR=window[stateKey];
   const curIdx=rondaKeys.indexOf(curR);
   const prevR=curIdx>0?rondaKeys[curIdx-1]:null;
@@ -458,7 +522,7 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
             <td style="text-align:center;width:120px;">${centerCell}</td>
             <td style="padding:7px 10px;${fB}">${luisB?`<span style="display:inline-flex;align-items:center;gap:5px;">${luisB}${escHtml(teamBName)}</span>`:escHtml(teamBName)}</td>
             <td style="font-size:11px;color:var(--txt3);white-space:nowrap;padding-right:6px;">${diaCorto}</td>
-            <td style="width:28px;"><button class="btn btn-xs btn-danger" onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✕</button></td>
+            <td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button></td>
           </tr>`;
         }).join('')}</tbody>
       </table>
@@ -545,7 +609,7 @@ async function openAssignDateToJornada(phaseId, groupIdx, ronda){
       </div>
       <div class="modal-body">
         <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Fecha</label>
-        <input type="date" id="ad-date" value="${currentDefault||today}"
+        <input type="date" id="ad-date" value="${escAttr(currentDefault||today)}"
           style="width:100%;padding:10px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:15px;">
 
         <div style="margin-top:14px;padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);font-size:12px;color:var(--txt2);line-height:1.5;">
@@ -566,34 +630,41 @@ async function saveJornadaDate(phaseId, groupIdx, ronda, applyAll){
   const dateStr = document.getElementById('ad-date')?.value;
   if(!dateStr){ showToast('Selecciona una fecha','error'); return; }
 
-  const phase = await dbGet('phases', phaseId);
-  const meta = phase?.rondaMeta||{};
-  meta[`${groupIdx}_${ronda}_date`] = dateStr;
-  await dbPut('phases', {...phase, rondaMeta:meta});
+  await _mxRun(async ()=>{
+    if(await _mxSeasonLocked(phaseId)) return;
+    const phase = await dbGet('phases', phaseId);
+    if(!phase){ showToast('La fase ya no existe','error'); closeAssignDateModal(); return; }
+    const meta = {...(phase.rondaMeta||{})};
+    meta[`${groupIdx}_${ronda}_date`] = dateStr;
 
-  // Cascada a los partidos: así "Calendario" (que solo mira m.scheduledDate,
-  // calendar.js:271) refleja la fecha apenas se guarda desde acá. rondaMeta
-  // no tiene hora, así que scheduledTime existente se preserva siempre
-  // (spread de ...m antes de pisar scheduledDate).
-  const matches = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
-  if(applyAll){
-    const playedAtISO = new Date(dateStr+'T12:00:00').toISOString();
-    for(const m of matches){
-      await dbPut('matches', {...m, playedAt:playedAtISO, scheduledDate:dateStr});
+    // Cascada a los partidos: así "Calendario" (que solo mira m.scheduledDate,
+    // calendar.js:271) refleja la fecha apenas se guarda desde acá. rondaMeta
+    // no tiene hora, así que scheduledTime existente se preserva siempre
+    // (spread de ...m antes de pisar scheduledDate).
+    const matches = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
+    try{
+      await dbPut('phases', {...phase, rondaMeta:meta});
+      if(applyAll){
+        const playedAtISO = new Date(dateStr+'T12:00:00').toISOString();
+        for(const m of matches){
+          await dbPut('matches', {...m, playedAt:playedAtISO, scheduledDate:dateStr});
+        }
+        showToast(`Fecha aplicada a ${matches.length} partido(s) de la Jornada ${ronda}`);
+      } else {
+        // Solo los que todavía no tienen fecha propia — no pisar lo ya
+        // programado a mano en la página Calendario.
+        const sinFecha = matches.filter(m=>!m.scheduledDate);
+        for(const m of sinFecha){
+          await dbPut('matches', {...m, scheduledDate:dateStr});
+        }
+        showToast(`Fecha programada para Jornada ${ronda}`);
+      }
+      closeAssignDateModal();
+    } finally {
+      // Si algo falló a medias, mostrar lo que quedó realmente guardado.
+      await showMatchGroupTable(phaseId, groupIdx);
     }
-    showToast(`Fecha aplicada a ${matches.length} partido(s) de la Jornada ${ronda}`);
-  } else {
-    // Solo los que todavía no tienen fecha propia — no pisar lo ya
-    // programado a mano en la página Calendario.
-    const sinFecha = matches.filter(m=>!m.scheduledDate);
-    for(const m of sinFecha){
-      await dbPut('matches', {...m, scheduledDate:dateStr});
-    }
-    showToast(`Fecha programada para Jornada ${ronda}`);
-  }
-
-  closeAssignDateModal();
-  await showMatchGroupTable(phaseId, groupIdx);
+  });
 }
 
 function closeAssignDateModal(){
@@ -622,6 +693,8 @@ function _resolveLibreId(libreVal, teamIds, teamById){
 
 async function openRondaModal(phaseId, groupIdx, editRonda=null){
   const phase = await dbGet('phases', phaseId);
+  if(!phase){ showToast('La fase ya no existe','error'); return; }
+  if(await _mxSeasonLocked(phaseId)) return;
   const groups = phase?.groups||{};
   const teamIds = (groups[groupIdx]||[]).slice().map(t=>Number(t));
 
@@ -635,11 +708,11 @@ async function openRondaModal(phaseId, groupIdx, editRonda=null){
       const names = pend.map(e=>allT.find(t=>t.id===e.teamId)?.name||('#'+e.teamId)).join(', ');
       showConfirm('Fijar equipos por referencia',
         `Llegan por referencia y ya están definidos: ${names}. Para crear fechas se fijarán al grupo (la tabla de origen ya no los cambiará). ¿Continuar?`,
-        async ()=>{
+        ()=>_mxRun(async ()=>{
           await materializeGroupRefs(phaseId, groupIdx);
           await showMatchGroupTable(phaseId, groupIdx);
-          openRondaModal(phaseId, groupIdx, editRonda);
-        });
+          return true;
+        }).then(ok=>{ if(ok) openRondaModal(phaseId, groupIdx, editRonda); }));
       return;
     }
     const unres = entries.filter(e=>e.teamId==null);
@@ -1017,58 +1090,109 @@ async function saveRonda(){
     const byeReason = st.byeBlockReason(st.libre, st.editRonda!=null ? st.targetR : null);
     if(byeReason){ showToast(byeReason,'error'); return; }
   }
+  if(_mxBusy) return;
 
   const {phaseId, groupIdx, targetR} = st;
 
-  // Si editamos: borrar partidos existentes de esta fecha que NO estén en los slots actuales
+  // Qué se pierde al editar: cambiar el cruce de un partido con resultado
+  // dejaba el marcador pegado a otros equipos; quitar un partido lo borraba
+  // sin avisar. Ahora se calcula y se pide confirmación.
+  let lost = [];
   if(st.editRonda!=null){
-    const existing = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===targetR);
-    const keepIds = new Set(st.slots.map(s=>s.matchId).filter(Boolean));
-    for(const m of existing){
-      if(!keepIds.has(m.id)){
-        await removeHistoryByMatchRef(m.id);
-        await dbDelete('matches', m.id);
+    try{
+      const fresh = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===targetR);
+      const keep = new Set(st.slots.map(s=>s.matchId).filter(Boolean));
+      for(const m of fresh){
+        if(m.goalsA==null || m.goalsB==null) continue;
+        const slot = st.slots.find(s=>s.matchId===m.id);
+        if(!keep.has(m.id) || (slot && (slot.a!==m.teamA || slot.b!==m.teamB))) lost.push(m);
       }
-    }
+    }catch(err){ console.error('[matches]', err); showToast(dbErrorMsg(err),'error'); return; }
   }
+  if(lost.length){
+    const plural = lost.length===1 ? '' : 's';
+    showConfirm('Esto borra resultados',
+      `Cambiar el cruce o quitar partidos de la Fecha ${targetR} borra ${lost.length} resultado${plural} ya cargado${plural} (${lost.map(m=>m.goalsA+'-'+m.goalsB).join(', ')}) y su registro del historial. ¿Continuar?`,
+      ()=>_commitRonda());
+    return;
+  }
+  await _commitRonda();
+}
 
-  // Crear/actualizar partidos según slots (IDs directos, sin name mapping)
-  for(const s of st.slots){
-    const sLuis = s.luis ?? null;
-    if(s.matchId){
-      const m = await dbGet('matches', s.matchId);
-      // OJO: antes este dbPut solo corría si cambió el par (teamA/teamB) — un
-      // cambio de SOLO luis no se guardaba. mLuis!==sLuis lo cubre.
-      const mLuis = m?.luisTeam ?? null;
-      if(m && (m.teamA!==s.a || m.teamB!==s.b || mLuis!==sLuis)){
-        await dbPut('matches', {...m, teamA:s.a, teamB:s.b, ronda:targetR, luisTeam:sLuis});
-        await appendOrUpdateHistory(s.matchId);
-      }
-    } else {
-      await dbAdd('matches',{
+async function _commitRonda(){
+  const st = window._rondaModalState;
+  if(!st){ showToast('Estado perdido','error'); return; }
+  const {phaseId, groupIdx, targetR} = st;
+
+  await _mxRun(async ()=>{
+    if(await _mxSeasonLocked(phaseId)) return;
+    const phase = await dbGet('phases', phaseId);
+    if(!phase){ showToast('La fase ya no existe','error'); closeRondaModal(); return; }
+
+    const existing = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===targetR);
+    if(st.editRonda==null && existing.length){
+      showToast(`La Fecha ${targetR} ya existe (otra sesión la creó). Se muestra la actual.`,'error');
+      closeRondaModal(); await showMatchGroupTable(phaseId, groupIdx); return;
+    }
+    const existingById = new Map(existing.map(m=>[m.id,m]));
+    if(st.slots.some(s=>s.matchId && !existingById.has(s.matchId))){
+      showToast('La fecha cambió mientras la editabas. Ábrela de nuevo.','error');
+      closeRondaModal(); await showMatchGroupTable(phaseId, groupIdx); return;
+    }
+    if(existing.some(m=>m.live && !st.slots.some(s=>s.matchId===m.id && s.a===m.teamA && s.b===m.teamB))){
+      showToast('Hay un partido en vivo en esta fecha: termínalo antes de cambiar el cruce.','error'); return;
+    }
+
+    try{
+      // 1) Crear los partidos nuevos (lote).
+      const nuevos = st.slots.filter(s=>!s.matchId).map(s=>({
         phaseId, groupIdx,
         teamA:s.a, teamB:s.b,
         goalsA:null, goalsB:null,
         ronda:targetR,
         season:STATE.season,
         date:null,
-        luisTeam:sLuis,
-      });
+        luisTeam:s.luis ?? null,
+      }));
+      if(nuevos.length) await dbAddMany('matches', nuevos);
+
+      // 2) Actualizar los existentes. Si cambia el cruce, el resultado se va
+      //    con él (no puede quedar pegado a otros equipos).
+      for(const s of st.slots){
+        if(!s.matchId) continue;
+        const m = existingById.get(s.matchId);
+        const sLuis = s.luis ?? null;
+        const mLuis = m.luisTeam ?? null;
+        const pairChanged = m.teamA!==s.a || m.teamB!==s.b;
+        if(!pairChanged && mLuis===sLuis) continue;
+        if(pairChanged){
+          await _mxDeleteHistory([m.id]);
+          await dbPut('matches', {...m, teamA:s.a, teamB:s.b, ronda:targetR, luisTeam:sLuis,
+            goalsA:null, goalsB:null, playedAt:null, date:null});
+        } else {
+          await dbPut('matches', {...m, luisTeam:sLuis});
+        }
+      }
+
+      // 3) Quitar los que ya no están en los slots (con su historial).
+      const keep = new Set(st.slots.map(s=>s.matchId).filter(Boolean));
+      await _mxDeleteMatches(existing.filter(m=>!keep.has(m.id)).map(m=>m.id));
+
+      // 4) Equipo libre en rondaMeta (como ID number)
+      const meta = {...(phase.rondaMeta||{})};
+      if(st.libre!=null) meta[`${groupIdx}_${targetR}`] = st.libre;
+      else delete meta[`${groupIdx}_${targetR}`];
+      await dbPut('phases', {...phase, rondaMeta:meta});
+
+      window._matchRondaActual = targetR;
+      showToast(`Fecha ${targetR} guardada`);
+      closeRondaModal();
+    } finally {
+      // Si algo falló a medias, mostrar lo que quedó realmente guardado.
+      invalidateStandingsAndSyncBrackets(phaseId);
+      await showMatchGroupTable(phaseId, groupIdx);
     }
-  }
-
-  // Guardar equipo libre en rondaMeta (como ID number)
-  const phase = await dbGet('phases', phaseId);
-  const meta = phase?.rondaMeta||{};
-  if(st.libre!=null) meta[`${groupIdx}_${targetR}`] = st.libre;
-  else delete meta[`${groupIdx}_${targetR}`];
-  await dbPut('phases', {...phase, rondaMeta:meta});
-
-  window._matchRondaActual = targetR;
-  invalidateStandingsAndSyncBrackets(phaseId);
-  showToast(`Fecha ${targetR} guardada`);
-  closeRondaModal();
-  await showMatchGroupTable(phaseId, groupIdx);
+  });
 }
 
 function closeRondaModal(){
@@ -1122,15 +1246,15 @@ async function openEditResultModal(matchId, phaseId, groupIdx){
           <div style="font-size:13px;font-weight:700;text-align:center;line-height:1.2;">${escHtml(teamBName)}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;">
-          <input type="number" id="er-ga" min="0" value="${hasR?m.goalsA:0}"
+          <input type="number" id="er-ga" min="0" max="99" step="1" value="${hasR?m.goalsA:0}"
             style="padding:12px;text-align:center;font-family:'Bebas Neue';font-size:38px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);width:100%;">
           <div style="font-family:'Bebas Neue';font-size:28px;color:var(--txt3);">-</div>
-          <input type="number" id="er-gb" min="0" value="${hasR?m.goalsB:0}"
+          <input type="number" id="er-gb" min="0" max="99" step="1" value="${hasR?m.goalsB:0}"
             style="padding:12px;text-align:center;font-family:'Bebas Neue';font-size:38px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);width:100%;">
         </div>
         <div style="margin-top:14px;">
           <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Fecha del partido</label>
-          <input type="date" id="er-played-at" value="${suggestedDate}"
+          <input type="date" id="er-played-at" value="${escAttr(suggestedDate)}"
             style="width:100%;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
         </div>
         ${(m.liveStartAt||m.liveEndAt)?`
@@ -1148,34 +1272,47 @@ async function openEditResultModal(matchId, phaseId, groupIdx){
 }
 
 async function saveEditResult(matchId, phaseId, groupIdx){
-  const ga = parseInt(document.getElementById('er-ga')?.value)||0;
-  const gb = parseInt(document.getElementById('er-gb')?.value)||0;
+  const rawA = (document.getElementById('er-ga')?.value ?? '').trim();
+  const rawB = (document.getElementById('er-gb')?.value ?? '').trim();
+  const ga = Number(rawA), gb = Number(rawB);
+  // Vacío, negativo, decimal o absurdo: antes «» se guardaba como 0 y -3 como -3.
+  if(rawA==='' || rawB==='' || !Number.isInteger(ga) || !Number.isInteger(gb) || ga<0 || gb<0 || ga>99 || gb>99){
+    showToast('Los goles deben ser números enteros entre 0 y 99','error'); return;
+  }
   const playedAtStr = document.getElementById('er-played-at')?.value || '';
-  const m = await dbGet('matches', matchId);
-  if(!m){ showToast('Partido no encontrado','error'); return; }
 
-  // Buscar nombres de equipos desde IDs
-  const allTeams = await dbGetAll('teams');
-  const teamById = {};
-  allTeams.forEach(t=>teamById[t.id]=t.name);
-  const teamAName = teamById[m.teamA] || String(m.teamA);
-  const teamBName = teamById[m.teamB] || String(m.teamB);
+  await _mxRun(async ()=>{
+    const m = await dbGet('matches', matchId);
+    if(!m){ showToast('El partido ya no existe','error'); closeEditResultModal(); await showMatchGroupTable(phaseId, groupIdx); return; }
+    if(await _mxSeasonLocked(m.phaseId)) return;
+    if(m.live){ showToast('El partido está en vivo: termínalo desde el centro de partido','error'); return; }
 
-  // v1.7: playedAt = fecha elegida (YYYY-MM-DD), date = timestamp del registro
-  const playedAtISO = playedAtStr ? new Date(playedAtStr+'T12:00:00').toISOString() : null;
+    // Buscar nombres de equipos desde IDs
+    const allTeams = await dbGetAll('teams');
+    const teamById = {};
+    allTeams.forEach(t=>teamById[t.id]=t.name);
+    const teamAName = teamById[m.teamA] || String(m.teamA);
+    const teamBName = teamById[m.teamB] || String(m.teamB);
 
-  await dbPut('matches',{
-    ...m,
-    goalsA: ga,
-    goalsB: gb,
-    playedAt: playedAtISO,
-    date: new Date().toISOString(), // timestamp de cuándo se ingresó
+    // v1.7: playedAt = fecha elegida (YYYY-MM-DD), date = timestamp del registro
+    const playedAtISO = playedAtStr ? new Date(playedAtStr+'T12:00:00').toISOString() : null;
+
+    try{
+      await dbPut('matches',{
+        ...m,
+        goalsA: ga,
+        goalsB: gb,
+        playedAt: playedAtISO,
+        date: new Date().toISOString(), // timestamp de cuándo se ingresó
+      });
+      await appendOrUpdateHistory(matchId);
+      showToast(`${teamAName} ${ga}-${gb} ${teamBName} registrado`);
+      closeEditResultModal();
+    } finally {
+      invalidateStandingsAndSyncBrackets(m.phaseId);
+      await showMatchGroupTable(phaseId, groupIdx);
+    }
   });
-  await appendOrUpdateHistory(matchId);
-  invalidateStandingsAndSyncBrackets(phaseId);
-  showToast(`${teamAName} ${ga}-${gb} ${teamBName} registrado`);
-  closeEditResultModal();
-  await showMatchGroupTable(phaseId, groupIdx);
 }
 
 function closeEditResultModal(){
@@ -1376,38 +1513,53 @@ async function saveMatchResult(phaseId, groupIdx){
 }
 
 async function deleteMatch(id){
-  showConfirm('¿Eliminar partido?','Esta acción revertirá el resultado en la tabla.',async()=>{
-    await removeHistoryByMatchRef(id);
-    await dbDelete('matches',id);
-    invalidateStandingsAndSyncBrackets(window._matchPhaseId); // ← actualiza brackets
-    showToast('Partido eliminado');
-    showMatchGroupTable(window._matchPhaseId, window._matchGroupIdx);
-  });
+  const m = await dbGet('matches', id);
+  if(!m){ showToast('El partido ya no existe','error'); showMatchGroupTable(window._matchPhaseId, window._matchGroupIdx); return; }
+  if(await _mxSeasonLocked(m.phaseId)) return;
+  if(m.live){ showToast('El partido está en vivo: termínalo antes de eliminarlo','error'); return; }
+  const hasR = m.goalsA!=null && m.goalsB!=null;
+  showConfirm('¿Eliminar partido?',
+    hasR ? `Se borrará el resultado (${m.goalsA}-${m.goalsB}) y su registro del historial; la tabla se recalcula.` : 'El partido aún no tiene resultado.',
+    ()=>_mxRun(async ()=>{
+      const cur = await dbGet('matches', id);
+      if(!cur){ showToast('El partido ya no existe','error'); return; }
+      if(cur.live){ showToast('El partido está en vivo: termínalo antes de eliminarlo','error'); return; }
+      try{
+        await _mxDeleteMatches([id]);
+        if(cur.ronda!=null) await _mxCleanRondaMeta(cur.phaseId, cur.groupIdx, cur.ronda);
+        showToast('Partido eliminado');
+      } finally {
+        invalidateStandingsAndSyncBrackets(cur.phaseId);
+        if(cur.phaseId===window._matchPhaseId) await showMatchGroupTable(cur.phaseId, cur.groupIdx);
+      }
+    }));
 }
 
 async function deleteRonda(phaseId, groupIdx, ronda){
+  if(await _mxSeasonLocked(phaseId)) return;
+  const toCheck = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
+  if(toCheck.some(m=>m.live)){ showToast('Hay un partido en vivo en esta fecha: termínalo antes de borrarla','error'); return; }
+  const conR = toCheck.filter(m=>m.goalsA!=null && m.goalsB!=null).length;
   showConfirm(
     `¿Borrar Fecha ${ronda}?`,
-    'Se eliminarán todos los partidos de esta fecha y su programación asociada.',
-    async()=>{
+    `Se eliminarán los ${toCheck.length} partido${toCheck.length===1?'':'s'} de esta fecha${conR?` (${conR} con resultado, que también salen del historial)`:''} y su programación asociada.`,
+    ()=>_mxRun(async()=>{
       const toDelete = await dbGetAll('matches', m=>m.phaseId===phaseId && m.groupIdx===groupIdx && m.ronda===ronda);
-      for(const m of toDelete){
-        await removeHistoryByMatchRef(m.id);
-        await dbDelete('matches', m.id);
+      if(toDelete.some(m=>m.live)){ showToast('Hay un partido en vivo en esta fecha: termínalo antes de borrarla','error'); return; }
+      try{
+        await _mxDeleteMatches(toDelete.map(m=>m.id));
+        const phase = await dbGet('phases', phaseId);
+        if(phase){
+          const meta = {...(phase.rondaMeta||{})};
+          delete meta[`${groupIdx}_${ronda}`];
+          delete meta[`${groupIdx}_${ronda}_date`];
+          await dbPut('phases', {...phase, rondaMeta:meta});
+        }
+        showToast(`Fecha ${ronda} eliminada (${toDelete.length} partido${toDelete.length===1?'':'s'})`);
+      } finally {
+        invalidateStandingsAndSyncBrackets(phaseId);
+        await showMatchGroupTable(phaseId, groupIdx);
       }
-
-      const phase = await dbGet('phases', phaseId);
-      if(phase){
-        const meta = {...(phase.rondaMeta||{})};
-        delete meta[`${groupIdx}_${ronda}`];
-        delete meta[`${groupIdx}_${ronda}_date`];
-        await dbPut('phases', {...phase, rondaMeta:meta});
-      }
-
-      invalidateStandingsAndSyncBrackets(phaseId);
-      showToast(`Fecha ${ronda} eliminada (${toDelete.length} partido${toDelete.length===1?'':'s'})`);
-      showMatchGroupTable(phaseId, groupIdx);
-    }
+    })
   );
 }
-

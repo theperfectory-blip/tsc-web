@@ -141,6 +141,10 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-48 | Baja. El campo «YuNaCoins actuales» del modal de equipo cambia el saldo sin dejar movimiento en `coins`. Hallado en 5.4, va a 5.9 |
 | H-49 | Media. En una temporada finalizada solo la UI bloquea los cambios; código y reglas aceptan escribir. Hallado en 5.3, va a 5.16 (regla de temporadas archivadas) |
 | H-50 | Baja. Código muerto en `openPhaseModal`: `gpOpts` (`originPhaseId`) no se pinta y el listener de `pf-tpg` no tiene input. Hallado en 5.3, va a 7.2 |
+| H-51 | Baja. Código muerto en `matches.js`: `openMatchInputModal`, `saveMatchResult`, `updateMatchInputTeams`, `updateMatchPreview`, `closeMatchInputModal` (nadie las llama; el botón `btn-registrar-partido` no existe) y `window._matchRondaActual`, que solo lee esa rama. Hallado en 5.5, va a 7.2 |
+| H-52 | Baja. Criterio «Enfrentamiento directo» compara solo a los dos equipos del par, no la mini-tabla entre todos los empatados; con 3 o más empatados el orden puede depender del algoritmo de `sort`. Decisión de reglamento (¿mini-liga?), no un error mecánico. Hallado en 5.5 |
+| H-53 | Media. Varios flujos escriben varios documentos en secuencia sin atomicidad (guardar o editar una fecha, aplicar fecha a la jornada, `dbPut` por partido): un corte de red a mitad deja el estado parcial. 5.5 lo mitiga (relee y repinta lo guardado, avisa el error) pero no lo elimina: falta un `dbPutMany` en lote en `db.js`. Va a 5.13 junto con el import atómico (H-19) |
+| H-54 | Baja. Dato en producción: `phases/11.customCriterionName` vale «5. Orden alfabético» (con el número incluido), por lo que se ve «5. 5. Orden alfabético». Se corrige al archivar T3 (5.14) o editando el nombre desde el modal de criterios. Hallado en 5.5 |
 
 ---
 
@@ -603,6 +607,8 @@ sandbox de 2.1.**
 > **Estado 5.1 y 5.2:** CERRADO · 2026-10-12 · ver `docs/reportes/MS-5.1-5.2.md`. Verificado en el sandbox en `dist` y `tsc-src`, 0 errores de consola, paridad OK. 5.1: «Panel admin» del perfil pasa por `setMode` (H-46), página admin restaurada validada, render admin con fallo controlado, sesión sin rol admin sale del panel, `dbErrorMsg` para toasts. 5.2: equipos globales en `getForSeason` (H-44), cascada de borrado sin fases huérfanas y sin tocar palmarés (H-45), doble clic al crear, «Ir» persistente, confirmaciones con texto correcto, C9 con mensaje claro. Abre H-47.
 
 > **Estado 5.3 y 5.4:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.3-5.4.md`. Verificado en el sandbox en `dist` y `tsc-src`, 0 errores de consola, paridad OK, reglas 33/33 y 379/379. 5.3: borrar fase o competición borra sus partidos y su historial (quedaban huérfanos), «Ver fases» abría la primera competición, doble clic, temporada finalizada, escapes, C9. 5.4: H-42 (regla + perfil), equipos con referencias no se borran, nombre único (actual y anteriores), un club = un presidente con vínculo en lote. Abre H-48 a H-50. Reglas desplegadas por el dueño (2026-10-19; `rules-drift`: Firestore y Storage iguales al repo).
+
+> **Estado 5.5:** CERRADO · 2026-10-19 · ver `docs/reportes/MS-5.5.md`. Verificado en el sandbox en `dist` y `tsc-src`, 0 errores de consola inesperados, paridad OK, sin cambios de reglas (no requiere despliegue). Cambiar el cruce de una fecha ya no deja el marcador pegado a otros equipos (pide confirmación y borra resultado e historial), mover un equipo de grupo ya no hace desaparecer sus resultados de la tabla, resultados validados (enteros 0-99), partido en vivo y temporada finalizada protegidos en el código, doble clic, borrados en lote, C9. `isMathConfirmed` con ida y vuelta. Abre H-51 a H-54 (H-49 sigue abierto).
 
 ---
 
