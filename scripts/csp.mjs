@@ -1,6 +1,7 @@
 // Solo desarrollo (no se publica). Fuente única de la Content-Security-Policy
 // (slice 3.5, H-05).
-//   - Web: header en firebase.json (hoy Content-Security-Policy-Report-Only).
+//   - Web: header Content-Security-Policy (enforce desde 3.5; antes una semana en
+//     Report-Only) en firebase.json.
 //   - APK: build-www.mjs la inyecta como <meta> en www/index.html (la APK no
 //     recibe los headers de hosting). Un <meta> no admite frame-ancestors.
 //
@@ -53,7 +54,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1] && pro
   const fb = JSON.parse(readFileSync(join(root, 'firebase.json'), 'utf8'));
   const want = cspString();
   const found = fb.hosting.headers.flatMap(h => h.headers.filter(x => /^Content-Security-Policy/.test(x.key)).map(x => ({ src: h.source, ...x })));
-  const bad = found.filter(x => x.value !== want);
+  // Enforce desde el cierre de 3.5: un header -Report-Only también cuenta como distinto.
+  const bad = found.filter(x => x.value !== want || x.key !== 'Content-Security-Policy');
   if (!found.length || bad.length) {
     console.error(`[csp] firebase.json no coincide con scripts/csp.mjs (${found.length} headers, ${bad.length} distintos: ${bad.map(b => b.src).join(', ')})`);
     process.exit(1);

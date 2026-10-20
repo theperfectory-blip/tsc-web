@@ -323,3 +323,26 @@ el preset.
   4. Marcar 3.5 como CERRADO en el plan.
 - Prompt para esa sesión (Sonnet 5.5, low):
   `Cierra el slice 3.5 de docs/MACRO_SLICE_DEBUGGING.md (paso a enforce)`.
+
+## Paso a enforce (3.5) · 2026-10-19
+
+Revisión al cumplirse la semana (sin `report-uri`, así que la evidencia es la de cada recorrido):
+
+- **Producción, vista pública** (`teamsubscup.web.app`, con `__TSC_READONLY__ = true`, solo lectura), en panel, palmarés, calendario, equipos, sorteo e historial:
+  - Escritorio: 0 eventos `securitypolicyviolation` y ningún aviso de CSP en la consola.
+  - Móvil emulado (375 px, user agent de Android): solo `apis.google.com/js/api.js` y su `gapi_iframes`, que es H-38, inocua y que **no** se debe permitir.
+  - No se recorrió el panel admin en producción: algunas vistas sincronizan datos al renderizar.
+- **Sandbox con la política en modo enforce** (`node scripts/emu-xss.mjs csp`, `localhost:3001/csp.html`, con el código actual de M5), en `tsc-src` y en `dist`, con sesión de admin: **0 violaciones** en:
+  - las 6 páginas públicas y la Sala de Trofeos 3D (Draco, texturas `blob:`);
+  - las 14 páginas admin;
+  - los modales de equipo, competición y fase, el selector de color y el perfil.
+- **Cambio:**
+  - `firebase.json`: los dos headers pasan de `Content-Security-Policy-Report-Only` a `Content-Security-Policy`.
+  - `scripts/csp.mjs --check`: ahora exige esa clave y da `OK (2 headers, Content-Security-Policy)`.
+  - `build-web` OK.
+  - La APK ya la aplicaba en enforce (`<meta>`).
+- **No verificable en local:** el emulador de hosting no aplica headers propios (tampoco `X-Frame-Options`).
+- **Después del merge a `main` (deploy por CI):**
+  - `curl -sD - -o /dev/null https://teamsubscup.web.app/` debe mostrar `Content-Security-Policy:`.
+  - Abrir la web en el celular e iniciar sesión.
+  - Si algo se rompe, volver la clave a `-Report-Only` y desplegar.

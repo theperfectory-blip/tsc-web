@@ -525,7 +525,7 @@ ser opcional.
   workflow, condicionado a que pasen los tests de 3.2.
 
 ### 3.5 · CSP (H-05)
-> **Estado:** ABIERTO · Report-Only **en producción desde 2026-10-11 03:43 UTC** (merge de PR #7, `beb692f`). **Revisión y paso a enforce: 2026-10-18 o después.** Ver `docs/reportes/MS-3.3-3.6.md` (sección «Semana de Report-Only»). Fuente única `scripts/csp.mjs`; 0 violaciones en enforce en el sandbox y 0 en la primera visita a producción.
+> **Estado:** CERRADO · 2026-10-19 · enforce en `firebase.json` (los dos headers) y en el check de `scripts/csp.mjs`; ver `docs/reportes/MS-3.3-3.6.md` («Semana de Report-Only» y «Paso a enforce»). Semana de Report-Only en producción (2026-10-11 → 2026-10-19) sin violaciones legítimas: solo H-38 en móvil (inocua). Sale con el próximo merge a `main`; después, verificar el header con `curl` y un inicio de sesión desde el celular.
 - Header `Content-Security-Policy` en `firebase.json`, primero en modo
   `-Report-Only`. Directivas:
   - `default-src 'self'`

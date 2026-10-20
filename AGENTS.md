@@ -104,7 +104,7 @@ de Functions va a `:5001`.
 Sinks con datos de usuario: `node scripts/emu-xss.mjs data|users|page`
 (datos con marcador en el sandbox y `localhost:3001/xss.html`,
 `window.__XSS__.report()`, MS-3.1).
-CSP: fuente única en `scripts/csp.mjs` (header Report-Only en
+CSP: fuente única en `scripts/csp.mjs` (header en modo enforce en
 `firebase.json`, `<meta>` que inyecta `build-www` en la APK);
 `node scripts/csp.mjs --check` y `node scripts/emu-xss.mjs csp` (enforce en
 el sandbox, `window.__CSP__`). Drift de reglas publicadas vs repo:
