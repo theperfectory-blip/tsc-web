@@ -388,9 +388,9 @@ function _pubScoresPagerHtml(groupKey, matches, scoreRow, rondaMeta, gi){
   // sea visible; las flechas se deshabilitan en los extremos.
   const lblHtml = k => `<b>${escHtml(fechaLbl(k))}</b>${fechaSub(k)?`<small>${escHtml(fechaSub(k))}</small>`:''}`;
   const bar = `<div class="scores-datebar" data-key="${escHtml(groupKey)}" data-idx="${idx}">
-      <button type="button" class="scores-arrow" aria-label="Fecha anterior" onclick="pubScoreDateNav(this,-1)"${idx<=0?' disabled':''}>${_PUB_CHEVRON_L}</button>
+      <button type="button" class="scores-arrow" aria-label="Fecha anterior" data-onclick="pubScoreDateNav(this,-1)"${idx<=0?' disabled':''}>${_PUB_CHEVRON_L}</button>
       <span class="scores-datelbl">${lblHtml(keys[idx])}</span>
-      <button type="button" class="scores-arrow" aria-label="Fecha siguiente" onclick="pubScoreDateNav(this,1)"${idx>=keys.length-1?' disabled':''}>${_PUB_CHEVRON_R}</button>
+      <button type="button" class="scores-arrow" aria-label="Fecha siguiente" data-onclick="pubScoreDateNav(this,1)"${idx>=keys.length-1?' disabled':''}>${_PUB_CHEVRON_R}</button>
     </div>`;
   return `<div class="scores-pager">${bar}<div class="scores-pages">${pages}</div></div>`;
 }
@@ -531,7 +531,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       <div class="stand-card" data-nudge-key="${phaseId}-${gi}">
         <div class="stand-hdr">
           <span class="stand-title">${escHtml(groupName)}</span>
-          <button type="button" class="stand-criteria-btn" onclick="openCriteriaModal(${phaseId}, '${containerId}', false)" title="Criterios de clasificación" aria-label="Ver criterios de clasificación">
+          <button type="button" class="stand-criteria-btn" data-onclick="openCriteriaModal(${phaseId}, '${containerId}', false)" title="Criterios de clasificación" aria-label="Ver criterios de clasificación">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </button>
         </div>

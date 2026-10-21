@@ -117,7 +117,8 @@ Sinks con datos de usuario: `node scripts/emu-xss.mjs data|users|page`
 (datos con marcador en el sandbox y `localhost:3001/xss.html`,
 `window.__XSS__.report()`, MS-3.1).
 CSP: fuente única en `scripts/csp.mjs` (header en modo enforce en
-`firebase.json`, `<meta>` que inyecta `build-www` en la APK);
+`firebase.json`, `<meta>` que inyecta `build-www` en la APK; `script-src`
+sin `'unsafe-inline'` desde MS-7.5);
 `node scripts/csp.mjs --check` y `node scripts/emu-xss.mjs csp` (enforce en
 el sandbox, `window.__CSP__`). Drift de reglas publicadas vs repo:
 `node scripts/rules-drift.mjs` (solo lectura, sesión del CLI).
@@ -139,6 +140,8 @@ js/
   Núcleo
     state.js        STATE {season, mode}, STORES, db
     sanitize.js     escHtml, escAttr, safeImgUrl (helper único de escape)
+    events.js       Despacha los data-on* (delegación, sin eval; MS-7.5)
+    boot-splash.js  Splash de arranque (se carga con data-boot, fuera de los bundles)
     firebase-config.js, cloudinary.js   Config pública (+ sus .example.js)
     db.js           Capa de datos (ver Arquitectura)
     ui-utils.js     Modales, toasts, confirm, tema, ajustes, seeds y arranque
@@ -191,6 +194,12 @@ cita. Reportes en `docs/reportes/MS-<n>.<m>.md`.
   `fill`, `currentColor`, `stroke-width` 1.7–2.2, `stroke-linecap="round"`,
   `stroke-linejoin="round"`. Aplica a botones, badges, toasts, modales y
   hints.
+- **Handlers:** `data-onclick="fn(…)"` (y `data-onchange`, `data-oninput`,
+  etc.), nunca `onclick=`, y nada de `<script>` inline: la CSP no tiene
+  `'unsafe-inline'`. `js/events.js` solo ejecuta llamadas a funciones
+  globales de la app con argumentos literales o `this`/`event`; lo demás va
+  en una función nombrada. `node scripts/audit-wiring.mjs` (sección 1b)
+  marca los que no cumplen.
 
 ## Seguridad (ver [`SECURITY.md`](SECURITY.md))
 

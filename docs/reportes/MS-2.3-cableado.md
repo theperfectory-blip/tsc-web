@@ -2,9 +2,13 @@
 
 Generado por `node scripts/audit-wiring.mjs` · 2026-10-21. Heurístico (regex, sin parser): cada hallazgo se confirma a mano antes de actuar. Lo usan M4, M5 y M7.
 
-Alcance: index.html + 37 JS · 1042 nombres globales definidos.
+Alcance: index.html + 39 JS · 1065 nombres globales definidos.
 
 ## 1. Handlers que llaman funciones no definidas (0)
+
+_Ninguno._
+
+## 1b. Handlers data-on* fuera de la gramática de js/events.js (0)
 
 _Ninguno._
 

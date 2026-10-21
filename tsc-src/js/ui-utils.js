@@ -75,6 +75,9 @@ function setTheme(theme){
     }
   } catch (_) {}
 }
+function toggleThemeKey(e){
+  if(e.key==='Enter' || e.key===' ') toggleTheme();
+}
 function toggleTheme(){
   setTheme(STATE.theme === 'light' ? 'dark' : 'light');
 }
@@ -222,7 +225,7 @@ function _updRenderCheckResult(res){
     if (res.reason === 'network-error') msg = 'No se pudo comprobar si hay actualizaciones — revisa tu conexión.';
     else if (res.reason === 'bad-manifest') msg = 'El servidor devolvió un formato inesperado.';
     else if (res.reason === 'app-info-error') msg = 'No se pudo leer la versión instalada.';
-    _updSetStatus(`${msg} <button type="button" class="btn btn-xs" style="margin-top:4px;" onclick="checkForUpdates()">Reintentar</button>`);
+    _updSetStatus(`${msg} <button type="button" class="btn btn-xs" style="margin-top:4px;" data-onclick="checkForUpdates()">Reintentar</button>`);
     return;
   }
 
@@ -235,7 +238,7 @@ function _updRenderCheckResult(res){
   _updSetStatus(`
     <div>Hay una versión nueva: v${escHtml(res.remoteName || res.remoteCode)}</div>
     ${notes}
-    <button type="button" class="btn btn-xs" id="update-install-btn" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;" onclick="installUpdate()">
+    <button type="button" class="btn btn-xs" id="update-install-btn" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;" data-onclick="installUpdate()">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
       Descargar e instalar
     </button>
@@ -293,8 +296,8 @@ async function installUpdate(){
       _updSetStatus(`
         ${_UI_ALERT_SVG}No puedes instalar actualizaciones todavía — activa el permiso en Ajustes.
         <div style="margin-top:6px;display:flex;gap:6px;">
-          <button type="button" class="btn btn-xs" onclick="openUpdatePermission()">Habilitar</button>
-          <button type="button" class="btn btn-xs" onclick="installUpdate()">Ya lo activé — reintentar</button>
+          <button type="button" class="btn btn-xs" data-onclick="openUpdatePermission()">Habilitar</button>
+          <button type="button" class="btn btn-xs" data-onclick="installUpdate()">Ya lo activé — reintentar</button>
         </div>
       `);
       return;
@@ -313,7 +316,7 @@ async function installUpdate(){
     const detail = (res.error && (res.error.message || String(res.error))) || 'Error desconocido.';
     _updSetStatus(`
       ${_UI_ALERT_SVG}Falló la descarga: ${escHtml(detail)}
-      <div style="margin-top:6px;"><button type="button" class="btn btn-xs" onclick="installUpdate()">Reintentar</button></div>
+      <div style="margin-top:6px;"><button type="button" class="btn btn-xs" data-onclick="installUpdate()">Reintentar</button></div>
     `);
   } finally {
     _updInstalling = false;
@@ -520,6 +523,11 @@ function initVolSlider(){
   });
 }
 
+function settingsUseDeviceTz(){
+  const i = document.getElementById('settings-timezone');
+  i.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  settingsUpdateTzPreview();
+}
 function settingsUpdateTzPreview(){
   const tz = document.getElementById('settings-timezone')?.value.trim();
   const el = document.getElementById('settings-tz-preview');

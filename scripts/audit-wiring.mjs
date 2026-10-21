@@ -11,13 +11,14 @@
 
    Uso: node scripts/audit-wiring.mjs   (sin dependencias) */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'tsc-src');
 const html = readFileSync(join(SRC, 'index.html'), 'utf8');
-const jsFiles = [...html.matchAll(/<script src="(js\/[^"]+\.js)"><\/script>/g)].map(m => m[1]);
+const jsFiles = [...html.matchAll(/<script(?: data-boot)? src="(js\/[^"]+\.js)"><\/script>/g)].map(m => m[1]);
 const files = [{ f: 'index.html', code: html }, ...jsFiles.map(f => ({ f, code: readFileSync(join(SRC, f), 'utf8') }))];
 const lineOf = (code, idx) => code.slice(0, idx).split('\n').length;
 
@@ -46,7 +47,7 @@ for (const { f, code } of files.filter(x => x.f !== 'index.html'))
   for (const m of code.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)\s*=[^=]/g)) if (!defs.has(m[1])) addDef(m[1], f, lineOf(code, m.index), 'window');
 
 /* ---------- 1. handlers rotos ---------- */
-const HANDLER = /\bon(?:click|change|input|submit|keydown|keyup|keypress|focus|blur|load|error|mouseover|mouseout|mouseenter|mouseleave|dblclick|contextmenu|pointerdown|touchstart|scroll)\s*=\s*(?:"([^"]*)"|'([^']*)'|\\"([^"]*)\\")/g;
+const HANDLER = /\bon(?:click|change|input|submit|keydown|keyup|keypress|focus|blur|load|error|mouseover|mouseout|mouseenter|mouseleave|dblclick|contextmenu|pointerdown|touchstart|scroll|dragstart|dragover|dragleave|dragend|drop)\s*=\s*(?:"([^"]*)"|'([^']*)'|\\"([^"]*)\\")/g;
 const broken = [];
 const handlerCalls = new Set();
 for (const { f, code } of files) {
@@ -58,6 +59,24 @@ for (const { f, code } of files) {
       if (BUILTIN.has(name) || defs.has(name)) continue;
       broken.push({ name, f, line: lineOf(code, m.index), snippet: (m[1] ?? m[2] ?? m[3]).slice(0, 80) });
     }
+  }
+}
+
+/* ---------- 1b. gramática de los data-on* (MS-7.5) ----------
+   js/events.js ejecuta los handlers con una gramática fija (sin eval): un
+   handler que no la cumple no corre. Las partes armadas en runtime (${…} y
+   '+expr+') se reemplazan por un valor antes de leerlo. */
+const { _onParse } = createRequire(import.meta.url)(join(SRC, 'js', 'events.js'));
+const unparsable = [];
+for (const { f, code } of files) {
+  if (f === 'js/events.js') continue;
+  for (const m of code.matchAll(HANDLER)) {
+    let body = m[1] ?? m[2] ?? m[3] ?? '';
+    if (/^\s*(\$\{[^}]*\}|'\+\w+\+')\s*$/.test(body)) continue; // handler entero armado en otra variable
+    body = body.replace(/\$\{[^}]*\}/g, '0').replace(/'\+[^']*?\+'/g, '0').replace(/\\'/g, "'")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+    try { _onParse(body); }
+    catch (e) { unparsable.push({ f, line: lineOf(code, m.index), snippet: (m[1] ?? m[2] ?? m[3]).slice(0, 80), err: e.message }); }
   }
 }
 
@@ -111,6 +130,9 @@ md.push('# MS-2.3 · Auditor estático de cableado', '',
 md.push(`## 1. Handlers que llaman funciones no definidas (${broken.length})`, '');
 md.push(broken.length ? '| Función | Dónde | Handler |\n|---|---|---|' : '_Ninguno._');
 for (const b of broken) md.push(`| \`${b.name}\` | ${b.f}:${b.line} | \`${b.snippet.replace(/\|/g, '\\|')}\` |`);
+md.push('', `## 1b. Handlers data-on* fuera de la gramática de js/events.js (${unparsable.length})`, '');
+md.push(unparsable.length ? '| Dónde | Handler | Error |\n|---|---|---|' : '_Ninguno._');
+for (const u of unparsable) md.push(`| ${u.f}:${u.line} | \`${u.snippet.replace(/\|/g, '\\|')}\` | ${u.err} |`);
 md.push('', `## 2. Funciones sin ninguna referencia (${dead.length}) — candidatas a código muerto para 7.2`, '',
   'Ojo: pueden usarse por nombre dinámico (`window[...]`), desde la consola o desde Android; verificar antes de borrar.', '');
 for (const d of dead.sort((a, b) => a.f.localeCompare(b.f))) md.push(`- \`${d.name}\` · ${d.f}:${d.line}`);
@@ -121,4 +143,4 @@ for (const [id, w] of missingIds) md.push(`- \`${id}\` · ${w.slice(0, 4).join('
 md.push('');
 mkdirSync(join(ROOT, 'docs', 'reportes'), { recursive: true });
 writeFileSync(join(ROOT, 'docs', 'reportes', 'MS-2.3-cableado.md'), md.join('\n'));
-console.log(`[audit-wiring] rotos ${broken.length} · muertas ${dead.length} · duplicados ${dups.length} · IDs ${missingIds.size}`);
+console.log(`[audit-wiring] rotos ${broken.length} · fuera de gramática ${unparsable.length} · muertas ${dead.length} · duplicados ${dups.length} · IDs ${missingIds.size}`);

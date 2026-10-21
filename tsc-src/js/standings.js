@@ -203,7 +203,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
     el.innerHTML = isAdmin
       ? `<div style="text-align:center;padding:24px;color:var(--txt3);border:1px dashed var(--brd2);border-radius:var(--rl);">
           <div style="font-size:16px;margin-bottom:10px;">No hay grupos configurados aún.</div>
-          <button class="btn btn-primary btn-sm" onclick="openGroupAssignModal(${phaseId})">Asignar equipos a grupos</button>
+          <button class="btn btn-primary btn-sm" data-onclick="openGroupAssignModal(${phaseId})">Asignar equipos a grupos</button>
         </div>`
       : `<div style="color:var(--txt3);font-size:16px;padding:16px;">Grupos no configurados aún.</div>`;
     return;
@@ -289,7 +289,7 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
         return `<div style="width:8px;height:8px;border-radius:50%;background:${bg};flex-shrink:0;"></div>`;
       }).join('');
 
-      return `<tr style="transition:background 0.1s;" onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background=''">
+      return `<tr style="transition:background 0.1s;" data-onmouseover="_tscStyle(this,'background','var(--card2)')" data-onmouseout="_tscStyle(this,'background','')">
         <td style="padding:7px 8px;">
           <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;${posStyle}">${i+1}</div>
         </td>
@@ -329,10 +329,10 @@ async function renderGroupTable(phaseId, containerId, isAdmin=false, filterGroup
       <div class="card-hdr">
         <div class="card-title">${groupName}</div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <button onclick="openCriteriaModal(${phaseId},'${containerId}',${isAdmin})"
+          <button data-onclick="openCriteriaModal(${phaseId},'${containerId}',${isAdmin})"
             style="background:none;border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);cursor:pointer;padding:3px 8px;font-size:13px;display:flex;align-items:center;gap:4px;transition:all 0.15s;"
-            onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
-            onmouseout="this.style.borderColor='var(--brd)';this.style.color='var(--txt2)'"
+            data-onmouseover="_tscStyle(this,'borderColor','var(--gold)','color','var(--gold)')"
+            data-onmouseout="_tscStyle(this,'borderColor','var(--brd)','color','var(--txt2)')"
             title="Criterios de clasificación">
             ${_STD_ICON_INFO} Criterios
           </button>
@@ -443,16 +443,16 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
     const nameCell = c.id==='custom'
       ? `<input id="criteria-custom-name" maxlength="40" value="${escAttr(displayName)}"
            style="font-size:14px;flex:1;background:transparent;border:none;border-bottom:1px solid var(--brd2);color:var(--txt);outline:none;padding:1px 2px;"
-           oninput="window._customCriterionName=this.value"
+           data-oninput="_setCustomCriterionName(this.value)"
            placeholder="Nombre del criterio">`
       : `<span style="font-size:14px;flex:1;">${i+1}. ${escHtml(displayName)}</span>`;
     return `
     <div draggable="true" data-id="${c.id}"
-      ondragstart="criteriaDragStart(event)"
-      ondragover="criteriaDragOver(event)"
-      ondragleave="criteriaDragLeave(event)"
-      ondrop="criteriaDrop(event)"
-      ondragend="criteriaDragEnd()"
+      data-ondragstart="criteriaDragStart(event)"
+      data-ondragover="criteriaDragOver(event)"
+      data-ondragleave="criteriaDragLeave(event)"
+      data-ondrop="criteriaDrop(event)"
+      data-ondragend="criteriaDragEnd()"
       style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--r);cursor:grab;transition:background 0.15s,border-color 0.15s;">
       <span style="color:var(--txt3);display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
         <svg viewBox="0 0 16 10" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
@@ -461,9 +461,9 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
       </span>
       <span style="font-size:12px;font-weight:700;color:var(--txt3);min-width:16px;">${i+1}.</span>
       ${nameCell}
-      <button onclick="criteriaDisable('${c.id}')" title="Mover a en desuso"
+      <button data-onclick="criteriaDisable('${c.id}')" title="Mover a en desuso"
         style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:18px;line-height:1;padding:0 2px;flex-shrink:0;"
-        onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+        data-onmouseover="_tscStyle(this,'color','var(--red)')" data-onmouseout="_tscStyle(this,'color','var(--txt3)')">×</button>
     </div>`;
   }).join('');
 
@@ -475,7 +475,7 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
       ${disabledItems.map(c=>`
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--card2);border:1px dashed var(--brd);border-radius:var(--r);opacity:0.7;">
         <span style="font-size:13px;color:var(--txt2);">${escHtml(_criteriaItemName(c,customName))}</span>
-        <button onclick="criteriaRestore('${c.id}')" class="btn btn-xs" title="Restaurar criterio">+ Restaurar</button>
+        <button data-onclick="criteriaRestore('${c.id}')" class="btn btn-xs" title="Restaurar criterio">+ Restaurar</button>
       </div>`).join('')}
     </div>` : '';
 
@@ -484,21 +484,21 @@ async function openCriteriaModal(phaseId, containerId, isAdmin){
     <div class="modal" style="max-width:460px;">
       <div class="modal-hdr">
         <div class="modal-title">Criterios de clasificación</div>
-        <button class="modal-close" onclick="closeCriteriaModal()">×</button>
+        <button class="modal-close" data-onclick="closeCriteriaModal()">×</button>
       </div>
       <div class="modal-body">
         ${_adminDesc}
         <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:8px;">Criterios activos (en orden)</div>
         <div id="criteria-active"
           style="display:flex;flex-direction:column;gap:5px;min-height:44px;padding:6px;background:var(--card2);border-radius:var(--r);border:1px solid var(--brd);"
-          ${isAdmin?'ondragover="event.preventDefault()" ondrop="criteriaDropOnContainer(event)"':''}>
+          ${isAdmin?'data-ondragover="event.preventDefault()" data-ondrop="criteriaDropOnContainer(event)"':''}>
           ${_activeRows || '<div style="padding:8px;font-size:13px;color:var(--txt3);">Sin criterios activos.</div>'}
         </div>
         ${_disabledSection}
       </div>
       <div class="modal-footer">
-        ${isAdmin?`<button class="btn btn-primary" onclick="saveCriteriaAndRefresh()">Guardar y aplicar</button>`:''}
-        <button class="btn" onclick="closeCriteriaModal()">Cerrar</button>
+        ${isAdmin?`<button class="btn btn-primary" data-onclick="saveCriteriaAndRefresh()">Guardar y aplicar</button>`:''}
+        <button class="btn" data-onclick="closeCriteriaModal()">Cerrar</button>
       </div>
     </div>
   </div>`;
@@ -533,6 +533,8 @@ function criteriaDragLeave(e){
   e.currentTarget.style.borderColor='';
   e.currentTarget.style.background='';
 }
+function _setCustomCriterionName(v){ window._customCriterionName = v; }
+
 function criteriaDragEnd(){
   document.querySelectorAll('#criteria-active [data-id]').forEach(el=>{ el.style.opacity=''; el.style.borderColor=''; el.style.background=''; });
   _dragId=null; _dragOverId=null;
@@ -721,7 +723,7 @@ async function openGroupAssignModal(phaseId, groupIdx=null){
     <div class="modal" style="max-width:600px;">
       <div class="modal-hdr">
         <div class="modal-title">Asignar equipos a grupos</div>
-        <button class="modal-close" onclick="closeGroupAssignModal()">×</button>
+        <button class="modal-close" data-onclick="closeGroupAssignModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -733,10 +735,10 @@ async function openGroupAssignModal(phaseId, groupIdx=null){
           <!-- Equipos disponibles -->
           <div>
             <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Equipos disponibles</div>
-            <input type="text" id="assign-search" placeholder="Buscar..." oninput="filterAssignTeams()"
+            <input type="text" id="assign-search" placeholder="Buscar..." data-oninput="filterAssignTeams()"
               style="width:100%;padding:6px 8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;margin-bottom:6px;">
             <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt2);cursor:pointer;margin-bottom:8px;user-select:none;">
-              <input type="checkbox" id="assign-only-free" onchange="filterAssignTeams()" style="cursor:pointer;">
+              <input type="checkbox" id="assign-only-free" data-onchange="filterAssignTeams()" style="cursor:pointer;">
               Ocultar equipos ya asignados a otras competiciones
             </label>
             <div id="assign-teams-list" style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
@@ -744,10 +746,10 @@ async function openGroupAssignModal(phaseId, groupIdx=null){
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        <button class="btn" onclick="undoAssignChanges()" title="Restaurar al estado al abrir el modal">↺ Deshacer cambios</button>
+        <button class="btn" data-onclick="undoAssignChanges()" title="Restaurar al estado al abrir el modal">↺ Deshacer cambios</button>
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="closeGroupAssignModal()">Cancelar</button>
-          <button class="btn btn-primary" onclick="saveGroupAssign(${phaseId})">Guardar grupos</button>
+          <button class="btn" data-onclick="closeGroupAssignModal()">Cancelar</button>
+          <button class="btn btn-primary" data-onclick="saveGroupAssign(${phaseId})">Guardar grupos</button>
         </div>
       </div>
     </div>
@@ -843,7 +845,7 @@ function renderAssignTeamsList(teams, groups){
         <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.name)}</span>
         ${chips ? `<div style="display:flex;gap:3px;flex-wrap:wrap;">${chips}</div>` : ''}
       </div>
-      <select onchange="addToGroup(this.value,'${t.id}');this.value=''"
+      <select data-onchange="addToGroup(this.value,'${t.id}');_tscSetValue(this,'')"
         style="padding:3px 6px;background:var(--card);border:1px solid var(--brd);border-radius:3px;color:var(--txt);font-size:12px;cursor:pointer;flex-shrink:0;">
         <option value="">→ Gr.</option>
         ${Array.from({length:ngroups},(_,i)=>{
@@ -935,7 +937,7 @@ async function renderAssignGroupSlots(){
           ${badge}
           <span style="color:${resolvedName==='Por definir'?'var(--txt3)':'var(--txt)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(resolvedName)}</span>
         </span>
-        <button onclick="removeGroupRef(${idx})" title="Quitar referencia" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+        <button data-onclick="removeGroupRef(${idx})" title="Quitar referencia" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;flex-shrink:0;" data-onmouseover="_tscStyle(this,'color','var(--red)')" data-onmouseout="_tscStyle(this,'color','var(--txt3)')">×</button>
       </div>`);
     }
   }
@@ -961,9 +963,9 @@ async function renderAssignGroupSlots(){
         <span>Grupo ${String.fromCharCode(65+i)}</span>
         <span style="font-weight:400;color:${counterColor};margin-left:6px;">(${counterText})</span>
         ${fullBadge}${reservedBadge}
-        <button onclick="openSlotRefModal(${window._assignPhaseId},${i},'R','group')" title="Sembrar desde otra fase (posición de grupo, ganador de llave...)"
+        <button data-onclick="openSlotRefModal(${window._assignPhaseId},${i},'R','group')" title="Sembrar desde otra fase (posición de grupo, ganador de llave...)"
           style="margin-left:auto;background:none;border:1px solid var(--gold-b);border-radius:3px;color:var(--gold);cursor:pointer;font-size:10px;padding:1px 6px;text-transform:none;font-family:'Barlow';font-weight:600;"
-          onmouseover="this.style.background='var(--gold-l)'" onmouseout="this.style.background='none'">+ Por referencia</button>
+          data-onmouseover="_tscStyle(this,'background','var(--gold-l)')" data-onmouseout="_tscStyle(this,'background','none')">+ Por referencia</button>
       </div>
       <div id="gslot-${i}" style="padding:6px 8px;min-height:36px;display:flex;flex-direction:column;gap:4px;">
         ${nonNull.map(tid=>{
@@ -971,7 +973,7 @@ async function renderAssignGroupSlots(){
           const name = team?.name || `Team ${tid}`;
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:3px 6px;background:var(--card);border-radius:3px;font-size:13px;">
             <span>${escHtml(name)}</span>
-            <button onclick="removeFromGroup(${i},${tid})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+            <button data-onclick="removeFromGroup(${i},${tid})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;" data-onmouseover="_tscStyle(this,'color','var(--red)')" data-onmouseout="_tscStyle(this,'color','var(--txt3)')">×</button>
           </div>`;
         }).join('')}
         ${refRows[i].join('')}

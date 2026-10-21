@@ -4,7 +4,7 @@ async function renderAdmSeasons(){
   el.innerHTML=`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:14px;color:var(--txt2);">${seasons.length} temporada(s)</div>
-    <button class="btn btn-primary" onclick="openSeasonModal()">+ Nueva temporada</button>
+    <button class="btn btn-primary" data-onclick="openSeasonModal()">+ Nueva temporada</button>
   </div>
   <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
     ${seasons.sort((a,b)=>b.number-a.number).map(s=>`
@@ -28,12 +28,12 @@ async function renderAdmSeasons(){
         ${s.finishedAt?`<div style="font-size:13px;color:var(--txt3);">Finalizada: ${new Date(s.finishedAt).toLocaleDateString('es-CL')}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;">
-        ${s.number!==STATE.season?`<button class="btn btn-sm" onclick="switchToSeason(${s.number})">Ir</button>`:''}
+        ${s.number!==STATE.season?`<button class="btn btn-sm" data-onclick="switchToSeason(${s.number})">Ir</button>`:''}
         ${s.archived?_seasonArchivedActions(s):`
-        <button class="btn btn-sm" onclick="openSeasonModal(${s.number})" ${s.status==='finished'?'disabled':''} style="display:inline-flex;align-items:center;gap:4px;${s.status==='finished'?'opacity:0.5;cursor:not-allowed;':''}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editar</button>
-        ${s.status==='active'?`<button class="btn btn-sm btn-danger" onclick="confirmFinalizeSeason(${s.number})">Finalizar</button>`:''}
-        ${s.status==='finished'?`<button class="btn btn-sm" onclick="confirmReactivateSeason(${s.number})" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reactivar</button>`:''}
-        <button class="btn btn-sm btn-danger" onclick="confirmDeleteSeason(${s.number})" title="Eliminar temporada por completo" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Eliminar</button>`}
+        <button class="btn btn-sm" data-onclick="openSeasonModal(${s.number})" ${s.status==='finished'?'disabled':''} style="display:inline-flex;align-items:center;gap:4px;${s.status==='finished'?'opacity:0.5;cursor:not-allowed;':''}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editar</button>
+        ${s.status==='active'?`<button class="btn btn-sm btn-danger" data-onclick="confirmFinalizeSeason(${s.number})">Finalizar</button>`:''}
+        ${s.status==='finished'?`<button class="btn btn-sm" data-onclick="confirmReactivateSeason(${s.number})" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reactivar</button>`:''}
+        <button class="btn btn-sm btn-danger" data-onclick="confirmDeleteSeason(${s.number})" title="Eliminar temporada por completo" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Eliminar</button>`}
       </div>
     </div>`).join('')}
   </div>
@@ -51,7 +51,7 @@ async function openSeasonModal(number=null){
     <div class="modal" style="max-width:380px;">
       <div class="modal-hdr">
         <div class="modal-title">${isCreate?'Nueva temporada':'Editar Temporada '+number}</div>
-        <button class="modal-close" onclick="document.getElementById('season-modal-wrap').innerHTML=''">×</button>
+        <button class="modal-close" data-onclick="_tscClear('season-modal-wrap')">×</button>
       </div>
       <div class="modal-body">
         ${!isCreate?`<div class="form-group">
@@ -71,8 +71,8 @@ async function openSeasonModal(number=null){
         </div>`:''}
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="document.getElementById('season-modal-wrap').innerHTML=''">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveSeasonModal(${isCreate?'null':number})">${isCreate?'Crear':'Guardar'}</button>
+        <button class="btn" data-onclick="_tscClear('season-modal-wrap')">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveSeasonModal(${isCreate?'null':number})">${isCreate?'Crear':'Guardar'}</button>
       </div>
     </div>
   </div>`;
@@ -360,8 +360,8 @@ function _seasonArchivedBlock(number){
 }
 
 function _seasonArchivedActions(s){
-  return `${s.number!==STATE.season?`<button class="btn btn-sm" onclick="switchToSeason(${s.number})">Ir</button>`:''}
-    <button class="btn btn-sm" onclick="purgeArchivedSeason(${s.number})" title="Borrar de Firestore los datos de esta temporada (ya están en el archivo)" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>Liberar Firestore</button>`;
+  return `${s.number!==STATE.season?`<button class="btn btn-sm" data-onclick="switchToSeason(${s.number})">Ir</button>`:''}
+    <button class="btn btn-sm" data-onclick="purgeArchivedSeason(${s.number})" title="Borrar de Firestore los datos de esta temporada (ya están en el archivo)" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>Liberar Firestore</button>`;
 }
 
 let _seasonPurging = false;

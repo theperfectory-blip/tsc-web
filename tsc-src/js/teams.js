@@ -23,16 +23,16 @@ async function renderAdmTeams(){
   el.innerHTML = `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <input type="text" id="team-search" placeholder="Buscar equipo..." oninput="filterTeamsTable()"
+      <input type="text" id="team-search" placeholder="Buscar equipo..." data-oninput="filterTeamsTable()"
         style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;width:180px;">
-      <select id="team-status-filter" onchange="filterTeamsTable()"
+      <select id="team-status-filter" data-onchange="filterTeamsTable()"
         style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
         <option value="">Todos</option>
         <option value="ACTIVO">Activos</option>
         <option value="INACTIVO">Inactivos</option>
       </select>
     </div>
-    <button class="btn btn-primary" onclick="openTeamModal()">+ Nuevo equipo</button>
+    <button class="btn btn-primary" data-onclick="openTeamModal()">+ Nuevo equipo</button>
   </div>
   <div class="card">
     <div class="tbl-wrap">
@@ -104,8 +104,8 @@ function renderTeamsTable(teams){
       <td style="text-align:right;font-family:'Bebas Neue';font-size:19px;color:var(--gold);">${t.yunacoin||0}</td>
       <td>
         <div style="display:flex;gap:4px;">
-          <button class="btn btn-xs" onclick="openTeamModal(${t.id})">Editar</button>
-          <button class="btn btn-xs btn-danger" title="Eliminar equipo" aria-label="Eliminar equipo" onclick="deleteTeam(${t.id})">${_ICON_X}</button>
+          <button class="btn btn-xs" data-onclick="openTeamModal(${t.id})">Editar</button>
+          <button class="btn btn-xs btn-danger" title="Eliminar equipo" aria-label="Eliminar equipo" data-onclick="deleteTeam(${t.id})">${_ICON_X}</button>
         </div>
       </td>
     </tr>`;
@@ -137,21 +137,21 @@ async function openTeamModal(id=null){
     <div class="modal">
       <div class="modal-hdr">
         <div class="modal-title">${id?'Editar equipo':'Nuevo equipo'}</div>
-        <button class="modal-close" onclick="closeTeamModal()">×</button>
+        <button class="modal-close" data-onclick="closeTeamModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:16px;">
           <!-- Logo uploader -->
           <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
-            <div id="logo-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(team?.color,'#333')};border:2px solid var(--brd2);cursor:pointer;" onclick="document.getElementById('logo-file').click()">
+            <div id="logo-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(team?.color,'#333')};border:2px solid var(--brd2);cursor:pointer;" data-onclick="_tscClick('logo-file')">
               ${safeImgUrl(team?.logo)
                 ? `<img src="${safeImgUrl(team.logo)}" style="width:100%;height:100%;object-fit:cover;">`
                 : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${escHtml(team?.ini||'?')}</span>`
               }
             </div>
-            <input type="file" id="logo-file" accept="image/*" style="display:none;" onchange="previewLogo(this)">
-            <button class="btn btn-xs" onclick="document.getElementById('logo-file').click()">Subir logo</button>
-            ${team?.logo?`<button class="btn btn-xs btn-danger" onclick="removeLogo()">Quitar</button>`:''}
+            <input type="file" id="logo-file" accept="image/*" style="display:none;" data-onchange="previewLogo(this)">
+            <button class="btn btn-xs" data-onclick="_tscClick('logo-file')">Subir logo</button>
+            ${team?.logo?`<button class="btn btn-xs btn-danger" data-onclick="removeLogo()">Quitar</button>`:''}
           </div>
           <div style="flex:1;">
             <div class="form-group">
@@ -162,7 +162,7 @@ async function openTeamModal(id=null){
               <div class="form-group">
                 <label>Iniciales (3 max)</label>
                 <input type="text" id="tf-ini" value="${escAttr(team?.ini||'')}" maxlength="3" placeholder="YUN"
-                  oninput="document.getElementById('logo-ini-preview')&&(document.getElementById('logo-ini-preview').textContent=this.value.toUpperCase())">
+                  data-oninput="_teamIniPreview(this.value)">
               </div>
               <div class="form-group">
                 <label>Estado</label>
@@ -191,7 +191,7 @@ async function openTeamModal(id=null){
         <div class="form-group">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span>Nombres anteriores</span>
-            <button type="button" class="btn btn-xs" onclick="addPrevName('')">+ Agregar nombre</button>
+            <button type="button" class="btn btn-xs" data-onclick="addPrevName('')">+ Agregar nombre</button>
           </label>
           <div id="tf-prev-names" style="display:flex;flex-direction:column;gap:6px;"></div>
           <div style="font-size:11px;color:var(--txt3);margin-top:4px;">
@@ -206,29 +206,29 @@ async function openTeamModal(id=null){
           <div style="display:flex;align-items:center;gap:10px;">
             <input type="color" id="tf-color" value="${escAttr(safeCssColor(team?.color,'#1A4A7A'))}"
               style="width:44px;height:36px;padding:2px;border-radius:var(--r);border:1px solid var(--brd);cursor:pointer;background:transparent;"
-              oninput="updateColorPreview(this.value,'primary')">
+              data-oninput="updateColorPreview(this.value,'primary')">
             <input type="text" id="tf-color-hex" value="${escAttr(safeCssColor(team?.color,'#1A4A7A'))}"
               style="width:100px;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:16px;"
-              oninput="syncColorPicker(this.value,'primary')">
+              data-oninput="syncColorPicker(this.value,'primary')">
             <div id="color-swatch" style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team?.color,'#1A4A7A')};border:2px solid var(--brd2);"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
             <input type="color" id="tf-color2" value="${escAttr(safeCssColor(team?.color2||team?.color,'#C9A84C'))}"
               style="width:44px;height:36px;padding:2px;border-radius:var(--r);border:1px solid var(--brd);cursor:pointer;background:transparent;"
-              oninput="updateColorPreview(this.value,'secondary')">
+              data-oninput="updateColorPreview(this.value,'secondary')">
             <input type="text" id="tf-color2-hex" value="${escAttr(safeCssColor(team?.color2||team?.color,'#C9A84C'))}"
               style="width:100px;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:16px;"
-              oninput="syncColorPicker(this.value,'secondary')">
+              data-oninput="syncColorPicker(this.value,'secondary')">
             <div id="color2-swatch" style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team?.color2||team?.color,'#C9A84C')};border:2px solid var(--brd2);"></div>
             <span style="font-size:12px;color:var(--txt3);">Secundario</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
             ${['#1A4A7A','#C0392B','#2E7D32','#B8860B','#1A1A4A','#4A235A','#1A4A2E','#3D2B1F','#1F618D','#1A3A4A','#784212','#1A5E3A']
-              .map(c=>`<div onclick="setTeamColor('${c}','primary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--txt)'" onmouseout="this.style.borderColor='transparent'"></div>`).join('')}
+              .map(c=>`<div data-onclick="setTeamColor('${c}','primary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" data-onmouseover="_tscStyle(this,'borderColor','var(--txt)')" data-onmouseout="_tscStyle(this,'borderColor','transparent')"></div>`).join('')}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
             ${['#1A4A7A','#C0392B','#2E7D32','#B8860B','#1A1A4A','#4A235A','#1A4A2E','#3D2B1F','#1F618D','#1A3A4A','#784212','#1A5E3A']
-              .map(c=>`<div onclick="setTeamColor('${c}','secondary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--txt)'" onmouseout="this.style.borderColor='transparent'"></div>`).join('')}
+              .map(c=>`<div data-onclick="setTeamColor('${c}','secondary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" data-onmouseover="_tscStyle(this,'borderColor','var(--txt)')" data-onmouseout="_tscStyle(this,'borderColor','transparent')"></div>`).join('')}
           </div>
         </div>
 
@@ -241,8 +241,8 @@ async function openTeamModal(id=null){
         </div>` : ''}
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeTeamModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveTeam(${id||'null'})">Guardar</button>
+        <button class="btn" data-onclick="closeTeamModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveTeam(${id||'null'})">Guardar</button>
       </div>
     </div>
   </div>`;
@@ -282,10 +282,15 @@ function addPrevName(value){
   row.innerHTML = `
     <input type="text" class="tf-prev-input" value="${escAttr(value||'')}" maxlength="40" placeholder="Ej: NOMBRE ANTERIOR"
       style="flex:1;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
-    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove();_normalizePrevContainer()" title="Quitar">×</button>
+    <button type="button" class="btn btn-xs btn-danger" data-onclick="_tscRemoveParent(this);_normalizePrevContainer()" title="Quitar">×</button>
   `;
   container.appendChild(row);
   row.querySelector('input')?.focus();
+}
+
+function _teamIniPreview(v){
+  const el = document.getElementById('logo-ini-preview');
+  if(el) el.textContent = v.toUpperCase();
 }
 
 function _normalizePrevContainer(){
@@ -625,8 +630,8 @@ function _pubTeamCardHtml(t){
     <div class="club-stage">
       <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};"
         role="button" tabindex="0"
-        onclick="_pubTeamCardOpen(${t.id}, this)"
-        onkeydown="_pubTeamCardKeydown(event, ${t.id})"
+        data-onclick="_pubTeamCardOpen(${t.id}, this)"
+        data-onkeydown="_pubTeamCardKeydown(event, ${t.id})"
         aria-label="Ver ficha de ${escHtml(t.name)}">
         <div class="club-band">
           <div class="club-crest">${crest}</div>
@@ -746,7 +751,7 @@ async function renderPubTeams(){
   <div id="pub-teams-load-more" class="load-more-wrap" style="display:none;">
     <button id="pub-teams-btn-more" type="button" class="load-more"
       aria-controls="pub-teams-grid"
-      onclick="loadMorePubTeams(false)">
+      data-onclick="loadMorePubTeams(false)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/>
       </svg>

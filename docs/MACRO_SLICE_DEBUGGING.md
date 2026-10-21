@@ -84,7 +84,7 @@ Estas acciones no se pueden ejecutar desde el repo:
 | H-02 | Alta | La web publicada sirve documentos internos. Responden 200: `PROTOCOLO_VERIFICACION.md`, `REPORTE_*.md`, `docs/migration/*.md`, `trophies-svg/convert.mjs` | `scripts/build-web.mjs` copia todo `tsc-src/` menos `graphify-out`, `trophies-upload`, `node_modules` y `_cmp` |
 | H-03 | Alta | El repo es público e identifica la cuenta y el email del admin | `docs/FIREBASE_MIGRATION_PLAN.md:23` |
 | H-04 | Media | Storage `logos/**` admite escritura de cualquier autenticado (cualquiera, por D7), sin límite de tamaño ni tipo. Además no se usa: las subidas van por Cloudinary | `firebase/storage.rules:12` |
-| H-05 | Media | No hay CSP. Hay más de 200 `innerHTML` y unos 300 handlers `onclick=` inline | `firebase.json`, `tsc-src/index.html` |
+| H-05 | Media | No hay CSP. Hay más de 200 `innerHTML` y unos 300 handlers `onclick=` inline | `firebase.json`, `tsc-src/index.html`. **Cerrado:** CSP en enforce (3.5) y sin `'unsafe-inline'` en `script-src` (7.5) |
 | H-06 | Media | `users.create` no tiene allowlist de campos. Ni create ni update validan tipos ni tamaños (`displayName`, `photoURL`, `username`) | `firebase/firestore.rules` (bloque `users`) |
 | H-07 | Media | Las reglas se despliegan a mano, así que producción puede diferir del repo | Nota en `.github/workflows/firebase-hosting.yml` |
 | H-08 | Media (**cerrado** 2026-10-11) | Estaban sin restringir (medido 2026-10-11, restringidas en 3.6): las 2 API keys de Google (web y `google-services.json`) y el preset unsigned de Cloudinary | Consolas externas |
@@ -692,6 +692,8 @@ sandbox de 2.1.**
 > **Estado 7.3:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.3.md`. Verificado en el sandbox en `dist` (recorrido público y admin, cero elementos coinciden con los selectores borrados), paridad OK. Unas 460 líneas de CSS sin uso fuera (4.692 → 4.230), medidas por referencias en todo el JS/HTML y no por cobertura de una visita (más conservador); se conservan las primitivas documentadas en `DESIGN.md`. Apariencia verificada después (Opus): estilos calculados de cada elemento idénticos con el CSS de antes y el de ahora en las 6 páginas públicas (escritorio y 375 px, tema oscuro y claro), las 14 de admin y los modales del generador, de fecha y de resultado; capturas lado a lado iguales.
 
 > **Estado 7.4:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.4.md`. Verificado en el sandbox en `dist`, paridad OK. Inventario de referencias de los 55 assets: 11 archivos sin ninguna referencia borrados (`assets/` 41 → 29 MB) y `palmares_theme.mp3` comprimido de 4,77 a 2,40 MB con ffmpeg (misma duración, decodifica bien). H-24 cerrado salvo la compresión de los `.glb`, que queda fuera.
+
+> **Estado 7.5:** CERRADO · 2026-10-20 (Opus) · ver `docs/reportes/MS-7.5.md`. Los 394 handlers inline pasan a `data-on*`, que despacha `js/events.js` con una gramática fija (sin eval, solo funciones de la app); el splash sale a `js/boot-splash.js`. `script-src` sin `'unsafe-inline'` (H-05 cerrado). Verificado en el sandbox con la CSP en enforce (`dist` y `tsc-src`): 0 violaciones en el recorrido público y admin, con escrituras; `audit-wiring` comprueba la gramática de cada handler.
 
 ---
 

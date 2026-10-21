@@ -131,15 +131,15 @@ async function renderAdmMatches(){
   <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end;">
     <div class="form-group" style="margin:0;">
       <label>Fase</label>
-      <select id="match-phase-sel" onchange="onMatchPhaseChange(this.value)" style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
+      <select id="match-phase-sel" data-onchange="onMatchPhaseChange(this.value)" style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
         ${compOpts}
       </select>
     </div>
     <div class="form-group" style="margin:0;" id="match-group-wrap">
       <label>Grupo</label>
-      <select id="match-group-sel" onchange="onMatchGroupChange(this.value)" style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;"></select>
+      <select id="match-group-sel" data-onchange="onMatchGroupChange(this.value)" style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;"></select>
     </div>
-    <button class="btn" id="btn-editar-grupos" onclick="openGroupAssignModal(window._matchPhaseId)" style="display:none;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar grupos</button>
+    <button class="btn" id="btn-editar-grupos" data-onclick="openGroupAssignModal(window._matchPhaseId)" style="display:none;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar grupos</button>
   </div>
 
   <div id="match-groups-container"></div>
@@ -217,7 +217,7 @@ async function onMatchPhaseChange(phaseId){
       const cid = `bracket-container-${phaseId}`;
       cont.innerHTML = `<div id="${cid}"></div>`;
       try { await renderBracket(parseInt(phaseId), cid, true); }
-      catch(e){ console.error('[bracket] render error:', e); cont.innerHTML=`<div style="padding:16px;color:var(--txt3);">Error al cargar el bracket. <button class="btn btn-sm" onclick="onMatchPhaseChange(${phaseId})">Reintentar</button></div>`; }
+      catch(e){ console.error('[bracket] render error:', e); cont.innerHTML=`<div style="padding:16px;color:var(--txt3);">Error al cargar el bracket. <button class="btn btn-sm" data-onclick="onMatchPhaseChange(${phaseId})">Reintentar</button></div>`; }
     }
     const ml = document.getElementById('matches-list-container');
     if(ml) ml.innerHTML='';
@@ -245,7 +245,7 @@ async function onMatchPhaseChange(phaseId){
         const cid = `bracket-container-${phaseId}`;
         cont.innerHTML = `<div id="${cid}"></div>`;
         try { await renderBracket(parseInt(phaseId), cid, true); }
-        catch(e){ console.error('[bracket] render error:', e); cont.innerHTML=`<div style="padding:16px;color:var(--txt3);">Error al cargar el bracket. <button class="btn btn-sm" onclick="onMatchPhaseChange(${phaseId})">Reintentar</button></div>`; }
+        catch(e){ console.error('[bracket] render error:', e); cont.innerHTML=`<div style="padding:16px;color:var(--txt3);">Error al cargar el bracket. <button class="btn btn-sm" data-onclick="onMatchPhaseChange(${phaseId})">Reintentar</button></div>`; }
       } else {
         const cid = `playoff-container-${phaseId}`;
         cont.innerHTML = `<div id="${cid}"></div>`;
@@ -321,7 +321,7 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
       <td style="text-align:center;width:80px;padding:0 4px;">${scoreCell}</td>
       <td style="font-weight:500;padding:9px 14px;${fB}">${escHtml(teamBName)}</td>
       ${timeCell}
-      ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" onclick="deleteMatch(${m.id})">${_ICON_X}</button></td>`:''}
+      ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" data-onclick="deleteMatch(${m.id})">${_ICON_X}</button></td>`:''}
     </tr>`;
   }
 
@@ -367,14 +367,14 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
   el.innerHTML=`
   <div class="card" style="overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--brd);background:var(--card2);">
-      <button onclick="navegarRonda('${containerId}',${phaseId},${groupIdx},${prevR})"
+      <button data-onclick="navegarRonda('${containerId}',${phaseId},${groupIdx},${prevR})"
         style="background:none;border:none;color:${prevR!==null?'var(--txt)':'var(--txt3)'};font-size:22px;cursor:${prevR!==null?'pointer':'default'};padding:0 8px;line-height:1;opacity:${prevR!==null?1:0.3};" ${prevR===null?'disabled':''}>‹</button>
       <div style="text-align:center;">
         <div style="font-family:'Barlow Condensed';font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:1px;">Fecha ${curR}</div>
         <div style="font-size:11px;color:var(--txt3);text-transform:capitalize;">${fechaStr}</div>
         ${libre?`<div style="font-size:11px;color:var(--gold);margin-top:2px;">Libre: ${escHtml(libre)}</div>`:''}
       </div>
-      <button onclick="navegarRonda('${containerId}',${phaseId},${groupIdx},${nextR})"
+      <button data-onclick="navegarRonda('${containerId}',${phaseId},${groupIdx},${nextR})"
         style="background:none;border:none;color:${nextR!==null?'var(--txt)':'var(--txt3)'};font-size:22px;cursor:${nextR!==null?'pointer':'default'};padding:0 8px;line-height:1;opacity:${nextR!==null?1:0.3};" ${nextR===null?'disabled':''}>›</button>
     </div>
     <table class="tbl" style="width:100%;"><tbody>${ms.map(m=>_mRow(m,showDelete)).join('')}</tbody></table>
@@ -405,8 +405,8 @@ async function showMatchGroupTable(phaseId, groupIdx){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:10px;">
         <div class="section-lbl" style="margin:0;">Fechas</div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-sm" onclick="openFixtureGenModal(${phaseId},${groupIdx})" ${genLock?`disabled style="opacity:0.5;cursor:not-allowed;" title="${escHtml(genLock)}"`:`title="Genera todas las fechas del grupo de una vez (todos contra todos, sin repetir rival)"`}>${genIcon} Generar fechas</button>
-          <button class="btn btn-sm btn-primary" onclick="openRondaModal(${phaseId},${groupIdx})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Crear fecha</button>
+          <button class="btn btn-sm" data-onclick="openFixtureGenModal(${phaseId},${groupIdx})" ${genLock?`disabled style="opacity:0.5;cursor:not-allowed;" title="${escHtml(genLock)}"`:`title="Genera todas las fechas del grupo de una vez (todos contra todos, sin repetir rival)"`}>${genIcon} Generar fechas</button>
+          <button class="btn btn-sm btn-primary" data-onclick="openRondaModal(${phaseId},${groupIdx})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Crear fecha</button>
         </div>
       </div>
       ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
@@ -472,9 +472,9 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
           ${pendientes?`<span style="font-size:11px;background:rgba(201,168,76,0.15);color:var(--gold);padding:1px 6px;border-radius:3px;">${pendientes} pendiente${pendientes>1?'s':''}</span>`:''}
         </div>
         <div style="display:flex;gap:6px;">
-          ${r!=='sin-ronda'?`<button class="btn btn-xs" onclick="openAssignDateToJornada(${phaseId},${groupIdx},${r})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''} title="Asignar fecha a toda la jornada"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Fecha</button>`:''}
-          ${r!=='sin-ronda'?`<button class="btn btn-xs" onclick="openRondaModal(${phaseId},${groupIdx},${r})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar</button>`:''}
-          ${r!=='sin-ronda'?`<button class="btn btn-xs btn-danger" onclick="deleteRonda(${phaseId},${groupIdx},${r})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''} title="Borrar fecha completa"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Borrar fecha</button>`:''}
+          ${r!=='sin-ronda'?`<button class="btn btn-xs" data-onclick="openAssignDateToJornada(${phaseId},${groupIdx},${r})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''} title="Asignar fecha a toda la jornada"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Fecha</button>`:''}
+          ${r!=='sin-ronda'?`<button class="btn btn-xs" data-onclick="openRondaModal(${phaseId},${groupIdx},${r})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar</button>`:''}
+          ${r!=='sin-ronda'?`<button class="btn btn-xs btn-danger" data-onclick="deleteRonda(${phaseId},${groupIdx},${r})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''} title="Borrar fecha completa"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Borrar fecha</button>`:''}
         </div>
       </div>
       <table class="tbl" style="width:100%;">
@@ -493,15 +493,15 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
             : '';
           let centerCell;
           if(isLive){
-            centerCell = `<button class="btn btn-xs" onclick="openLiveMatch(${m.id})" title="Abrir partido en vivo"
+            centerCell = `<button class="btn btn-xs" data-onclick="openLiveMatch(${m.id})" title="Abrir partido en vivo"
               style="font-size:13px;padding:3px 9px;font-family:'Bebas Neue';letter-spacing:1px;background:rgba(239,68,68,0.15);border:1px solid var(--red);color:var(--red);">
               <span class="live-dot live-dot-red" style="width:7px;height:7px;display:inline-block;vertical-align:middle;margin-right:5px;"></span>${gA}-${gB}</button>`;
           } else if(hasR){
-            centerCell = `<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`;
+            centerCell = `<strong style="font-family:'Bebas Neue';font-size:18px;${isFinalized?'cursor:not-allowed;opacity:0.5;':'cursor:pointer;'}" data-onclick="${isFinalized?'return;':'openEditResultModal('+m.id+','+phaseId+','+groupIdx+')'}" title="Editar resultado">${gA}-${gB}</strong>`;
           } else if(isFinalized){
             centerCell = `<span style="font-size:11px;color:var(--txt3);">Finalizado</span>`;
           } else if(!anyLive){
-            centerCell = `<button class="btn btn-xs" onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 10px;border:1px solid var(--red);color:var(--red);display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>Vivo</button>`;
+            centerCell = `<button class="btn btn-xs" data-onclick="startLiveGroupMatch(${m.id},${phaseId},${groupIdx})" title="Poner partido EN VIVO" style="font-size:11px;padding:3px 10px;border:1px solid var(--red);color:var(--red);display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;flex-shrink:0;"></span>Vivo</button>`;
           } else {
             centerCell = `<span style="font-size:11px;color:var(--txt3);">vs</span>`;
           }
@@ -516,7 +516,7 @@ async function renderRondasAdmin(phaseId, groupIdx, isFinalized=false){
             <td style="text-align:center;width:120px;">${centerCell}</td>
             <td style="padding:7px 10px;${fB}">${luisB?`<span style="display:inline-flex;align-items:center;gap:5px;">${luisB}${escHtml(teamBName)}</span>`:escHtml(teamBName)}</td>
             <td style="font-size:11px;color:var(--txt3);white-space:nowrap;padding-right:6px;">${diaCorto}</td>
-            <td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button></td>
+            <td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" data-onclick="deleteMatch(${m.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button></td>
           </tr>`;
         }).join('')}</tbody>
       </table>
@@ -599,7 +599,7 @@ async function openAssignDateToJornada(phaseId, groupIdx, ronda){
     <div class="modal" style="max-width:380px;">
       <div class="modal-hdr">
         <div class="modal-title">Fecha de la Jornada ${ronda}</div>
-        <button class="modal-close" onclick="closeAssignDateModal()">×</button>
+        <button class="modal-close" data-onclick="closeAssignDateModal()">×</button>
       </div>
       <div class="modal-body">
         <label style="display:block;font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Fecha</label>
@@ -612,9 +612,9 @@ async function openAssignDateToJornada(phaseId, groupIdx, ronda){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeAssignDateModal()">Cancelar</button>
-        <button class="btn" onclick="saveJornadaDate(${phaseId},${groupIdx},${ronda},false)">Solo programar</button>
-        <button class="btn btn-primary" onclick="saveJornadaDate(${phaseId},${groupIdx},${ronda},true)">Aplicar a todos</button>
+        <button class="btn" data-onclick="closeAssignDateModal()">Cancelar</button>
+        <button class="btn" data-onclick="saveJornadaDate(${phaseId},${groupIdx},${ronda},false)">Solo programar</button>
+        <button class="btn btn-primary" data-onclick="saveJornadaDate(${phaseId},${groupIdx},${ronda},true)">Aplicar a todos</button>
       </div>
     </div>
   </div>`;
@@ -914,7 +914,7 @@ function renderRondaModalContent(){
     const luisOptB = slot.b!=null ? `<option value="b" ${slot.luis===slot.b?'selected':''}>Visita</option>` : '';
     const luisCtrl = `
       <span title="¿Quién controla Luis en este partido?" style="display:inline-flex;align-items:center;color:var(--gold);flex:none;">${typeof _FX_GAMEPAD_ICON!=='undefined'?_FX_GAMEPAD_ICON:''}</span>
-      <select onchange="updateRondaLuis(${idx},this.value)" title="¿Quién controla Luis en este partido?"
+      <select data-onchange="updateRondaLuis(${idx},this.value)" title="¿Quién controla Luis en este partido?"
         style="flex:none;width:64px;padding:6px 2px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:11px;">
         <option value="">—</option>
         ${luisOptA}${luisOptB}
@@ -923,13 +923,13 @@ function renderRondaModalContent(){
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);">
       <div style="font-size:11px;color:var(--txt3);font-weight:600;min-width:60px;">P${idx+1}${resultBadge}</div>
-      <select onchange="updateRondaSlot(${idx},'a',this.value)"
+      <select data-onchange="updateRondaSlot(${idx},'a',this.value)"
         ${mustPickLibreFirst?'disabled':''}
         style="flex:1;padding:6px 8px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;">
         ${optsA.join('')}
       </select>
       <span style="font-size:11px;color:var(--txt3);">vs</span>
-      <select onchange="updateRondaSlot(${idx},'b',this.value)"
+      <select data-onchange="updateRondaSlot(${idx},'b',this.value)"
         ${mustPickLibreFirst?'disabled':''}
         style="flex:1;padding:6px 8px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;">
         ${optsB.join('')}
@@ -961,7 +961,7 @@ function renderRondaModalContent(){
     libreHTML = `
     <div style="margin-top:12px;padding:10px;background:var(--card2);border:1px dashed var(--brd);border-radius:var(--r);">
       <div style="font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Equipo libre esta fecha (impar)</div>
-      <select onchange="updateRondaLibre(this.value)"
+      <select data-onchange="updateRondaLibre(this.value)"
         style="width:100%;padding:7px 10px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
         ${optsLibre.join('')}
       </select>
@@ -990,7 +990,7 @@ function renderRondaModalContent(){
     <div class="modal" style="max-width:560px;">
       <div class="modal-hdr">
         <div class="modal-title">${st.editRonda!=null?'Editar':'Nueva'} Fecha ${st.targetR} · Grupo ${String.fromCharCode(65+st.groupIdx)}</div>
-        <button class="modal-close" onclick="closeRondaModal()">×</button>
+        <button class="modal-close" data-onclick="closeRondaModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="font-size:12px;color:var(--txt2);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
@@ -1008,8 +1008,8 @@ function renderRondaModalContent(){
         ${hasInvalidPair?`<div style="margin-top:10px;padding:8px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);font-size:12px;color:var(--red);">Hay emparejamientos repetidos. Cámbialos para guardar.</div>`:''}
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeRondaModal()">Cancelar</button>
-        <button class="btn btn-primary" ${canSave?'':'disabled style="opacity:0.4;cursor:not-allowed;"'} onclick="saveRonda()">
+        <button class="btn" data-onclick="closeRondaModal()">Cancelar</button>
+        <button class="btn btn-primary" ${canSave?'':'disabled style="opacity:0.4;cursor:not-allowed;"'} data-onclick="saveRonda()">
           ${canSave?`Guardar Fecha ${st.targetR}`:'Completa todos los partidos'}
         </button>
       </div>
@@ -1186,6 +1186,7 @@ async function _commitRonda(){
 
       await dbWriteBatch(ops);
 
+
       showToast(`Fecha ${targetR} guardada`);
       closeRondaModal();
     } finally {
@@ -1238,7 +1239,7 @@ async function openEditResultModal(matchId, phaseId, groupIdx){
     <div class="modal" style="max-width:360px;">
       <div class="modal-hdr">
         <div class="modal-title">Ingresar resultado</div>
-        <button class="modal-close" onclick="closeEditResultModal()">×</button>
+        <button class="modal-close" data-onclick="closeEditResultModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:16px;">
@@ -1265,8 +1266,8 @@ async function openEditResultModal(matchId, phaseId, groupIdx){
         </div>`:''}
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeEditResultModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveEditResult(${matchId},${phaseId},${groupIdx})">Guardar resultado</button>
+        <button class="btn" data-onclick="closeEditResultModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveEditResult(${matchId},${phaseId},${groupIdx})">Guardar resultado</button>
       </div>
     </div>
   </div>`;

@@ -81,16 +81,16 @@ async function renderAdmUsuarios(){
                   : '<span title="Esta cuenta aún no verificó su email (o no inició sesión desde que existe la verificación): no se le puede asignar club" style="margin-left:6px;font-size:11px;color:var(--gold);">sin verificar</span>'}
               </td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} onchange="adminSetUserRole(${escAttr(JSON.stringify(u.uid))}, this.value)">
+                <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} data-onchange="adminSetUserRole(${escAttr(JSON.stringify(u.uid))}, this.value)">
                   <option value="president" ${u.role==='president'?'selected':''}>Presidente</option>
                   <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
                 </select>
               </td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" ${(!u.emailVerified && !isMe)?'title="Email sin verificar: no se puede asignar club"':''} onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null, u.emailVerified===true || isMe)}</select>
+                <select style="${selStyle}" ${(!u.emailVerified && !isMe)?'title="Email sin verificar: no se puede asignar club"':''} data-onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null, u.emailVerified===true || isMe)}</select>
               </td>
               <td style="padding:8px 10px;text-align:center;">
-                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
+                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" data-onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
               </td>
             </tr>`;
           }).join('')}

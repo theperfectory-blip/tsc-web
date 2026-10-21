@@ -243,7 +243,7 @@ function goAdminPage(page, navEl){
   if(navEl) navEl.classList.add('active');
   else{
     document.querySelectorAll('.nav-item').forEach(n=>{
-      if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active');
+      if(n.getAttribute('data-onclick')?.includes("'"+page+"'")) n.classList.add('active');
     });
   }
   renderAdminPage(page);
@@ -561,11 +561,11 @@ function renderPubSidebarHistorial(activeTab){
   const tab = activeTab || 'partidos';
   container.innerHTML = `
     <div class="pub-sub-comp${tab==='partidos'?' active':''}"
-      onclick="renderPubHistory()" title="Partidos">
+      data-onclick="renderPubHistory()" title="Partidos">
       Partidos
     </div>
     <div class="pub-sub-comp${tab==='tabla'?' active':''}"
-      onclick="renderPubHistoryStandings(true)" title="Tabla histórica">
+      data-onclick="renderPubHistoryStandings(true)" title="Tabla histórica">
       Tabla histórica
     </div>`;
 }
@@ -604,7 +604,7 @@ async function renderPubSidebarComps(){
     const isSel = c.id===selComp.id;
     const col   = c.color || 'var(--gold)';
     html += `<div class="pub-sub-comp${isSel?' active':''}"
-      onclick="pubSelectComp(${Number(c.id)})"
+      data-onclick="pubSelectComp(${Number(c.id)})"
       title="${escAttr(c.name)}"
       ${isSel?`style="color:${escAttr(col)};border-left-color:${escAttr(col)};"`:''}>
       ${escHtml(c.name)}
@@ -613,7 +613,7 @@ async function renderPubSidebarComps(){
       for(const p of phases){
         const isPSel = p.id===selPhaseId;
         html += `<div class="pub-sub-phase${isPSel?' active':''}"
-          onclick="pubSelectPhase(${Number(p.id)})"
+          data-onclick="pubSelectPhase(${Number(p.id)})"
           title="${escAttr(p.name)}">
           <span class="pub-sub-dot"></span>${escHtml(p.name)}
         </div>`;
@@ -643,10 +643,10 @@ async function renderAdmDashboard(){
   </div>
   <div class="section-lbl">Acciones rápidas</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    <button class="btn btn-primary" onclick="goAdminPage('equipos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Gestionar equipos</button>
-    <button class="btn btn-primary" onclick="goAdminPage('competiciones-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Nueva competición</button>
-    <button class="btn btn-primary" onclick="goAdminPage('partidos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Registrar partido</button>
-    <button class="btn btn-primary" onclick="goAdminPage('coins-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> YuNaCoins</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('equipos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Gestionar equipos</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('competiciones-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Nueva competición</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('partidos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Registrar partido</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('coins-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> YuNaCoins</button>
   </div>`;
 }
 

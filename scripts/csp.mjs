@@ -8,8 +8,9 @@
 // `node scripts/csp.mjs --check` verifica que firebase.json tenga la misma
 // política en todos los headers de documentos HTML.
 //
-// 'unsafe-inline' en script-src es temporal: lo exigen los ~430 handlers
-// on*="…" inline (se quita en 7.5). 'wasm-unsafe-eval' y worker-src blob:
+// Sin 'unsafe-inline' en script-src desde 7.5: los handlers son data-on*
+// que despacha js/events.js y el splash está en js/boot-splash.js.
+// style-src sí lo mantiene (estilos inline en todo el HTML). 'wasm-unsafe-eval' y worker-src blob:
 // los pide el decodificador Draco de los trofeos 3D (palmares.js), y
 // connect-src blob: las texturas del GLTFLoader.
 import { readFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 export const CSP_DIRECTIVES = {
   'default-src': ["'self'"],
-  'script-src': ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", 'https://www.gstatic.com', 'https://cdn.jsdelivr.net'],
+  'script-src': ["'self'", "'wasm-unsafe-eval'", 'https://www.gstatic.com', 'https://cdn.jsdelivr.net'],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   'font-src': ["'self'", 'https://fonts.gstatic.com'],
   'img-src': ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com'],

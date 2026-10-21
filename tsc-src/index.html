@@ -71,93 +71,15 @@
   <img src="assets/tsc_sin_fondo.webp" alt="">
   <div id="boot-splash-status"></div>
 </div>
-<script>
-(function(){
-  var READY_KEYS = ['dom','publicMounted','fonts','logoImg','yunaImg'];
-  var state = { _failed: [] };
-  var readyResolve;
-  var readyPromise = new Promise(function(res){ readyResolve = res; });
-
-  function checkReady(){
-    for(var i=0;i<READY_KEYS.length;i++){ if(!state[READY_KEYS[i]]) return; }
-    readyResolve();
-  }
-  window.markBootStep = function(name, failed){
-    if(state[name]) return;
-    state[name] = true;
-    if(failed) state._failed.push(name); // asset no crítico: se sigue igual, solo queda registrado
-    checkReady();
-  };
-  window.waitBootAssets = function(){ return readyPromise; };
-  window.TSC_BOOT_READY = state; // debug: window.TSC_BOOT_READY.publicMounted, ._failed, etc.
-
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', function(){ markBootStep('dom'); });
-  } else { markBootStep('dom'); }
-
-  document.addEventListener('tsc:public-section-mounted', function(){ markBootStep('publicMounted'); }, { once:true });
-
-  if(document.fonts && document.fonts.ready){
-    document.fonts.ready.then(function(){ markBootStep('fonts'); }, function(){ markBootStep('fonts', true); });
-  } else { markBootStep('fonts'); }
-
-  var splashImg = document.querySelector('#boot-splash img');
-  if(splashImg && splashImg.complete && splashImg.naturalWidth > 0){
-    markBootStep('logoImg');
-  } else if(splashImg){
-    splashImg.addEventListener('load', function(){ markBootStep('logoImg'); }, { once:true });
-    splashImg.addEventListener('error', function(){ markBootStep('logoImg', true); }, { once:true });
-  } else { markBootStep('logoImg'); }
-
-  var yunaImg = new Image();
-  yunaImg.addEventListener('load', function(){ markBootStep('yunaImg'); }, { once:true });
-  yunaImg.addEventListener('error', function(){ markBootStep('yunaImg', true); }, { once:true });
-  yunaImg.src = 'assets/chibi/LuisYuNa_nuevo_128.webp';
-
-  function isNativeApk(){
-    try {
-      return !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-    } catch(_){ return false; }
-  }
-
-  window.hideBootSplashWhenReady = function(){
-    return waitBootAssets().then(function(){
-      if(!isNativeApk()) return;
-      return new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
-    }).then(function(){
-      document.dispatchEvent(new CustomEvent('tsc:boot-ready'));
-    });
-  };
-
-  function hideBootSplash(){
-    var el = document.getElementById('boot-splash');
-    if(!el) return;
-    el.classList.add('boot-splash-hide');
-    setTimeout(function(){ el.remove(); }, 400);
-  }
-  document.addEventListener('tsc:boot-ready', hideBootSplash, { once:true });
-  window.hideBootSplashWhenReady();
-
-  function showStatus(text){
-    var el = document.getElementById('boot-splash-status');
-    if(el) el.textContent = text;
-  }
-  setTimeout(function(){
-    if(document.getElementById('boot-splash') && !window.__TSC_BOOT_OFFLINE__) showStatus('Esto está tardando más de lo normal…');
-  }, 10000);
-  setTimeout(function(){
-    if(document.getElementById('boot-splash') && !window.__TSC_BOOT_OFFLINE__) showStatus('Problema al cargar. Revisa tu conexión e intenta de nuevo.');
-  }, 25000);
-})();
-</script>
+<script data-boot src="js/boot-splash.js"></script>
 
 <!-- ============================================================
      TOPBAR
      ============================================================ -->
 <div id="topbar">
   <div class="topbar-brand">
-    <button class="icon-btn" id="pub-menu-btn" onclick="togglePubSidebar()" title="Menú" style="display:none;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-    <button type="button" class="topbar-brand-btn" onclick="goHome()" title="Ir a inicio">
+    <button class="icon-btn" id="pub-menu-btn" data-onclick="togglePubSidebar()" title="Menú" style="display:none;"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+    <button type="button" class="topbar-brand-btn" data-onclick="goHome()" title="Ir a inicio">
       <img class="topbar-logo" src="assets/chibi/LuisYuNa_nuevo_128.webp" alt="Teams Subs Cup">
       <div class="topbar-name">Teams Subs <span>Cup</span></div>
     </button>
@@ -166,23 +88,23 @@
        Gateada por STATE.mode (oculta en admin vía .is-hidden). Sorteo omitido a propósito. -->
   <div class="topbar-nav" id="rdp-topnav">
     <div class="tn-track" id="rdp-tn-track">
-      <button type="button" class="sec-nav-btn active" data-page="palmares"   onclick="goPublicPage('palmares')">Palmarés</button>
-      <button type="button" class="sec-nav-btn"        data-page="panel"      onclick="goPublicPage('panel')">Competiciones</button>
-      <button type="button" class="sec-nav-btn"        data-page="calendario" onclick="goPublicPage('calendario')">Calendario</button>
-      <button type="button" class="sec-nav-btn"        data-page="equipos"    onclick="goPublicPage('equipos')">Equipos</button>
-      <button type="button" class="sec-nav-btn"        data-page="sorteo"     id="rdp-nav-sorteo" onclick="goPublicPage('sorteo')" style="display:none;">Sorteo</button>
-      <button type="button" class="sec-nav-btn"        data-page="historial"  onclick="goPublicPage('historial')">Historial</button>
+      <button type="button" class="sec-nav-btn active" data-page="palmares"   data-onclick="goPublicPage('palmares')">Palmarés</button>
+      <button type="button" class="sec-nav-btn"        data-page="panel"      data-onclick="goPublicPage('panel')">Competiciones</button>
+      <button type="button" class="sec-nav-btn"        data-page="calendario" data-onclick="goPublicPage('calendario')">Calendario</button>
+      <button type="button" class="sec-nav-btn"        data-page="equipos"    data-onclick="goPublicPage('equipos')">Equipos</button>
+      <button type="button" class="sec-nav-btn"        data-page="sorteo"     id="rdp-nav-sorteo" data-onclick="goPublicPage('sorteo')" style="display:none;">Sorteo</button>
+      <button type="button" class="sec-nav-btn"        data-page="historial"  data-onclick="goPublicPage('historial')">Historial</button>
       <span class="sec-nav-ind" id="rdp-nav-ind"></span>
     </div>
   </div>
   <div class="topbar-right">
-    <button class="mode-btn" id="btn-mode" onclick="toggleMode()" style="display:none;">Admin</button>
+    <button class="mode-btn" id="btn-mode" data-onclick="toggleMode()" style="display:none;">Admin</button>
     <span id="auth-area"></span>
-    <button class="icon-btn" id="settings-btn" onclick="openSettings()" title="Configuración"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="settings-update-dot" id="settings-update-dot" aria-hidden="true"></span></button>
+    <button class="icon-btn" id="settings-btn" data-onclick="openSettings()" title="Configuración"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="settings-update-dot" id="settings-update-dot" aria-hidden="true"></span></button>
   </div>
 </div>
 
-<button class="icon-btn admin-drawer-btn" id="admin-drawer-btn" type="button" onclick="toggleAdminSidebar()" title="Menú admin" aria-label="Menú admin" aria-pressed="false">
+<button class="icon-btn admin-drawer-btn" id="admin-drawer-btn" type="button" data-onclick="toggleAdminSidebar()" title="Menú admin" aria-label="Menú admin" aria-pressed="false">
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
     <line x1="3" y1="6" x2="21" y2="6"/>
     <line x1="3" y1="12" x2="21" y2="12"/>
@@ -196,33 +118,33 @@
 <!-- ============================================================
      PUBLIC SIDEBAR (reemplaza #pubnav)
      ============================================================ -->
-<div id="pub-sidebar-backdrop" onclick="closePubSidebar()"></div>
+<div id="pub-sidebar-backdrop" data-onclick="closePubSidebar()"></div>
 
 <div id="pub-sidebar">
-  <button class="pub-sidebar-toggle" id="pub-sidebar-toggle" onclick="togglePubSidebar()" title="Colapsar menú">«</button>
+  <button class="pub-sidebar-toggle" id="pub-sidebar-toggle" data-onclick="togglePubSidebar()" title="Colapsar menú">«</button>
   <nav class="pub-sidebar-nav">
-    <div class="pub-nav-item active" onclick="goPublicPage('palmares',this)" data-page="palmares" title="Palmarés">
+    <div class="pub-nav-item active" data-onclick="goPublicPage('palmares',this)" data-page="palmares" title="Palmarés">
       <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span>
       <span class="pub-nav-label">Palmarés</span>
     </div>
-    <div class="pub-nav-item" onclick="goPublicPage('panel',this)" data-page="panel" title="Competiciones">
+    <div class="pub-nav-item" data-onclick="goPublicPage('panel',this)" data-page="panel" title="Competiciones">
       <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
       <span class="pub-nav-label">Competiciones</span>
     </div>
     <div id="pub-sidebar-comps" class="pub-sidebar-sub"></div>
-    <div class="pub-nav-item" onclick="goPublicPage('calendario',this)" data-page="calendario" title="Calendario">
+    <div class="pub-nav-item" data-onclick="goPublicPage('calendario',this)" data-page="calendario" title="Calendario">
       <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
       <span class="pub-nav-label">Calendario</span>
     </div>
-    <div class="pub-nav-item" onclick="goPublicPage('equipos',this)" data-page="equipos" title="Equipos">
+    <div class="pub-nav-item" data-onclick="goPublicPage('equipos',this)" data-page="equipos" title="Equipos">
       <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
       <span class="pub-nav-label">Equipos</span>
     </div>
-    <div class="pub-nav-item" id="pub-nav-sorteo" onclick="goPublicPage('sorteo',this)" data-page="sorteo" title="Sorteo" style="display:none;">
+    <div class="pub-nav-item" id="pub-nav-sorteo" data-onclick="goPublicPage('sorteo',this)" data-page="sorteo" title="Sorteo" style="display:none;">
       <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg></span>
       <span class="pub-nav-label">Sorteo</span>
     </div>
-    <div class="pub-nav-item" onclick="goPublicPage('historial',this)" data-page="historial" title="Historial">
+    <div class="pub-nav-item" data-onclick="goPublicPage('historial',this)" data-page="historial" title="Historial">
       <span class="pub-nav-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg></span>
       <span class="pub-nav-label">Historial</span>
     </div>
@@ -235,54 +157,54 @@
      ============================================================ -->
 <div id="sidebar">
   <div class="nav-section-lbl">General</div>
-  <div class="nav-item active" onclick="goAdminPage('dashboard',this)">
+  <div class="nav-item active" data-onclick="goAdminPage('dashboard',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Dashboard
   </div>
-  <div class="nav-item" onclick="goAdminPage('equipos-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('equipos-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Equipos
   </div>
 
   <div class="nav-section-lbl">Competiciones</div>
-  <div class="nav-item" onclick="goAdminPage('competiciones-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('competiciones-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>Competiciones
   </div>
-  <div class="nav-item" onclick="goAdminPage('fases-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('fases-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 19 6.5 19 17.5 12 22 5 17.5 5 6.5 12 2"/></svg></span>Fases
   </div>
-  <div class="nav-item" onclick="goAdminPage('partidos-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('partidos-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>Partidos
   </div>
-  <div class="nav-item" onclick="goAdminPage('calendario-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('calendario-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Calendario
   </div>
-  <div class="nav-item" data-nav="sorteo-admin" onclick="goAdminPage('sorteo-admin',this)">
+  <div class="nav-item" data-nav="sorteo-admin" data-onclick="goAdminPage('sorteo-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg></span>Sorteo
   </div>
 
   <div class="nav-section-lbl">Economía</div>
-  <div class="nav-item" onclick="goAdminPage('coins-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('coins-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>YuNaCoins
   </div>
 
   <div class="nav-section-lbl">Historial</div>
-  <div class="nav-item" onclick="goAdminPage('historial-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('historial-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg></span>Historial de partidos
   </div>
-  <div class="nav-item" onclick="goAdminPage('historial-tabla-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('historial-tabla-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg></span>Tabla histórica
   </div>
-  <div class="nav-item" onclick="goAdminPage('palmares-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('palmares-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span>Palmarés
   </div>
 
   <div class="nav-section-lbl">Sistema</div>
-  <div class="nav-item" onclick="goAdminPage('usuarios-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('usuarios-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Usuarios
   </div>
-  <div class="nav-item" onclick="goAdminPage('temporadas-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('temporadas-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Temporadas
   </div>
-  <div class="nav-item" onclick="goAdminPage('datos-admin',this)">
+  <div class="nav-item" data-onclick="goAdminPage('datos-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><polyline points="8 17 12 21 16 17"/><polyline points="8 7 12 3 16 7"/></svg></span>Datos
   </div>
 </div>
@@ -390,7 +312,7 @@
   <div id="page-calendario-admin" class="page">
     <div class="section-lbl">Calendario de partidos</div>
     <div class="cal-adm-toolbar">
-      <button id="btn-notify-stream-today" class="btn btn-primary btn-sm" onclick="notifyStreamTodayClick()" title="Envía un aviso push a los presidentes de los equipos que juegan hoy">
+      <button id="btn-notify-stream-today" class="btn btn-primary btn-sm" data-onclick="notifyStreamTodayClick()" title="Envía un aviso push a los presidentes de los equipos que juegan hoy">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notificar stream de hoy
       </button>
     </div>
@@ -406,7 +328,7 @@
        del footer se muestra siempre, adentro y afuera de la app. -->
   <footer class="site-footer">
     <div class="site-footer-links">
-      <a class="site-footer-link" id="footer-apk-link" href="" target="_blank" rel="noopener" onclick="tscApkDownloadClick()" style="display:none;">
+      <a class="site-footer-link" id="footer-apk-link" href="" target="_blank" rel="noopener" data-onclick="tscApkDownloadClick()" style="display:none;">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Descargar APK
       </a>
@@ -441,13 +363,13 @@
   <div class="modal" style="max-width:380px;">
     <div class="modal-hdr">
       <div class="modal-title">Configuración</div>
-      <button class="modal-close" onclick="closeModal('settings-modal')">×</button>
+      <button class="modal-close" data-onclick="closeModal('settings-modal')">×</button>
     </div>
     <div class="modal-body">
       <div class="form-group" style="margin-bottom:0;">
         <label style="display:flex;align-items:center;justify-content:space-between;">
           <span>Temporada</span>
-          <select class="season-sel" id="season-sel" onchange="onSeasonChange(this.value)">
+          <select class="season-sel" id="season-sel" data-onchange="onSeasonChange(this.value)">
             <option value="">Temporada...</option>
           </select>
         </label>
@@ -457,8 +379,8 @@
         <label style="display:flex;align-items:center;justify-content:space-between;">
           <span>Tema visual</span>
           <!-- Pill toggle dark/light -->
-          <div class="theme-pill" id="theme-pill" onclick="toggleTheme()" role="button" tabindex="0"
-               onkeydown="if(event.key==='Enter'||event.key===' ')toggleTheme()">
+          <div class="theme-pill" id="theme-pill" data-onclick="toggleTheme()" role="button" tabindex="0"
+               data-onkeydown="toggleThemeKey(event)">
             <div class="theme-pill-thumb" id="theme-pill-thumb">
               <svg class="theme-icon-moon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
               <svg class="theme-icon-sun"  viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>
@@ -475,7 +397,7 @@
         <label style="display:flex;align-items:center;justify-content:space-between;">
           <span>Sonido</span>
           <span style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:400;text-transform:none;font-size:13px;color:var(--txt2);">
-            <input type="checkbox" id="snd-on" onchange="setSoundOn(this.checked)"> Activado
+            <input type="checkbox" id="snd-on" data-onchange="setSoundOn(this.checked)"> Activado
           </span>
         </label>
         <!-- Volume slider custom (elástico, sin thumb, estilo framer-motion) -->
@@ -505,7 +427,7 @@
         <label style="display:flex;align-items:center;justify-content:space-between;">
           <span>Notificaciones</span>
           <span style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-weight:400;text-transform:none;font-size:13px;color:var(--txt2);">
-            <input type="checkbox" id="push-on" onchange="setPushOn(this.checked)"> Activado
+            <input type="checkbox" id="push-on" data-onchange="setPushOn(this.checked)"> Activado
           </span>
         </label>
         <div id="push-status" style="font-size:11px;color:var(--txt3);margin-top:4px;min-height:16px;"></div>
@@ -515,7 +437,7 @@
         <label style="display:flex;align-items:center;justify-content:space-between;">
           <span>Actualizaciones</span>
           <button type="button" class="btn btn-xs" id="update-check-btn" title="Buscar actualizaciones"
-            onclick="checkForUpdates()" style="display:inline-flex;align-items:center;gap:5px;">
+            data-onclick="checkForUpdates()" style="display:inline-flex;align-items:center;gap:5px;">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/></svg>
             Buscar
           </button>
@@ -527,10 +449,10 @@
         <label>Zona horaria</label>
         <div style="display:flex;gap:6px;align-items:center;">
           <input type="text" id="settings-timezone" list="settings-tz-list"
-            style="flex:1;" oninput="settingsUpdateTzPreview()" autocomplete="off" placeholder="America/Santiago">
+            style="flex:1;" data-oninput="settingsUpdateTzPreview()" autocomplete="off" placeholder="America/Santiago">
           <datalist id="settings-tz-list"></datalist>
           <button class="btn btn-xs" title="Detectar automáticamente"
-            onclick="(()=>{const i=document.getElementById('settings-timezone');i.value=Intl.DateTimeFormat().resolvedOptions().timeZone;settingsUpdateTzPreview();})()">Auto</button>
+            data-onclick="settingsUseDeviceTz()">Auto</button>
         </div>
         <div id="settings-tz-preview" style="font-size:11px;color:var(--txt3);margin-top:4px;min-height:16px;"></div>
       </div>
@@ -538,26 +460,26 @@
       <div class="form-group" style="margin-top:18px;margin-bottom:0;">
         <label>Estela de cursor</label>
         <div class="trail-picker" id="trail-picker">
-          <button type="button" data-variant="ribbon" title="Ribbon elástico" aria-label="Ribbon elástico" onclick="pickCursorTrail('ribbon')">
+          <button type="button" data-variant="ribbon" title="Ribbon elástico" aria-label="Ribbon elástico" data-onclick="pickCursorTrail('ribbon')">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14c2.5-6 4.5-6 7 0s4.5 6 7 0 4.5-6 6-3"/></svg>
           </button>
-          <button type="button" data-variant="sparks" title="Chispas" aria-label="Chispas" onclick="pickCursorTrail('sparks')">
+          <button type="button" data-variant="sparks" title="Chispas" aria-label="Chispas" data-onclick="pickCursorTrail('sparks')">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z"/><path d="M19 15l.6 2 2 .6-2 .6-.6 2-.6-2-2-.6 2-.6z"/></svg>
           </button>
-          <button type="button" data-variant="comet" title="Comet" aria-label="Comet" onclick="pickCursorTrail('comet')">
+          <button type="button" data-variant="comet" title="Comet" aria-label="Comet" data-onclick="pickCursorTrail('comet')">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="17" cy="7" r="2.2"/><path d="M15 8.6C11.5 11 8 12.5 4.5 18"/></svg>
           </button>
-          <button type="button" data-variant="constellation" title="Constelación" aria-label="Constelación" onclick="pickCursorTrail('constellation')">
+          <button type="button" data-variant="constellation" title="Constelación" aria-label="Constelación" data-onclick="pickCursorTrail('constellation')">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><line x1="8.4" y1="10.7" x2="15.6" y2="6.3"/><line x1="8.4" y1="13.3" x2="15.6" y2="17.7"/></svg>
           </button>
-          <button type="button" data-variant="off" title="Sin estela" aria-label="Sin estela" onclick="pickCursorTrail('off')">
+          <button type="button" data-variant="off" title="Sin estela" aria-label="Sin estela" data-onclick="pickCursorTrail('off')">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="5.5" y1="5.5" x2="18.5" y2="18.5"/></svg>
           </button>
         </div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-primary" onclick="saveSettings()">Guardar</button>
+      <button class="btn btn-primary" data-onclick="saveSettings()">Guardar</button>
     </div>
   </div>
 </div>
@@ -571,8 +493,8 @@
       <source media="(max-width:700px)" srcset="assets/TSC-apk2.webp">
       <img class="apk-promo-img" src="assets/TSC-apk.webp" alt="Descargá la app de Team Subs Cup">
     </picture>
-    <a class="apk-hit apk-hit-dl" href="" target="_blank" rel="noopener" onclick="tscApkDownloadClick()" aria-label="Descargar APK"></a>
-    <button type="button" class="apk-hit apk-hit-x" onclick="closeApkPromo()" aria-label="Cerrar"></button>
+    <a class="apk-hit apk-hit-dl" href="" target="_blank" rel="noopener" data-onclick="tscApkDownloadClick()" aria-label="Descargar APK"></a>
+    <button type="button" class="apk-hit apk-hit-x" data-onclick="closeApkPromo()" aria-label="Cerrar"></button>
   </div>
 </div>
 
@@ -582,8 +504,8 @@
     <h4 id="confirm-title">¿Confirmar acción?</h4>
     <p id="confirm-msg">Esta acción no se puede deshacer.</p>
     <div class="confirm-actions">
-      <button class="btn" onclick="closeConfirm()">Cancelar</button>
-      <button class="btn btn-danger" onclick="runConfirm()">Confirmar</button>
+      <button class="btn" data-onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" data-onclick="runConfirm()">Confirmar</button>
     </div>
   </div>
 </div>
@@ -602,6 +524,7 @@
 
 <script src="js/state.js"></script>
 <script src="js/sanitize.js"></script>
+<script src="js/events.js"></script>
 <script src="js/motion.js"></script>
 <script src="js/cursor-fx.js"></script>
 <script src="js/push.js"></script>

@@ -52,11 +52,11 @@ async function renderAdmFases(){
   el.innerHTML = `
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
     <div style="font-size:14px;color:var(--txt2);">Competición:</div>
-    <select id="fase-comp-sel" onchange="onFaseCompChange(this.value)"
+    <select id="fase-comp-sel" data-onchange="onFaseCompChange(this.value)"
       style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
       ${compOpts}
     </select>
-    <button class="btn btn-primary btn-sm" onclick="openPhaseModal()" ${!_currentCompId||isFinalized?'disabled':''} style="${isFinalized?'opacity:0.5;cursor:not-allowed;':''}">+ Nueva fase</button>
+    <button class="btn btn-primary btn-sm" data-onclick="openPhaseModal()" ${!_currentCompId||isFinalized?'disabled':''} style="${isFinalized?'opacity:0.5;cursor:not-allowed;':''}">+ Nueva fase</button>
   </div>
   ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
   <div id="phases-list" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -83,7 +83,7 @@ async function renderPhasesList(){
   if(!sorted.length){
     el.innerHTML=`<div style="text-align:center;padding:32px;color:var(--txt3);border:1px dashed var(--brd2);border-radius:var(--rl);">
       <div style="font-size:16px;margin-bottom:10px;">No hay fases en esta competición.</div>
-      ${isFinalized?'':'<button class="btn btn-primary btn-sm" onclick="openPhaseModal()">+ Crear primera fase</button>'}
+      ${isFinalized?'':'<button class="btn btn-primary btn-sm" data-onclick="openPhaseModal()">+ Crear primera fase</button>'}
     </div>`;
     return;
   }
@@ -114,7 +114,7 @@ async function renderPhasesList(){
     const togglePublishBtn = (isDone || isFinalized)
       ? '' // Fase o temporada finalizada: sin toggle
       : `<button class="btn btn-sm" title="${isDraft?'Publicar (visible al público)':'Despublicar (ocultar al público)'}"
-           onclick="togglePhasePublish(${p.id})"
+           data-onclick="togglePhasePublish(${p.id})"
            style="${isDraft?'background:var(--green);color:#000;font-weight:600;':''}">
            ${isDraft?_PH_EYE+'Publicar':_PH_EYE_OFF+'Ocultar'}
          </button>`;
@@ -133,8 +133,8 @@ async function renderPhasesList(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;padding:12px;border-left:1px solid var(--brd);">
           ${togglePublishBtn}
-          <button class="btn btn-sm" onclick="openPhaseModal(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
-          <button class="btn btn-sm btn-danger" title="Eliminar fase" aria-label="Eliminar fase" onclick="deletePhase(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button>
+          <button class="btn btn-sm" data-onclick="openPhaseModal(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
+          <button class="btn btn-sm btn-danger" title="Eliminar fase" aria-label="Eliminar fase" data-onclick="deletePhase(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button>
         </div>
       </div>
     </div>`;
@@ -185,7 +185,7 @@ async function openPhaseModal(id=null){
     <div class="modal" style="max-width:560px;">
       <div class="modal-hdr">
         <div class="modal-title">${id?'Editar fase':'Nueva fase'}</div>
-        <button class="modal-close" onclick="closePhaseModal()">×</button>
+        <button class="modal-close" data-onclick="closePhaseModal()">×</button>
       </div>
       <div class="modal-body">
         ${compInfoBanner}
@@ -233,7 +233,7 @@ async function openPhaseModal(id=null){
           <div id="group-sizes-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;"></div>
           <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--brd);padding-bottom:4px;margin-bottom:10px;">Zonas de clasificación</div>
           <div id="zones-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-          <button onclick="addZone()" style="margin-top:6px;width:100%;padding:6px;border:1px dashed var(--brd2);background:transparent;color:var(--txt2);border-radius:var(--r);cursor:pointer;font-size:14px;">+ Agregar zona</button>
+          <button data-onclick="addZone()" style="margin-top:6px;width:100%;padding:6px;border:1px dashed var(--brd2);background:transparent;color:var(--txt2);border-radius:var(--r);cursor:pointer;font-size:14px;">+ Agregar zona</button>
         </div>
 
         <!-- Config: Bracket -->
@@ -342,8 +342,8 @@ async function openPhaseModal(id=null){
 
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePhaseModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePhase(${id||'null'})">Guardar fase</button>
+        <button class="btn" data-onclick="closePhaseModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="savePhase(${id||'null'})">Guardar fase</button>
       </div>
     </div>
   </div>`;
@@ -476,7 +476,7 @@ async function openPhaseModal(id=null){
         <button data-zone-pos="${i}" style="padding:4px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--card2);color:${label!=='Sin posiciones'?'var(--txt)':'var(--txt3)'};font-size:13px;cursor:pointer;white-space:nowrap;min-width:90px;text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${escAttr(label)}">
           ${label!=='Sin posiciones' ? label : '+ Posiciones'}
         </button>
-        <button onclick="removeZone(${i})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:22px;line-height:1;padding:2px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+        <button data-onclick="removeZone(${i})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:22px;line-height:1;padding:2px;" data-onmouseover="_tscStyle(this,'color','var(--red)')" data-onmouseout="_tscStyle(this,'color','var(--txt3)')">×</button>
       </div>`;
     }).join('');
 

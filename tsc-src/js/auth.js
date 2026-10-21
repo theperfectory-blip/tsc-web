@@ -26,7 +26,7 @@ function _injectAuthModal(){
     <div class="modal" style="max-width:360px;">
       <div class="modal-hdr">
         <div class="modal-title" id="auth-title">Iniciar sesión</div>
-        <button class="modal-close" onclick="closeModal('auth-modal')">×</button>
+        <button class="modal-close" data-onclick="closeModal('auth-modal')">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group" id="auth-name-group" style="display:none;">
@@ -41,17 +41,17 @@ function _injectAuthModal(){
           <label>Contraseña</label>
           <div style="position:relative;">
             <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px;width:100%;box-sizing:border-box;">
-            <button type="button" id="auth-eye" onclick="toggleAuthPass()" title="Mostrar/ocultar contraseña"
+            <button type="button" id="auth-eye" data-onclick="toggleAuthPass()" title="Mostrar/ocultar contraseña"
               style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;line-height:1;padding:2px;display:flex;align-items:center;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
         <div id="auth-error" style="color:#e74c3c;font-size:13px;min-height:18px;"></div>
-        <button type="button" id="auth-forgot" onclick="authForgotPassword()"
+        <button type="button" id="auth-forgot" data-onclick="authForgotPassword()"
           style="background:none;border:none;color:var(--txt2);font-size:12px;cursor:pointer;padding:0;text-align:left;">¿Olvidaste tu contraseña?</button>
       </div>
       <div class="modal-footer" style="flex-direction:column;align-items:stretch;gap:8px;">
-        <button class="btn btn-primary" id="auth-submit" onclick="authSubmit()">Entrar</button>
-        <button class="btn" id="auth-toggle" onclick="toggleAuthMode()" style="background:none;border:none;">¿No tienes cuenta? Crear una</button>
+        <button class="btn btn-primary" id="auth-submit" data-onclick="authSubmit()">Entrar</button>
+        <button class="btn" id="auth-toggle" data-onclick="toggleAuthMode()" style="background:none;border:none;">¿No tienes cuenta? Crear una</button>
       </div>
     </div>`;
   document.body.appendChild(div);
@@ -295,7 +295,7 @@ function renderAuthUI(){
     // Botón de perfil con el diseño del rediseño (pill + avatar + chevron),
     // pero conserva el flujo real: onclick → openProfile() (modal completo).
     area.innerHTML =
-      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-modal" onclick="openProfile()">
+      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-modal" data-onclick="openProfile()">
         <span class="tp-avatar" style="overflow:hidden;">${avatar}</span>
         <svg class="tp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>`;
@@ -304,7 +304,7 @@ function renderAuthUI(){
     // presidente): no puede quedar dentro del panel.
     if (AUTH.role !== 'admin' && STATE.mode === 'admin' && typeof setMode === 'function') setMode('public');
   } else {
-    area.innerHTML = `<button class="mode-btn" onclick="openAuthModal()">Entrar</button>`;
+    area.innerHTML = `<button class="mode-btn" data-onclick="openAuthModal()">Entrar</button>`;
     if (btnMode) btnMode.style.display = 'none';
     if (STATE.mode === 'admin' && typeof setMode === 'function') setMode('public');
   }

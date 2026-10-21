@@ -233,7 +233,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:12px;color:var(--txt3);min-width:32px;">${legsCount>1?(li===0?'Ida':'Vuelta'):'Partido'}</span>
         <div ${isLegLive?'class="live-border"':''} style="display:flex;align-items:center;gap:6px;background:${isLegLive?'rgba(239,68,68,0.1)':'var(--card2)'};border:${isLegLive?'2px':'1px'} solid ${isLegLive?'var(--red)':'var(--brd)'};border-radius:var(--r);padding:4px 10px;cursor:${clickAttr?'pointer':'default'};"
-          ${clickAttr?`onclick="${clickAttr}"`:''}>
+          ${clickAttr?`data-onclick="${clickAttr}"`:''}>
           <span style="font-size:14px;font-weight:${ld.goalsA!==null&&ld.goalsA>ld.goalsB?'700':'400'};color:${colA};">${sa}</span>
           <span style="font-size:13px;color:var(--txt3);">-</span>
           <span style="font-size:14px;font-weight:${ld.goalsB!==null&&ld.goalsB>ld.goalsA?'700':'400'};color:${colB};">${sb}</span>
@@ -273,7 +273,7 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
     } else if(isAdmin && !anyLive && bothTeamsExist && nextPlayableLegIdx>=0){
       const _ld = legData[nextPlayableLegIdx];
       const _ll = legsCount>1 ? ` · ${nextPlayableLegIdx===0?'Ida':'Vuelta'}` : '';
-      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;"><span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo${_ll}</button></div>`;
+      topSection = `<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button data-onclick="event.stopPropagation();startLivePlayoffLeg('${phaseId}','${_ld.slotId}',${i},${nextPlayableLegIdx+1},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))})" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;letter-spacing:0.3px;"><span style="display:inline-block;width:7px;height:7px;background:currentColor;border-radius:50%;vertical-align:middle;margin-right:3px;"></span>En vivo${_ll}</button></div>`;
     }
 
     html+=`
@@ -294,10 +294,10 @@ async function renderPlayoff(phaseId, containerId, isAdmin=false){
           ${legHtml}
           ${allPlayed&&totA===totB&&!winner?`<div style="font-size:10px;color:var(--yellow);text-align:center;">Define por ${awayGoal&&legsCount>=2?'visita o ':''}penales</div>`:''}
           ${isAdmin?(isSingle
-            ?`<button class="btn btn-xs" onclick="openSupercopaTeamAssign(${phaseId},${i})" style="font-size:11px;margin-top:4px;display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Asignar equipos</button>`
+            ?`<button class="btn btn-xs" data-onclick="openSupercopaTeamAssign(${phaseId},${i})" style="font-size:11px;margin-top:4px;display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Asignar equipos</button>`
             :`<div style="display:flex;gap:6px;margin-top:2px;">
-              <button class="btn btn-xs" onclick="openSlotRefModal(${phaseId},${i},'A','playoff')" style="font-size:10px;opacity:0.75;">Ref A</button>
-              <button class="btn btn-xs" onclick="openSlotRefModal(${phaseId},${i},'B','playoff')" style="font-size:10px;opacity:0.75;">Ref B</button>
+              <button class="btn btn-xs" data-onclick="openSlotRefModal(${phaseId},${i},'A','playoff')" style="font-size:10px;opacity:0.75;">Ref A</button>
+              <button class="btn btn-xs" data-onclick="openSlotRefModal(${phaseId},${i},'B','playoff')" style="font-size:10px;opacity:0.75;">Ref B</button>
             </div>`)
           :''}
         </div>
@@ -356,7 +356,7 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
     <div class="modal" style="max-width:340px;">
       <div class="modal-hdr">
         <div class="modal-title">${legsCount>1?(leg===1?'Partido de ida':'Partido de vuelta'):'Partido'}</div>
-        <button class="modal-close" onclick="closePlayoffLegModal()">×</button>
+        <button class="modal-close" data-onclick="closePlayoffLegModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:6px;">
@@ -384,10 +384,10 @@ async function openPlayoffLegModal(phaseId, slotId, matchIdx, leg, teamA, teamB,
         </div>`:''}
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        ${cur?`<button class="btn btn-danger btn-sm" onclick="closePlayoffLegModal();deletePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Borrar</button>`:'<div></div>'}
+        ${cur?`<button class="btn btn-danger btn-sm" data-onclick="closePlayoffLegModal();deletePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Borrar</button>`:'<div></div>'}
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="closePlayoffLegModal()">Cancelar</button>
-          <button class="btn btn-primary" onclick="savePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg},${escAttr(JSON.stringify(teamA))},${escAttr(JSON.stringify(teamB))})">Guardar</button>
+          <button class="btn" data-onclick="closePlayoffLegModal()">Cancelar</button>
+          <button class="btn btn-primary" data-onclick="savePlayoffLeg('${phaseId}','${slotId}',${matchIdx},${leg},${escAttr(JSON.stringify(teamA))},${escAttr(JSON.stringify(teamB))})">Guardar</button>
         </div>
       </div>
     </div>
@@ -570,7 +570,7 @@ async function openSupercopaTeamAssign(phaseId, matchIdx){
     <div class="modal" style="max-width:380px;">
       <div class="modal-hdr">
         <div class="modal-title">Asignar equipos</div>
-        <button class="modal-close" onclick="closeSupercopaAssignModal()">×</button>
+        <button class="modal-close" data-onclick="closeSupercopaAssignModal()">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -587,8 +587,8 @@ async function openSupercopaTeamAssign(phaseId, matchIdx){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeSupercopaAssignModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveSupercopaAssign(${phaseId},${matchIdx})">Guardar</button>
+        <button class="btn" data-onclick="closeSupercopaAssignModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveSupercopaAssign(${phaseId},${matchIdx})">Guardar</button>
       </div>
     </div>
   </div>`;

@@ -33,6 +33,11 @@ document.addEventListener('keydown', e => {
   _pfEscStack[_pfEscStack.length - 1]();
 }, true);
 
+/* El @usuario solo admite minúsculas, dígitos y _ (se limpia al escribir). */
+function _pfUsernameClean(el){
+  el.value = el.value.toLowerCase().replace(/[^a-z0-9_]/g,'');
+}
+
 function _pfCloseProfileModal(){ closeModal('profile-modal'); }
 
 function _injectProfileModal(){
@@ -47,7 +52,7 @@ function _injectProfileModal(){
   div.innerHTML = `
     <div class="profile-menu">
       <div class="pp-drawer" id="profile-drawer" tabindex="-1">
-        <button type="button" class="pp-close" aria-label="Cerrar perfil" onclick="closeModal('profile-modal')">
+        <button type="button" class="pp-close" aria-label="Cerrar perfil" data-onclick="closeModal('profile-modal')">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
         <div id="profile-body"></div>
@@ -239,14 +244,14 @@ async function renderProfileBody(){
           <div class="pp-crest" id="profile-logo-preview" style="background:${escHtml(tc)};">${crestContent}</div>
           ${titlesBadge}
         </label>
-        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
+        <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} data-onchange="profileSelectLogo(this)">
       ` : `
         <label for="profile-avatar-file" style="cursor:pointer;" title="Cambiar foto de perfil">
           <div class="pp-crest" id="profile-avatar-preview" style="border-radius:50%;background:rgba(255,255,255,0.15);">
             ${safeImgUrl(avatarSrc) ? `<img src="${safeImgUrl(avatarSrc)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">` : `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}
           </div>
         </label>
-        <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
+        <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" data-onchange="profileSelectAvatar(this)">
       `}
       <div>
         <div class="pp-club">${escHtml(team?.name || name)}</div>
@@ -281,7 +286,7 @@ async function renderProfileBody(){
             <span class="pp-vitrina-chip-n">×${c.n}</span>
           </div>`).join('')}
       </div>
-      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" onclick="openChampionPhotosModal(${team.id},this)">
+      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" data-onclick="openChampionPhotosModal(${team.id},this)">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
         ${photosBtnLabel}
       </button>` : ''}
@@ -289,21 +294,21 @@ async function renderProfileBody(){
   }
 
   if(team){
-    bd += `<button type="button" class="pp-sec" onclick="openClubDossier(${team.id},this)">
+    bd += `<button type="button" class="pp-sec" data-onclick="openClubDossier(${team.id},this)">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver ficha de mi club</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>`;
   }
 
   if(AUTH.role==='admin'){
-    bd += `<button type="button" class="pp-sec pp-admin" onclick="closeModal('profile-modal');goAdminPage('dashboard');">
+    bd += `<button type="button" class="pp-sec pp-admin" data-onclick="closeModal('profile-modal');goAdminPage('dashboard');">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Panel Admin</span>
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>`;
   }
 
   if(team){
-    bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-club-section" onclick="profileToggleDisclosure('profile-club-section',this)">
+    bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-club-section" data-onclick="profileToggleDisclosure('profile-club-section',this)">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>Club</span>
       <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
@@ -316,7 +321,7 @@ async function renderProfileBody(){
     bd += '<input type="hidden" id="profile-team-name" value="">';
   }
 
-  bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-account-section" onclick="profileToggleDisclosure('profile-account-section',this)">
+  bd += `<button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-account-section" data-onclick="profileToggleDisclosure('profile-account-section',this)">
     <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Mi cuenta</span>
     <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
   </button>
@@ -326,18 +331,18 @@ async function renderProfileBody(){
         <span id="profile-avatar-preview">${safeImgUrl(avatarSrc) ? `<img src="${safeImgUrl(avatarSrc)}" alt="">` : `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`}</span>
         <svg class="pp-avatar-pencil" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
       </label>
-      <input type="file" id="profile-avatar-file" accept="image/*" hidden onchange="profileSelectAvatar(this)">
+      <input type="file" id="profile-avatar-file" accept="image/*" hidden data-onchange="profileSelectAvatar(this)">
       <span>Foto de perfil personal</span>
     </div>` : ''}
     <div class="form-group" style="margin:0;"><label for="profile-name">Nombre para mostrar</label><input type="text" id="profile-name" value="${escHtml(name)}"></div>
     <div class="form-group" style="margin:0;"><label for="profile-username">Nombre de usuario</label>
-      <div class="pp-at-input"><span aria-hidden="true">@</span><input type="text" id="profile-username" value="${escHtml(username)}" placeholder="nombre_usuario" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"></div>
+      <div class="pp-at-input"><span aria-hidden="true">@</span><input type="text" id="profile-username" value="${escHtml(username)}" placeholder="nombre_usuario" data-oninput="_pfUsernameClean(this)"></div>
     </div>
     <div class="pp-email-status">${escHtml(email)} ${verified
       ? `<span class="pp-verified"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>verificado</span>`
-      : `<span class="pp-unverified">sin verificar</span><button class="btn btn-xs" onclick="profileResendVerification()">Verificar</button>`}
+      : `<span class="pp-unverified">sin verificar</span><button class="btn btn-xs" data-onclick="profileResendVerification()">Verificar</button>`}
     </div>
-    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-password-change-section" onclick="profileTogglePasswordChange(this)">
+    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-password-change-section" data-onclick="profileTogglePasswordChange(this)">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Cambiar contraseña</span>
       <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
@@ -345,24 +350,24 @@ async function renderProfileBody(){
       <div class="form-group"><label for="profile-curr-pass-pw">Contraseña actual</label><input type="password" id="profile-curr-pass-pw" placeholder="••••••••" autocomplete="current-password"></div>
       <div class="form-group"><label for="profile-new-pw">Nueva contraseña (mín. 6 caracteres)</label><input type="password" id="profile-new-pw" placeholder="••••••••" autocomplete="new-password"></div>
       <div class="form-group"><label for="profile-new-pw2">Confirmar nueva contraseña</label><input type="password" id="profile-new-pw2" placeholder="••••••••" autocomplete="new-password"></div>
-      <div class="pp-actions"><button class="btn btn-sm" onclick="profileTogglePasswordChange()">Cancelar</button><button class="btn btn-sm btn-primary" onclick="profileChangePassword()">Actualizar contraseña</button></div>
+      <div class="pp-actions"><button class="btn btn-sm" data-onclick="profileTogglePasswordChange()">Cancelar</button><button class="btn btn-sm btn-primary" data-onclick="profileChangePassword()">Actualizar contraseña</button></div>
     </div>
-    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-email-change-section" onclick="profileToggleEmailChange(this)">
+    <button type="button" class="pp-sec" aria-expanded="false" aria-controls="profile-email-change-section" data-onclick="profileToggleEmailChange(this)">
       <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>Cambiar email</span>
       <svg class="pp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>
     <div id="profile-email-change-section" class="pp-disclosure pp-disclosure-nested" hidden>
       <div class="form-group"><label for="profile-new-email">Nuevo email</label><input type="email" id="profile-new-email" placeholder="nuevo@email.com" autocomplete="off"></div>
       <div class="form-group"><label for="profile-curr-pass-email">Contraseña actual (para confirmar)</label><input type="password" id="profile-curr-pass-email" placeholder="••••••••" autocomplete="current-password"></div>
-      <div class="pp-actions"><button class="btn btn-sm" onclick="profileToggleEmailChange()">Cancelar</button><button class="btn btn-sm btn-primary" onclick="profileChangeEmail()">Enviar verificación</button></div>
+      <div class="pp-actions"><button class="btn btn-sm" data-onclick="profileToggleEmailChange()">Cancelar</button><button class="btn btn-sm btn-primary" data-onclick="profileChangeEmail()">Enviar verificación</button></div>
     </div>
   </div>`;
 
   body.innerHTML = `${hdrHtml}
     <div class="pp-body">${bd}</div>
     <div class="pp-foot">
-      <button class="btn btn-danger btn-sm" onclick="closeModal('profile-modal');authSignOut();">Cerrar sesión</button>
-      <button class="btn btn-primary" onclick="saveProfile()">Guardar cambios</button>
+      <button class="btn btn-danger btn-sm" data-onclick="closeModal('profile-modal');authSignOut();">Cerrar sesión</button>
+      <button class="btn btn-primary" data-onclick="saveProfile()">Guardar cambios</button>
     </div>`;
 }
 
@@ -492,7 +497,7 @@ function _injectCropModal(){
     <div class="modal" style="max-width:340px;">
       <div class="modal-hdr">
         <div class="modal-title">Ajustar imagen</div>
-        <button class="modal-close" onclick="closeCropModal()">×</button>
+        <button class="modal-close" data-onclick="closeCropModal()">×</button>
       </div>
       <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px;">
         <div id="crop-vp" style="width:${_CVP}px;height:${_CVP}px;overflow:hidden;position:relative;cursor:grab;background:#111;flex:none;touch-action:none;">
@@ -501,13 +506,13 @@ function _injectCropModal(){
         <div style="font-size:11px;color:var(--txt3);">Arrastra · Rueda o desliza para zoom</div>
         <div style="display:flex;align-items:center;gap:8px;width:100%;">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2.5"/></svg>
-          <input type="range" id="crop-zoom-sl" min="0" max="100" value="0" style="flex:1;accent-color:var(--gold);" oninput="cropZoomSlider(this.value)">
+          <input type="range" id="crop-zoom-sl" min="0" max="100" value="0" style="flex:1;accent-color:var(--gold);" data-oninput="cropZoomSlider(this.value)">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-linecap="round" style="color:var(--txt3);flex:none;"><circle cx="11" cy="11" r="8" stroke-width="2.5" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-width="2.5"/><line x1="8" y1="11" x2="14" y2="11" stroke-width="2"/><line x1="11" y1="8" x2="11" y2="14" stroke-width="2"/></svg>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        <button class="btn btn-sm" onclick="closeCropModal()">Cancelar</button>
-        <button class="btn btn-sm btn-primary" onclick="confirmCrop()">Confirmar</button>
+        <button class="btn btn-sm" data-onclick="closeCropModal()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" data-onclick="confirmCrop()">Confirmar</button>
       </div>
     </div>`;
   document.body.appendChild(el);
@@ -958,7 +963,7 @@ function _injectChampionPhotosModal(){
     <div class="modal champ-photos-modal-inner">
       <div class="modal-hdr">
         <div class="modal-title" id="champ-photos-title">Fotos de campeón</div>
-        <button type="button" class="modal-close" aria-label="Cerrar" onclick="closeModal('champ-photos-modal')">×</button>
+        <button type="button" class="modal-close" aria-label="Cerrar" data-onclick="closeModal('champ-photos-modal')">×</button>
       </div>
       <div class="modal-body" id="champ-photos-body"></div>
     </div>`;
@@ -994,21 +999,21 @@ function _champPhotosBodyHTML(groups, isAdmin = AUTH.role === 'admin'){
     // grupos vacíos para no-admin, pero esta función también la reusa el
     // Slice B (ficha pública de club) — no puede depender de que quien la
     // llame siempre filtre bien.
-    const editBtn = !empty && isAdmin ? `<button type="button" class="champ-photos-edit-btn" onclick="closeModal('champ-photos-modal');openPalmaresGallery(${g.rec.id});">
+    const editBtn = !empty && isAdmin ? `<button type="button" class="champ-photos-edit-btn" data-onclick="closeModal('champ-photos-modal');openPalmaresGallery(${g.rec.id});">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
           Editar imágenes
         </button>` : '';
     const body = empty
       ? `<div class="champ-photos-empty-group">
           <span>Este título todavía no tiene fotos.</span>
-          ${isAdmin ? `<button type="button" class="champ-photos-add-btn" onclick="closeModal('champ-photos-modal');openPalmaresGallery(${g.rec.id});">
+          ${isAdmin ? `<button type="button" class="champ-photos-add-btn" data-onclick="closeModal('champ-photos-modal');openPalmaresGallery(${g.rec.id});">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
             Agregar fotos
           </button>` : ''}
         </div>`
       : `<div class="champ-photos-grid">
         ${g.items.map((it, ii) => `
-          <button type="button" class="champ-thumb" onclick="openPhotoViewer(${gi},${ii},this)" aria-label="Ampliar foto${it.alt ? ': '+escHtml(it.alt) : ''}">
+          <button type="button" class="champ-thumb" data-onclick="openPhotoViewer(${gi},${ii},this)" aria-label="Ampliar foto${it.alt ? ': '+escHtml(it.alt) : ''}">
             <img src="${escHtml(it.url)}" alt="${escHtml(it.alt)}" loading="lazy">
           </button>`).join('')}
       </div>`;
@@ -1084,17 +1089,17 @@ function _injectPhotoViewer(){
   el.setAttribute('aria-modal','true');
   el.setAttribute('aria-label','Foto ampliada');
   el.innerHTML = `
-    <button type="button" class="pv-close" aria-label="Cerrar visor" onclick="closePhotoViewer()">
+    <button type="button" class="pv-close" aria-label="Cerrar visor" data-onclick="closePhotoViewer()">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
-    <button type="button" class="pv-nav pv-prev" aria-label="Foto anterior" onclick="photoViewerStep(-1)">
+    <button type="button" class="pv-nav pv-prev" aria-label="Foto anterior" data-onclick="photoViewerStep(-1)">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
     <div class="pv-stage">
       <img id="photo-viewer-img" src="" alt="">
       <div class="pv-caption" id="photo-viewer-caption"></div>
     </div>
-    <button type="button" class="pv-nav pv-next" aria-label="Foto siguiente" onclick="photoViewerStep(1)">
+    <button type="button" class="pv-nav pv-next" aria-label="Foto siguiente" data-onclick="photoViewerStep(1)">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
     </button>`;
   document.body.appendChild(el);
@@ -1201,7 +1206,7 @@ function _injectClubDossier(){
     <div class="modal club-dossier-modal-inner">
       <div class="modal-hdr">
         <div class="modal-title" id="club-dossier-title">Ficha del club</div>
-        <button type="button" class="modal-close" aria-label="Cerrar" onclick="closeModal('club-dossier-modal')">×</button>
+        <button type="button" class="modal-close" aria-label="Cerrar" data-onclick="closeModal('club-dossier-modal')">×</button>
       </div>
       <div class="modal-body" id="club-dossier-body"></div>
     </div>`;
@@ -1389,7 +1394,7 @@ async function _renderClubDossierBody(team, publicView=false){
             <span class="pp-vitrina-chip-n">×${c.n}</span>
           </div>`).join('')}
       </div>
-      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" onclick="openChampionPhotosModal(${team.id},this)">
+      ${showPhotosBtn ? `<button type="button" class="pp-vitrina-photos-btn" data-onclick="openChampionPhotosModal(${team.id},this)">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
         ${photosBtnLabel}
       </button>` : ''}
@@ -1450,7 +1455,7 @@ async function _renderClubDossierBody(team, publicView=false){
   // aterriza en una lista de todos los partidos del club, aterriza en el
   // comparador H2H con este club en la casilla A — el texto viejo hubiera
   // sido engañoso sobre el destino real (pedido del usuario).
-  bd += `<button type="button" class="pp-sec" onclick="_clubDossierViewAllMatches()">
+  bd += `<button type="button" class="pp-sec" data-onclick="_clubDossierViewAllMatches()">
     <span style="display:flex;align-items:center;gap:8px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>Ver mano a mano</span>
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
   </button>`;

@@ -1078,7 +1078,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
     var op  = isTbd ? 'opacity:0.4;' : '';
     var cur = clickFn ? 'cursor:pointer;' : '';
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+bdr+bg+op+cur+'transition:background 0.1s;" '
-      +(clickFn?'onclick="'+clickFn+'"':'')+'>'
+      +(clickFn?'data-onclick="'+clickFn+'"':'')+'>'
       +logoCircle(logoId, name, teamId)
       +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:15px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+escHtml(txt)+'</span>'
       +'<span style="font-family:\'Bebas Neue\';font-size:20px;min-width:22px;text-align:right;color:'+(isWin?'var(--gold)':'var(--txt3)')+';">'+score+'</span>'
@@ -1142,7 +1142,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
       } else {
         _lbOnclick='event.stopPropagation();startLiveBracketMatch(\''+slotId+'\','+phase.id+','+escAttr(JSON.stringify(slot.teamA))+','+escAttr(JSON.stringify(slot.teamB))+','+ri+','+realMi+')';
       }
-      if(_lbOnclick) topSection='<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button onclick="'+_lbOnclick+'" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:\'Barlow Condensed\';font-weight:700;letter-spacing:0.3px;">'+_lbLabel+'</button></div>';
+      if(_lbOnclick) topSection='<div style="padding:5px 10px;text-align:center;border-bottom:1px solid rgba(239,68,68,0.15);"><button data-onclick="'+_lbOnclick+'" style="font-size:10px;padding:3px 14px;background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:4px;color:var(--red);cursor:pointer;font-family:\'Barlow Condensed\';font-weight:700;letter-spacing:0.3px;">'+_lbLabel+'</button></div>';
     }
 
     // ── Botones de referencia (admin, primera ronda, sin resultado) ──
@@ -1154,8 +1154,8 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
       // scale en todo el árbol) — sin este piso, con 16+ equipos quedaba en
       // ~7px reales, ilegible y casi imposible de tocar con precisión.
       var _refChipStyle='font-size:13px;padding:6px 11px;min-height:28px;box-sizing:border-box;background:var(--card2);border:1px solid var(--brd2);border-radius:3px;cursor:pointer;';
-      bA='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'A\')" style="'+_refChipStyle+'color:'+(slot.teamA?'var(--gold)':'var(--txt3)')+';">'+(slot.refA?(slot.teamA?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelA,13):' Ref')+'</button></div>';
-      bB='<div style="padding:0 10px 4px;"><button onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'B\')" style="'+_refChipStyle+'color:'+(slot.teamB?'var(--gold)':'var(--txt3)')+';">'+(slot.refB?(slot.teamB?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelB,13):' Ref')+'</button></div>';
+      bA='<div style="padding:0 10px 4px;"><button data-onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'A\')" style="'+_refChipStyle+'color:'+(slot.teamA?'var(--gold)':'var(--txt3)')+';">'+(slot.refA?(slot.teamA?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelA,13):' Ref')+'</button></div>';
+      bB='<div style="padding:0 10px 4px;"><button data-onclick="event.stopPropagation();openSlotRefModal('+phase.id+','+realMi+',\'B\')" style="'+_refChipStyle+'color:'+(slot.teamB?'var(--gold)':'var(--txt3)')+';">'+(slot.refB?(slot.teamB?'&#10003; ':'⏱ ')+refBadgeHTML(slot.labelB,13):' Ref')+'</button></div>';
     }
 
     // ── Filas de equipos ─────────────────────────────────────────────
@@ -1177,7 +1177,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
           : '';
         // Badge ✓ al lado del NOMBRE del ganador (no tras el marcador).
         var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
-        return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
+        return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' data-onclick="'+cfn+'"':'')+' >'
           +logoCircle(lid,nm,tid)
           +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+escHtml(tx)+'</span>'
           +bdg
@@ -1201,8 +1201,8 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
 
     return '<div class="bk-card'+(isLive?' live-border':'')+'" style="background:var(--card);border:'+(isLive?'2px':'1px')+' solid '+cardBc+';border-radius:10px;overflow:hidden;'
       +'width:'+CARD_W+'px;flex-shrink:0;box-shadow:0 2px 16px rgba(0,0,0,0.12);" '
-      +'onmouseover="this.style.boxShadow=\'0 4px 24px rgba(201,168,76,0.22)\';this.style.borderColor=\'var(--gold-b)\'" '
-      +'onmouseout="this.style.boxShadow=\'0 2px 16px rgba(0,0,0,0.12)\';this.style.borderColor=\''+cardBc+'\'">'
+      +'data-onmouseover="_tscStyle(this,\'boxShadow\',\'0 4px 24px rgba(201,168,76,0.22)\',\'borderColor\',\'var(--gold-b)\')" '
+      +'data-onmouseout="_tscStyle(this,\'boxShadow\',\'0 2px 16px rgba(0,0,0,0.12)\',\'borderColor\',\''+cardBc+'\')">'
       +topSection
       +rowContent
       +'</div>';
@@ -1535,7 +1535,7 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       <div class="modal" style="max-width:420px;">
         <div class="modal-hdr">
           <div class="modal-title">${modalTitle}</div>
-          <button class="modal-close" onclick="document.getElementById('slot-ref-modal-wrap').innerHTML=''">×</button>
+          <button class="modal-close" data-onclick="_tscClear('slot-ref-modal-wrap')">×</button>
         </div>
         <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
 
@@ -1602,7 +1602,7 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
         <div class="modal-footer" style="justify-content:space-between;">
           ${isGroupTarget?'<span></span>':'<button class="btn btn-danger btn-sm" id="slot-ref-remove-btn">Quitar ref</button>'}
           <div style="display:flex;gap:8px;">
-            <button class="btn" onclick="document.getElementById('slot-ref-modal-wrap').innerHTML=''">Cancelar</button>
+            <button class="btn" data-onclick="_tscClear('slot-ref-modal-wrap')">Cancelar</button>
             <button class="btn btn-primary" id="slot-ref-save-btn">Guardar</button>
           </div>
         </div>
@@ -1856,7 +1856,7 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
     <div class="modal" style="max-width:360px;">
       <div class="modal-hdr">
         <div class="modal-title">${rounds[roundIdx]?.name||'Partido'}${twoLeg?' · ida y vuelta':''}</div>
-        <button class="modal-close" onclick="closeBracketMatchModal()">×</button>
+        <button class="modal-close" data-onclick="closeBracketMatchModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-bottom:4px;">
@@ -1882,16 +1882,16 @@ async function openBracketMatchModal(phaseId, roundIdx, matchIdx, isAdmin){
         <div style="margin-top:10px;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--txt2);">
             <input type="checkbox" id="bm-pen-toggle" ${existPen?.penA!=null?'checked':''}
-              onchange="document.getElementById('bm-penalty-section').style.display=this.checked?'block':'none'">
+              data-onchange="_tscShow('bm-penalty-section',this.checked)">
             Definir por penales
           </label>
         </div>
       </div>
       <div class="modal-footer" style="justify-content:space-between;">
-        ${(twoLeg?(existingLeg1||existingLeg2):existing) ? `<button class="btn btn-danger btn-sm" onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">${typeof _ICON_X!=='undefined'?_ICON_X:''} Eliminar</button>` : '<div></div>'}
+        ${(twoLeg?(existingLeg1||existingLeg2):existing) ? `<button class="btn btn-danger btn-sm" data-onclick="deleteBracketMatch('${slotId}',${phaseId},${roundIdx},${matchIdx})">${typeof _ICON_X!=='undefined'?_ICON_X:''} Eliminar</button>` : '<div></div>'}
         <div style="display:flex;gap:8px;">
-          <button class="btn" onclick="closeBracketMatchModal()">Cancelar</button>
-          <button class="btn btn-primary" onclick="saveBracketMatch('${slotId}',${phaseId},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))},${roundIdx},${matchIdx},${twoLeg},${awayGoal})">Guardar</button>
+          <button class="btn" data-onclick="closeBracketMatchModal()">Cancelar</button>
+          <button class="btn btn-primary" data-onclick="saveBracketMatch('${slotId}',${phaseId},${escAttr(JSON.stringify(slot.teamA))},${escAttr(JSON.stringify(slot.teamB))},${roundIdx},${matchIdx},${twoLeg},${awayGoal})">Guardar</button>
         </div>
       </div>
     </div>

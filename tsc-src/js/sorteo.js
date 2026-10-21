@@ -1024,7 +1024,7 @@
       <div class="modal" style="max-width:540px;">
         <div class="modal-hdr">
           <div class="modal-title">Equipos en ${escHtml(b.name)}</div>
-          <button class="modal-close" onclick="document.getElementById('sorteo-team-picker').remove()">×</button>
+          <button class="modal-close" data-onclick="_tscRemove('sorteo-team-picker')">×</button>
         </div>
         <div class="modal-body">
           <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
@@ -1037,7 +1037,7 @@
           <div id="stp-count" style="margin-top:8px;font-size:13px;color:var(--txt3);"></div>
         </div>
         <div class="modal-footer">
-          <button class="btn" onclick="document.getElementById('sorteo-team-picker').remove()">Cancelar</button>
+          <button class="btn" data-onclick="_tscRemove('sorteo-team-picker')">Cancelar</button>
           <button class="btn btn-primary" id="stp-save">Guardar</button>
         </div>
       </div>`;
@@ -1346,7 +1346,7 @@
       <div class="modal" style="max-width:780px;">
         <div class="modal-hdr">
           <div class="modal-title">Vincular: <span style="color:var(--gold);">${escHtml(teamName(teamId))}</span></div>
-          <button class="modal-close" onclick="document.getElementById('sorteo-link-picker').remove()">×</button>
+          <button class="modal-close" data-onclick="_tscRemove('sorteo-link-picker')">×</button>
         </div>
         <div class="modal-body">
           <div style="display:flex;gap:12px;margin-bottom:14px;">
@@ -1366,7 +1366,7 @@
             <button class="btn" id="slp-undo" title="Restaurar al estado al abrir el modal"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Deshacer cambios</button>
             <button class="btn btn-danger" id="slp-clear">Limpiar vínculo</button>
           </div>
-          <button class="btn" onclick="document.getElementById('sorteo-link-picker').remove()">Cerrar</button>
+          <button class="btn" data-onclick="_tscRemove('sorteo-link-picker')">Cerrar</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);

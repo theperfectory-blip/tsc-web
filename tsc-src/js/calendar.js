@@ -670,10 +670,10 @@ async function renderAdmCalendar(){
         ${e.slotLeg===1?'<span class="cal-adm-leg cal-adm-leg--ida">IDA</span>':e.slotLeg===2?'<span class="cal-adm-leg cal-adm-leg--vuelta">VUELTA</span>':''}
         <span class="cal-adm-phase" style="color:${col};border-color:${col};">${escHtml(badge)}</span>
         <input type="date" class="cal-inp cal-inp-date" value="${e.scheduledDate||''}"
-          title="Fecha" onchange="_calOnChange(this)">
+          title="Fecha" data-onchange="_calOnChange(this)">
         <input type="time" class="cal-inp cal-inp-time" value="${e.scheduledTime||''}"
-          title="Hora" onchange="_calOnChange(this)">
-        ${hasSched?`<button class="btn btn-xs cal-adm-clear" onclick="${clearCall}" title="Quitar fecha">
+          title="Hora" data-onchange="_calOnChange(this)">
+        ${hasSched?`<button class="btn btn-xs cal-adm-clear" data-onclick="${clearCall}" title="Quitar fecha">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>`:''}
       </div>
@@ -817,12 +817,12 @@ async function renderAdmCalendarLabels(){
     <div class="cal-lbl-day cal-lbl-day--${cls}">
       <span class="cal-lbl-dot"></span>
       <span class="cal-lbl-date" title="${escHtml(dayAbbr)}">${escHtml(shortDate)}</span>
-      <select class="cal-lbl-type" data-date="${escHtml(dateStr)}" onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
+      <select class="cal-lbl-type" data-date="${escHtml(dateStr)}" data-onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
       <input class="cal-lbl-inp" type="text" maxlength="64"
         placeholder="Etiqueta del día..."
         data-date="${escHtml(dateStr)}"
         value="${escHtml(val.text)}"
-        oninput="_calSaveDayLabel(this.dataset.date)">
+        data-oninput="_calSaveDayLabel(this.dataset.date)">
     </div>`);
   }
 
@@ -838,11 +838,11 @@ async function renderAdmCalendarLabels(){
       Cronograma
     </div>
     <div class="cal-lbl-nav">
-      <button class="cal-lbl-arrow" type="button" onclick="calLblNavMonth(-1)" aria-label="Mes anterior">
+      <button class="cal-lbl-arrow" type="button" data-onclick="calLblNavMonth(-1)" aria-label="Mes anterior">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <span class="cal-lbl-nav-title">${escHtml(monthName)} ${year}</span>
-      <button class="cal-lbl-arrow" type="button" onclick="calLblNavMonth(1)" aria-label="Mes siguiente">
+      <button class="cal-lbl-arrow" type="button" data-onclick="calLblNavMonth(1)" aria-label="Mes siguiente">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
     </div>

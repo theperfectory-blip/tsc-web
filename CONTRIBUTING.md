@@ -195,7 +195,7 @@ function openMiModal() {
     <div class="modal-content">
       <h2>Mi Modal</h2>
       <input id="tf-nombre" type="text" placeholder="Nombre">
-      <button onclick="saveMiModal()">Guardar</button>
+      <button data-onclick="saveMiModal()">Guardar</button>
     </div>
   `;
   openModal('mi-modal', html);

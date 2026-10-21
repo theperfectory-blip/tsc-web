@@ -904,37 +904,37 @@ function _renderFiltersZone(el, all, isAdmin){
 
   const juegos = [...new Set(all.map(r=>r.juego).filter(Boolean))].sort();
   const exportBtn = isAdmin
-    ? `<button class="btn btn-primary btn-sm" onclick="exportHistoryToExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar Excel</button>`
+    ? `<button class="btn btn-primary btn-sm" data-onclick="exportHistoryToExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar Excel</button>`
     : '';
 
   zone.innerHTML = `
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
       <div class="form-group" style="margin:0;min-width:120px;">
         <label>Juego</label>
-        <select class="hist-sel-juego" onchange="histSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+        <select class="hist-sel-juego" data-onchange="histSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
           <option value="">Todos</option>
           ${juegos.map(j=>`<option value="${escHtml(j)}">${escHtml(j)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin:0;min-width:140px;">
         <label>Temporada</label>
-        <select class="hist-sel-temp" onchange="histSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
+        <select class="hist-sel-temp" data-onchange="histSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
       </div>
       <div class="form-group" style="margin:0;min-width:160px;">
         <label>Instancia</label>
-        <select class="hist-sel-inst" onchange="histSetFilter('fInst',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
+        <select class="hist-sel-inst" data-onchange="histSetFilter('fInst',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
       </div>
       <div class="form-group" style="margin:0;flex:1;min-width:150px;">
         <label>Equipo A</label>
-        <input type="text" class="hist-qa" value="${escHtml(_histState.qA)}" oninput="histSetSearch('qA', this.value)" placeholder="Ej: ANGELES, PROMETEUS..."
+        <input type="text" class="hist-qa" value="${escHtml(_histState.qA)}" data-oninput="histSetSearch('qA', this.value)" placeholder="Ej: ANGELES, PROMETEUS..."
           style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
       </div>
       <div class="form-group" style="margin:0;flex:1;min-width:150px;">
         <label>Equipo B <span style="color:var(--txt3);font-weight:400;text-transform:none;font-size:11px;">(para Mano a Mano)</span></label>
-        <input type="text" class="hist-qb" value="${escHtml(_histState.qB)}" oninput="histSetSearch('qB', this.value)" placeholder="vs. otro equipo..."
+        <input type="text" class="hist-qb" value="${escHtml(_histState.qB)}" data-oninput="histSetSearch('qB', this.value)" placeholder="vs. otro equipo..."
           style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
       </div>
-      <button class="btn btn-sm" onclick="histClearFilters()">Limpiar</button>
+      <button class="btn btn-sm" data-onclick="histClearFilters()">Limpiar</button>
       ${exportBtn}
     </div>
   `;
@@ -1026,7 +1026,7 @@ function _refreshTableZone(el, all, isAdmin){
   if(more){
     more.innerHTML = (slice.length<total)
       ? `<div style="text-align:center;margin-top:14px;">
-           <button class="btn" onclick="histShowMore()">Mostrar más (${(total-slice.length).toLocaleString('es-CL')} restantes)</button>
+           <button class="btn" data-onclick="histShowMore()">Mostrar más (${(total-slice.length).toLocaleString('es-CL')} restantes)</button>
          </div>`
       : '';
   }
@@ -1085,7 +1085,7 @@ function _teamCellHTML(equipoName, align='left'){
   }
   const tooltip = escHtml(tooltipLines.join('\n'));
 
-  return `<span class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;">${displayName}<sup style="color:var(--gold);margin-left:3px;font-size:10px;">ⓘ</sup></span>`;
+  return `<span class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" data-onclick="histShowPrev(event,this)" style="cursor:pointer;">${displayName}<sup style="color:var(--gold);margin-left:3px;font-size:10px;">ⓘ</sup></span>`;
 }
 
 /* Muestra los nombres anteriores en un popover al TOCAR la ⓘ (clave en móvil,
@@ -1237,7 +1237,7 @@ function _histStdTh(label, key){
   const active = _histStdState.sortBy === key;
   const arrow  = active ? (_histStdState.sortDir==='asc' ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px"><polyline points="18 15 12 9 6 15"/></svg>' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px"><polyline points="6 9 12 15 18 9"/></svg>') : '';
   const col    = active ? 'color:var(--gold);font-weight:700;' : '';
-  return `<th onclick="histStdSort('${key}')" title="Ordenar por ${label}" style="text-align:center;cursor:pointer;user-select:none;white-space:nowrap;${col}">${label}${arrow}</th>`;
+  return `<th data-onclick="histStdSort('${key}')" title="Ordenar por ${label}" style="text-align:center;cursor:pointer;user-select:none;white-space:nowrap;${col}">${label}${arrow}</th>`;
 }
 
 function _classifyOutcomeFIFA(r){
@@ -1432,7 +1432,7 @@ function _htCrest(r){
 function _htNameHTML(r){
   if(!(r.previousNames && r.previousNames.length)) return `<span class="ht-name">${escHtml(r.name)}</span>`;
   const tooltip = escHtml(['Nombres anteriores:', ...r.previousNames.map(p=>`• ${p}`)].join('\n'));
-  return `<span class="ht-name hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;">${escHtml(r.name)}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
+  return `<span class="ht-name hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" data-onclick="histShowPrev(event,this)" style="cursor:pointer;">${escHtml(r.name)}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
 }
 function _htRow(r, layout){
   const detail = `<div class="ht-detail">`
@@ -1617,19 +1617,19 @@ async function _renderHistoryStandingsInto(el, isAdmin){
       <div id="hist-std-filters" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
         <div class="form-group" style="margin:0;min-width:120px;">
           <label>Juego</label>
-          <select onchange="histStdSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+          <select data-onchange="histStdSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
             <option value="">Todos</option>
             ${data.juegosAll.map(j=>`<option value="${escHtml(j)}" ${_histStdState.fJuego===j?'selected':''}>${escHtml(j)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group" style="margin:0;min-width:140px;">
           <label>Temporada</label>
-          <select onchange="histStdSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+          <select data-onchange="histStdSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
             <option value="">Todas</option>
             ${data.temporadas.map(t=>`<option value="${escHtml(t)}" ${_histStdState.fTemp===t?'selected':''}>${escHtml(t)}</option>`).join('')}
           </select>
         </div>
-        <button class="btn btn-sm" onclick="histStdClearFilters()">Limpiar</button>
+        <button class="btn btn-sm" data-onclick="histStdClearFilters()">Limpiar</button>
         <div style="margin-left:auto;font-size:12px;color:var(--txt3);">
           ${data.standings.length.toLocaleString('es-CL')} equipo${data.standings.length===1?'':'s'} · ${data.totalMatches.toLocaleString('es-CL')} partidos
           ${data.livesPending>0 ? `<br><span style="color:var(--gold);">${data.livesPending} partido${data.livesPending===1?'':'s'} pendiente${data.livesPending===1?'':'s'} de finalizar temporada</span>`:''}
@@ -1692,7 +1692,7 @@ function _histStdRowHTML(s, i){
     <td style="padding:6px 10px;">
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="width:24px;height:24px;border-radius:50%;background:${s.color||'#333'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;">${logoHTML}</div>
-        <span ${tooltip?`class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;"`:''}>${escHtml(s.name)}${iconPrev}</span>
+        <span ${tooltip?`class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" data-onclick="histShowPrev(event,this)" style="cursor:pointer;"`:''}>${escHtml(s.name)}${iconPrev}</span>
       </div>
     </td>
     <td style="text-align:center;color:var(--txt2);padding:6px 4px;">${s.pj}</td>

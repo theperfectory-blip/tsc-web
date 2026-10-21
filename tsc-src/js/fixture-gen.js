@@ -483,7 +483,7 @@ function renderFixtureGenModal(){
       </div>
       <div class="modal-hdr">
         <div class="modal-title">Generar fechas · Grupo ${String.fromCharCode(65+st.groupIdx)}</div>
-        <button class="modal-close" onclick="closeFixtureGenModal()" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <button class="modal-close" data-onclick="closeFixtureGenModal()" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
         ${replaceWarn}
@@ -502,12 +502,12 @@ function renderFixtureGenModal(){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeFixtureGenModal()">Cancelar</button>
-        <button class="btn" onclick="fxShuffleAgain()">
+        <button class="btn" data-onclick="closeFixtureGenModal()">Cancelar</button>
+        <button class="btn" data-onclick="fxShuffleAgain()">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
           Barajar de nuevo
         </button>
-        <button class="btn btn-primary" id="fx-save-btn" onclick="fxGenerate()">Generar ${st.rounds.length} fechas</button>
+        <button class="btn btn-primary" id="fx-save-btn" data-onclick="fxGenerate()">Generar ${st.rounds.length} fechas</button>
       </div>
     </div>
   </div>`;

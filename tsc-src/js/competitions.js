@@ -40,11 +40,11 @@ async function renderAdmComps(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:14px;color:var(--txt2);">${comps.length} competición(es) en ${seasonName}</div>
     <div style="display:flex;gap:8px;">
-      <button class="btn" onclick="openCompReorderModal()" ${isFinalized||comps.length<2?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>
+      <button class="btn" data-onclick="openCompReorderModal()" ${isFinalized||comps.length<2?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>
         <svg style="display:inline;vertical-align:-3px;margin-right:4px;" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         Reordenar
       </button>
-      <button class="btn btn-primary" onclick="openCompModal()" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Nueva competición</button>
+      <button class="btn btn-primary" data-onclick="openCompModal()" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Nueva competición</button>
     </div>
   </div>
   ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
@@ -62,7 +62,7 @@ async function renderCompsGrid(comps){
   if(!comps.length){
     el.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--txt3);border:1px dashed var(--brd2);border-radius:var(--rl);">
       <div style="font-size:16px;margin-bottom:12px;">No hay competiciones en esta temporada.</div>
-      ${window._seasonFinalized?'':'<button class="btn btn-primary" onclick="openCompModal()">+ Crear primera</button>'}
+      ${window._seasonFinalized?'':'<button class="btn btn-primary" data-onclick="openCompModal()">+ Crear primera</button>'}
     </div>`;
     return;
   }
@@ -73,7 +73,7 @@ async function renderCompsGrid(comps){
     const statusCls = c.status==='active'?'badge-green':c.status==='finished'?'badge-gold':'badge-gray';
     const statusLbl = c.status==='active'?'Activa':c.status==='finished'?'Finalizada':'Borrador';
     return `
-    <div class="card" style="border-top:4px solid ${safeCssColor(c.color,'var(--gold)')};transition:border-color 0.15s;" onmouseover="this.style.boxShadow='0 0 0 1px ${safeCssColor(c.color,'var(--gold)')}'" onmouseout="this.style.boxShadow=''">
+    <div class="card" style="border-top:4px solid ${safeCssColor(c.color,'var(--gold)')};transition:border-color 0.15s;" data-onmouseover="_tscStyle(this,'boxShadow','0 0 0 1px ${safeCssColor(c.color,'var(--gold)')}')" data-onmouseout="_tscStyle(this,'boxShadow','')">
       <div class="card-hdr">
         <div>
           <div style="font-size:17px;font-weight:600;">${escHtml(c.name)}</div>
@@ -90,9 +90,9 @@ async function renderCompsGrid(comps){
         </div>
         ${c.desc?`<div style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:10px;">${escHtml(c.desc)}</div>`:''}
         <div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--brd);">
-          <button class="btn btn-sm" data-cid="${c.id}" data-cname="${escAttr(c.name)}" onclick="openFasesForComp(this.dataset.cid,this.dataset.cname)">Ver fases</button>
-          <button class="btn btn-sm" onclick="openCompModal(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
-          <button class="btn btn-sm btn-danger" title="Eliminar competición" aria-label="Eliminar competición" onclick="deleteComp(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button>
+          <button class="btn btn-sm" data-cid="${c.id}" data-cname="${escAttr(c.name)}" data-onclick="openFasesForComp(this.dataset.cid,this.dataset.cname)">Ver fases</button>
+          <button class="btn btn-sm" data-onclick="openCompModal(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
+          <button class="btn btn-sm btn-danger" title="Eliminar competición" aria-label="Eliminar competición" data-onclick="deleteComp(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button>
         </div>
       </div>
     </div>`;
@@ -102,6 +102,16 @@ async function renderCompsGrid(comps){
 /* ----------------------------------------------------------
    MODAL COMPETICIÓN
    ---------------------------------------------------------- */
+/* Rueda de colores del modal de competición (antes un handler inline con
+   una función flecha; MS-7.5). */
+function _compPickColor(){
+  openColorPicker(window._compColorGetter(), c=>{
+    window._compColorGetter = ()=>c;
+    document.getElementById('comp-color-preview').style.background = c;
+    document.getElementById('comp-color-hex').textContent = c;
+  });
+}
+
 async function openCompModal(id=null){
   let comp = id ? await dbGet('competitions',id) : null;
   const wrap = document.getElementById('comp-modal-wrap');
@@ -116,7 +126,7 @@ async function openCompModal(id=null){
     <div class="modal">
       <div class="modal-hdr">
         <div class="modal-title">${id?'Editar competición':'Nueva competición'}</div>
-        <button class="modal-close" onclick="closeCompModal()">×</button>
+        <button class="modal-close" data-onclick="closeCompModal()">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -148,9 +158,9 @@ async function openCompModal(id=null){
         <div class="form-group">
           <label>Color identificador</label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
-            <div id="comp-color-preview" style="width:32px;height:32px;border-radius:6px;background:${selColor};border:1px solid var(--brd2);cursor:pointer;flex-shrink:0;" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })"></div>
+            <div id="comp-color-preview" style="width:32px;height:32px;border-radius:6px;background:${selColor};border:1px solid var(--brd2);cursor:pointer;flex-shrink:0;" data-onclick="_compPickColor()"></div>
             <span id="comp-color-hex" style="font-size:13px;color:var(--txt2);font-family:monospace;">${escHtml(selColor)}</span>
-            <button class="btn btn-sm" onclick="openColorPicker(window._compColorGetter(), c=>{ window._compColorGetter=()=>c; document.getElementById('comp-color-preview').style.background=c; document.getElementById('comp-color-hex').textContent=c; })"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Cambiar color</button>
+            <button class="btn btn-sm" data-onclick="_compPickColor()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1.5" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg> Cambiar color</button>
           </div>
         </div>
         <div class="form-group" style="margin-bottom:0;">
@@ -159,8 +169,8 @@ async function openCompModal(id=null){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeCompModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveComp(${id||'null'})">Guardar</button>
+        <button class="btn" data-onclick="closeCompModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveComp(${id||'null'})">Guardar</button>
       </div>
     </div>
   </div>`;
@@ -313,7 +323,7 @@ async function openCompReorderModal(){
     <div class="modal" style="max-width:460px;">
       <div class="modal-hdr">
         <div class="modal-title">Reordenar competiciones</div>
-        <button class="modal-close" onclick="closeCompReorderModal()">×</button>
+        <button class="modal-close" data-onclick="closeCompReorderModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="font-size:13px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">
@@ -321,11 +331,11 @@ async function openCompReorderModal(){
         </div>
         <div id="comp-reorder-list"
           style="display:flex;flex-direction:column;gap:5px;min-height:44px;padding:6px;background:var(--card2);border-radius:var(--r);border:1px solid var(--brd);"
-          ondragover="event.preventDefault()" ondrop="compReorderDropOnContainer(event)"></div>
+          data-ondragover="event.preventDefault()" data-ondrop="compReorderDropOnContainer(event)"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary" onclick="saveCompOrder()">Guardar orden</button>
-        <button class="btn" onclick="closeCompReorderModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveCompOrder()">Guardar orden</button>
+        <button class="btn" data-onclick="closeCompReorderModal()">Cancelar</button>
       </div>
     </div>
   </div>`;
@@ -342,11 +352,11 @@ function _renderCompReorderList(){
     if(!c) return '';
     return `
     <div draggable="true" data-id="${id}"
-      ondragstart="compReorderDragStart(event)"
-      ondragover="compReorderDragOver(event)"
-      ondragleave="compReorderDragLeave(event)"
-      ondrop="compReorderDrop(event)"
-      ondragend="compReorderDragEnd()"
+      data-ondragstart="compReorderDragStart(event)"
+      data-ondragover="compReorderDragOver(event)"
+      data-ondragleave="compReorderDragLeave(event)"
+      data-ondrop="compReorderDrop(event)"
+      data-ondragend="compReorderDragEnd()"
       style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--r);cursor:grab;transition:background 0.15s,border-color 0.15s;">
       <span style="color:var(--txt3);display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
         <svg viewBox="0 0 16 10" width="14" height="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">

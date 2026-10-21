@@ -1007,9 +1007,9 @@ async function renderAdmPalmares(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="font-size:14px;color:var(--txt2);">${recs.length} título(s) registrado(s) · ${teamsWithTitles.length} club(es) campeón(es) · ${PALMARES_COMPS.length} copa(s)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-primary" onclick="openPalmaresAddModal()">+ Agregar título</button>
-      <button class="btn btn-secondary" onclick="openNewCopaModal()">+ Nueva copa</button>
-      <button class="btn btn-sm" onclick="openManagedCopaModal()" title="Gestionar copas personalizadas"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Copas</button>
+      <button class="btn btn-primary" data-onclick="openPalmaresAddModal()">+ Agregar título</button>
+      <button class="btn btn-secondary" data-onclick="openNewCopaModal()">+ Nueva copa</button>
+      <button class="btn btn-sm" data-onclick="openManagedCopaModal()" title="Gestionar copas personalizadas"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Copas</button>
     </div>
   </div>
 
@@ -1039,13 +1039,13 @@ async function renderAdmPalmares(){
             <div class="palm-vig-pending" style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px dashed var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
               <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${escHtml(extras)}`:''}</span>
               <span style="display:flex;gap:6px;">
-                <button class="btn btn-xs" onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
-                <button class="btn btn-xs btn-primary" onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Definir campeón</button>
-                <button class="btn btn-xs btn-danger" onclick="deletePendingPalmaresRecord(${escAttr(JSON.stringify(r.id))}, '${escAttr(s.comp.key)}')">Quitar</button>
+                <button class="btn btn-xs" data-onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                <button class="btn btn-xs btn-primary" data-onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Definir campeón</button>
+                <button class="btn btn-xs btn-danger" data-onclick="deletePendingPalmaresRecord(${escAttr(JSON.stringify(r.id))}, '${escAttr(s.comp.key)}')">Quitar</button>
               </span>
             </div>`;
           }).join('')}
-          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg> Ordenar campeones</button>` : ''}
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" data-onclick="openPalmaresReorder('${escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg> Ordenar campeones</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1076,10 +1076,10 @@ async function renderAdmPalmares(){
                 </td>
                 ${PALMARES_COMPS.map(c => {
                   const n = counts[c.key] || 0;
-                  return `<td class="cell-count ${n>0?'has':'zero'}" onclick="openPalmaresCellEdit(${team.id}, '${escAttr(c.key)}')">${n>0?`<span class="big-n">${n}</span>`:''}</td>`;
+                  return `<td class="cell-count ${n>0?'has':'zero'}" data-onclick="openPalmaresCellEdit(${team.id}, '${escAttr(c.key)}')">${n>0?`<span class="big-n">${n}</span>`:''}</td>`;
                 }).join('')}
                 <td class="cell-total">${counts._total}</td>
-                <td class="cell-actions"><button class="btn btn-xs" onclick="openPalmaresAddModal(${team.id})">+ Título</button></td>
+                <td class="cell-actions"><button class="btn btn-xs" data-onclick="openPalmaresAddModal(${team.id})">+ Título</button></td>
               </tr>`).join('')}
       </tbody>
     </table>
@@ -1099,7 +1099,7 @@ async function openPalmaresReorder(compKey){
     <div class="modal" style="max-width:460px;">
       <div class="modal-hdr">
         <div class="modal-title">Ordenar · ${escHtml(comp?.label || compKey)}</div>
-        <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
+        <button class="modal-close" data-onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
       </div>
       <div class="modal-body">
         <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Arrastrá las tarjetas para ordenar (o las flechas arriba y abajo con foco en una fila). <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
@@ -1117,9 +1117,9 @@ function _palmReorderListHTML(list, teamById){
     const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
     const isVig = i === 0;
     return `<div class="palm-reorder-row${isVig?' is-vigente':''}" data-id="${r.id}" tabindex="0"
-        onkeydown="_palmReorderKeydown(event,'${escAttr(r.competition)}',${r.id})">
+        data-onkeydown="_palmReorderKeydown(event,'${escAttr(r.competition)}',${r.id})">
       <span class="palm-reorder-handle" aria-hidden="true"
-        onpointerdown="_palmReorderPointerDown(event,'${escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
+        data-onpointerdown="_palmReorderPointerDown(event,'${escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
       <span class="palm-reorder-pos">${i+1}</span>
       <span class="palm-reorder-crest" style="background:${escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (safeImgUrl(t?.logo) ? `<img src="${safeImgUrl(t?.logo)}" alt="">` : escHtml((t?.ini || t?.name || '?').slice(0,3)))}</span>
       <span class="palm-reorder-name">${escHtml(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${escHtml(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
@@ -1278,7 +1278,7 @@ async function openPalmaresAddModal(presetTeamId=null){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-add-modal">
     <div class="modal" style="max-width:440px;">
-      <div class="modal-hdr"><div class="modal-title">Agregar título</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Agregar título</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group"><label>Equipo</label>
           <select id="palm-team">
@@ -1300,8 +1300,8 @@ async function openPalmaresAddModal(presetTeamId=null){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePalmaresAdd()">Guardar título</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="savePalmaresAdd()">Guardar título</button>
       </div>
     </div>
   </div>`;
@@ -1356,7 +1356,7 @@ async function openPalmaresCellEdit(teamId, compKey){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-cell-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">${escHtml(team.name)} · ${escHtml(comp.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">${escHtml(team.name)} · ${escHtml(comp.label)}</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div style="margin-bottom:12px;font-size:13px;color:var(--txt3);">${recs.length} título(s) registrado(s)</div>
         <div id="palm-cell-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;">
@@ -1373,9 +1373,9 @@ async function openPalmaresCellEdit(teamId, compKey){
                     ${missing.length ? `<small class="palm-rec-warning">Registro incompleto: falta ${escHtml(missing.join(' y '))}</small>` : ''}
                   </span>
                   <span class="palm-rec-actions">
-                    <button type="button" class="btn btn-xs" onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Editar</button>
-                    <button type="button" class="btn btn-xs" onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
-                    <button type="button" class="btn btn-xs btn-danger" onclick="deletePalmaresRecord(${escAttr(JSON.stringify(r.id))}, ${Number(teamId)}, '${escAttr(compKey)}')">Quitar</button>
+                    <button type="button" class="btn btn-xs" data-onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Editar</button>
+                    <button type="button" class="btn btn-xs" data-onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                    <button type="button" class="btn btn-xs btn-danger" data-onclick="deletePalmaresRecord(${escAttr(JSON.stringify(r.id))}, ${Number(teamId)}, '${escAttr(compKey)}')">Quitar</button>
                   </span>
                 </div>`;
               }).join('')}
@@ -1386,11 +1386,11 @@ async function openPalmaresCellEdit(teamId, compKey){
             <div><label style="font-size:11px;color:var(--txt3);">Temporada</label><input type="text" id="palm-cell-season" placeholder="T1"></div>
             <div><label style="font-size:11px;color:var(--txt3);">Juego</label><input type="text" id="palm-cell-juego" placeholder="PES 4"></div>
             <div><label style="font-size:11px;color:var(--txt3);">Año</label><input type="number" id="palm-cell-year" placeholder="2024" min="1900" max="2100"></div>
-            <button class="btn btn-primary" onclick="addPalmaresRecord(${teamId}, '${escAttr(compKey)}')">+ Agregar</button>
+            <button class="btn btn-primary" data-onclick="addPalmaresRecord(${teamId}, '${escAttr(compKey)}')">+ Agregar</button>
           </div>
         </div>
       </div>
-      <div class="modal-footer"><button class="btn" onclick="closePalmaresModals()">Cerrar</button></div>
+      <div class="modal-footer"><button class="btn" data-onclick="closePalmaresModals()">Cerrar</button></div>
     </div>
   </div>`;
 }
@@ -1455,7 +1455,7 @@ async function openPalmaresEditRecord(recId){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-edit-modal">
     <div class="modal" style="max-width:440px;">
-      <div class="modal-hdr"><div class="modal-title">Editar título</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Editar título</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           ${renderTrophy(rec.competition, 32)}
@@ -1478,8 +1478,8 @@ async function openPalmaresEditRecord(recId){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePalmaresEditRecord(${escAttr(JSON.stringify(rec.id))})">Guardar cambios</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="savePalmaresEditRecord(${escAttr(JSON.stringify(rec.id))})">Guardar cambios</button>
       </div>
     </div>
   </div>`;
@@ -1558,24 +1558,24 @@ function _palmGalleryHTML(){
   const itemRows = state.items.length
     ? state.items.map((item, index) => `
       <div class="palm-gallery-item" draggable="${state.saving?'false':'true'}" data-gallery-index="${index}"
-        ondragstart="palmGalleryDragStart(${index})" ondragend="palmGalleryDragEnd()" ondragover="palmGalleryDragOver(event)" ondrop="palmGalleryDrop(event,${index})">
+        data-ondragstart="palmGalleryDragStart(${index})" data-ondragend="palmGalleryDragEnd()" data-ondragover="palmGalleryDragOver(event)" data-ondrop="palmGalleryDrop(event,${index})">
         <img class="palm-gallery-thumb" src="${escAttr(_palmCloudThumb(item.url, 160))}" alt="${escAttr(item.alt)}">
         <div class="palm-gallery-item-main">
           <label for="palm-gallery-alt-${index}">Texto alternativo</label>
           <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${escAttr(item.alt)}"
-            oninput="palmGallerySyncAlt(${index},this.value)" ${state.saving?'disabled':''}>
+            data-oninput="palmGallerySyncAlt(${index},this.value)" ${state.saving?'disabled':''}>
         </div>
         <div class="palm-gallery-order">
           <button type="button" class="palm-gallery-icon-btn" aria-label="Mover a la izquierda" title="Mover a la izquierda"
-            onclick="palmGalleryMove(${index},-1)" ${index===0||state.saving?'disabled':''}>
+            data-onclick="palmGalleryMove(${index},-1)" ${index===0||state.saving?'disabled':''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
           </button>
           <button type="button" class="palm-gallery-icon-btn" aria-label="Mover a la derecha" title="Mover a la derecha"
-            onclick="palmGalleryMove(${index},1)" ${index===count-1||state.saving?'disabled':''}>
+            data-onclick="palmGalleryMove(${index},1)" ${index===count-1||state.saving?'disabled':''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           <button type="button" class="palm-gallery-icon-btn palm-gallery-remove" aria-label="Quitar imagen" title="Quitar imagen"
-            onclick="palmGalleryRemove(${index})" ${state.saving?'disabled':''}>
+            data-onclick="palmGalleryRemove(${index})" ${state.saving?'disabled':''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
           </button>
         </div>
@@ -1586,7 +1586,7 @@ function _palmGalleryHTML(){
       <span class="palm-upload-name">${escHtml(upload.name)}</span>
       <span class="palm-upload-status">${escHtml(_palmGalleryStatusLabel(upload.status))}${upload.error?`: ${escHtml(upload.error)}`:''}</span>
       ${upload.status==='error' && upload.file
-        ? `<button type="button" class="btn btn-xs" onclick="palmGalleryRetry('${escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
+        ? `<button type="button" class="btn btn-xs" data-onclick="palmGalleryRetry('${escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
         : ''}
     </div>`).join('');
   return `
@@ -1599,14 +1599,14 @@ function _palmGalleryHTML(){
         Subir imágenes
       </label>
       <input id="palm-gallery-files" type="file" accept="image/*" multiple hidden
-        onchange="palmGalleryChoose(this.files);this.value=''" ${count>=_PALM_GALLERY_MAX||state.saving?'disabled':''}>
+        data-onchange="palmGalleryChoose(this.files);_tscSetValue(this,'')" ${count>=_PALM_GALLERY_MAX||state.saving?'disabled':''}>
     </div>
     <div class="palm-gallery-list">${itemRows}</div>
     ${uploadRows ? `<div class="palm-upload-list" aria-live="polite">${uploadRows}</div>` : ''}
     <div class="palm-gallery-note">Quitar una imagen solo elimina su URL del título. El archivo remoto no se borra.</div>
     <div class="modal-footer palm-gallery-footer">
-      <button type="button" class="btn" onclick="closePalmaresModals()" ${state.saving?'disabled':''}>Cerrar</button>
-      <button type="button" class="btn btn-primary" onclick="savePalmaresGallery()" ${busy?'disabled':''}>${state.saving?'Guardando...':'Guardar imágenes'}</button>
+      <button type="button" class="btn" data-onclick="closePalmaresModals()" ${state.saving?'disabled':''}>Cerrar</button>
+      <button type="button" class="btn btn-primary" data-onclick="savePalmaresGallery()" ${busy?'disabled':''}>${state.saving?'Guardando...':'Guardar imágenes'}</button>
     </div>`;
 }
 
@@ -1632,7 +1632,7 @@ async function openPalmaresGallery(recId){
       <div class="modal palm-gallery-modal" role="dialog" aria-modal="true" aria-labelledby="palm-gallery-title">
         <div class="modal-hdr">
           <div class="modal-title" id="palm-gallery-title">Imágenes · ${escHtml(team?.name || 'Título')}</div>
-          <button type="button" class="modal-close" aria-label="Cerrar administrador de imágenes" onclick="closePalmaresModals()">
+          <button type="button" class="modal-close" aria-label="Cerrar administrador de imágenes" data-onclick="closePalmaresModals()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
@@ -1795,7 +1795,7 @@ async function openNewCopaModal(){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="new-copa-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">Crear nueva copa</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Crear nueva copa</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group">
           <label>Nombre de la copa</label>
@@ -1811,7 +1811,7 @@ async function openNewCopaModal(){
             ${trophyStyles.map(t => {
               const trophySvg = renderTrophyByStyle(t.id, 32);
               return `
-              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid transparent;border-radius:6px;cursor:pointer;transition:all 200ms;" onclick="selectTrophyStyle('${t.id}', this)">
+              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid transparent;border-radius:6px;cursor:pointer;transition:all 200ms;" data-onclick="selectTrophyStyle('${t.id}', this)">
                 <input type="radio" name="trophy-style" value="${t.id}" style="margin-bottom:4px;">
                 <div style="margin:4px 0;">${trophySvg}</div>
                 <span style="font-size:10px;text-align:center;color:var(--txt2);">${t.label}</span>
@@ -1822,8 +1822,8 @@ async function openNewCopaModal(){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveNewCopa()">Crear copa</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveNewCopa()">Crear copa</button>
       </div>
     </div>
   </div>`;
@@ -1879,7 +1879,7 @@ async function openManagedCopaModal(){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="manage-copas-modal">
     <div class="modal" style="max-width:700px;">
-      <div class="modal-hdr"><div class="modal-title">Gestionar copas</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Gestionar copas</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div style="margin-bottom:14px;">
           <div style="font-size:12px;color:var(--txt3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Copas predefinidas</div>
@@ -1891,7 +1891,7 @@ async function openManagedCopaModal(){
                   <div style="font-weight:600;color:var(--txt1);">${escHtml(c.label)}</div>
                   <div style="font-size:11px;color:var(--txt3);">${escHtml(c.short)} · ${escHtml(c.trophy)}</div>
                 </div>
-                <button class="btn btn-xs" onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
+                <button class="btn btn-xs" data-onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
               </div>
             `).join('')}
           </div>
@@ -1908,8 +1908,8 @@ async function openManagedCopaModal(){
                   <div style="font-weight:600;color:var(--txt1);">${escHtml(c.label)}</div>
                   <div style="font-size:11px;color:var(--txt3);">${escHtml(c.short)} · ${escHtml(c.trophy)}</div>
                 </div>
-                <button class="btn btn-xs" onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
-                <button class="btn btn-xs btn-danger" onclick="deleteCopaAndRefresh('${escAttr(c.key)}')">Eliminar</button>
+                <button class="btn btn-xs" data-onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
+                <button class="btn btn-xs btn-danger" data-onclick="deleteCopaAndRefresh('${escAttr(c.key)}')">Eliminar</button>
               </div>
             `).join('')}
           </div>
@@ -1917,8 +1917,8 @@ async function openManagedCopaModal(){
         ` : ''}
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="openNewCopaModal()">+ Nueva copa</button>
-        <button class="btn" onclick="closePalmaresModals()">Cerrar</button>
+        <button class="btn btn-secondary" data-onclick="openNewCopaModal()">+ Nueva copa</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cerrar</button>
       </div>
     </div>
   </div>`;
@@ -1948,7 +1948,7 @@ async function openEditCopaModal(key){
 
   const isPredefined = PALMARES_COMPS_DEFAULT.find(c => c.key === key);
   const resetBtn = isPredefined
-    ? `<button class="btn btn-xs" style="margin-left:auto;" onclick="resetCopaToDefault('${escAttr(key)}')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restaurar original</button>`
+    ? `<button class="btn btn-xs" style="margin-left:auto;" data-onclick="resetCopaToDefault('${escAttr(key)}')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restaurar original</button>`
     : '';
   const noteText = '';
   const trophyStyles = getTrophyStyles();
@@ -1956,7 +1956,7 @@ async function openEditCopaModal(key){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="edit-copa-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">Editar copa: ${escHtml(copa.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Editar copa: ${escHtml(copa.label)}</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         ${noteText}
         <div class="form-group">
@@ -1973,7 +1973,7 @@ async function openEditCopaModal(key){
             ${trophyStyles.map(t => {
               const trophySvg = renderTrophyByStyle(t.id, 32);
               return `
-              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid ${t.id === copa.trophy ? 'var(--accent, #FFD700)' : 'transparent'};border-radius:6px;cursor:pointer;transition:all 200ms;" onclick="selectTrophyStyleEdit('${t.id}', this)">
+              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid ${t.id === copa.trophy ? 'var(--accent, #FFD700)' : 'transparent'};border-radius:6px;cursor:pointer;transition:all 200ms;" data-onclick="selectTrophyStyleEdit('${t.id}', this)">
                 <input type="radio" name="trophy-style-edit" value="${t.id}" ${t.id === copa.trophy ? 'checked' : ''} style="margin-bottom:4px;">
                 <div style="margin:4px 0;">${trophySvg}</div>
                 <span style="font-size:10px;text-align:center;color:var(--txt2);">${t.label}</span>
@@ -1985,8 +1985,8 @@ async function openEditCopaModal(key){
       </div>
       <div class="modal-footer" style="display:flex;gap:8px;align-items:center;">
         ${resetBtn}
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveEditCopa('${escAttr(key)}')">Guardar cambios</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveEditCopa('${escAttr(key)}')">Guardar cambios</button>
       </div>
     </div>
   </div>`;

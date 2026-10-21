@@ -224,26 +224,26 @@ async function openLiveMatch(matchId){
       ${logoHtml(name, obj)}
       <div style="font-size:14px;font-weight:700;text-align:center;line-height:1.2;min-height:34px;display:flex;align-items:center;">${escHtml(name)}</div>
       <div id="lm-${side}" style="font-family:'Bebas Neue';font-size:64px;line-height:1;text-align:center;color:var(--txt);">${val}</div>
-      <button class="btn btn-primary" onclick="liveGoal(${matchId},'${side}')" style="width:100%;font-family:'Barlow Condensed';font-weight:700;font-size:16px;letter-spacing:1px;padding:10px 0;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>GOL</button>
+      <button class="btn btn-primary" data-onclick="liveGoal(${matchId},'${side}')" style="width:100%;font-family:'Barlow Condensed';font-weight:700;font-size:16px;letter-spacing:1px;padding:10px 0;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>GOL</button>
     </div>`;
 
   const penCol = (side, val)=>`
     <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-      <button class="btn btn-xs" onclick="livePenAdjust(${matchId},'${side}',1)" style="width:40px;">+</button>
+      <button class="btn btn-xs" data-onclick="livePenAdjust(${matchId},'${side}',1)" style="width:40px;">+</button>
       <div id="lm-pen-${side}" style="font-family:'Bebas Neue';font-size:32px;line-height:1;min-width:44px;text-align:center;color:var(--gold);">${val??0}</div>
-      <button class="btn btn-xs" onclick="livePenAdjust(${matchId},'${side}',-1)" style="width:40px;">−</button>
+      <button class="btn btn-xs" data-onclick="livePenAdjust(${matchId},'${side}',-1)" style="width:40px;">−</button>
     </div>`;
 
   // Acciones del pie según tipo de fase
-  let footer = `<button class="btn" onclick="closeLiveMatch()">Cerrar</button>`;
-  footer += `<button class="btn btn-danger btn-sm" onclick="liveDiscard(${matchId})" title="Cancelar el en vivo (no queda como jugado)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Descartar</button>`;
+  let footer = `<button class="btn" data-onclick="closeLiveMatch()">Cerrar</button>`;
+  footer += `<button class="btn btn-danger btn-sm" data-onclick="liveDiscard(${matchId})" title="Cancelar el en vivo (no queda como jugado)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Descartar</button>`;
   if(knockout){
     if(!m.extraTime){
-      footer += `<button class="btn" onclick="liveSetExtraTime(${matchId})" title="Entró en tiempo extra">${_LM_ICON.clock} Prórroga</button>`;
+      footer += `<button class="btn" data-onclick="liveSetExtraTime(${matchId})" title="Entró en tiempo extra">${_LM_ICON.clock} Prórroga</button>`;
     }
-    footer += `<button class="btn" onclick="liveTogglePenalties(${matchId})">Penales</button>`;
+    footer += `<button class="btn" data-onclick="liveTogglePenalties(${matchId})">Penales</button>`;
   }
-  footer += `<button class="btn btn-primary" onclick="liveFinalize(${matchId})">${_LM_ICON.check} Finalizar</button>`;
+  footer += `<button class="btn btn-primary" data-onclick="liveFinalize(${matchId})">${_LM_ICON.check} Finalizar</button>`;
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="live-match-modal">
@@ -253,7 +253,7 @@ async function openLiveMatch(matchId){
           <span class="live-dot live-dot-red"></span>EN VIVO
           ${m.extraTime?`<span style="font-size:11px;color:var(--gold);border:1px solid var(--gold-b);border-radius:10px;padding:1px 8px;letter-spacing:0.5px;">${_LM_ICON.clock} TIEMPO EXTRA</span>`:''}
         </div>
-        <button class="modal-close" onclick="closeLiveMatch()">×</button>
+        <button class="modal-close" data-onclick="closeLiveMatch()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:start;">
@@ -263,7 +263,7 @@ async function openLiveMatch(matchId){
         </div>
 
         <div style="display:flex;justify-content:center;margin-top:14px;">
-          <button class="btn btn-sm" onclick="liveReset(${matchId})" title="Reiniciar marcador a 0-0" style="color:var(--txt2);">${_LM_ICON.undo} Reiniciar</button>
+          <button class="btn btn-sm" data-onclick="liveReset(${matchId})" title="Reiniciar marcador a 0-0" style="color:var(--txt2);">${_LM_ICON.undo} Reiniciar</button>
         </div>
 
         <div id="lm-penalty-section" style="margin-top:14px;display:${showPen?'block':'none'};">
