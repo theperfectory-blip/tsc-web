@@ -1,4 +1,3 @@
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ─ helpers de fecha ─────────────────────────────────────── */
 const _CAL_DIAS  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -81,12 +80,12 @@ function _calLogo(team, size, fallbackLabel){
   const s = size||36;
   if(!team){
     const initials = fallbackLabel ? String(fallbackLabel).substring(0,2).toUpperCase() : '?';
-    return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:#555;font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
+    return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:#555;font-size:${Math.floor(s/3)}px;">${escHtml(initials)}</div>`;
   }
-  if(safeImgUrl(team.logo)) return `<img class="cal-logo" src="${safeImgUrl(team.logo)}" style="width:${s}px;height:${s}px;" alt="${_esc(team.name)}">`;
+  if(safeImgUrl(team.logo)) return `<img class="cal-logo" src="${safeImgUrl(team.logo)}" style="width:${s}px;height:${s}px;" alt="${escHtml(team.name)}">`;
   const initials = (team.name||'?').substring(0,2).toUpperCase();
   const bg = team.color||'#555';
-  return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:${_esc(bg)};font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
+  return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:${escHtml(bg)};font-size:${Math.floor(s/3)}px;">${escHtml(initials)}</div>`;
 }
 
 /* ================================================================
@@ -633,16 +632,16 @@ async function renderAdmCalendar(){
 
     /* data-* attributes para _calOnChange */
     const rkey = e.matchId ? String(e.matchId) : String(e.slotId);
-    let dataAttrs = `data-rkey="${_esc(rkey)}"`;
+    let dataAttrs = `data-rkey="${escHtml(rkey)}"`;
     if(e.matchId){
       dataAttrs += ` data-mid="${e.matchId}"`;
     } else {
-      dataAttrs += ` data-sid="${_esc(e.slotId)}"`;
+      dataAttrs += ` data-sid="${escHtml(e.slotId)}"`;
       dataAttrs += ` data-pid="${e.slotPhaseId}"`;
       dataAttrs += ` data-ta="${e.slotTeamAId!=null?e.slotTeamAId:''}"`;
       dataAttrs += ` data-tb="${e.slotTeamBId!=null?e.slotTeamBId:''}"`;
-      dataAttrs += ` data-la="${_esc(e.labelA)}"`;
-      dataAttrs += ` data-lb="${_esc(e.labelB)}"`;
+      dataAttrs += ` data-la="${escHtml(e.labelA)}"`;
+      dataAttrs += ` data-lb="${escHtml(e.labelB)}"`;
       dataAttrs += ` data-mi="${e.slotMatchIdx!=null?e.slotMatchIdx:''}"`;
       dataAttrs += ` data-ri="${e.slotRoundIdx!=null?e.slotRoundIdx:''}"`;
       dataAttrs += ` data-leg="${e.slotLeg!=null?e.slotLeg:''}"`;
@@ -651,7 +650,7 @@ async function renderAdmCalendar(){
     /* clear call */
     const clearCall = e.matchId
       ? `calClearSchedule('${e.matchId}',null,null)`
-      : `calClearSchedule(null,'${e.slotPhaseId}','${_esc(e.slotId)}')`;
+      : `calClearSchedule(null,'${e.slotPhaseId}','${escHtml(e.slotId)}')`;
 
     /* vuelta: el equipo B juega en casa → invertir orden visual */
     const isVueltaRow = e.slotLeg === 2;
@@ -662,14 +661,14 @@ async function renderAdmCalendar(){
     <div class="cal-adm-row${hasSched?' cal-adm-row--sched':''}" ${dataAttrs}>
       <div class="cal-adm-teams">
         ${_calLogo(dA_id, 28, dA_lbl)}
-        <span class="cal-adm-tname">${_esc(dA_lbl)}</span>
+        <span class="cal-adm-tname">${escHtml(dA_lbl)}</span>
         <span class="cal-adm-vs">vs</span>
-        <span class="cal-adm-tname">${_esc(dB_lbl)}</span>
+        <span class="cal-adm-tname">${escHtml(dB_lbl)}</span>
         ${_calLogo(dB_id, 28, dB_lbl)}
       </div>
       <div class="cal-adm-controls">
         ${e.slotLeg===1?'<span class="cal-adm-leg cal-adm-leg--ida">IDA</span>':e.slotLeg===2?'<span class="cal-adm-leg cal-adm-leg--vuelta">VUELTA</span>':''}
-        <span class="cal-adm-phase" style="color:${col};border-color:${col};">${_esc(badge)}</span>
+        <span class="cal-adm-phase" style="color:${col};border-color:${col};">${escHtml(badge)}</span>
         <input type="date" class="cal-inp cal-inp-date" value="${e.scheduledDate||''}"
           title="Fecha" onchange="_calOnChange(this)">
         <input type="time" class="cal-inp cal-inp-time" value="${e.scheduledTime||''}"
@@ -786,7 +785,7 @@ async function renderAdmCalendarLabels(){
     // Antes un fallo de lectura mostraba el cronograma vacío, y escribir encima
     // creaba etiquetas duplicadas de las que no se veían.
     console.error('[calDayLabels]', err);
-    el.innerHTML = `<div class="cal-empty"><p>No se pudo cargar el cronograma: ${_esc(dbErrorMsg(err))}</p></div>`;
+    el.innerHTML = `<div class="cal-empty"><p>No se pudo cargar el cronograma: ${escHtml(dbErrorMsg(err))}</p></div>`;
     return;
   }
   const labelByDate = Object.fromEntries(labels.map(l => [l.date, {text: l.text||'', type: l.type||''}]));
@@ -817,12 +816,12 @@ async function renderAdmCalendarLabels(){
     rows.push(`
     <div class="cal-lbl-day cal-lbl-day--${cls}">
       <span class="cal-lbl-dot"></span>
-      <span class="cal-lbl-date" title="${_esc(dayAbbr)}">${_esc(shortDate)}</span>
-      <select class="cal-lbl-type" data-date="${_esc(dateStr)}" onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
+      <span class="cal-lbl-date" title="${escHtml(dayAbbr)}">${escHtml(shortDate)}</span>
+      <select class="cal-lbl-type" data-date="${escHtml(dateStr)}" onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
       <input class="cal-lbl-inp" type="text" maxlength="64"
         placeholder="Etiqueta del día..."
-        data-date="${_esc(dateStr)}"
-        value="${_esc(val.text)}"
+        data-date="${escHtml(dateStr)}"
+        value="${escHtml(val.text)}"
         oninput="_calSaveDayLabel(this.dataset.date)">
     </div>`);
   }
@@ -842,7 +841,7 @@ async function renderAdmCalendarLabels(){
       <button class="cal-lbl-arrow" type="button" onclick="calLblNavMonth(-1)" aria-label="Mes anterior">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
-      <span class="cal-lbl-nav-title">${_esc(monthName)} ${year}</span>
+      <span class="cal-lbl-nav-title">${escHtml(monthName)} ${year}</span>
       <button class="cal-lbl-arrow" type="button" onclick="calLblNavMonth(1)" aria-label="Mes siguiente">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
@@ -879,7 +878,7 @@ let _calAnchorDateStr = null;
    icono: es lo único que escribe la máquina de escribir, así el SVG nunca se borra.
    El aria-label fija el nombre accesible aunque el rótulo se vacíe durante la animación. */
 function _calCtaBtn(cls, label, icon){
-  return `<button type="button" class="btn ${cls}" aria-label="${_esc(label)}">${icon||''}<span class="hm-btn-label">${_esc(label)}</span></button>`;
+  return `<button type="button" class="btn ${cls}" aria-label="${escHtml(label)}">${icon||''}<span class="hm-btn-label">${escHtml(label)}</span></button>`;
 }
 
 function _calHeroHtml(m, isLive, ctx){
@@ -895,7 +894,7 @@ function _calHeroHtml(m, isLive, ctx){
   const when  = m.scheduledDate ? `${_calFormatDay(_calLocalDateStr(heroInst) || m.scheduledDate)}${time?` · ${time}`:''}` : (time||'');
   const eyebrowChip = isLive
     ? `<span class="chip chip-live"><span class="chip-dot"></span><span class="hm-chip-label">En vivo</span></span>`
-    : (label ? `<span class="chip"><span class="hm-chip-label">${_esc(label)}</span></span>` : '');
+    : (label ? `<span class="chip"><span class="hm-chip-label">${escHtml(label)}</span></span>` : '');
 
   // CTAs reales: H2H (si ambos equipos están definidos) + ir a la competición.
   const bothReal = !!(ta && tb);
@@ -910,7 +909,7 @@ function _calHeroHtml(m, isLive, ctx){
   return `
   <div class="hero hero-match hm-collapsible" style="margin-bottom:0;" data-reveal>
     <div class="hm-border"></div>
-    <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${_esc(taN)} contra ${_esc(tbN)}">
+    <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${escHtml(taN)} contra ${escHtml(tbN)}">
       <span class="hm-peek-lbl">${isLive ? 'En vivo' : 'Próximo partido'}</span>
       ${isLive
         ? `<span class="hm-count" style="color:var(--red);">${m.goalsA??0} — ${m.goalsB??0}</span>`
@@ -925,15 +924,15 @@ function _calHeroHtml(m, isLive, ctx){
       <div class="hm-face">
         <div class="hm-side home">
           ${_calLogo(ta, 64, taN)}
-          <span class="hm-name">${_esc(taN)}</span>
+          <span class="hm-name">${escHtml(taN)}</span>
         </div>
         <div class="hm-mid">
           ${isLive
             ? `<div class="hm-count" style="font-size:3rem;color:var(--red);">${m.goalsA??0}—${m.goalsB??0}</div>`
-            : when ? `<div class="hm-when">${_esc(when)}</div>` : ''}
+            : when ? `<div class="hm-when">${escHtml(when)}</div>` : ''}
         </div>
         <div class="hm-side away">
-          <span class="hm-name">${_esc(tbN)}</span>
+          <span class="hm-name">${escHtml(tbN)}</span>
           ${_calLogo(tb, 64, tbN)}
         </div>
       </div>
@@ -1447,16 +1446,16 @@ async function renderPubCalendar(){
     const iniA = (mmTa?.ini || mmTaN).substring(0,3).toUpperCase();
     const iniB = (mmTb?.ini || mmTbN).substring(0,3).toUpperCase();
     const colA = mmTa?.color || '#333', colB = mmTb?.color || '#333';
-    const crestA = safeImgUrl(mmTa?.logo) ? `<img src="${safeImgUrl(mmTa?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
-    const crestB = safeImgUrl(mmTb?.logo) ? `<img src="${safeImgUrl(mmTb?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
+    const crestA = safeImgUrl(mmTa?.logo) ? `<img src="${safeImgUrl(mmTa?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(iniA);
+    const crestB = safeImgUrl(mmTb?.logo) ? `<img src="${safeImgUrl(mmTb?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(iniB);
     const time = _calMatchTimeLocal(m);
     const played = m.goalsA!=null && m.goalsB!=null;
     /* en vuelta el marcador también se invierte visualmente */
     const scoreA = isVueltaMm ? m.goalsB : m.goalsA;
     const scoreB = isVueltaMm ? m.goalsA : m.goalsB;
     const lead = played
-      ? `<span class="mm-score">${_esc(scoreA)}-${_esc(scoreB)}</span>`
-      : `<span class="mm-time">${_esc(time||'—')}</span>`;
+      ? `<span class="mm-score">${escHtml(scoreA)}-${escHtml(scoreB)}</span>`
+      : `<span class="mm-time">${escHtml(time||'—')}</span>`;
     const label = [comp?.name||'', phase?.name||''].filter(Boolean).join(' · ');
     const legBadge = mLeg===1
       ? '<span class="mm-leg mm-leg--ida">IDA</span>'
@@ -1465,17 +1464,17 @@ async function renderPubCalendar(){
       ${lead}
       <span class="mm-fixture">
         <span class="mm-side mm-side-a">
-          <span class="mm-crest" style="--tc:${_esc(colA)};">${crestA}</span>
-          <span class="mm-name">${_esc(mmTaN)}</span>
+          <span class="mm-crest" style="--tc:${escHtml(colA)};">${crestA}</span>
+          <span class="mm-name">${escHtml(mmTaN)}</span>
         </span>
         <span class="mm-sep">–</span>
         <span class="mm-side mm-side-b">
-          <span class="mm-name">${_esc(mmTbN)}</span>
-          <span class="mm-crest" style="--tc:${_esc(colB)};">${crestB}</span>
+          <span class="mm-name">${escHtml(mmTbN)}</span>
+          <span class="mm-crest" style="--tc:${escHtml(colB)};">${crestB}</span>
         </span>
       </span>
       ${legBadge}
-      ${label?`<span class="mm-comp">${_esc(label)}</span>`:''}
+      ${label?`<span class="mm-comp">${escHtml(label)}</span>`:''}
     </div>`;
   };
 
@@ -1494,7 +1493,7 @@ async function renderPubCalendar(){
     const cls = ['metro-day', has?'has':'empty', isToday?'today':'', isPast?'past':''].filter(Boolean).join(' ');
     return `<div class="${cls}" data-cal-date="${dateStr}">
       <div class="metro-dot"></div>
-      <div class="metro-date">${_esc(_calFormatDay(viewerDateStr))}${tagText?`<span class="mm-tag">${_esc(tagText)}</span>`:''}</div>
+      <div class="metro-date">${escHtml(_calFormatDay(viewerDateStr))}${tagText?`<span class="mm-tag">${escHtml(tagText)}</span>`:''}</div>
       ${has ? ms.map(metroMatch).join('') : (tagText ? '' : '<div class="metro-empty">Sin partidos</div>')}
     </div>`;
   };

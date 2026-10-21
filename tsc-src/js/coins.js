@@ -2,7 +2,6 @@
    PARTE 6 — YUNACOINS, TEMPORADAS Y EXPORT/IMPORT
    ========================================================== */
 
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ----------------------------------------------------------
    Guardas de escritura (MS-5.9)
@@ -91,10 +90,10 @@ function renderCoinsTable(teams, maxCoins){
     const pct   = maxCoins>0 ? Math.round((coins/maxCoins)*100) : 0;
     return `<tr>
       <td><div style="width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(t.color,'#333')};">
-        ${safeImgUrl(t.logo)?`<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${_esc(t.ini||'?')}</span>`}
+        ${safeImgUrl(t.logo)?`<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`:`<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escHtml(t.ini||'?')}</span>`}
       </div></td>
-      <td style="font-weight:600;">${_esc(t.name)}</td>
-      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${String(p).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
+      <td style="font-weight:600;">${escHtml(t.name)}</td>
+      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escHtml(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;"></span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td style="text-align:right;font-family:'Bebas Neue';font-size:22px;color:var(--gold);">${coins.toLocaleString('es-CL')}</td>
       <td><div style="display:flex;align-items:center;gap:6px;">
         <div style="flex:1;height:4px;background:var(--brd2);border-radius:2px;overflow:hidden;">

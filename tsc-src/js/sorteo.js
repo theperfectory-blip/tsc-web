@@ -655,7 +655,7 @@
       tab.className = 'bombo-tab' + (b.id === state.activeId ? ' active' : '');
       tab.dataset.id = b.id;
       tab.innerHTML = `
-        <span class="bombo-tab-name">${escapeHtml(b.name)}</span>
+        <span class="bombo-tab-name">${escHtml(b.name)}</span>
         <span class="bombo-tab-count">${remaining}/${total}</span>`;
       tab.addEventListener('click', () => selectBombo(b.id));
       bombosBar.appendChild(tab);
@@ -1023,7 +1023,7 @@
     wrap.innerHTML = `
       <div class="modal" style="max-width:540px;">
         <div class="modal-hdr">
-          <div class="modal-title">Equipos en ${escapeHtml(b.name)}</div>
+          <div class="modal-title">Equipos en ${escHtml(b.name)}</div>
           <button class="modal-close" onclick="document.getElementById('sorteo-team-picker').remove()">×</button>
         </div>
         <div class="modal-body">
@@ -1056,13 +1056,13 @@
         const col = safeCssColor(t.color, '#333');
         const logo = safeImgUrl(t.logo)
           ? `<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`
-          : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escapeHtml(ini)}</span>`;
+          : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escHtml(ini)}</span>`;
         return `
           <label class="stp-row" data-id="${t.id}" style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--brd);cursor:pointer;">
             <input type="checkbox" data-id="${t.id}" ${checked}>
             <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${col};flex-shrink:0;">${logo}</div>
-            <span style="flex:1;font-size:14px;">${escapeHtml(t.name)}</span>
-            ${t.pres ? `<span style="font-size:12px;color:var(--txt3);">${escapeHtml(t.pres)}</span>` : ''}
+            <span style="flex:1;font-size:14px;">${escHtml(t.name)}</span>
+            ${t.pres ? `<span style="font-size:12px;color:var(--txt3);">${escHtml(t.pres)}</span>` : ''}
           </label>`;
       }).join('') || `<div style="padding:14px;color:var(--txt3);text-align:center;">Sin resultados</div>`;
       countEl.textContent = `${selected.size} de ${teams.length} seleccionados`;
@@ -1176,14 +1176,14 @@
       const c = document.createElement('span');
       c.className = 'chip' + (highlightId === id ? ' now' : '');
       // Sin punto dorado para no contaminar la lectura de los disponibles.
-      c.innerHTML = escapeHtml(teamName(id));
+      c.innerHTML = escHtml(teamName(id));
       poolEls.appendChild(c);
     });
     alreadyDrawn.forEach(id => {
       const c = document.createElement('span');
       const isHighlight = highlightId === id;
       c.className = 'chip drawn' + (isHighlight ? ' now' : '');
-      c.innerHTML = escapeHtml(teamName(id));
+      c.innerHTML = escHtml(teamName(id));
       poolEls.appendChild(c);
     });
   }
@@ -1279,7 +1279,7 @@
       const btn = readOnly ? '' : `<button class="drawn-link-btn" data-gidx="${globalIdx}">${d.link ? 'Cambiar' : 'Vincular'}</button>`;
       li.innerHTML = `
         <span class="num">${displayIdx+1}</span>
-        <span class="name">${escapeHtml(teamName(d.teamId))}</span>
+        <span class="name">${escHtml(teamName(d.teamId))}</span>
         <span class="time">${hh}:${mm}</span>
         ${linkBadge}
         ${btn}`;
@@ -1345,7 +1345,7 @@
     wrap.innerHTML = `
       <div class="modal" style="max-width:780px;">
         <div class="modal-hdr">
-          <div class="modal-title">Vincular: <span style="color:var(--gold);">${escapeHtml(teamName(teamId))}</span></div>
+          <div class="modal-title">Vincular: <span style="color:var(--gold);">${escHtml(teamName(teamId))}</span></div>
           <button class="modal-close" onclick="document.getElementById('sorteo-link-picker').remove()">×</button>
         </div>
         <div class="modal-body">
@@ -1376,7 +1376,7 @@
     const gridEl   = wrap.querySelector('#slp-grid');
 
     compSel.innerHTML = comps.length
-      ? comps.map(c => `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${escapeHtml(c.name)}</option>`).join('')
+      ? comps.map(c => `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${escHtml(c.name)}</option>`).join('')
       : '<option value="">Sin competiciones en la temporada</option>';
 
     async function refreshPhases() {
@@ -1387,7 +1387,7 @@
       phaseSel.innerHTML = phases.length
         ? phases.map(p => {
             const tag = p.type === 'groups' ? groupsIcon : bracketIcon;
-            return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${tag} ${escapeHtml(p.name || ('Fase '+p.id))}</option>`;
+            return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${tag} ${escHtml(p.name || ('Fase '+p.id))}</option>`;
           }).join('')
         : '<option value="">Sin fases tipo grupos / bracket / playoff</option>';
       if (!phases.find(p => p.id === selPhaseId)) selPhaseId = phases[0]?.id || null;
@@ -1449,7 +1449,7 @@
                   : '<span class="slp-tag-warn">ref dinámica</span>';
                 return `<div class="slp-bslot ${mine?'mine':'taken'}" data-si="${cell.si}" data-sd="${cell.sd}">
                   <span class="slp-side">${cell.sd}</span>
-                  <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                  <span class="slp-name">${escHtml(teamName(t))}</span>
                   ${mine ? '<span class="slp-tag">aquí</span>' : labelExtra}
                 </div>`;
               }
@@ -1515,7 +1515,7 @@
                   : (cell.kind ? '<span class="slp-tag-warn">ref dinámica</span>' : '');
                 return `<div class="slp-bslot ${mine?'mine':'taken'}" data-si="${cell.si}" data-sd="${cell.sd}">
                   <span class="slp-side">${cell.sd}</span>
-                  <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                  <span class="slp-name">${escHtml(teamName(t))}</span>
                   ${mine ? '<span class="slp-tag">aquí</span>' : labelExtra}
                 </div>`;
               }
@@ -1566,7 +1566,7 @@
               const mine = t === teamId;
               slotsHtml.push(`<div class="slp-slot ${mine?'mine':'taken'}" data-group="${gi}" data-pos="${pos}">
                 <span class="slp-pos">${pos+1}</span>
-                <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                <span class="slp-name">${escHtml(teamName(t))}</span>
                 ${mine?'<span class="slp-tag">aquí</span>':''}
               </div>`);
             } else {
@@ -1990,11 +1990,6 @@
         showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side}`);
       }
     }, 'No se pudo vincular');
-  }
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, ch => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[ch]));
   }
   function showToastSafe(msg, type) {
     if (typeof showToast === 'function') showToast(msg, type);

@@ -1,9 +1,3 @@
-function _dataEsc(value){
-  return String(value??'').replace(/[&<>"']/g,char=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  })[char]);
-}
-
 async function renderAdmData(){
   const el=document.getElementById('adm-data-content');
   const currentSeason = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
@@ -15,7 +9,7 @@ async function renderAdmData(){
       <p style="font-size:14px;color:var(--txt2);margin-bottom:14px;line-height:1.5;">Backup completo de toda la base de datos en JSON.</p>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <button class="btn btn-primary" onclick="exportFullDB()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar todo</button>
-        <button class="btn" onclick="exportSeason()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Solo ${_dataEsc(seasonName)}</button>
+        <button class="btn" onclick="exportSeason()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Solo ${escHtml(seasonName)}</button>
       </div>
     </div>
     <div class="card" style="padding:18px;">

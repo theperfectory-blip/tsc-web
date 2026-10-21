@@ -20,10 +20,6 @@
 
 let _liveCtx = null;   // { kind:'group'|'bracket', phaseId, groupIdx }
 
-function _lmEsc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 /* ¿La fase no admite empate? (eliminatoria) */
 function _lmIsKnockout(phaseType){
   return ['bracket','single','playoff'].includes(phaseType);
@@ -231,7 +227,7 @@ async function openLiveMatch(matchId){
   const teamCol = (side, name, obj, val)=>`
     <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
       ${logoHtml(name, obj)}
-      <div style="font-size:14px;font-weight:700;text-align:center;line-height:1.2;min-height:34px;display:flex;align-items:center;">${_lmEsc(name)}</div>
+      <div style="font-size:14px;font-weight:700;text-align:center;line-height:1.2;min-height:34px;display:flex;align-items:center;">${escHtml(name)}</div>
       <div id="lm-${side}" style="font-family:'Bebas Neue';font-size:64px;line-height:1;text-align:center;color:var(--txt);">${val}</div>
       <button class="btn btn-primary" onclick="liveGoal(${matchId},'${side}')" style="width:100%;font-family:'Barlow Condensed';font-weight:700;font-size:16px;letter-spacing:1px;padding:10px 0;display:flex;align-items:center;justify-content:center;gap:6px;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>GOL</button>
     </div>`;

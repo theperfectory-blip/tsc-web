@@ -195,10 +195,9 @@ async function setPushOn(b){
    (window.UPDATER) — acá solo el render de #settings-update-group y
    la orquestación de los distintos estados. `notes` del manifiesto
    viene de la red (GitHub Releases): es dato externo aunque lo
-   escriba el propio dev, así que se escapa con _updEsc() antes de
+   escriba el propio dev, así que se escapa con escHtml() antes de
    entrar por innerHTML (regla de CLAUDE.md).
    ---------------------------------------------------------- */
-function _updEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 let _updLastResult = null;  // último UPDATER.check() — lo reusa installUpdate() sin re-pedir el manifiesto
 let _updInstalling = false; // guarda de UI aparte del flag interno de updater.js — evita el doble-tap desde el primer click, antes de que exista una descarga real que bloquear
@@ -231,13 +230,13 @@ function _updRenderCheckResult(res){
   }
 
   if (!res.hasUpdate){
-    _updSetStatus(`Ya tienes la última versión (v${_updEsc(res.currentName || res.currentCode)}).`);
+    _updSetStatus(`Ya tienes la última versión (v${escHtml(res.currentName || res.currentCode)}).`);
     return;
   }
 
-  const notes = res.notes ? `<div style="margin-top:2px;">${_updEsc(res.notes)}</div>` : '';
+  const notes = res.notes ? `<div style="margin-top:2px;">${escHtml(res.notes)}</div>` : '';
   _updSetStatus(`
-    <div>Hay una versión nueva: v${_updEsc(res.remoteName || res.remoteCode)}</div>
+    <div>Hay una versión nueva: v${escHtml(res.remoteName || res.remoteCode)}</div>
     ${notes}
     <button type="button" class="btn btn-xs" id="update-install-btn" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;" onclick="installUpdate()">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
@@ -316,7 +315,7 @@ async function installUpdate(){
 
     const detail = (res.error && (res.error.message || String(res.error))) || 'Error desconocido.';
     _updSetStatus(`
-      ${_UI_ALERT_SVG}Falló la descarga: ${_updEsc(detail)}
+      ${_UI_ALERT_SVG}Falló la descarga: ${escHtml(detail)}
       <div style="margin-top:6px;"><button type="button" class="btn btn-xs" onclick="installUpdate()">Reintentar</button></div>
     `);
   } finally {

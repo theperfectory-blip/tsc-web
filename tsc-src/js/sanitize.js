@@ -16,9 +16,11 @@ function escHtml(v){
   return String(v == null ? '' : v).replace(/[&<>"']/g, c => _ESC_MAP[c]);
 }
 
-/* Valor de un atributo entre comillas (dobles o simples). */
+/* Valor de un atributo entre comillas (dobles o simples). También
+   escapa el acento grave (`), por si el valor cae en un template literal
+   dentro de un handler inline. */
 function escAttr(v){
-  return escHtml(v);
+  return escHtml(v).replace(/`/g, '&#96;');
 }
 
 /* URL de imagen aceptable para <img src>. Solo admite https:, rutas

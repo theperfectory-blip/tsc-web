@@ -206,8 +206,7 @@ cita. Reportes en `docs/reportes/MS-<n>.<m>.md`.
 - **Escape obligatorio:** todo `innerHTML` con datos que puede escribir un
   rol no admin (`teams.name`, `teams.logo`, `users.displayName`,
   `users.username`, `users.photoURL`) pasa por `escHtml` / `escAttr` /
-  `safeImgUrl` de `sanitize.js`. Hay copias locales viejas (`_esc`,
-  `_uaEsc`…) pendientes de unificar; en código nuevo usar el helper.
+  `safeImgUrl` de `sanitize.js`. No definir copias locales: `sanitize.js` es el único escape (7.1).
 - Reglas Firestore: no tocar `isAdmin()` / roles sin tests en el emulador.
   Allowlist de campos (`hasOnly`), nunca blocklist.
 - No dejar `TODO: fix security` sin issue: documentarlo en `SECURITY.md`

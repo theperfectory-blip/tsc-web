@@ -833,7 +833,7 @@ function renderAssignTeamsList(teams, groups){
   el.innerHTML = filtered.map(t=>{
     const comps = compsOf(t.id);
     const chips = comps.map(c=>{
-      const safeName = _escTxt(c.name);
+      const safeName = escHtml(c.name);
       const color = safeCssColor(c.color, '#C9A84C');
       return `<span title="${safeName}"
         style="font-size:10px;font-weight:600;color:${color};background:${color}22;border:1px solid ${color}44;border-radius:3px;padding:1px 6px;line-height:1.4;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;">
@@ -843,10 +843,10 @@ function renderAssignTeamsList(teams, groups){
 
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);">
       <div style="width:22px;height:22px;border-radius:50%;background:${safeCssColor(t.color,'#333')};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;flex-shrink:0;">
-        ${safeImgUrl(t.logo)?`<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`:`${_escTxt(t.ini||'?')}`}
+        ${safeImgUrl(t.logo)?`<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`:`${escHtml(t.ini||'?')}`}
       </div>
       <div style="flex:1;display:flex;flex-direction:column;gap:2px;overflow:hidden;min-width:0;">
-        <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escTxt(t.name)}</span>
+        <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t.name)}</span>
         ${chips ? `<div style="display:flex;gap:3px;flex-wrap:wrap;">${chips}</div>` : ''}
       </div>
       <select onchange="addToGroup(this.value,'${t.id}');this.value=''"
@@ -864,10 +864,6 @@ function renderAssignTeamsList(teams, groups){
       </select>
     </div>`;
   }).join('') || `<div style="color:var(--txt3);font-size:14px;padding:8px;">${onlyFree ? 'Sin equipos libres. Desmarcá el filtro para ver todos.' : 'Todos los equipos asignados.'}</div>`;
-}
-
-function _escTxt(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function filterAssignTeams(){
@@ -943,7 +939,7 @@ async function renderAssignGroupSlots(){
       refRows[gi].push(`<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 6px;background:var(--card);border:1px dashed var(--gold-b);border-radius:3px;font-size:13px;">
         <span style="display:flex;align-items:center;gap:6px;min-width:0;">
           ${badge}
-          <span style="color:${resolvedName==='Por definir'?'var(--txt3)':'var(--txt)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_escTxt(resolvedName)}</span>
+          <span style="color:${resolvedName==='Por definir'?'var(--txt3)':'var(--txt)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(resolvedName)}</span>
         </span>
         <button onclick="removeGroupRef(${idx})" title="Quitar referencia" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:14px;flex-shrink:0;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
       </div>`);

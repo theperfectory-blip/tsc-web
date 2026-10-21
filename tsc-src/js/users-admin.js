@@ -5,10 +5,6 @@
    (Los presidentes se auto-registran; aquí el admin los vincula.)
    ============================================================ */
 
-function _uaEsc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 async function renderAdmUsuarios(){
   const el = document.getElementById('adm-usuarios-content');
   if(!el) return;
@@ -33,7 +29,7 @@ async function renderAdmUsuarios(){
     teams = teamsRaw;
     window._uaTeams = teamsRaw;
   } catch(e){
-    el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${_uaEsc(dbErrorMsg(e))}</div>`;
+    el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${escHtml(dbErrorMsg(e))}</div>`;
     return;
   }
 
@@ -58,7 +54,7 @@ async function renderAdmUsuarios(){
   // Solo se asigna club a cuentas con el email verificado (slice 3.7, D7;
   // lo exigen también las reglas). Se puede seguir quitando el club.
   const teamOpts = (sel, canAssign)=> `<option value="">— sin club —</option>` +
-    teamsSorted.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''} ${(!canAssign && t.id!==sel)?'disabled':''}>${_uaEsc(t.name)}</option>`).join('');
+    teamsSorted.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''} ${(!canAssign && t.id!==sel)?'disabled':''}>${escHtml(t.name)}</option>`).join('');
 
   el.innerHTML = `
     <div style="color:var(--txt3);font-size:13px;margin-bottom:12px;">
@@ -78,8 +74,8 @@ async function renderAdmUsuarios(){
           ${users.map(u=>{
             const isMe = u.uid===myUid;
             return `<tr>
-              <td style="padding:8px 10px;font-weight:600;">${_uaEsc(u.displayName||'(sin nombre)')}${isMe?' <span style="color:var(--gold);font-size:11px;">(tú)</span>':''}</td>
-              <td style="padding:8px 10px;color:var(--txt2);">${_uaEsc(u.email||'')}
+              <td style="padding:8px 10px;font-weight:600;">${escHtml(u.displayName||'(sin nombre)')}${isMe?' <span style="color:var(--gold);font-size:11px;">(tú)</span>':''}</td>
+              <td style="padding:8px 10px;color:var(--txt2);">${escHtml(u.email||'')}
                 ${u.emailVerified===true
                   ? '<span title="Email verificado" style="margin-left:6px;font-size:11px;color:var(--green);">verificado</span>'
                   : '<span title="Esta cuenta aún no verificó su email (o no inició sesión desde que existe la verificación): no se le puede asignar club" style="margin-left:6px;font-size:11px;color:var(--gold);">sin verificar</span>'}

@@ -11,10 +11,6 @@ let _profileLogoFile;
 let _profileLogoTouched = false;
 let _profileReturnFocus = null;   // elemento al que devolver el foco al cerrar el drawer
 
-function _pfEsc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 /* ── Pila de capas cerrables con Escape ─────────────────────────
    El drawer de perfil, el modal de fotos y el visor ampliado pueden quedar
    anidados (visor > fotos > perfil). El handler global de ui-utils.js
@@ -229,18 +225,18 @@ async function renderProfileBody(){
   // ── Crest para el header ─────────────────────────────────────
   const crestContent = safeImgUrl(currentLogo)
     ? `<img src="${safeImgUrl(currentLogo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
-    : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${_pfEsc((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
+    : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;">${escHtml((team?.ini||team?.name||'?').slice(0,3).toUpperCase())}</span>`;
   const titlesBadge = titlesTotal > 0
     ? `<span class="pp-titles-badge" title="${titlesTotal} título${titlesTotal===1?'':'s'} en el club">×${titlesTotal}</span>`
     : '';
 
   // ── Header con gradiente del club ────────────────────────────
   const _pipLetter = { w:'V', d:'E', l:'D' };
-  const hdrHtml = `<div class="pp-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
+  const hdrHtml = `<div class="pp-hdr" style="--team-color:${escHtml(tc)};--team-color-2:${escHtml(tc2)};">
     <div class="pp-id">
       ${team ? `
         <label for="profile-logo-file" style="position:relative;display:block;${locked?'':'cursor:pointer;'}" title="${locked?'Bloqueado':'Cambiar escudo'}">
-          <div class="pp-crest" id="profile-logo-preview" style="background:${_pfEsc(tc)};">${crestContent}</div>
+          <div class="pp-crest" id="profile-logo-preview" style="background:${escHtml(tc)};">${crestContent}</div>
           ${titlesBadge}
         </label>
         <input type="file" id="profile-logo-file" accept="image/*" style="display:none;" ${locked?'disabled':''} onchange="profileSelectLogo(this)">
@@ -253,10 +249,10 @@ async function renderProfileBody(){
         <input type="file" id="profile-avatar-file" accept="image/*" style="display:none;" onchange="profileSelectAvatar(this)">
       `}
       <div>
-        <div class="pp-club">${_pfEsc(team?.name || name)}</div>
+        <div class="pp-club">${escHtml(team?.name || name)}</div>
         <div class="pp-user">
-          ${_pfEsc(username ? '@'+username : email.split('@')[0])}
-          <span class="pp-role">${_pfEsc(roleLbl)}</span>
+          ${escHtml(username ? '@'+username : email.split('@')[0])}
+          <span class="pp-role">${escHtml(roleLbl)}</span>
         </div>
       </div>
     </div>
@@ -279,9 +275,9 @@ async function renderProfileBody(){
       <span class="pp-line-label">Vitrina</span>
       <div class="pp-vitrina-chips">
         ${vitrinaChips.map(c => `
-          <div class="pp-vitrina-chip" style="--chip-color:${_pfEsc(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
+          <div class="pp-vitrina-chip" style="--chip-color:${escHtml(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
             <span class="pp-vitrina-chip-trophy">${renderTrophy(c.key, 22)}</span>
-            <span class="pp-vitrina-chip-label">${_pfEsc(c.comp.label||c.key)}</span>
+            <span class="pp-vitrina-chip-label">${escHtml(c.comp.label||c.key)}</span>
             <span class="pp-vitrina-chip-n">×${c.n}</span>
           </div>`).join('')}
       </div>
@@ -313,7 +309,7 @@ async function renderProfileBody(){
     </button>
     <div id="profile-club-section" class="pp-disclosure" hidden>
       ${locked ? `<div class="pp-lock"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>El administrador bloqueó la edición del club.</span></div>` : ''}
-      <div class="form-group" style="margin:0;"><label for="profile-team-name">Nombre del club</label><input type="text" id="profile-team-name" maxlength="40" value="${_pfEsc(team.name||'')}" ${locked?'disabled':''}></div>
+      <div class="form-group" style="margin:0;"><label for="profile-team-name">Nombre del club</label><input type="text" id="profile-team-name" maxlength="40" value="${escHtml(team.name||'')}" ${locked?'disabled':''}></div>
     </div>`;
   } else {
     if(AUTH.role==='president') bd += '<div class="pp-empty">Aún no tienes un club vinculado. Pídele al administrador que te asigne tu equipo.</div>';
@@ -333,11 +329,11 @@ async function renderProfileBody(){
       <input type="file" id="profile-avatar-file" accept="image/*" hidden onchange="profileSelectAvatar(this)">
       <span>Foto de perfil personal</span>
     </div>` : ''}
-    <div class="form-group" style="margin:0;"><label for="profile-name">Nombre para mostrar</label><input type="text" id="profile-name" value="${_pfEsc(name)}"></div>
+    <div class="form-group" style="margin:0;"><label for="profile-name">Nombre para mostrar</label><input type="text" id="profile-name" value="${escHtml(name)}"></div>
     <div class="form-group" style="margin:0;"><label for="profile-username">Nombre de usuario</label>
-      <div class="pp-at-input"><span aria-hidden="true">@</span><input type="text" id="profile-username" value="${_pfEsc(username)}" placeholder="nombre_usuario" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"></div>
+      <div class="pp-at-input"><span aria-hidden="true">@</span><input type="text" id="profile-username" value="${escHtml(username)}" placeholder="nombre_usuario" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"></div>
     </div>
-    <div class="pp-email-status">${_pfEsc(email)} ${verified
+    <div class="pp-email-status">${escHtml(email)} ${verified
       ? `<span class="pp-verified"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>verificado</span>`
       : `<span class="pp-unverified">sin verificar</span><button class="btn btn-xs" onclick="profileResendVerification()">Verificar</button>`}
     </div>
@@ -1012,14 +1008,14 @@ function _champPhotosBodyHTML(groups, isAdmin = AUTH.role === 'admin'){
         </div>`
       : `<div class="champ-photos-grid">
         ${g.items.map((it, ii) => `
-          <button type="button" class="champ-thumb" onclick="openPhotoViewer(${gi},${ii},this)" aria-label="Ampliar foto${it.alt ? ': '+_pfEsc(it.alt) : ''}">
-            <img src="${_pfEsc(it.url)}" alt="${_pfEsc(it.alt)}" loading="lazy">
+          <button type="button" class="champ-thumb" onclick="openPhotoViewer(${gi},${ii},this)" aria-label="Ampliar foto${it.alt ? ': '+escHtml(it.alt) : ''}">
+            <img src="${escHtml(it.url)}" alt="${escHtml(it.alt)}" loading="lazy">
           </button>`).join('')}
       </div>`;
     return `<div class="champ-photos-group">
       <div class="champ-photos-group-hdr">
         <span class="champ-photos-group-trophy">${renderTrophy(g.rec.competition, 20)}</span>
-        <span class="champ-photos-group-label">${_pfEsc(g.comp.label || g.rec.competition)}${when ? ` · ${_pfEsc(when)}` : ''}</span>
+        <span class="champ-photos-group-label">${escHtml(g.comp.label || g.rec.competition)}${when ? ` · ${escHtml(when)}` : ''}</span>
         ${editBtn}
       </div>
       ${body}
@@ -1357,7 +1353,7 @@ async function _renderClubDossierBody(team, publicView=false){
   const tc  = _palmIsHex(team.color)  ? team.color  : '#1a1a2e';
   const tc2 = _palmIsHex(team.color2) ? team.color2 : tc;
   const crestContent = safeImgUrl(team.logo) ? `<img src="${safeImgUrl(team.logo)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" alt="">`
-    : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${_pfEsc((team.ini||team.name||'?').slice(0,3).toUpperCase())}</span>`;
+    : `<span style="font-family:'Bebas Neue';font-size:22px;color:#fff;">${escHtml((team.ini||team.name||'?').slice(0,3).toUpperCase())}</span>`;
 
   const [stats, teamTitles, seasonSpots] = await Promise.all([
     // Se sigue llamando: Rivalidades sale de stats.rivals (misma pasada,
@@ -1374,9 +1370,9 @@ async function _renderClubDossierBody(team, publicView=false){
   const vitrinaChips = _pfVitrinaChips(teamTitles);
   const { show: showPhotosBtn, label: photosBtnLabel } = _pfPhotosButtonState(teamTitles);
 
-  const hdrHtml = `<div class="dossier-hdr" style="--team-color:${_pfEsc(tc)};--team-color-2:${_pfEsc(tc2)};">
-    <div class="dossier-crest" style="background:${_pfEsc(tc)};">${crestContent}</div>
-    <div class="dossier-club-name">${_pfEsc(team.name||'')}</div>
+  const hdrHtml = `<div class="dossier-hdr" style="--team-color:${escHtml(tc)};--team-color-2:${escHtml(tc2)};">
+    <div class="dossier-crest" style="background:${escHtml(tc)};">${crestContent}</div>
+    <div class="dossier-club-name">${escHtml(team.name||'')}</div>
   </div>`;
 
   let bd = '';
@@ -1387,9 +1383,9 @@ async function _renderClubDossierBody(team, publicView=false){
       <span class="pp-line-label">Palmarés</span>
       <div class="pp-vitrina-chips">
         ${vitrinaChips.map(c => `
-          <div class="pp-vitrina-chip" style="--chip-color:${_pfEsc(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
+          <div class="pp-vitrina-chip" style="--chip-color:${escHtml(_palmIsHex(c.comp.color)?c.comp.color:'#DAA520')};">
             <span class="pp-vitrina-chip-trophy">${renderTrophy(c.key, 22)}</span>
-            <span class="pp-vitrina-chip-label">${_pfEsc(c.comp.label||c.key)}</span>
+            <span class="pp-vitrina-chip-label">${escHtml(c.comp.label||c.key)}</span>
             <span class="pp-vitrina-chip-n">×${c.n}</span>
           </div>`).join('')}
       </div>
@@ -1409,7 +1405,7 @@ async function _renderClubDossierBody(team, publicView=false){
       <div class="dossier-rivals">
         ${stats.rivals.map(r => `
           <div class="dossier-rival-row">
-            <span class="dossier-rival-name">${_pfEsc(r.name)}</span>
+            <span class="dossier-rival-name">${escHtml(r.name)}</span>
             <span class="dossier-rival-record">
               <b class="w" title="Victorias">${r.W}</b><b class="d" title="Empates">${r.D}</b><b class="l" title="Derrotas">${r.L}</b>
               <span class="dossier-rival-p">${r.P} PJ</span>
@@ -1436,14 +1432,14 @@ async function _renderClubDossierBody(team, publicView=false){
       <div class="dossier-spots">
         ${seasonSpots.spots.map(s => `
           <div class="dossier-spot-row">
-            <span class="dossier-spot-comp">${_pfEsc(s.compName)} · ${_pfEsc(s.groupLabel)}</span>
+            <span class="dossier-spot-comp">${escHtml(s.compName)} · ${escHtml(s.groupLabel)}</span>
             <span class="dossier-spot-pos">${s.pos}<span class="dossier-spot-total">/${s.total}</span></span>
           </div>`).join('')}
       </div>
       ${seasonSpots.nextMatch ? `<div class="dossier-next-match-row">
         <span class="dossier-next-match-label">Próximo</span>
-        <span class="dossier-next-match-opp">${seasonSpots.nextMatch.isHome ? 'vs' : '@'} ${_pfEsc(seasonSpots.nextMatch.oppName)}</span>
-        <span class="dossier-next-match-date">${_pfEsc(_pfFormatScheduledDate(seasonSpots.nextMatch.date))}</span>
+        <span class="dossier-next-match-opp">${seasonSpots.nextMatch.isHome ? 'vs' : '@'} ${escHtml(seasonSpots.nextMatch.oppName)}</span>
+        <span class="dossier-next-match-date">${escHtml(_pfFormatScheduledDate(seasonSpots.nextMatch.date))}</span>
       </div>` : ''}
     </div>`;
   }

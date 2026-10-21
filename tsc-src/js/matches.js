@@ -1,4 +1,3 @@
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ----------------------------------------------------------
    Guardas de escritura (MS-5.5)
@@ -125,7 +124,7 @@ async function renderAdmMatches(){
   const compOpts = compsSorted.map(c=>{
     const cphases = phasesByComp[c.id]||[];
     if(!cphases.length) return '';
-    return `<optgroup label="${_esc(c.name)}">${cphases.map(p=>`<option value="${p.id}">${_esc(p.name)}</option>`).join('')}</optgroup>`;
+    return `<optgroup label="${escHtml(c.name)}">${cphases.map(p=>`<option value="${p.id}">${escHtml(p.name)}</option>`).join('')}</optgroup>`;
   }).join('');
 
   el.innerHTML = `
@@ -320,9 +319,9 @@ async function renderMatchesList(phaseId, groupIdx, containerId, showDelete=fals
          </td>`
       : `<td style="width:104px;"></td>`;
     return `<tr${isLive?' style="background:rgba(239,68,68,0.06);"':''}>
-      <td style="text-align:right;font-weight:500;padding:9px 14px;${fA}">${_esc(teamAName)}</td>
+      <td style="text-align:right;font-weight:500;padding:9px 14px;${fA}">${escHtml(teamAName)}</td>
       <td style="text-align:center;width:80px;padding:0 4px;">${scoreCell}</td>
-      <td style="font-weight:500;padding:9px 14px;${fB}">${_esc(teamBName)}</td>
+      <td style="font-weight:500;padding:9px 14px;${fB}">${escHtml(teamBName)}</td>
       ${timeCell}
       ${showDel?`<td style="width:28px;"><button class="btn btn-xs btn-danger" title="Eliminar partido" aria-label="Eliminar partido" onclick="deleteMatch(${m.id})">${_ICON_X}</button></td>`:''}
     </tr>`;
@@ -408,7 +407,7 @@ async function showMatchGroupTable(phaseId, groupIdx){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;margin-bottom:10px;">
         <div class="section-lbl" style="margin:0;">Fechas</div>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-sm" onclick="openFixtureGenModal(${phaseId},${groupIdx})" ${genLock?`disabled style="opacity:0.5;cursor:not-allowed;" title="${_esc(genLock)}"`:`title="Genera todas las fechas del grupo de una vez (todos contra todos, sin repetir rival)"`}>${genIcon} Generar fechas</button>
+          <button class="btn btn-sm" onclick="openFixtureGenModal(${phaseId},${groupIdx})" ${genLock?`disabled style="opacity:0.5;cursor:not-allowed;" title="${escHtml(genLock)}"`:`title="Genera todas las fechas del grupo de una vez (todos contra todos, sin repetir rival)"`}>${genIcon} Generar fechas</button>
           <button class="btn btn-sm btn-primary" onclick="openRondaModal(${phaseId},${groupIdx})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>+ Crear fecha</button>
         </div>
       </div>
@@ -875,7 +874,7 @@ function renderRondaModalContent(){
     const optsB = ['<option value="">— Visita —</option>'];
     st.teamIds.forEach(tid=>{
       const tName = st.nameOf(tid);
-      const tEsc = String(tName).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const tEsc = escHtml(tName);
       // Disponible para Local de este slot: no usado en otros slots ni libre, o es el propio
       const usedElsewhere = (st.slots.some((s2,i2)=>i2!==idx && (s2.a===tid||s2.b===tid))) || (st.libre===tid);
       const isPickedHere = slot.a===tid;
@@ -948,7 +947,7 @@ function renderRondaModalContent(){
     const optsLibre = ['<option value="">— Selecciona —</option>'];
     st.teamIds.forEach(tid=>{
       const tName = st.nameOf(tid);
-      const tEsc = String(tName).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const tEsc = escHtml(tName);
       const usedInSlot = st.slots.some(s=>s.a===tid||s.b===tid);
       const isPicked = st.libre===tid;
       const byeBlocked = !isPicked

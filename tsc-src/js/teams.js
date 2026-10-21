@@ -2,7 +2,6 @@
    PARTE 2 — MÓDULO DE EQUIPOS
    ========================================================== */
 
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ----------------------------------------------------------
    RENDER ADMIN — EQUIPOS
@@ -72,13 +71,12 @@ function renderTeamsTable(teams){
     if(!tcMap) return [];
     return (tcMap instanceof Map) ? (tcMap.get(tid)||[]) : (tcMap[tid]||[]);
   };
-  const escTxt = (v)=>String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   tbody.innerHTML = teams.map((t,i)=>{
     const comps = compsOf(t.id);
     const chips = comps.length
       ? `<div style="display:flex;gap:3px;flex-wrap:wrap;">` + comps.map(c=>{
-          const safeName = escTxt(c.name);
+          const safeName = escHtml(c.name);
           const color = c.color || 'var(--gold)';
           return `<span title="${safeName}" style="font-size:10px;font-weight:600;color:${color};background:${color}22;border:1px solid ${color}44;border-radius:3px;padding:1px 6px;line-height:1.4;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;">● ${safeName}</span>`;
         }).join('') + `</div>`
@@ -96,7 +94,7 @@ function renderTeamsTable(teams){
       </td>
       <td style="font-weight:600;">${escHtml(t.name)}</td>
       <td><span class="badge badge-gray">${escHtml(t.ini||'—')}</span></td>
-      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escTxt(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
+      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escHtml(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td>
         <span class="badge ${t.status==='ACTIVO'?'badge-green':'badge-gray'}">
           ${t.status||'ACTIVO'}
@@ -133,7 +131,6 @@ async function openTeamModal(id=null){
   const _presUsers = (typeof loadUsersForSelect==='function') ? await loadUsersForSelect() : [];
   const _presMyUid = (typeof AUTH!=='undefined' && AUTH.user) ? AUTH.user.uid : null;   // la regla exime al admin solo en su propia cuenta
   const _presLinkedUid = id ? (_presUsers.find(u=>u.teamId===id)?.uid || '') : '';
-  const _presEsc = (v)=>String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="team-modal">
@@ -183,7 +180,7 @@ async function openTeamModal(id=null){
           ${_presUsers.length
             ? `<select id="tf-pres-uid" style="width:100%;padding:9px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:15px;">
                  <option value="">— sin presidente —</option>
-                 ${_presUsers.map(u=>`<option value="${escAttr(u.uid)}" ${u.uid===_presLinkedUid?'selected':''} ${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?'disabled':''}>${_presEsc(u.name)}${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?' · email sin verificar':''}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
+                 ${_presUsers.map(u=>`<option value="${escAttr(u.uid)}" ${u.uid===_presLinkedUid?'selected':''} ${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?'disabled':''}>${escHtml(u.name)}${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?' · email sin verificar':''}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
                </select>
                <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Se asigna la cuenta del suscriptor; el vínculo es la fuente de verdad (no texto libre).</div>`
             : `<input type="text" id="tf-pres" value="${escAttr(team?.pres||'')}" placeholder="Nombre del suscriptor">
@@ -616,7 +613,7 @@ function _pubTeamCardHtml(t){
   const titles = window._pubTeamTitles || new Map();
   const c1 = _col(t.color), c2 = _col(t.color2 || t.color);
   const crest = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" loading="lazy">`
-    : `${_esc(t.ini||'?')}`;
+    : `${escHtml(t.ini||'?')}`;
   const s = stats[t.id] || {pj:0,v:0,recent:[]};
   const winPct = s.pj>0 ? Math.round(s.v/s.pj*100) : 0;
   const tit = (titles.get(t.id)?._total) || 0;
@@ -630,10 +627,10 @@ function _pubTeamCardHtml(t){
         role="button" tabindex="0"
         onclick="_pubTeamCardOpen(${t.id}, this)"
         onkeydown="_pubTeamCardKeydown(event, ${t.id})"
-        aria-label="Ver ficha de ${_esc(t.name)}">
+        aria-label="Ver ficha de ${escHtml(t.name)}">
         <div class="club-band">
           <div class="club-crest">${crest}</div>
-          <div class="club-name">${_esc(t.name)}</div>
+          <div class="club-name">${escHtml(t.name)}</div>
         </div>
         <div class="club-body">
           <div class="club-stats">

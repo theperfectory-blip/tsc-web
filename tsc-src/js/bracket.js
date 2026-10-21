@@ -1072,13 +1072,12 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
       +'</div>';
   }
 
-  function _bkEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function ini(n){ return n ? _bkEsc(n.substring(0,3).toUpperCase()) : '?'; }
+  function ini(n){ return n ? escHtml(n.substring(0,3).toUpperCase()) : '?'; }
 
   // data-team-id: loadBracketLogos pinta el escudo buscando por id de equipo
   // (H-27: antes buscaba el nombre dentro del id del elemento, que no lo tiene).
   function logoCircle(id, name, teamId){
-    return '<div id="'+id+'"'+(teamId!=null?' data-team-id="'+_bkEsc(teamId)+'"':'')+' style="width:34px;height:34px;border-radius:50%;background:var(--card2);border:2px solid var(--brd2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\';font-size:9px;font-weight:700;color:var(--txt3);">'+ini(name)+'</div>';
+    return '<div id="'+id+'"'+(teamId!=null?' data-team-id="'+escHtml(teamId)+'"':'')+' style="width:34px;height:34px;border-radius:50%;background:var(--card2);border:2px solid var(--brd2);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\';font-size:9px;font-weight:700;color:var(--txt3);">'+ini(name)+'</div>';
   }
 
   function teamRow(logoId, teamId, score, isWin, isTbd, label, clickFn){
@@ -1091,7 +1090,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'+bdr+bg+op+cur+'transition:background 0.1s;" '
       +(clickFn?'onclick="'+clickFn+'"':'')+'>'
       +logoCircle(logoId, name, teamId)
-      +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:15px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+_bkEsc(txt)+'</span>'
+      +'<span style="flex:1;font-family:\'Barlow Condensed\';font-size:15px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+escHtml(txt)+'</span>'
       +'<span style="font-family:\'Bebas Neue\';font-size:20px;min-width:22px;text-align:right;color:'+(isWin?'var(--gold)':'var(--txt3)')+';">'+score+'</span>'
       +'</div>';
   }
@@ -1190,7 +1189,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
         var bdg=isWin?'<span class="badge badge-gold" style="flex-shrink:0;">✓'+(byAway?'<span style="font-size:9px;letter-spacing:0px;">v</span>':'')+'</span>':'';
         return '<div style="display:flex;align-items:center;gap:6px;padding:7px 10px;'+(isWin?'border-left:3px solid var(--gold);background:rgba(201,168,76,0.09);':'border-left:3px solid transparent;')+(isTbd?'opacity:0.4;':'')+(cfn?'cursor:pointer;':'')+'"'+(cfn?' onclick="'+cfn+'"':'')+' >'
           +logoCircle(lid,nm,tid)
-          +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+_bkEsc(tx)+'</span>'
+          +'<span style="font-family:\'Barlow Condensed\';font-size:14px;font-weight:'+(isWin?700:600)+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:'+(isTbd?'var(--txt3)':'var(--txt)')+';">'+escHtml(tx)+'</span>'
           +bdg
           +'<span style="flex:1;"></span>'
           +scoreHtml
@@ -1267,7 +1266,7 @@ function renderBracketHTML(phase, rounds, slots, matchMap, isAdmin, finalSingle,
   var champSection = champ
     ? '<div style="text-align:center;margin-top:24px;padding-bottom:8px;">'+trophyHTML
       +'<div style="font-family:\'Barlow Condensed\';font-size:13px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;margin-top:10px;">Campe&oacute;n</div>'
-      +'<div style="font-family:\'Bebas Neue\';font-size:34px;letter-spacing:2px;color:var(--txt);line-height:1;">'+_bkEsc(champ)+'</div></div>'
+      +'<div style="font-family:\'Bebas Neue\';font-size:34px;letter-spacing:2px;color:var(--txt);line-height:1;">'+escHtml(champ)+'</div></div>'
     : '<div style="text-align:center;margin-top:24px;padding-bottom:8px;opacity:0.5;">'+trophyHTML
       +'<div style="font-family:\'Barlow Condensed\';font-size:12px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase;margin-top:10px;">Campe&oacute;n por definir</div></div>';
 
@@ -1451,17 +1450,16 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
     const groupSize= groups[selGroupIdx]?.length || (selPhase?.config?.teamsPerGroup||8);
     const playoffMatchups = getPlayoffMatchupsCount(selPlayoff);
 
-    const _escOpt = v => String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const compOpts = compsWithGroups.map(c=>
-      `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${_escOpt(c.name)}${c.id===phase.compId?' (esta competición)':''}</option>`
+      `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${escHtml(c.name)}${c.id===phase.compId?' (esta competición)':''}</option>`
     ).join('');
     const phaseOpts = groupPhases.map(p=>
-      `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${_escOpt(p.name)}</option>`
+      `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${escHtml(p.name)}</option>`
     ).join('');
     const playoffOpts = playoffPhases.map(p=>{
       const compName = competitions.find(c=>c.id===p.compId)?.name || 'Sin competición';
       const mCount = getPlayoffMatchupsCount(p);
-      return `<option value="${p.id}" ${p.id===selPlayoffPhaseId?'selected':''}>${_escOpt(compName)} → ${_escOpt(p.name)} (${mCount} cruce${mCount===1?'':'s'})</option>`;
+      return `<option value="${p.id}" ${p.id===selPlayoffPhaseId?'selected':''}>${escHtml(compName)} → ${escHtml(p.name)} (${mCount} cruce${mCount===1?'':'s'})</option>`;
     }).join('');
 
     const groupOpts = Array.from({length:nGroups},(_,i)=>`
@@ -1488,7 +1486,7 @@ async function openSlotRefModal(phaseId, slotIdx, side, targetType='bracket'){
       selTeamId = availTeams[0]?.id ?? null;
     }
     const teamOpts = availTeams.map(t=>{
-      const nm = String(t.name||('#'+t.id)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const nm = escHtml(t.name||('#'+t.id));
       return `<option value="${t.id}" ${t.id===selTeamId?'selected':''}>${nm}</option>`;
     }).join('');
 

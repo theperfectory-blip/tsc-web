@@ -12,9 +12,6 @@ let AUTH = { user: null, role: 'public', teamId: null, profile: null };
 let _authMode = 'signin';     // 'signin' | 'signup'
 let _pendingSignupName = null; // nombre escrito en el registro (evita carrera con updateProfile)
 
-function _authEsc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 function _usersCol(){ return firebase.firestore().collection('users'); }
 function isAdmin(){ return AUTH.role === 'admin'; }
 function isPresident(){ return AUTH.role === 'president'; }
@@ -117,7 +114,7 @@ async function authForgotPassword(){
     // Aviso persistente con advertencia de SPAM (no se cierra el modal)
     errEl.style.color = '';
     errEl.innerHTML = `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:10px;color:var(--txt);text-align:left;line-height:1.45;font-size:13px;">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Te enviamos un correo a <b>${_authEsc(email)}</b>.<br>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Te enviamos un correo a <b>${escHtml(email)}</b>.<br>
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <b>Revisa tu carpeta de SPAM</b> / correo no deseado si no lo ves en unos minutos.</div>`;
     showToast('Correo enviado · revisa tu carpeta de SPAM');
   } catch(e){

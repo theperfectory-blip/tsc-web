@@ -116,7 +116,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-19 | `importDB` en modo sobrescribir borra registro por registro, sin atomicidad: si falla a mitad, la base queda medio vacía (`data.js:145`). **Cerrado en 5.13** (copia previa descargada, escribir antes de borrar, lotes con reversión) |
 | H-20 | En `dist`, un error al cargar un módulo corta el resto de su bundle; antes solo cortaba ese archivo. Hoy no se verifica `dist` |
 | H-21 | No hay entorno aislado: los flujos de escritura del admin no se pueden probar sin riesgo |
-| H-22 | Unas 20 copias de la función de escape; 8 de ellas se llaman `_esc` y comparten el scope global |
+| H-22 | Unas 20 copias de la función de escape; 8 de ellas se llaman `_esc` y comparten el scope global **Cerrado en 7.1.** |
 | H-23 | Si el SDK de Firebase no carga, `USE_FIRESTORE` queda en `false`. Hay que verificar si en ese caso la app corre sobre un IndexedDB local vacío y `seedInitialData` siembra 60 equipos falsos (`ui-utils.js:628`) |
 | H-24 | Assets: 75 MB en `tsc-src/assets` (trofeos `.glb`, `palmares_theme.mp3` de 4,7 MB, PNG de 1,6 a 2,2 MB con su par `.webp` ya generado) |
 | H-25 | `functions/` declara Node 20, que está fuera de soporte desde 2026-04-30. **Cerrado en 6.1** (Node 22, deps sin vulnerabilidades; falta el deploy, M-9) |
@@ -684,6 +684,8 @@ sandbox de 2.1.**
 | 7.4 | Assets: inventario de referencias; borrar lo que nadie usa (PNG con su `.webp` ya en uso, trofeos no referenciados); comprimir el mp3 | H-24 |
 | 7.5 | (Largo plazo, opcional) Pasar los handlers inline a delegación de eventos, para poder quitar `'unsafe-inline'` de la CSP | H-05 |
 | 7.6 | Cierre documental: `SECURITY.md`, `README.md`, `CONTRIBUTING.md`, `AGENTS.md`/`CLAUDE.md`, grafo regenerado y reporte final del macro | — |
+
+> **Estado 7.1:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.1.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas. H-22 cerrado: 21 copias del escape reemplazadas por `escHtml`/`escAttr` de `sanitize.js` (`escAttr` suma el acento grave que escapaba `_escAttr` de palmarés).
 
 ---
 

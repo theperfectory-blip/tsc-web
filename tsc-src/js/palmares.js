@@ -1030,10 +1030,10 @@ async function renderAdmPalmares(){
         <div class="palm-vig-item">
           <div class="palm-vig-trophy">${renderTrophy(s.comp.key, 28)}</div>
           <div class="palm-vig-text">
-            <div class="palm-vig-comp">${_esc(s.comp.label)}</div>
+            <div class="palm-vig-comp">${escHtml(s.comp.label)}</div>
             <div class="palm-vig-eff">
-              ${effPending ? `<span class="palm-vig-dot" style="background:var(--gold);"></span>¿? — Campeón por definir${effExtras?` · ${_esc(effExtras)}`:''}`
-                : effTeam ? `<span class="palm-vig-dot" style="background:${_escAttr(_palmIsHex(effTeam.color)?effTeam.color:'#888888')}"></span>${_esc(effTeam.name)}${effExtras?` · ${_esc(effExtras)}`:''}`
+              ${effPending ? `<span class="palm-vig-dot" style="background:var(--gold);"></span>¿? — Campeón por definir${effExtras?` · ${escHtml(effExtras)}`:''}`
+                : effTeam ? `<span class="palm-vig-dot" style="background:${escAttr(_palmIsHex(effTeam.color)?effTeam.color:'#888888')}"></span>${escHtml(effTeam.name)}${effExtras?` · ${escHtml(effExtras)}`:''}`
                 : '<span style="color:var(--txt3);">sin campeón</span>'}
             </div>
           </div>
@@ -1042,15 +1042,15 @@ async function renderAdmPalmares(){
             const galleryCount = _palmGallerySafeItems(r.gallery).length;
             return `
             <div class="palm-vig-pending" style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px dashed var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${_esc(extras)}`:''}</span>
+              <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${escHtml(extras)}`:''}</span>
               <span style="display:flex;gap:6px;">
-                <button class="btn btn-xs" onclick="openPalmaresGallery(${_escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
-                <button class="btn btn-xs btn-primary" onclick="openPalmaresEditRecord(${_escAttr(JSON.stringify(r.id))})">Definir campeón</button>
-                <button class="btn btn-xs btn-danger" onclick="deletePendingPalmaresRecord(${_escAttr(JSON.stringify(r.id))}, '${_escAttr(s.comp.key)}')">Quitar</button>
+                <button class="btn btn-xs" onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                <button class="btn btn-xs btn-primary" onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Definir campeón</button>
+                <button class="btn btn-xs btn-danger" onclick="deletePendingPalmaresRecord(${escAttr(JSON.stringify(r.id))}, '${escAttr(s.comp.key)}')">Quitar</button>
               </span>
             </div>`;
           }).join('')}
-          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg> Ordenar campeones</button>` : ''}
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg> Ordenar campeones</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1061,7 +1061,7 @@ async function renderAdmPalmares(){
       <thead>
         <tr>
           <th class="head-teams">Clubes campeones</th>
-          ${PALMARES_COMPS.map(c => `<th class="head-comp"><div class="head-comp-inner">${renderTrophy(c.key, 22)}<span>${_esc(c.label)}</span></div></th>`).join('')}
+          ${PALMARES_COMPS.map(c => `<th class="head-comp"><div class="head-comp-inner">${renderTrophy(c.key, 22)}<span>${escHtml(c.label)}</span></div></th>`).join('')}
           <th class="head-total">Total</th>
           <th class="head-actions"></th>
         </tr>
@@ -1073,15 +1073,15 @@ async function renderAdmPalmares(){
               <tr>
                 <td class="cell-team">
                   <div class="team-cell">
-                    <div class="team-logo" style="background:${_escAttr(_palmIsHex(team.color)?team.color:'#333333')};">
-                      ${safeImgUrl(team.logo) ? `<img src="${safeImgUrl(team.logo)}" alt="">` : `<span>${_esc(team.ini || team.name.substring(0,3))}</span>`}
+                    <div class="team-logo" style="background:${escAttr(_palmIsHex(team.color)?team.color:'#333333')};">
+                      ${safeImgUrl(team.logo) ? `<img src="${safeImgUrl(team.logo)}" alt="">` : `<span>${escHtml(team.ini || team.name.substring(0,3))}</span>`}
                     </div>
-                    <span class="team-name">${_esc(team.name)}</span>
+                    <span class="team-name">${escHtml(team.name)}</span>
                   </div>
                 </td>
                 ${PALMARES_COMPS.map(c => {
                   const n = counts[c.key] || 0;
-                  return `<td class="cell-count ${n>0?'has':'zero'}" onclick="openPalmaresCellEdit(${team.id}, '${_escAttr(c.key)}')">${n>0?`<span class="big-n">${n}</span>`:''}</td>`;
+                  return `<td class="cell-count ${n>0?'has':'zero'}" onclick="openPalmaresCellEdit(${team.id}, '${escAttr(c.key)}')">${n>0?`<span class="big-n">${n}</span>`:''}</td>`;
                 }).join('')}
                 <td class="cell-total">${counts._total}</td>
                 <td class="cell-actions"><button class="btn btn-xs" onclick="openPalmaresAddModal(${team.id})">+ Título</button></td>
@@ -1103,7 +1103,7 @@ async function openPalmaresReorder(compKey){
   <div class="modal-overlay open" id="palmares-reorder-modal">
     <div class="modal" style="max-width:460px;">
       <div class="modal-hdr">
-        <div class="modal-title">Ordenar · ${_esc(comp?.label || compKey)}</div>
+        <div class="modal-title">Ordenar · ${escHtml(comp?.label || compKey)}</div>
         <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
       </div>
       <div class="modal-body">
@@ -1122,12 +1122,12 @@ function _palmReorderListHTML(list, teamById){
     const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
     const isVig = i === 0;
     return `<div class="palm-reorder-row${isVig?' is-vigente':''}" data-id="${r.id}" tabindex="0"
-        onkeydown="_palmReorderKeydown(event,'${_escAttr(r.competition)}',${r.id})">
+        onkeydown="_palmReorderKeydown(event,'${escAttr(r.competition)}',${r.id})">
       <span class="palm-reorder-handle" aria-hidden="true"
-        onpointerdown="_palmReorderPointerDown(event,'${_escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
+        onpointerdown="_palmReorderPointerDown(event,'${escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
       <span class="palm-reorder-pos">${i+1}</span>
-      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (safeImgUrl(t?.logo) ? `<img src="${safeImgUrl(t?.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3)))}</span>
-      <span class="palm-reorder-name">${_esc(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
+      <span class="palm-reorder-crest" style="background:${escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (safeImgUrl(t?.logo) ? `<img src="${safeImgUrl(t?.logo)}" alt="">` : escHtml((t?.ini || t?.name || '?').slice(0,3)))}</span>
+      <span class="palm-reorder-name">${escHtml(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${escHtml(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
     </div>`;
   }).join('');
 }
@@ -1288,12 +1288,12 @@ async function openPalmaresAddModal(presetTeamId=null){
         <div class="form-group"><label>Equipo</label>
           <select id="palm-team">
             <option value="" ${presetTeamId?'':'selected'}>¿? — Campeón por definir</option>
-            ${teams.map(t => `<option value="${t.id}" ${t.id===presetTeamId?'selected':''}>${_esc(t.name)}</option>`).join('')}
+            ${teams.map(t => `<option value="${t.id}" ${t.id===presetTeamId?'selected':''}>${escHtml(t.name)}</option>`).join('')}
           </select>
           <small style="display:block;margin-top:4px;color:var(--txt3);">"¿? — Campeón por definir" deja el título pendiente: sirve para mostrar la copa en la Sala con signo de interrogación antes del último partido, y después se edita para poner el equipo real.</small>
         </div>
         <div class="form-group"><label>Competición</label>
-          <select id="palm-comp">${PALMARES_COMPS.map(c => `<option value="${_escAttr(c.key)}">${_esc(c.label)}</option>`).join('')}</select>
+          <select id="palm-comp">${PALMARES_COMPS.map(c => `<option value="${escAttr(c.key)}">${escHtml(c.label)}</option>`).join('')}</select>
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div><label>Temporada</label><input type="text" id="palm-season" placeholder="T1"></div>
@@ -1361,7 +1361,7 @@ async function openPalmaresCellEdit(teamId, compKey){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-cell-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">${_esc(team.name)} · ${_esc(comp.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">${escHtml(team.name)} · ${escHtml(comp.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div style="margin-bottom:12px;font-size:13px;color:var(--txt3);">${recs.length} título(s) registrado(s)</div>
         <div id="palm-cell-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;">
@@ -1371,16 +1371,16 @@ async function openPalmaresCellEdit(teamId, compKey){
                 const galleryCount = _palmGallerySafeItems(r.gallery).length;
                 const missing = [!r.season ? 'temporada' : '', !r.juego ? 'juego' : ''].filter(Boolean);
                 return `
-                <div class="palm-rec-row" data-id="${_escAttr(String(r.id))}">
+                <div class="palm-rec-row" data-id="${escAttr(String(r.id))}">
                   ${renderTrophy(comp.key, 22)}
                   <span class="palm-rec-meta">
-                    <span>${r.season ? `<b>${_esc(r.season)}</b>` : '<span class="palm-rec-missing">Sin temporada</span>'}${r.juego ? ` · <span>${_esc(r.juego)}</span>` : ''}${r.year ? ` · <small>${_esc(r.year)}</small>` : ''}</span>
-                    ${missing.length ? `<small class="palm-rec-warning">Registro incompleto: falta ${_esc(missing.join(' y '))}</small>` : ''}
+                    <span>${r.season ? `<b>${escHtml(r.season)}</b>` : '<span class="palm-rec-missing">Sin temporada</span>'}${r.juego ? ` · <span>${escHtml(r.juego)}</span>` : ''}${r.year ? ` · <small>${escHtml(r.year)}</small>` : ''}</span>
+                    ${missing.length ? `<small class="palm-rec-warning">Registro incompleto: falta ${escHtml(missing.join(' y '))}</small>` : ''}
                   </span>
                   <span class="palm-rec-actions">
-                    <button type="button" class="btn btn-xs" onclick="openPalmaresEditRecord(${_escAttr(JSON.stringify(r.id))})">Editar</button>
-                    <button type="button" class="btn btn-xs" onclick="openPalmaresGallery(${_escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
-                    <button type="button" class="btn btn-xs btn-danger" onclick="deletePalmaresRecord(${_escAttr(JSON.stringify(r.id))}, ${Number(teamId)}, '${_escAttr(compKey)}')">Quitar</button>
+                    <button type="button" class="btn btn-xs" onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Editar</button>
+                    <button type="button" class="btn btn-xs" onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                    <button type="button" class="btn btn-xs btn-danger" onclick="deletePalmaresRecord(${escAttr(JSON.stringify(r.id))}, ${Number(teamId)}, '${escAttr(compKey)}')">Quitar</button>
                   </span>
                 </div>`;
               }).join('')}
@@ -1391,7 +1391,7 @@ async function openPalmaresCellEdit(teamId, compKey){
             <div><label style="font-size:11px;color:var(--txt3);">Temporada</label><input type="text" id="palm-cell-season" placeholder="T1"></div>
             <div><label style="font-size:11px;color:var(--txt3);">Juego</label><input type="text" id="palm-cell-juego" placeholder="PES 4"></div>
             <div><label style="font-size:11px;color:var(--txt3);">Año</label><input type="number" id="palm-cell-year" placeholder="2024" min="1900" max="2100"></div>
-            <button class="btn btn-primary" onclick="addPalmaresRecord(${teamId}, '${_escAttr(compKey)}')">+ Agregar</button>
+            <button class="btn btn-primary" onclick="addPalmaresRecord(${teamId}, '${escAttr(compKey)}')">+ Agregar</button>
           </div>
         </div>
       </div>
@@ -1464,27 +1464,27 @@ async function openPalmaresEditRecord(recId){
       <div class="modal-body">
         <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           ${renderTrophy(rec.competition, 32)}
-          <div style="font:600 12px/1.3 'Barlow Condensed',sans-serif;letter-spacing:1px;color:var(--txt2);text-transform:uppercase;">${_esc(palmaresCompByKey(rec.competition)?.label || rec.competition)}</div>
+          <div style="font:600 12px/1.3 'Barlow Condensed',sans-serif;letter-spacing:1px;color:var(--txt2);text-transform:uppercase;">${escHtml(palmaresCompByKey(rec.competition)?.label || rec.competition)}</div>
         </div>
         <div class="form-group"><label>Equipo</label>
           <select id="palm-edit-team">
             <option value="" ${rec.teamId==null?'selected':''}>¿? — Campeón por definir</option>
-            ${teams.map(t => `<option value="${_escAttr(String(t.id))}" ${String(t.id)===String(rec.teamId)?'selected':''}>${_esc(t.name)}</option>`).join('')}
+            ${teams.map(t => `<option value="${escAttr(String(t.id))}" ${String(t.id)===String(rec.teamId)?'selected':''}>${escHtml(t.name)}</option>`).join('')}
           </select>
           ${rec.teamId==null ? '<small style="display:block;margin-top:4px;color:var(--txt3);">Elegí el equipo real para definir el campeón — deja de ser pendiente.</small>' : ''}
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div><label>Temporada</label><input type="text" id="palm-edit-season" placeholder="T1" value="${_escAttr(rec.season||'')}"></div>
-          <div><label>Juego</label><input type="text" id="palm-edit-juego" placeholder="PES 4" value="${_escAttr(rec.juego||'')}"></div>
+          <div><label>Temporada</label><input type="text" id="palm-edit-season" placeholder="T1" value="${escAttr(rec.season||'')}"></div>
+          <div><label>Juego</label><input type="text" id="palm-edit-juego" placeholder="PES 4" value="${escAttr(rec.juego||'')}"></div>
         </div>
         <div class="form-group">
           <label>Año <span style="opacity:.5;font-weight:400;">(opcional)</span></label>
-          <input type="number" id="palm-edit-year" placeholder="2024" min="1900" max="2100" value="${_escAttr(String(rec.year||''))}">
+          <input type="number" id="palm-edit-year" placeholder="2024" min="1900" max="2100" value="${escAttr(String(rec.year||''))}">
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePalmaresEditRecord(${_escAttr(JSON.stringify(rec.id))})">Guardar cambios</button>
+        <button class="btn btn-primary" onclick="savePalmaresEditRecord(${escAttr(JSON.stringify(rec.id))})">Guardar cambios</button>
       </div>
     </div>
   </div>`;
@@ -1564,10 +1564,10 @@ function _palmGalleryHTML(){
     ? state.items.map((item, index) => `
       <div class="palm-gallery-item" draggable="${state.saving?'false':'true'}" data-gallery-index="${index}"
         ondragstart="palmGalleryDragStart(${index})" ondragend="palmGalleryDragEnd()" ondragover="palmGalleryDragOver(event)" ondrop="palmGalleryDrop(event,${index})">
-        <img class="palm-gallery-thumb" src="${_escAttr(_palmCloudThumb(item.url, 160))}" alt="${_escAttr(item.alt)}">
+        <img class="palm-gallery-thumb" src="${escAttr(_palmCloudThumb(item.url, 160))}" alt="${escAttr(item.alt)}">
         <div class="palm-gallery-item-main">
           <label for="palm-gallery-alt-${index}">Texto alternativo</label>
-          <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${_escAttr(item.alt)}"
+          <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${escAttr(item.alt)}"
             oninput="palmGallerySyncAlt(${index},this.value)" ${state.saving?'disabled':''}>
         </div>
         <div class="palm-gallery-order">
@@ -1587,11 +1587,11 @@ function _palmGalleryHTML(){
       </div>`).join('')
     : '<div class="palm-gallery-empty">Este título todavía no tiene imágenes.</div>';
   const uploadRows = state.uploads.map(upload => `
-    <div class="palm-upload-row is-${_escAttr(upload.status)}">
-      <span class="palm-upload-name">${_esc(upload.name)}</span>
-      <span class="palm-upload-status">${_esc(_palmGalleryStatusLabel(upload.status))}${upload.error?`: ${_esc(upload.error)}`:''}</span>
+    <div class="palm-upload-row is-${escAttr(upload.status)}">
+      <span class="palm-upload-name">${escHtml(upload.name)}</span>
+      <span class="palm-upload-status">${escHtml(_palmGalleryStatusLabel(upload.status))}${upload.error?`: ${escHtml(upload.error)}`:''}</span>
       ${upload.status==='error' && upload.file
-        ? `<button type="button" class="btn btn-xs" onclick="palmGalleryRetry('${_escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
+        ? `<button type="button" class="btn btn-xs" onclick="palmGalleryRetry('${escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
         : ''}
     </div>`).join('');
   return `
@@ -1636,7 +1636,7 @@ async function openPalmaresGallery(recId){
     <div class="modal-overlay open" id="palmares-gallery-modal">
       <div class="modal palm-gallery-modal" role="dialog" aria-modal="true" aria-labelledby="palm-gallery-title">
         <div class="modal-hdr">
-          <div class="modal-title" id="palm-gallery-title">Imágenes · ${_esc(team?.name || 'Título')}</div>
+          <div class="modal-title" id="palm-gallery-title">Imágenes · ${escHtml(team?.name || 'Título')}</div>
           <button type="button" class="modal-close" aria-label="Cerrar administrador de imágenes" onclick="closePalmaresModals()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12"/><path d="m6 6 12 12"/></svg>
           </button>
@@ -1893,10 +1893,10 @@ async function openManagedCopaModal(){
               <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:6px;">
                 <div style="font-size:18px;">${renderTrophyByStyle(c.trophy, 22)}</div>
                 <div>
-                  <div style="font-weight:600;color:var(--txt1);">${_esc(c.label)}</div>
-                  <div style="font-size:11px;color:var(--txt3);">${_esc(c.short)} · ${_esc(c.trophy)}</div>
+                  <div style="font-weight:600;color:var(--txt1);">${escHtml(c.label)}</div>
+                  <div style="font-size:11px;color:var(--txt3);">${escHtml(c.short)} · ${escHtml(c.trophy)}</div>
                 </div>
-                <button class="btn btn-xs" onclick="openEditCopaModal('${_escAttr(c.key)}')">Editar</button>
+                <button class="btn btn-xs" onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
               </div>
             `).join('')}
           </div>
@@ -1910,11 +1910,11 @@ async function openManagedCopaModal(){
               <div style="display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:12px;padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:6px;">
                 <div style="font-size:18px;">${renderTrophyByStyle(c.trophy, 22)}</div>
                 <div>
-                  <div style="font-weight:600;color:var(--txt1);">${_esc(c.label)}</div>
-                  <div style="font-size:11px;color:var(--txt3);">${_esc(c.short)} · ${_esc(c.trophy)}</div>
+                  <div style="font-weight:600;color:var(--txt1);">${escHtml(c.label)}</div>
+                  <div style="font-size:11px;color:var(--txt3);">${escHtml(c.short)} · ${escHtml(c.trophy)}</div>
                 </div>
-                <button class="btn btn-xs" onclick="openEditCopaModal('${_escAttr(c.key)}')">Editar</button>
-                <button class="btn btn-xs btn-danger" onclick="deleteCopaAndRefresh('${_escAttr(c.key)}')">Eliminar</button>
+                <button class="btn btn-xs" onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
+                <button class="btn btn-xs btn-danger" onclick="deleteCopaAndRefresh('${escAttr(c.key)}')">Eliminar</button>
               </div>
             `).join('')}
           </div>
@@ -1953,7 +1953,7 @@ async function openEditCopaModal(key){
 
   const isPredefined = PALMARES_COMPS_DEFAULT.find(c => c.key === key);
   const resetBtn = isPredefined
-    ? `<button class="btn btn-xs" style="margin-left:auto;" onclick="resetCopaToDefault('${_escAttr(key)}')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restaurar original</button>`
+    ? `<button class="btn btn-xs" style="margin-left:auto;" onclick="resetCopaToDefault('${escAttr(key)}')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restaurar original</button>`
     : '';
   const noteText = '';
   const trophyStyles = getTrophyStyles();
@@ -1961,15 +1961,15 @@ async function openEditCopaModal(key){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="edit-copa-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">Editar copa: ${_esc(copa.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Editar copa: ${escHtml(copa.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         ${noteText}
         <div class="form-group">
           <label>Nombre de la copa</label>
-          <input type="text" id="edit-copa-label" placeholder="ej: Mi Copa Personalizada" value="${_esc(copa.label)}">
+          <input type="text" id="edit-copa-label" placeholder="ej: Mi Copa Personalizada" value="${escHtml(copa.label)}">
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div><label>Abreviatura</label><input type="text" id="edit-copa-short" placeholder="ej: MCP" maxlength="6" value="${_esc(copa.short)}"></div>
+          <div><label>Abreviatura</label><input type="text" id="edit-copa-short" placeholder="ej: MCP" maxlength="6" value="${escHtml(copa.short)}"></div>
           <div><label>Color</label><input type="color" id="edit-copa-color" value="${copa.color}"></div>
         </div>
         <div class="form-group">
@@ -1991,7 +1991,7 @@ async function openEditCopaModal(key){
       <div class="modal-footer" style="display:flex;gap:8px;align-items:center;">
         ${resetBtn}
         <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveEditCopa('${_escAttr(key)}')">Guardar cambios</button>
+        <button class="btn btn-primary" onclick="saveEditCopa('${escAttr(key)}')">Guardar cambios</button>
       </div>
     </div>
   </div>`;
@@ -2073,10 +2073,6 @@ async function _palmDuplicate(teamId, competition, season, selfId){
 function _palmDupMsg(season){ return `Ese equipo ya tiene un título de esa copa en la temporada ${season}`; }
 
 /* ---------------- Utils ---------------- */
-function _esc(s){
-  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function _escAttr(s){ return _esc(s).replace(/`/g,'&#96;'); }
 
 /* Wrap único para todos los modales del palmarés. Garantiza que admin y
    público compartan el mismo contenedor (evita el bug de IDs duplicados
@@ -2367,7 +2363,7 @@ function _palmVitrineShellHTML(){
   const rawMetal = _PALM_PUB.compData[_PALM_PUB.compIdx]?.comp?.color;
   const metal = _palmIsHex(rawMetal) ? rawMetal : '#DAA520';
   return `
-    <section class="mv" id="mv" style="--metal:${_escAttr(metal)};--metal-ink:${_escAttr(_palmMetalInk(rawMetal))}">
+    <section class="mv" id="mv" style="--metal:${escAttr(metal)};--metal-ink:${escAttr(_palmMetalInk(rawMetal))}">
       <div class="mv-head">
         <div class="mv-head-id">
           <span class="mv-head-ico" aria-hidden="true">${headIcon}</span>
@@ -2445,9 +2441,9 @@ function _palmVitrineNavHTML(){
   return _PALM_PUB.compData.map((entry, idx) => {
     const icon = _palmLineArt(renderTrophy(entry.comp.key, 36), 2.2);
     return `
-      <button class="mv-nav-row${idx === _PALM_PUB.compIdx ? ' on' : ''}" type="button" data-comp-idx="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${_escAttr(_palmMetalInk(entry.comp.color))}" aria-pressed="${idx === _PALM_PUB.compIdx ? 'true' : 'false'}">
+      <button class="mv-nav-row${idx === _PALM_PUB.compIdx ? ' on' : ''}" type="button" data-comp-idx="${idx}" style="--metal:${escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${escAttr(_palmMetalInk(entry.comp.color))}" aria-pressed="${idx === _PALM_PUB.compIdx ? 'true' : 'false'}">
         <span class="mv-nav-ico" aria-hidden="true">${icon}</span>
-        <span class="mv-nav-name">${_esc(entry.comp.label)}</span>
+        <span class="mv-nav-name">${escHtml(entry.comp.label)}</span>
         <svg class="mv-nav-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
       </button>
     `;
@@ -2460,7 +2456,7 @@ function _palmVitrineHeroHTML(entry, idx){
   const full = renderTrophy(entry.comp.key, 200);
   const line = _palmLineArt(full, 1.5);
   return `
-    <button class="mv-stage" type="button" data-open-sala="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${_escAttr(_palmMetalInk(entry.comp.color))}" aria-haspopup="dialog" aria-controls="sala"${disabled}>
+    <button class="mv-stage" type="button" data-open-sala="${idx}" style="--metal:${escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${escAttr(_palmMetalInk(entry.comp.color))}" aria-haspopup="dialog" aria-controls="sala"${disabled}>
       <div class="mv-scene">
         <div class="mv-axis"></div>
         <div class="mv-halo"></div>
@@ -2470,7 +2466,7 @@ function _palmVitrineHeroHTML(entry, idx){
         </div>
       </div>
       <div class="mv-cap">
-        <div class="mv-comp-name">${_esc(entry.comp.label)}</div>
+        <div class="mv-comp-name">${escHtml(entry.comp.label)}</div>
         <span class="mv-cta">${entry.records.length ? '[ Inspeccionar vitrina ]' : '[ Sin campeón aún ]'}</span>
       </div>
     </button>
@@ -2488,7 +2484,7 @@ function _palmVitrinePendingLogosHTML(pendingRec){
   if (!items.length) return '';
   return `
     <div class="mv-vig-pending-logos">
-      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${_escAttr(_palmCloudThumb(item.url, 90))}" alt="${_escAttr(item.alt)}" loading="lazy"></span>`).join('')}
+      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${escAttr(_palmCloudThumb(item.url, 90))}" alt="${escAttr(item.alt)}" loading="lazy"></span>`).join('')}
     </div>
   `;
 }
@@ -2498,14 +2494,14 @@ function _palmVitrineDataHTML(entry){
   const team = entry.champTeam;
   const colors = entry.colors;
   const badgeContent = safeImgUrl(team?.logo) ? `<img src="${safeImgUrl(team?.logo)}" alt="">`
-    : _esc(_palmTeamIni(team));
+    : escHtml(_palmTeamIni(team));
   const championHtml = team ? `
     <div class="mv-vig-row">
-      <span class="mv-badge" style="background:${_escAttr(colors.c1)}">${badgeContent}</span>
-      <span class="mv-vig-name">${_esc(team.name || '—')}</span>
+      <span class="mv-badge" style="background:${escAttr(colors.c1)}">${badgeContent}</span>
+      <span class="mv-vig-name">${escHtml(team.name || '—')}</span>
     </div>
   ` : entry.champion?.pending
-    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${_escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>${_palmVitrinePendingLogosHTML(entry.champion)}`
+    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>${_palmVitrinePendingLogosHTML(entry.champion)}`
     : `<div class="mv-vig-row"><span class="mv-vig-name">Sin campeón registrado</span></div>`;
   return `
     <div class="mv-vig">
@@ -2774,14 +2770,14 @@ function _palmRenderSala(){
   if (compEl) compEl.textContent = comp.comp.label;
   if (plateEl) {
     const plateName = rec.pending ? '¿?' : (team?.name || 'Sin campeón');
-    plateEl.innerHTML = `<b>${_esc(plateName)}</b><small>${_esc(plateEdition)}</small>`;
+    plateEl.innerHTML = `<b>${escHtml(plateName)}</b><small>${escHtml(plateEdition)}</small>`;
   }
   if (dotsEl) {
     dotsEl.innerHTML = comp.records.map((entry, idx) => {
       const dotTeam = _PALM_PUB.teamById[entry.teamId];
       const dotEdition = [entry.season, entry.juego, entry.year].filter(Boolean).join(' · ');
       const dotLabel = `${entry.pending ? '¿? — Campeón por definir' : (dotTeam?.name || `Campeón ${idx + 1}`)}${dotEdition ? ` · ${dotEdition}` : ''}`;
-      return `<button type="button" class="sala-dot${idx === _PALM_PUB.salaChampIdx ? ' on' : ''}" data-sala-dot="${idx}" aria-label="${_escAttr(dotLabel)}" aria-pressed="${idx === _PALM_PUB.salaChampIdx ? 'true' : 'false'}"></button>`;
+      return `<button type="button" class="sala-dot${idx === _PALM_PUB.salaChampIdx ? ' on' : ''}" data-sala-dot="${idx}" aria-label="${escAttr(dotLabel)}" aria-pressed="${idx === _PALM_PUB.salaChampIdx ? 'true' : 'false'}"></button>`;
     }).join('');
     _palmRevealActiveSalaDot(dotsEl);
   }

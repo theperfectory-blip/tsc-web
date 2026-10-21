@@ -22,10 +22,6 @@ function computePhaseTeamTotal(type, config){
   return null;
 }
 
-function _esc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 function openFasesForComp(compId, compName){
   // Llega como texto desde data-cid; los ids de competiciones son números.
   _currentCompId   = parseInt(compId) || null;
@@ -182,10 +178,10 @@ async function openPhaseModal(id=null){
   const _compTotal = parseInt(_comp?.totalTeams);
   const compInfoBanner = Number.isFinite(_compTotal) && _compTotal > 0
     ? `<div style="background:var(--card2);border:1px solid var(--brd);border-left:3px solid var(--gold);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:13px;color:var(--txt2);">
-         <strong style="color:var(--txt);">${_esc(_comp.name)}</strong> declara <strong style="color:var(--gold);">${_compTotal} equipos</strong>. La configuración de esta fase no puede excederlos.
+         <strong style="color:var(--txt);">${escHtml(_comp.name)}</strong> declara <strong style="color:var(--gold);">${_compTotal} equipos</strong>. La configuración de esta fase no puede excederlos.
        </div>`
     : (_comp ? `<div style="background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--txt3);">
-         La competición <strong>${_esc(_comp.name)}</strong> no declara total de equipos. Configurá <em>Total equipos</em> en la competición para activar la validación.
+         La competición <strong>${escHtml(_comp.name)}</strong> no declara total de equipos. Configurá <em>Total equipos</em> en la competición para activar la validación.
        </div>` : '');
 
   wrap.innerHTML = `
@@ -866,12 +862,12 @@ async function renderPubComps(){
       const col = /^#[0-9A-Fa-f]{3,8}$/.test(String(c.color||'')) ? c.color : 'var(--gold)';
       return `
       <div class="card" style="border-top:4px solid ${col};padding:14px;">
-        <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${_esc(c.name)}</div>
+        <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${escHtml(c.name)}</div>
         <div style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--txt3);padding:2px 8px;background:var(--card2);border-radius:20px;border:1px solid var(--brd);margin-bottom:8px;">
-          ${_esc(tipo.name)}
+          ${escHtml(tipo.name)}
         </div>
         <div style="font-size:13px;color:var(--txt2);">Equipos: <strong>${c.totalTeams||'—'}</strong></div>
-        ${c.desc?`<div style="font-size:13px;color:var(--txt3);margin-top:6px;line-height:1.5;">${_esc(c.desc)}</div>`:''}
+        ${c.desc?`<div style="font-size:13px;color:var(--txt3);margin-top:6px;line-height:1.5;">${escHtml(c.desc)}</div>`:''}
       </div>`;
     }).join('')}
   </div>`;

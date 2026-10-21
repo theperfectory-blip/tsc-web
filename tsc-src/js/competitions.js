@@ -1,4 +1,3 @@
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 const COMP_TYPES = [
   {id:'league',  icon:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', name:'Liga / Grupos',       desc:'Round robin por grupos'},
@@ -77,8 +76,8 @@ async function renderCompsGrid(comps){
     <div class="card" style="border-top:4px solid ${safeCssColor(c.color,'var(--gold)')};transition:border-color 0.15s;" onmouseover="this.style.boxShadow='0 0 0 1px ${safeCssColor(c.color,'var(--gold)')}'" onmouseout="this.style.boxShadow=''">
       <div class="card-hdr">
         <div>
-          <div style="font-size:17px;font-weight:600;">${_esc(c.name)}</div>
-          <div style="font-size:13px;color:var(--txt3);margin-top:2px;">${_esc(seasonMap[c.season])}</div>
+          <div style="font-size:17px;font-weight:600;">${escHtml(c.name)}</div>
+          <div style="font-size:13px;color:var(--txt3);margin-top:2px;">${escHtml(seasonMap[c.season])}</div>
         </div>
         <span class="badge ${statusCls}">${statusLbl}</span>
       </div>
@@ -89,7 +88,7 @@ async function renderCompsGrid(comps){
         <div style="display:flex;gap:14px;margin-bottom:8px;">
           <div style="font-size:13px;color:var(--txt2);">Equipos: <span style="color:var(--txt);font-weight:600;">${c.totalTeams||'—'}</span></div>
         </div>
-        ${c.desc?`<div style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:10px;">${_esc(c.desc)}</div>`:''}
+        ${c.desc?`<div style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:10px;">${escHtml(c.desc)}</div>`:''}
         <div style="display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--brd);">
           <button class="btn btn-sm" data-cid="${c.id}" data-cname="${escAttr(c.name)}" onclick="openFasesForComp(this.dataset.cid,this.dataset.cname)">Ver fases</button>
           <button class="btn btn-sm" onclick="openCompModal(${c.id})" ${c.status==='finished'||window._seasonFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
@@ -356,7 +355,7 @@ function _renderCompReorderList(){
       </span>
       <span style="font-size:12px;font-weight:700;color:var(--txt3);min-width:16px;">${i+1}.</span>
       <div style="width:10px;height:10px;border-radius:50%;background:${safeCssColor(c.color,'var(--gold)')};flex-shrink:0;"></div>
-      <span style="font-size:14px;flex:1;">${_esc(c.name)}</span>
+      <span style="font-size:14px;flex:1;">${escHtml(c.name)}</span>
     </div>`;
   }).join('');
 }

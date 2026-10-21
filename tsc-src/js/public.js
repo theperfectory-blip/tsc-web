@@ -2,7 +2,7 @@
    CARRUSEL COMP ─ FASE (rediseño broadcast). Navegador "una a la
    vez": el activo va centrado y grande, los vecinos asoman difuminados.
    Cambia con drag/swipe o clic en un vecino. Portado del prototipo
-   (sin mocks), escape vía _tkEsc. El listener de resize se liga una
+   (sin mocks), escape vía escHtml. El listener de resize se liga una
    sola vez (anti-leak); cada render del panel recrea las instancias.
    ============================================================ */
 let _pubCompCarousel = null, _pubFaseCarousel = null, _pubCarouselResizeBound = false;
@@ -45,7 +45,7 @@ function _pubMakeCarousel(cc, items, activeIdx, onChange){
   // Pinta los items y centra el activo (sin animar, sin onChange).
   track.setAttribute('role', 'group');
   track.setAttribute('aria-label', cc.getAttribute('aria-label') || 'Selector');
-  track.innerHTML = items.map((t,i)=>`<button type="button" class="cc-item" data-i="${i}" aria-pressed="${i===idx?'true':'false'}">${_tkEsc(t)}</button>`).join('');
+  track.innerHTML = items.map((t,i)=>`<button type="button" class="cc-item" data-i="${i}" aria-pressed="${i===idx?'true':'false'}">${escHtml(t)}</button>`).join('');
   if(idx >= track.children.length) idx = 0;
   center(false);
   function set(i, fromUser){
@@ -115,8 +115,6 @@ function _pubRestoreScrollAnchor(anchor){
 }
 
 async function renderPubPanel(){
-  // Escape local (function-scoped): public.js no define _esc global a propósito.
-  const esc = v => String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const el = document.getElementById('pub-panel-content');
   // Estabiliza la altura ANTES de tocar el DOM (red de seguridad adicional al
   // staging atómico de abajo: cubre el intervalo entre el commit final y el
@@ -171,7 +169,7 @@ async function renderPubPanel(){
       <div class="comp-sticky">
         <div class="comp-title"><span class="pd-n">02</span><span class="pub-fase-single">Competiciones</span></div>
       </div>
-      <div style="color:var(--txt3);font-size:16px;padding:20px 0;">No hay competiciones activas en T${esc(STATE.season)}.</div>`;
+      <div style="color:var(--txt3);font-size:16px;padding:20px 0;">No hay competiciones activas en T${escHtml(STATE.season)}.</div>`;
     stageReady = true;
     return;
   }
@@ -214,7 +212,7 @@ async function renderPubPanel(){
   const _accentOf = c => /^#[0-9A-Fa-f]{3,8}$/.test(String(c.color||'')) ? c.color : 'var(--gold)';
   const faseHead = phases.length>1
     ? `<span class="cc-sep">—</span><div class="cc cc-fase" id="${faseCCId}"><div class="cc-view"><div class="cc-track"></div></div></div>`
-    : (phases.length===1 ? `<span class="cc-sep">—</span><span class="pub-fase-single">${esc(selPhase?.name||'')}</span>` : '');
+    : (phases.length===1 ? `<span class="cc-sep">—</span><span class="pub-fase-single">${escHtml(selPhase?.name||'')}</span>` : '');
   const compHead = `
     <div class="comp-sticky">
       <div class="comp-title">
@@ -226,7 +224,7 @@ async function renderPubPanel(){
 
   const noPhasesMsg = !phases.length
     ? `<div style="color:var(--txt3);font-size:14px;padding:24px;text-align:center;background:var(--card2);border:1px dashed var(--brd);border-radius:var(--r);">
-        <strong style="color:var(--gold);">${esc(selComp.name)}</strong> no tiene fases activas todavía.<br>
+        <strong style="color:var(--gold);">${escHtml(selComp.name)}</strong> no tiene fases activas todavía.<br>
         <span style="font-size:12px;">Crea una fase desde el modo administrador.</span>
       </div>`
     : '';
@@ -273,14 +271,14 @@ async function renderPubPanel(){
     }
     else {
       const ct = document.getElementById(phaseContentId);
-      if(ct) ct.innerHTML = `<div style="color:var(--txt3);padding:20px;text-align:center;">Tipo de fase no soportado: <code>${esc(selPhase.type||'(vacío)')}</code></div>`;
+      if(ct) ct.innerHTML = `<div style="color:var(--txt3);padding:20px;text-align:center;">Tipo de fase no soportado: <code>${escHtml(selPhase.type||'(vacío)')}</code></div>`;
     }
     } catch(err) {
       console.error(`[Panel público] Error renderizando fase ${selPhase.id}:`, err);
       const ct = document.getElementById(phaseContentId);
       if(ct) ct.innerHTML = `
         <div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;">
-          <strong>No pudimos mostrar "${esc(selPhase.name)}".</strong><br>
+          <strong>No pudimos mostrar "${escHtml(selPhase.name)}".</strong><br>
           <span style="font-size:12px;color:var(--txt3);">Intenta nuevamente en unos segundos.</span>
         </div>`;
     }
@@ -384,12 +382,12 @@ function _pubScoresPagerHtml(groupKey, matches, scoreRow, rondaMeta, gi){
     return (typeof formatJornadaDateRange==='function') ? (formatJornadaDateRange(jugadas, dd)||'') : '';
   };
   const pages = keys.map((k,i)=>
-    `<div class="scores-date-page" data-label="${_tkEsc(fechaLbl(k))}" data-sub="${_tkEsc(fechaSub(k))}"${i===idx?'':' hidden'}>${byRonda.get(k).map(scoreRow).join('')}</div>`
+    `<div class="scores-date-page" data-label="${escHtml(fechaLbl(k))}" data-sub="${escHtml(fechaSub(k))}"${i===idx?'':' hidden'}>${byRonda.get(k).map(scoreRow).join('')}</div>`
   ).join('');
   // La barra se muestra SIEMPRE (aunque haya una sola jornada) para que la «Fecha N»
   // sea visible; las flechas se deshabilitan en los extremos.
-  const lblHtml = k => `<b>${_tkEsc(fechaLbl(k))}</b>${fechaSub(k)?`<small>${_tkEsc(fechaSub(k))}</small>`:''}`;
-  const bar = `<div class="scores-datebar" data-key="${_tkEsc(groupKey)}" data-idx="${idx}">
+  const lblHtml = k => `<b>${escHtml(fechaLbl(k))}</b>${fechaSub(k)?`<small>${escHtml(fechaSub(k))}</small>`:''}`;
+  const bar = `<div class="scores-datebar" data-key="${escHtml(groupKey)}" data-idx="${idx}">
       <button type="button" class="scores-arrow" aria-label="Fecha anterior" onclick="pubScoreDateNav(this,-1)"${idx<=0?' disabled':''}>${_PUB_CHEVRON_L}</button>
       <span class="scores-datelbl">${lblHtml(keys[idx])}</span>
       <button type="button" class="scores-arrow" aria-label="Fecha siguiente" onclick="pubScoreDateNav(this,1)"${idx>=keys.length-1?' disabled':''}>${_PUB_CHEVRON_R}</button>
@@ -410,7 +408,7 @@ function pubScoreDateNav(btn, dir){
   const lbl = pager.querySelector('.scores-datelbl');
   if(lbl){
     const sub = pages[idx].dataset.sub || '';
-    lbl.innerHTML = `<b>${_tkEsc(pages[idx].dataset.label||'')}</b>${sub?`<small>${_tkEsc(sub)}</small>`:''}`;
+    lbl.innerHTML = `<b>${escHtml(pages[idx].dataset.label||'')}</b>${sub?`<small>${escHtml(sub)}</small>`:''}`;
   }
   const arrows = bar.querySelectorAll('.scores-arrow');
   if(arrows[0]) arrows[0].disabled = idx<=0;
@@ -423,7 +421,7 @@ function pubScoreDateNav(btn, dir){
    con scroll horizontal y fade en los bordes) + .scores-stack (marcadores del grupo,
    EN VIVO primero). Reutiliza SOLO funciones de datos de standings.js
    (calcGroupStandings, getCriteria, resolveTeamData, resolveGroupRefsFor) — no toca
-   el módulo compartido ni renderMatchesList. Todo dato externo escapado con _tkEsc. */
+   el módulo compartido ni renderMatchesList. Todo dato externo escapado con escHtml. */
 async function _pubRenderGroupsBroadcast(phaseId, containerId){
   const el = document.getElementById(containerId);
   if(!el) return;
@@ -479,14 +477,14 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       const col = colorOf(td.color);
       const crest = safeImgUrl(td.logo)
         ? `<span class="st-crest"><img src="${safeImgUrl(td.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;"></span>`
-        : `<span class="st-crest" style="background:${col};">${_tkEsc(ini)}</span>`;
+        : `<span class="st-crest" style="background:${col};">${escHtml(ini)}</span>`;
       const dg = s.gf - s.gc;
       const dgColor = dg>0 ? 'var(--green-ink)' : dg<0 ? 'var(--red)' : 'var(--txt2)';
       const dgText = dg>0 ? `+${dg}` : dg;
       return `<div class="stand-row" style="--team-color:${col};">
         <span class="st-pos" style="${posStyle(zone)}">${i+1}</span>
         ${crest}
-        <span class="st-fix"><span class="st-name">${_tkEsc(name)}</span></span>
+        <span class="st-fix"><span class="st-name">${escHtml(name)}</span></span>
         <span class="st-pts">${s.pts}</span>
         <span class="st-c">${s.pj}</span><span class="st-c">${s.v}</span><span class="st-c">${s.e}</span>
         <span class="st-c">${s.p}</span><span class="st-c" style="color:${dgColor};">${dgText}</span><span class="st-c">${s.gf}</span><span class="st-c">${s.gc}</span>
@@ -502,7 +500,7 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
     // a la izquierda si controla al local (teamA) o a la derecha si controla
     // a la visita (teamB). Mismo criterio que el admin (matches.js), que ya
     // marca solo el lado controlado.
-    const luisIcon = title => `<span title="${_tkEsc(title)}" style="display:inline-flex;align-items:center;color:var(--gold);">${typeof _FX_GAMEPAD_ICON!=='undefined'?_FX_GAMEPAD_ICON:''}</span>`;
+    const luisIcon = title => `<span title="${escHtml(title)}" style="display:inline-flex;align-items:center;color:var(--gold);">${typeof _FX_GAMEPAD_ICON!=='undefined'?_FX_GAMEPAD_ICON:''}</span>`;
     const scoreRow = m => {
       const ta=teamById[m.teamA], tb=teamById[m.teamB];
       const an=m.goalsA||0, bn=m.goalsB||0;
@@ -518,21 +516,21 @@ async function _pubRenderGroupsBroadcast(phaseId, containerId){
       return `<div class="score-row" style="--team-color:${colorOf(ta?.color)};">
         <div class="score-edge"></div>
         <div class="score-body">
-          <span class="score-team">${_tkEsc(ta?.name||('#'+m.teamA))}</span>
+          <span class="score-team">${escHtml(ta?.name||('#'+m.teamA))}</span>
           <div class="score-nums">${luisLeft}${center}${luisRight}</div>
-          <span class="score-team away">${_tkEsc(tb?.name||('#'+m.teamB))}</span>
+          <span class="score-team away">${escHtml(tb?.name||('#'+m.teamB))}</span>
         </div>
         <div class="score-edge" style="--team-color:${colorOf(tb?.color)};"></div>
       </div>`;
     };
     const scoresHtml = _pubScoresPagerHtml(`${phaseId}-${gi}`, groupMatches, scoreRow, phase.rondaMeta||{}, gi);
-    const legend = zones.map(z=>`<span><i style="background:${colorOf(z.color)};"></i>${_tkEsc(z.name||'')}</span>`).join('');
+    const legend = zones.map(z=>`<span><i style="background:${colorOf(z.color)};"></i>${escHtml(z.name||'')}</span>`).join('');
 
     html += `
     <div class="comps-duo" style="margin-bottom:22px;">
       <div class="stand-card" data-nudge-key="${phaseId}-${gi}">
         <div class="stand-hdr">
-          <span class="stand-title">${_tkEsc(groupName)}</span>
+          <span class="stand-title">${escHtml(groupName)}</span>
           <button type="button" class="stand-criteria-btn" onclick="openCriteriaModal(${phaseId}, '${containerId}', false)" title="Criterios de clasificación" aria-label="Ver criterios de clasificación">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           </button>
@@ -648,10 +646,6 @@ async function pubSelectPhase(phaseId){
    finalizados por fecha desc, cap 8. Clearance de #main vía la
    clase .with-ticker (no depende de body.redesign).
    ============================================================ */
-function _tkEsc(s){
-  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 /* Token de secuencia para invalidar renders async en vuelo (anti-race): si se
    cambia a admin o llega un render más nuevo, los pendientes se descartan sin
    tocar el DOM (no muestran el ticker en admin ni pisan un render reciente). */
@@ -745,9 +739,9 @@ async function renderPublicTicker(){
     const a     = nameOf(m.teamA), b = nameOf(m.teamB);
     const score = `${m.goalsA ?? 0}-${m.goalsB ?? 0}`;
     return `<span class="ticker-item">`
-      + (comp ? `<span class="tk-comp">${_tkEsc(comp)}</span>` : '')
+      + (comp ? `<span class="tk-comp">${escHtml(comp)}</span>` : '')
       + (m.live ? liveDot : '')
-      + `${_tkEsc(a)} <b>${_tkEsc(score)}</b> ${_tkEsc(b)}`
+      + `${escHtml(a)} <b>${escHtml(score)}</b> ${escHtml(b)}`
       + `</span>`;
   }).join('');
   // Mismos datos que ya se ven: no se toca el DOM (evita reiniciar la marquesina).
