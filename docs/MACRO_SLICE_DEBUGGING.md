@@ -695,6 +695,10 @@ sandbox de 2.1.**
 
 > **Estado 7.5:** CERRADO · 2026-10-20 (Opus) · ver `docs/reportes/MS-7.5.md`. Los 394 handlers inline pasan a `data-on*`, que despacha `js/events.js` con una gramática fija (sin eval, solo funciones de la app); el splash sale a `js/boot-splash.js`. `script-src` sin `'unsafe-inline'` (H-05 cerrado). Verificado en el sandbox con la CSP en enforce (`dist` y `tsc-src`): 0 violaciones en el recorrido público y admin, con escrituras; `audit-wiring` comprueba la gramática de cada handler.
 
+> **Estado 7.6:** CERRADO · 2026-10-20 (Opus) · ver `docs/reportes/MS-7.6.md`. `SECURITY.md`, `README.md`, `CONTRIBUTING.md`, `AGENTS.md` y `CLAUDE.md` al día; grafo regenerado con nombres por archivo dominante.
+
+> **Estado M7:** CERRADO · 2026-10-20. Con M7 se cierra el plan completo (M0 a M7): resumen y pendientes en `docs/reportes/MS-7.6.md`.
+
 ---
 
 ## 5. Checklist por sección (M4 y M5)

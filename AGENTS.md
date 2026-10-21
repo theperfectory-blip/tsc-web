@@ -182,11 +182,14 @@ Fuera de `tsc-src/`: `functions/` (Cloud Functions: `notifyStreamToday`,
 índices), `android/` (proyecto Capacitor), `scripts/` (builds y
 utilidades), `docs/` (protocolo, planes, reportes).
 
-## Trabajo en curso
+## Plan de debugging (cerrado)
 
-El plan vigente es [`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md).
-Cada sesión ejecuta un slice: leer solo esa sección y los hallazgos que
-cita. Reportes en `docs/reportes/MS-<n>.<m>.md`.
+[`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md) se cerró
+el 2026-10-20 (M0 a M7); reportes por slice en `docs/reportes/MS-<n>.<m>.md`
+y resumen final con lo que queda en `docs/reportes/MS-7.6.md` (acciones del
+dueño M-11 y M-13, y hallazgos bajos o de reglamento abiertos). Un trabajo
+nuevo sigue el mismo formato: un slice por sesión, verificado en el sandbox,
+con su reporte.
 
 ## UI
 
