@@ -164,8 +164,8 @@ reglas sin motivo:
 ## Subir de versión (`versionCode` / `versionName`)
 
 La fuente de verdad es `defaultConfig` en `android/app/build.gradle` (hoy
-`versionCode 18` / `versionName "1.6.2"`, igual que el último release y su
-`update.json`).
+`versionCode 20` / `versionName "1.7.0"`; el último release publicado es
+la 1.6.3, `versionCode 19`).
 
 | Campo | Regla |
 |---|---|
