@@ -118,7 +118,7 @@ Slack. `client_secret` y `refresh_token` aparecen solo como texto en docs de
 | H-21 | No hay entorno aislado: los flujos de escritura del admin no se pueden probar sin riesgo |
 | H-22 | Unas 20 copias de la función de escape; 8 de ellas se llaman `_esc` y comparten el scope global **Cerrado en 7.1.** |
 | H-23 | Si el SDK de Firebase no carga, `USE_FIRESTORE` queda en `false`. Hay que verificar si en ese caso la app corre sobre un IndexedDB local vacío y `seedInitialData` siembra 60 equipos falsos (`ui-utils.js:628`) |
-| H-24 | Assets: 75 MB en `tsc-src/assets` (trofeos `.glb`, `palmares_theme.mp3` de 4,7 MB, PNG de 1,6 a 2,2 MB con su par `.webp` ya generado) |
+| H-24 | Assets: 75 MB en `tsc-src/assets` (trofeos `.glb`, `palmares_theme.mp3` de 4,7 MB, PNG de 1,6 a 2,2 MB con su par `.webp` ya generado) **Cerrado en 7.4** (salvo compresión de los `.glb`). |
 | H-25 | `functions/` declara Node 20, que está fuera de soporte desde 2026-04-30. **Cerrado en 6.1** (Node 22, deps sin vulnerabilidades; falta el deploy, M-9) |
 | H-26 | La ruta pública `competiciones` existe en `nav.js:263`, pero ningún `goPublicPage('competiciones')` apunta a ella. **Resuelto en 4.3:** es inalcanzable (`goPublicPage` y `focusPublicSection` la redirigen a `panel`); `renderPubComps`, `#page-competiciones` y `#pub-comps-content` son código muerto, va a 7.2 **Cerrado en 7.2.** |
 | H-27 | `loadBracketLogos` (`bracket.js:1341`) nunca pinta logos: busca el nombre del equipo en ids `blogo-<fase>_r<n>_m<n>-a/b`, que no lo contienen. El bracket admin solo muestra iniciales (hallado en 0.1). **Cerrado en 5.7** (`data-team-id`) |
@@ -690,6 +690,8 @@ sandbox de 2.1.**
 > **Estado 7.2:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.2.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas. Borrado el código muerto confirmado por `audit-wiring` y los hallazgos H-26, H-50, H-51, H-58 y H-60 (unas 620 líneas, incluida la cadena huérfana del modal de playoff). **D6 sin aplicar**: el plan solo trae una recomendación, no una decisión del dueño; la rama IndexedDB de `db.js` queda como está (H-23 abierto).
 
 > **Estado 7.3:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.3.md`. Verificado en el sandbox en `dist` (recorrido público y admin, cero elementos coinciden con los selectores borrados), paridad OK. Unas 460 líneas de CSS sin uso fuera (4.692 → 4.230), medidas por referencias en todo el JS/HTML y no por cobertura de una visita (más conservador); se conservan las primitivas documentadas en `DESIGN.md`.
+
+> **Estado 7.4:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.4.md`. Verificado en el sandbox en `dist`, paridad OK. Inventario de referencias de los 55 assets: 11 archivos sin ninguna referencia borrados (`assets/` 41 → 29 MB) y `palmares_theme.mp3` comprimido de 4,77 a 2,40 MB con ffmpeg (misma duración, decodifica bien). H-24 cerrado salvo la compresión de los `.glb`, que queda fuera.
 
 ---
 

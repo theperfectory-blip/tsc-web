@@ -207,7 +207,7 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 
 /* ---- LA SALA — umbral fullscreen: del 2D al fotorrealismo ----
    Capas (de atrás a delante): pared (gradiente CSS) → collage de momentos →
-   sin_fondo.png (piso+podio, alfa real, re-tapa para que las fotos queden
+   sin_fondo.webp (piso+podio, alfa real, re-tapa para que las fotos queden
    detrás) → focos.png (alfa real, MISMO encuadre 1:1 que sin_fondo) → haces
    de luz → partículas → copa 3D → placa → humo (canvas, por delante de todo).
    sin_fondo y focos son el MISMO render 1536×1024 → se superponen 1:1 vía
@@ -308,7 +308,7 @@ body.sala-open{overflow:hidden;}
     radial-gradient(ellipse 52% 80% at 6% 22%, rgba(3,4,7,0.84) 0%, transparent 58%),
     radial-gradient(ellipse 52% 80% at 94% 22%, rgba(3,4,7,0.84) 0%, transparent 58%),
     linear-gradient(180deg, rgba(3,4,7,0.56) 0%, transparent 30%);}
-/* Piso + podio recortados con alfa real (sin_fondo.png) POR DELANTE del
+/* Piso + podio recortados con alfa real (sin_fondo.webp) POR DELANTE del
    collage: las fotos nacen en la pared del fondo y quedan detrás del piso y
    del podio. Los focos (z2) quedan detrás del foreground (z3) → el podio
    tapa la base de los trípodes, que es la perspectiva correcta. */
