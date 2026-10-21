@@ -66,4 +66,6 @@ Todos los slices se verificaron en el sandbox, en `dist` y en `tsc-src`; la prod
 - **H-63:** SheetJS sin SRI.
 - **H-64:** la reversión de un import grande pisa ediciones concurrentes.
 
+**Prioridad acordada con el dueño (2026-10-21):** ahora solo el merge y M-11. M-13 queda para cuando termine la T3, en unas semanas. Las decisiones (H-52, H-57, H-62) y los hallazgos bajos quedan en stand-by: no bloquean y se retoman más adelante desde esta lista y la tabla de hallazgos del plan.
+
 Acción del dueño requerida: merge a `main`, luego M-11; M-13 cuando termine la T3.
