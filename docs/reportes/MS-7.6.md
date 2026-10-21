@@ -45,8 +45,8 @@ Todos los slices se verificaron en el sandbox, en `dist` y en `tsc-src`; la prod
 **Acciones del dueño:**
 - **Merge a `main`** de la rama `claude/m5-modelo-5.4`, con un PR por macro. Lleva M4, M5 y M7, publica la CSP sin `'unsafe-inline'` y el resto del código.
 - **M-11:** después de ese merge, `curl -sD - -o /dev/null https://teamsubscup.web.app/` debe mostrar `Content-Security-Policy:` sin `-Report-Only` y sin `'unsafe-inline'` en `script-src`. Además, un inicio de sesión desde el celular.
-- **M-13:** cuando la T3 termine, finalizarla en la app. Después Claude genera su archivo (`season-archive.mjs --season 1`, `--verify`), se publica y se usa «Liberar Firestore».
-- Una APK nueva (cuando toque) lleva la meta CSP nueva y el despachador de eventos.
+- **M-15: APK 1.7.0** (`versionCode 20`). La APK lleva su propia copia del código web, así que la 1.6.3 (2026-10-11) no tiene nada de lo posterior: M5, temporadas archivadas y M7. Build firmado y verificado el 2026-10-21 (abajo); falta publicarlo en GitHub Releases y probar la actualización desde la app en un teléfono real.
+- **M-13:** requiere M-15 publicado y unas semanas para que la gente actualice: la 1.6.3 no lee `data/temporadas/` y, después de «Liberar Firestore», no mostraría la T3. Cuando la T3 termine, finalizarla en la app. Después Claude genera su archivo (`season-archive.mjs --season 1`, `--verify`), se publica y se usa «Liberar Firestore».
 
 **Decisiones de reglamento o producto (hallazgos abiertos):**
 - **H-52:** desempate directo entre 3 o más empatados (¿mini-liga?).
@@ -66,6 +66,17 @@ Todos los slices se verificaron en el sandbox, en `dist` y en `tsc-src`; la prod
 - **H-63:** SheetJS sin SRI.
 - **H-64:** la reversión de un import grande pisa ediciones concurrentes.
 
-**Prioridad acordada con el dueño (2026-10-21):** ahora solo el merge y M-11. M-13 queda para cuando termine la T3, en unas semanas. Las decisiones (H-52, H-57, H-62) y los hallazgos bajos quedan en stand-by: no bloquean y se retoman más adelante desde esta lista y la tabla de hallazgos del plan.
+**Prioridad acordada con el dueño (2026-10-21):** ahora solo el merge y M-11; después, la APK 1.7.0 (M-15, decidida el mismo día). M-13 queda para cuando termine la T3, en unas semanas. Las decisiones (H-52, H-57, H-62) y los hallazgos bajos quedan en stand-by: no bloquean y se retoman más adelante desde esta lista y la tabla de hallazgos del plan.
 
-Acción del dueño requerida: merge a `main`, luego M-11; M-13 cuando termine la T3.
+## APK 1.7.0 (2026-10-21)
+
+Se decidió subir a 1.7 y no a 1.6.4 por la cantidad de cambios acumulados. Rama `claude/apk-1.7.0`, bump en `fac6a47` sobre `main` (`d7728f1`, ya con M4, M5 y M7).
+
+- `npm ci`, `npm run build:www`, `npx cap sync android`, `gradlew clean :app:assembleRelease` con el keystore de siempre.
+- `aapt2 dump badging`: `versionCode='20' versionName='1.7.0'`.
+- `apksigner`: `CN=TEAM SUBS CUP, OU=TSC, O=TSC, L=Unknown, ST=Unknown, C=AR`, SHA-256 `7727c9a7…ef802a72` (el de siempre).
+- Bundle web dentro del APK: los 95 archivos de `js/`, `css/`, `data/` y `assets/` idénticos a `tsc-src/`; `index.html` solo difiere por la meta CSP (`script-src` sin `'unsafe-inline'`).
+- Emulador (Android 16, instalación limpia; el emulador tenía una debug con otra firma): arranca, carga Palmarés y Competiciones desde producción (solo lectura), los `data-onclick` responden y Configuración → Actualizaciones dice «Ya tienes la última versión (v1.7.0)».
+- SHA-256 del archivo: `6f55a70c8eef2b58d851418a174cad0f5f00c70baab1687e12e6f6cea778b725` (para la nota del release).
+
+Acción del dueño requerida: M-11; M-15 (publicar la 1.7.0); M-13 cuando termine la T3 y la gente ya haya actualizado.

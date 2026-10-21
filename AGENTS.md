@@ -187,7 +187,7 @@ utilidades), `docs/` (protocolo, planes, reportes).
 [`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md) se cerró
 el 2026-10-20 (M0 a M7); reportes por slice en `docs/reportes/MS-<n>.<m>.md`
 y resumen final con lo que queda en `docs/reportes/MS-7.6.md` (acciones del
-dueño M-11 y M-13, y hallazgos bajos o de reglamento abiertos). Un trabajo
+dueño M-11, M-15 (APK 1.7.0) y M-13, que requiere la 1.7.0 publicada, y hallazgos bajos o de reglamento abiertos). Un trabajo
 nuevo sigue el mismo formato: un slice por sesión, verificado en el sandbox,
 con su reporte.
 
