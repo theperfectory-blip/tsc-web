@@ -169,10 +169,6 @@ async function openPhaseModal(id=null){
     {color:'#E84040', name:'Eliminado', positions:[], count:0},
   ];
 
-  // Fases de grupos disponibles para fase derivada
-  const groupPhases = await dbGetAll('phases', p=>p.compId===_currentCompId && p.type==='groups');
-  const gpOpts = groupPhases.map(p=>`<option value="${p.id}" ${phase?.originPhaseId===p.id?'selected':''}>${escHtml(p.name)}</option>`).join('');
-
   // Total de equipos declarado por la competición (para mostrar como referencia)
   const _comp = _currentCompId ? await dbGet('competitions', _currentCompId) : null;
   const _compTotal = parseInt(_comp?.totalTeams);
@@ -671,12 +667,6 @@ async function openPhaseModal(id=null){
     renderGroupSizes();
     renderZones();
   });
-
-  // Cuando cambia equipos por grupo → cerrar picker y re-renderizar zonas
-  document.getElementById('pf-tpg')?.addEventListener('input', ()=>{
-    document.getElementById('pos-picker-drop')?.remove();
-    renderZones();
-  });
 } // fin openPhaseModal
 
 function closePhaseModal(){ document.getElementById('phase-modal-wrap').innerHTML=''; }
@@ -837,38 +827,3 @@ async function deletePhase(id){
   }
 }
 
-/* ----------------------------------------------------------
-   RENDER PÚBLICO — COMPETICIONES
-   ---------------------------------------------------------- */
-async function renderPubComps(){
-  const el = document.getElementById('pub-comps-content');
-  const comps = _sortComps(await getForSeason('competitions'));
-  // v1.7: filtro tolerante (igual criterio que renderPubPanel)
-  const isActiveStatus = s => {
-    if(s==null) return true;
-    const norm = String(s).trim().toLowerCase();
-    return norm==='active' || norm==='activa' || norm==='';
-  };
-  const active = comps.filter(c=>isActiveStatus(c.status));
-
-  if(!active.length){
-    el.innerHTML=`<div style="color:var(--txt3);font-size:16px;">No hay competiciones activas en T${STATE.season}.</div>`;
-    return;
-  }
-
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">
-    ${active.map(c=>{
-      const tipo = COMP_TYPES.find(t=>t.id===c.type)||COMP_TYPES[0];
-      const col = /^#[0-9A-Fa-f]{3,8}$/.test(String(c.color||'')) ? c.color : 'var(--gold)';
-      return `
-      <div class="card" style="border-top:4px solid ${col};padding:14px;">
-        <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${escHtml(c.name)}</div>
-        <div style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--txt3);padding:2px 8px;background:var(--card2);border-radius:20px;border:1px solid var(--brd);margin-bottom:8px;">
-          ${escHtml(tipo.name)}
-        </div>
-        <div style="font-size:13px;color:var(--txt2);">Equipos: <strong>${c.totalTeams||'—'}</strong></div>
-        ${c.desc?`<div style="font-size:13px;color:var(--txt3);margin-top:6px;line-height:1.5;">${escHtml(c.desc)}</div>`:''}
-      </div>`;
-    }).join('')}
-  </div>`;
-}

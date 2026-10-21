@@ -61,9 +61,6 @@ function setTheme(theme){
   document.documentElement.setAttribute('data-theme',theme);
   localStorage.setItem('tsc_theme',theme);
   // El pill toggle se actualiza solo vía CSS (data-theme en <html>), no necesita JS extra.
-  // Compatibilidad con los viejos botones si quedaran en el DOM:
-  document.getElementById('theme-dark-btn')?.classList.toggle('btn-primary',theme==='dark');
-  document.getElementById('theme-light-btn')?.classList.toggle('btn-primary',theme==='light');
   // Notifica a módulos que cachean colores derivados del tema en inline style
   // (p.ej. palmares.js → --metal-ink) para que se recalculen sin esperar un re-render.
   document.dispatchEvent(new CustomEvent('tsc:theme-changed', { detail: { theme } }));

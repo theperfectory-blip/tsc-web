@@ -170,11 +170,6 @@ async function historyRecordFor(m){
   return {id:nextId, ...data, createdAt: new Date().toISOString()};
 }
 
-async function removeHistoryByMatchRef(matchId){
-  const existing = await dbGetAll('matchHistory', h=>h.matchRef===matchId);
-  for(const h of existing) await dbDelete('matchHistory', h.id);
-}
-
 /* ----------------------------------------------------------
    Resolver dinámicamente los valores de un record (live)
    o devolver tal cual los estáticos (imported).

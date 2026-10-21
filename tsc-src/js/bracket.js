@@ -43,11 +43,6 @@ function getWinner(m){
   return null;
 }
 
-async function getTeamLogo(name){
-  const teams = await dbGetAll('teams', t=>t.name===name);
-  return teams[0]||null;
-}
-
 function teamLogoHtml(name, team, size=28){
   const ini = escHtml(team?.ini||name?.substring(0,3)||'?');
   const col = safeCssColor(team?.color, '#333');
@@ -449,11 +444,6 @@ async function renderBracket(phaseId, containerId, isAdmin=false){
 
   // Cargar logos async
   loadBracketLogos(slots);
-
-  // ✅ Actualizar dinámicamente nombres y colores de equipos (temporada actual)
-  if(STATE.season === (phase.season || STATE.season)){
-    updateBracketTeamsDynamic(slots);
-  }
 
   // ── Fuegos artificiales del campeón (solo vista pública, contenedor visible) ──
   if(!isAdmin){
@@ -2113,49 +2103,6 @@ async function _saveBracketMatch(slotId, phaseId, teamA, teamB, roundIdx, matchI
   closeBracketMatchModal();
   const cid=document.querySelector('[id^="bracket-container-"]')?.id;
   if(cid) renderBracket(phaseId, cid, true);
-}
-
-/* ----------------------------------------------------------
-   ACTUALIZACIÓN DINÁMICA DE EQUIPOS EN BRACKET
-   Resuelve dinámicamente nombre, color e iniciales para temporada actual
-   ---------------------------------------------------------- */
-async function updateBracketTeamsDynamic(slots){
-  if(!slots || slots.length === 0) return;
-
-  // Pre-cargar equipos UNA vez (no por iteración)
-  const teams = await getForSeason('teams');
-  const byId   = Object.fromEntries(teams.map(t=>[t.id, t]));
-  const byName = Object.fromEntries(teams.map(t=>[t.name, t]));
-  const lookup = (ref)=>{
-    if(ref==null) return null;
-    if(typeof ref==='number' || Number.isFinite(parseInt(ref))){
-      return byId[parseInt(ref)] || null;
-    }
-    return byName[ref] || null;
-  };
-
-  for(const roundSlots of slots){
-    for(const slot of roundSlots){
-      const tA = lookup(slot.teamA);
-      if(tA) slot._teamA_dynamic = {name:tA.name, color:tA.color||'#888', ini:tA.ini||'?'};
-      const tB = lookup(slot.teamB);
-      if(tB) slot._teamB_dynamic = {name:tB.name, color:tB.color||'#888', ini:tB.ini||'?'};
-    }
-  }
-  updateBracketDOM(slots);
-}
-
-function updateBracketDOM(slots){
-  // Buscar todos los elementos de equipo renderizados y actualizar dinámicamente
-  document.querySelectorAll('[id^="tlogo-"]').forEach(logoEl => {
-    const id = logoEl.id; // formato: tlogo-phaseId-ri-mi-side
-    const parts = id.replace('tlogo-', '').split('-');
-    if(parts.length >= 3){
-      // Encontrar el slot correspondiente
-      // Esto es un poco complejo sin refactorizar todo, así que por ahora
-      // actualizar desde los datos guardados en slot._teamA_dynamic / _teamB_dynamic
-    }
-  });
 }
 
 /* ----------------------------------------------------------

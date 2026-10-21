@@ -595,29 +595,6 @@ function _pubStandNudge(el){
   });
 }
 
-async function pubShowMatchesGroup(phaseId, groupIdx, btnEl){
-  window._pubState.groupIdx = groupIdx;   // recordar grupo activo para el re-render en vivo
-  // Resaltar botón activo
-  const btnsContainer = document.getElementById(`pub-matches-group-btns-${phaseId}`);
-  if(btnsContainer) btnsContainer.querySelectorAll('button').forEach(b=>{
-    b.style.background = 'transparent';
-    b.style.color = 'var(--txt2)';
-    b.style.borderColor = 'var(--brd2)';
-  });
-  if(btnEl){
-    btnEl.style.background = 'var(--gold-l)';
-    btnEl.style.color = 'var(--gold)';
-    btnEl.style.borderColor = 'var(--gold-b)';
-  }
-  try {
-    await renderMatchesList(phaseId, groupIdx, `pub-matches-list-${phaseId}`, false);
-  } catch(err) {
-    console.error(`[Panel público] Error renderMatchesList phase=${phaseId} group=${groupIdx}:`, err);
-    const c = document.getElementById(`pub-matches-list-${phaseId}`);
-    if(c) c.innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px;">No pudimos cargar los partidos. Intenta nuevamente.</div>';
-  }
-}
-
 async function pubSelectComp(compId, phaseId){
   const anchor = _pubCaptureVisualAnchor(document.getElementById('pub-panel-content'));
   window._pubState.compId = compId;

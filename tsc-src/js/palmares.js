@@ -38,11 +38,6 @@ async function loadPalmaresComps(){
 }
 
 function palmaresCompByKey(key){ return PALMARES_COMPS.find(c => c.key === key); }
-function palmaresCompIndex(key){
-  const i = PALMARES_COMPS.findIndex(c => c.key === key);
-  return i < 0 ? PALMARES_COMPS.length : i;
-}
-
 /* Obtener estilos de trofeos disponibles (para selector) */
 function getTrophyStyles(){
   return [

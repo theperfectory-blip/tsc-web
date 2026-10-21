@@ -35,21 +35,6 @@ function _syncPublicNavigation(page, navEl){
   if(page !== 'historial') renderPubSidebarHistorial();
 }
 
-/* Inicializa el flyout-hover del sidebar colapsado (una sola vez, solo escritorio) */
-function _initPubSidebarHover(sidebar){
-  if(sidebar._hoverInit) return;
-  sidebar._hoverInit = true;
-  sidebar.addEventListener('mouseenter', ()=>{
-    if(!_pubSidebarCollapsed || window.innerWidth <= 768) return;
-    clearTimeout(_pubHoverTimer);
-    sidebar.classList.add('hover-expand');
-  });
-  sidebar.addEventListener('mouseleave', ()=>{
-    if(!_pubSidebarCollapsed) return;
-    _pubHoverTimer = setTimeout(()=> sidebar.classList.remove('hover-expand'), 120);
-  });
-}
-
 function _applyPubSidebar(visible){
   // Sidebar público retirado: la navegación vive solo en el topnav (topbar fijo, lógica del prototipo).
   // Garantizar que no quede ningún resto visible y dejar #main a ancho completo (sin margen lateral).
@@ -277,9 +262,6 @@ async function renderPublicPage(page){
       await renderPubPanel();
       // Panel: partidos (marcadores/vivo) + fases (publicar) + equipos (nombre/logo).
       break;
-    case 'competiciones':
-      await renderPubComps();
-      // Competiciones: estructura de fases, partidos, equipos y competiciones.
       break;
     case 'equipos':
       await renderPubTeams();

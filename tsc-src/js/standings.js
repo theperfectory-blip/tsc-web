@@ -25,12 +25,6 @@ async function getCriteria(phaseId){
   return DEFAULT_CRITERIA.map(c=>c.id);
 }
 
-// Nombre del criterio custom para esta fase
-async function getCustomCriterionName(phaseId){
-  const phase = await dbGet('phases', phaseId);
-  return phase?.customCriterionName || 'Orden alfabético';
-}
-
 async function saveCriteria(phaseId, criteriaIds, disabledIds=[], customName=null){
   const phase = await dbGet('phases', phaseId);
   if(phase){

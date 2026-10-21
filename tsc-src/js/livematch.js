@@ -20,11 +20,6 @@
 
 let _liveCtx = null;   // { kind:'group'|'bracket', phaseId, groupIdx }
 
-/* ¿La fase no admite empate? (eliminatoria) */
-function _lmIsKnockout(phaseType){
-  return ['bracket','single','playoff'].includes(phaseType);
-}
-
 /* ¿Este partido EXIGE un ganador al finalizar?
    - bracket / single (partido único): sí.
    - bracket twoLeg (ida y vuelta): solo el leg 2 (vuelta) exige ganador global.

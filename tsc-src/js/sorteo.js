@@ -1909,7 +1909,7 @@
   }
 
   /* Asignar bola a un lado (A/B) de un cruce de playoff. Escribe en
-     playoffSlots[matchIdx] igual que savePlayoffAssign (playoff.js), pero
+     playoffSlots[matchIdx] igual que _plSaveAssign (playoff.js), pero
      retira SOLO el slotRef del mismo matchIdx+side (preserva el lado opuesto):
      los renderers reales aplican slotRefs DESPUÉS de playoffSlots, así que una
      ref vieja en ese lado volvería a tapar el equipo recién sorteado. Si el
@@ -1959,14 +1959,14 @@
       // 5. Retirar únicamente el slotRef del mismo matchIdx+side (preserva el lado opuesto).
       refs = refs.filter(r => !(r.slotIdx === matchIdx && r.side === side));
 
-      // 6. Escribir la asignación canónica (mismo destino que savePlayoffAssign).
+      // 6. Escribir la asignación canónica (mismo destino que _plSaveAssign).
       slots[matchIdx] = { ...slots[matchIdx], [key]: teamId };
       phase.playoffSlots = slots;
       phase.slotRefs = refs;
       plan.dirty.add(phaseId);
 
       // 7. Si cambió el ocupante de este lado, limpiar matches + historial del cruce
-      //    (mismo criterio que savePlayoffAssign: evita mezclar resultados de una pareja anterior).
+      //    (mismo criterio que _plSaveAssign: evita mezclar resultados de una pareja anterior).
       if (changed) plan.cruces.push({ phaseId, matchIdx });
 
       // 8. Invalidar links stale en TODOS los bombos.
@@ -2184,7 +2184,7 @@
     getActive() { return JSON.parse(JSON.stringify(activeBombo())); },
     async reset() { if (!readOnly) await resetActive(); },
     /** Consistencia bidireccional con la administración normal de playoff
-     *  (playoff.js): si `savePlayoffAssign`/`clearPlayoffAssign` reemplaza o
+     *  (playoff.js): si `_plSaveAssign` reemplaza o
      *  limpia un lado que el Sorteo había vinculado, invalida ese link para
      *  no dejar badges/destinos stale. Funciona aunque el módulo Sorteo no
      *  esté montado (opera directo sobre el registro en DB); si SÍ está
