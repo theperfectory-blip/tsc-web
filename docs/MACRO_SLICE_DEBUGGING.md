@@ -689,6 +689,8 @@ sandbox de 2.1.**
 
 > **Estado 7.2:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.2.md`. Verificado en el sandbox en `dist` y `tsc-src`, paridad OK, sin cambios de reglas. Borrado el código muerto confirmado por `audit-wiring` y los hallazgos H-26, H-50, H-51, H-58 y H-60 (unas 620 líneas, incluida la cadena huérfana del modal de playoff). **D6 sin aplicar**: el plan solo trae una recomendación, no una decisión del dueño; la rama IndexedDB de `db.js` queda como está (H-23 abierto).
 
+> **Estado 7.3:** CERRADO · 2026-10-20 (Sonnet) · ver `docs/reportes/MS-7.3.md`. Verificado en el sandbox en `dist` (recorrido público y admin, cero elementos coinciden con los selectores borrados), paridad OK. Unas 460 líneas de CSS sin uso fuera (4.692 → 4.230), medidas por referencias en todo el JS/HTML y no por cobertura de una visita (más conservador); se conservan las primitivas documentadas en `DESIGN.md`.
+
 ---
 
 ## 5. Checklist por sección (M4 y M5)

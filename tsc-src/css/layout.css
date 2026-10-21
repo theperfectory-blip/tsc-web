@@ -75,7 +75,6 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   .topbar-right{gap:5px;}
   .mode-btn{padding:4px 8px;font-size:12px;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;min-height:40px;}
   .icon-btn{padding:4px 7px;font-size:16px;display:inline-flex;align-items:center;justify-content:center;min-height:40px;min-width:40px;}
-  .tb-enter{min-height:40px;}
   .tp-btn{min-height:40px;}
   .tp-chev{display:none;} /* sin affordance de hover en touch, no aporta nada acá */
 }
@@ -131,14 +130,6 @@ input,textarea,select,button{font-family:inherit;font-size:inherit;}
   pointer-events:none;
 }
 .settings-update-dot.show{display:block;}
-/* Avatar de perfil en la topbar (solo imagen / SVG genérico) */
-.auth-avatar{
-  width:30px;height:30px;border-radius:50%;flex:none;padding:0;
-  background:var(--card2);border:1px solid var(--brd2);color:var(--txt2);
-  display:inline-flex;align-items:center;justify-content:center;
-  overflow:hidden;cursor:pointer;transition:border-color 0.15s;
-}
-.auth-avatar:hover{border-color:var(--gold);}
 
 /* ============================================================
    SIDEBAR NAV (admin)
