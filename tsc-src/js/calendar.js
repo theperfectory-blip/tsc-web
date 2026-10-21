@@ -1,4 +1,3 @@
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ─ helpers de fecha ─────────────────────────────────────── */
 const _CAL_DIAS  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
@@ -81,12 +80,12 @@ function _calLogo(team, size, fallbackLabel){
   const s = size||36;
   if(!team){
     const initials = fallbackLabel ? String(fallbackLabel).substring(0,2).toUpperCase() : '?';
-    return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:#555;font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
+    return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:#555;font-size:${Math.floor(s/3)}px;">${escHtml(initials)}</div>`;
   }
-  if(safeImgUrl(team.logo)) return `<img class="cal-logo" src="${safeImgUrl(team.logo)}" style="width:${s}px;height:${s}px;" alt="${_esc(team.name)}">`;
+  if(safeImgUrl(team.logo)) return `<img class="cal-logo" src="${safeImgUrl(team.logo)}" style="width:${s}px;height:${s}px;" alt="${escHtml(team.name)}">`;
   const initials = (team.name||'?').substring(0,2).toUpperCase();
   const bg = team.color||'#555';
-  return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:${_esc(bg)};font-size:${Math.floor(s/3)}px;">${_esc(initials)}</div>`;
+  return `<div class="cal-logo cal-logo--ph" style="width:${s}px;height:${s}px;background:${escHtml(bg)};font-size:${Math.floor(s/3)}px;">${escHtml(initials)}</div>`;
 }
 
 /* ================================================================
@@ -94,30 +93,84 @@ function _calLogo(team, size, fallbackLabel){
    ================================================================ */
 const _calTimer = {};
 
+/* ----------------------------------------------------------
+   Guardas de escritura del calendario (MS-5.12)
+   - Los guardados de una misma fila se encadenan: dos ediciones cercanas
+     podían ambas ver «el cruce no tiene documento» y crear dos.
+   - Un guardado que falla (red, permisos) avisa; antes era una promesa sin
+     capturar dentro de un setTimeout y la fila parpadeaba como guardada.
+   - Se valida la fecha y la hora; una hora sin fecha no se guarda.
+   - Temporada finalizada y partido en vivo: el código se niega. Un partido
+     en vivo recibe goles continuamente; reescribirlo entero desde una lectura
+     vieja (como hace el guardado de la fecha) podía pisar un gol.
+   ---------------------------------------------------------- */
+const _calChain = {};
+function _calEnqueue(key, fn, what){
+  const prev = _calChain[key] || Promise.resolve();
+  const run  = prev.then(fn);
+  _calChain[key] = run.catch(()=>{});
+  return run.catch(err=>{
+    console.error('[Calendario]', err);
+    showToast((what ? what+': ' : '') + dbErrorMsg(err), 'error');
+  });
+}
+
+/* Mensaje de error de una fecha/hora, o null si valen (o si ambas están vacías: quitar la programación). */
+function _calWhenError(dateStr, timeStr){
+  if(!dateStr && !timeStr) return null;
+  if(!dateStr) return 'Elige la fecha antes de la hora';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  const d = m ? new Date(Number(m[1]), Number(m[2])-1, Number(m[3])) : null;
+  if(!d || d.getFullYear()!==Number(m[1]) || d.getMonth()!==Number(m[2])-1 || d.getDate()!==Number(m[3])
+     || d.getFullYear()<2000 || d.getFullYear()>2100) return 'La fecha no es válida';
+  if(timeStr && !/^([01]\d|2[0-3]):[0-5]\d$/.test(timeStr)) return 'La hora no es válida';
+  return null;
+}
+
+/* ¿La temporada del partido/fase está finalizada? (H-49: la UI lo ve, el código también). */
+async function _calSeasonLocked(phaseId){
+  if(phaseId!=null && typeof _mxSeasonLocked==='function') return _mxSeasonLocked(phaseId);
+  const season = (await dbGetAll('seasons')).find(x=>x.number===STATE.season);
+  if(season?.status==='finished'){
+    showToast(`${getSeasonName(season)} está finalizada: no admite cambios`,'error');
+    return true;
+  }
+  return false;
+}
+function _calLiveMsg(){ showToast('El partido está en vivo: no se puede cambiar su fecha hasta que termine','error'); }
+
 /* Grupo: actualiza doc de partido existente */
 function _calSave(matchId, dateStr, timeStr, rkey){
   const key = rkey || String(matchId);
   clearTimeout(_calTimer[key]);
-  _calTimer[key] = setTimeout(async ()=>{
+  const bad = _calWhenError(dateStr, timeStr);
+  if(bad){ showToast(bad,'error'); return; }
+  _calTimer[key] = setTimeout(()=>_calEnqueue(key, async ()=>{
     const m = await dbGet('matches', matchId);
     if(!m) return;
-    await dbPut('matches', {...m, scheduledDate: dateStr||null, scheduledTime: timeStr||null});
+    if(await _calSeasonLocked(m.phaseId)) return;
+    if(m.live){ _calLiveMsg(); return; }
+    await dbWriteBatch([{type:'set', store:'matches', data:{...m, scheduledDate: dateStr||null, scheduledTime: dateStr ? (timeStr||null) : null}}]);
     _calRowOk(key);
-  }, 700);
+  }, 'No se pudo guardar la fecha'), 700);
 }
 
 /* Bracket / playoff: crea o actualiza placeholder doc */
 function _calSaveSlot(phaseId, slotId, teamA, teamB, labelA, labelB, matchIdx, roundIdx, leg, dateStr, timeStr, rkey){
   const key = rkey || slotId;
   clearTimeout(_calTimer[key]);
-  _calTimer[key] = setTimeout(async ()=>{
+  const bad = _calWhenError(dateStr, timeStr);
+  if(bad){ showToast(bad,'error'); return; }
+  _calTimer[key] = setTimeout(()=>_calEnqueue(key, async ()=>{
+    if(await _calSeasonLocked(phaseId)) return;
     const existing = await dbGetAll('matches', m => m.slotId===slotId && m.phaseId===phaseId);
+    const when = { scheduledDate: dateStr||null, scheduledTime: dateStr ? (timeStr||null) : null };
     if(existing.length){
-      // Preservar resultado si ya existe — solo actualizar schedule
-      for(const doc of existing){
-        await dbPut('matches', {...doc, scheduledDate: dateStr||null, scheduledTime: timeStr||null});
-      }
+      if(existing.some(m=>m.live)){ _calLiveMsg(); return; }
+      // Preservar resultado si ya existe — solo actualizar schedule (en un lote)
+      await dbWriteBatch(existing.map(doc=>({type:'set', store:'matches', data:{...doc, ...when}})));
     } else {
+      if(!dateStr) return;   // nada que programar: no se crea un documento vacío
       const data = {
         slotId,
         phaseId,
@@ -128,16 +181,15 @@ function _calSaveSlot(phaseId, slotId, teamA, teamB, labelA, labelB, matchIdx, r
         goalsA: null,
         goalsB: null,
         season: STATE.season,
-        scheduledDate: dateStr||null,
-        scheduledTime: timeStr||null,
+        ...when,
       };
       if(matchIdx != null) data.matchIdx = matchIdx;
       if(roundIdx != null) data.roundIdx = roundIdx;
       if(leg      != null) data.leg      = leg;
-      await dbAdd('matches', data);
+      await dbWriteBatch([{type:'add', store:'matches', data}]);
     }
     _calRowOk(key);
-  }, 700);
+  }, 'No se pudo guardar la fecha'), 700);
 }
 
 function _calRowOk(key){
@@ -169,22 +221,36 @@ function _calOnChange(input){
 }
 
 async function calClearSchedule(matchId, phaseId, slotId){
+  // Qué se toca: un partido de grupo (solo se quita la fecha) o los documentos
+  // de un cruce (se borran los que no tienen resultado; los jugados conservan su resultado).
+  let docs;
   if(matchId!=null && matchId!=='null'){
     const m = await dbGet('matches', parseInt(matchId));
-    if(m) await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
+    docs = m ? [m] : [];
   } else if(slotId && phaseId!=null){
     const pid = parseInt(phaseId);
-    const existing = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===pid);
-    for(const m of existing){
-      if(m.goalsA==null && m.goalsB==null){
-        await dbDelete('matches', m.id);
-      } else {
-        await dbPut('matches', {...m, scheduledDate:null, scheduledTime:null});
-      }
-    }
-  }
-  showToast('Programación eliminada');
-  await renderAdmCalendar();
+    docs = await dbGetAll('matches', m=>m.slotId===slotId && m.phaseId===pid);
+  } else { return; }
+  if(!docs.length){ await renderAdmCalendar(); return; }
+  if(await _calSeasonLocked(docs[0].phaseId)) return;
+  if(docs.some(m=>m.live)){ _calLiveMsg(); return; }
+  const teamName = async (id, lbl) => (id!=null ? (await dbGet('teams', id))?.name : null) || lbl || 'Por definir';
+  const d0 = docs[0];
+  const label = `${await teamName(d0.teamA, d0.labelA)} vs ${await teamName(d0.teamB, d0.labelB)}`;
+  const when  = [d0.scheduledDate, d0.scheduledTime].filter(Boolean).join(' ');
+  const willDelete = docs.some(m=>m.goalsA==null && m.goalsB==null && m.slotId);
+  showConfirm('¿Quitar la programación?',
+    `Se quita la fecha${when?` (${when})`:''} de ${label}.`
+    + (willDelete ? ' El cruce vuelve a «sin programar» y se borra su documento programado (todavía no tiene resultado).' : ''),
+    () => _calEnqueue('clear:'+d0.id, async ()=>{
+      const fresh = await dbGetAll('matches', m=>docs.some(d=>d.id===m.id));
+      if(fresh.some(m=>m.live)){ _calLiveMsg(); return; }
+      await dbWriteBatch(fresh.map(m => (m.slotId && m.goalsA==null && m.goalsB==null)
+        ? {type:'delete', store:'matches', id:m.id}
+        : {type:'set', store:'matches', data:{...m, scheduledDate:null, scheduledTime:null}}));
+      showToast('Programación eliminada');
+      await renderAdmCalendar();
+    }, 'No se pudo quitar la programación'));
 }
 
 /* ================================================================
@@ -207,12 +273,21 @@ function _notifyStreamTodayCallable(){
   return fns.httpsCallable('notifyStreamToday');
 }
 
+/* «Hoy» del torneo: las fechas programadas están en hora de Lima, así que el
+   «hoy» que se manda a la función también. Con la fecha del dispositivo, un
+   admin en otra zona avisaba a los equipos del día equivocado cerca de la
+   medianoche. */
+function _calLimaTodayStr(){
+  try{ return new Intl.DateTimeFormat('en-CA', {timeZone:'America/Lima', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date()); }
+  catch(_){ return _calTodayStr(); }
+}
+
 async function notifyStreamTodayClick(){
   const btn = document.getElementById('btn-notify-stream-today');
   const run = async ()=>{
     if(btn){ btn.disabled = true; }
     try {
-      const date = _calTodayStr();
+      const date = _calLimaTodayStr();
       const res  = await _notifyStreamTodayCallable()({ date, season: STATE.season });
       const d = res.data || {};
       if(!d.matchesToday){
@@ -225,15 +300,17 @@ async function notifyStreamTodayClick(){
       }
     } catch(e){
       console.error('[notifyStreamToday]', e);
-      showToast(e?.message || 'No se pudo enviar la notificación', 'error');
+      const code = String(e?.code||'');
+      showToast(/permission-denied/.test(code) ? 'Solo un administrador puede notificar el stream' : (e?.message || 'No se pudo enviar la notificación'), 'error');
     } finally {
       if(btn){ btn.disabled = false; }
     }
   };
   if(typeof showConfirm==='function'){
+    if(await _calSeasonLocked()) return;
     showConfirm(
       '¿Notificar stream de hoy?',
-      'Se enviará un aviso push a todos los presidentes que juegan hoy. Esta acción no se puede deshacer.',
+      `Se enviará un aviso push a todos los presidentes que juegan hoy (${_calLimaTodayStr()}, hora de Lima) y, un minuto después, el aviso de «a continuación». Los que ya fueron avisados hoy no lo reciben otra vez. Esta acción no se puede deshacer.`,
       run
     );
   } else {
@@ -249,7 +326,7 @@ async function renderAdmCalendar(){
   if(!el) return;
   el.innerHTML = '<div class="cal-loading">Cargando...</div>';
 
-  const [allMatches, teams, allPhases, comps] = await Promise.all([
+  const [allMatches, teams, allPhasesRaw, comps] = await Promise.all([
     getForSeason('matches'),
     getForSeason('teams'),
     getForSeason('phases'),
@@ -258,6 +335,10 @@ async function renderAdmCalendar(){
 
   const teamById  = Object.fromEntries(teams.map(t=>[t.id, t]));
   const compById  = Object.fromEntries(comps.map(c=>[c.id, c]));
+  // Las fases no llevan `season` (las trae todas getForSeason): solo van las de
+  // las competiciones de la temporada seleccionada. Antes el calendario admin
+  // de la T4 listaba como «sin programar» los cruces de las fases de la T3.
+  const allPhases = allPhasesRaw.filter(ph => compById[ph.compId]);
 
   /* agrupar matches por phaseId para búsqueda rápida */
   const byPhase = {};
@@ -551,16 +632,16 @@ async function renderAdmCalendar(){
 
     /* data-* attributes para _calOnChange */
     const rkey = e.matchId ? String(e.matchId) : String(e.slotId);
-    let dataAttrs = `data-rkey="${_esc(rkey)}"`;
+    let dataAttrs = `data-rkey="${escHtml(rkey)}"`;
     if(e.matchId){
       dataAttrs += ` data-mid="${e.matchId}"`;
     } else {
-      dataAttrs += ` data-sid="${_esc(e.slotId)}"`;
+      dataAttrs += ` data-sid="${escHtml(e.slotId)}"`;
       dataAttrs += ` data-pid="${e.slotPhaseId}"`;
       dataAttrs += ` data-ta="${e.slotTeamAId!=null?e.slotTeamAId:''}"`;
       dataAttrs += ` data-tb="${e.slotTeamBId!=null?e.slotTeamBId:''}"`;
-      dataAttrs += ` data-la="${_esc(e.labelA)}"`;
-      dataAttrs += ` data-lb="${_esc(e.labelB)}"`;
+      dataAttrs += ` data-la="${escHtml(e.labelA)}"`;
+      dataAttrs += ` data-lb="${escHtml(e.labelB)}"`;
       dataAttrs += ` data-mi="${e.slotMatchIdx!=null?e.slotMatchIdx:''}"`;
       dataAttrs += ` data-ri="${e.slotRoundIdx!=null?e.slotRoundIdx:''}"`;
       dataAttrs += ` data-leg="${e.slotLeg!=null?e.slotLeg:''}"`;
@@ -569,7 +650,7 @@ async function renderAdmCalendar(){
     /* clear call */
     const clearCall = e.matchId
       ? `calClearSchedule('${e.matchId}',null,null)`
-      : `calClearSchedule(null,'${e.slotPhaseId}','${_esc(e.slotId)}')`;
+      : `calClearSchedule(null,'${e.slotPhaseId}','${escHtml(e.slotId)}')`;
 
     /* vuelta: el equipo B juega en casa → invertir orden visual */
     const isVueltaRow = e.slotLeg === 2;
@@ -580,19 +661,19 @@ async function renderAdmCalendar(){
     <div class="cal-adm-row${hasSched?' cal-adm-row--sched':''}" ${dataAttrs}>
       <div class="cal-adm-teams">
         ${_calLogo(dA_id, 28, dA_lbl)}
-        <span class="cal-adm-tname">${_esc(dA_lbl)}</span>
+        <span class="cal-adm-tname">${escHtml(dA_lbl)}</span>
         <span class="cal-adm-vs">vs</span>
-        <span class="cal-adm-tname">${_esc(dB_lbl)}</span>
+        <span class="cal-adm-tname">${escHtml(dB_lbl)}</span>
         ${_calLogo(dB_id, 28, dB_lbl)}
       </div>
       <div class="cal-adm-controls">
         ${e.slotLeg===1?'<span class="cal-adm-leg cal-adm-leg--ida">IDA</span>':e.slotLeg===2?'<span class="cal-adm-leg cal-adm-leg--vuelta">VUELTA</span>':''}
-        <span class="cal-adm-phase" style="color:${col};border-color:${col};">${_esc(badge)}</span>
+        <span class="cal-adm-phase" style="color:${col};border-color:${col};">${escHtml(badge)}</span>
         <input type="date" class="cal-inp cal-inp-date" value="${e.scheduledDate||''}"
-          title="Fecha" onchange="_calOnChange(this)">
+          title="Fecha" data-onchange="_calOnChange(this)">
         <input type="time" class="cal-inp cal-inp-time" value="${e.scheduledTime||''}"
-          title="Hora" onchange="_calOnChange(this)">
-        ${hasSched?`<button class="btn btn-xs cal-adm-clear" onclick="${clearCall}" title="Quitar fecha">
+          title="Hora" data-onchange="_calOnChange(this)">
+        ${hasSched?`<button class="btn btn-xs cal-adm-clear" data-onclick="${clearCall}" title="Quitar fecha">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>`:''}
       </div>
@@ -649,27 +730,38 @@ function _calSaveDayLabel(dateStr){
 
 async function _calDoSaveDayLabel(dateStr){
   try {
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr)) || _calWhenError(dateStr,'')) { showToast('La fecha del día no es válida','error'); return; }
+    if(await _calSeasonLocked()) return;
     const inp  = document.querySelector(`.cal-lbl-inp[data-date="${CSS.escape(dateStr)}"]`);
     const sel  = document.querySelector(`.cal-lbl-type[data-date="${CSS.escape(dateStr)}"]`);
-    const text = inp ? (inp.value || '') : '';
-    const type = sel ? (sel.value || '') : '';
+    const text = (inp ? (inp.value || '') : '').slice(0, 64);
+    const typeRaw = sel ? (sel.value || '') : '';
+    const type = ['libre','sorteo'].includes(typeRaw) ? typeRaw : '';
     const existing = await dbGetAll('calDayLabels', r => r.season === STATE.season && r.date === dateStr);
     const payload = { season: STATE.season, date: dateStr, text, type };
+    const ops = [];
     if(existing.length){
-      /* Auto-reparación: si quedaron duplicados de una carrera vieja, esta
-         edición los consolida — el primero se actualiza con el valor actual
-         del DOM (da igual cuál sea "el primero", Firestore no garantiza
-         orden) y el resto se borra por id. */
-      await dbPut('calDayLabels', {...existing[0], ...payload});
-      for(const dup of existing.slice(1)) await dbDelete('calDayLabels', dup.id);
+      if(!text.trim() && !type){
+        /* Día sin etiqueta ni tipo: se borra el documento (antes quedaba uno
+           vacío por cada día que se había tocado). */
+        existing.forEach(d => ops.push({type:'delete', store:'calDayLabels', id:d.id}));
+      } else {
+        /* Auto-reparación: si quedaron duplicados de una carrera vieja, esta
+           edición los consolida — el primero se actualiza con el valor actual
+           del DOM (da igual cuál sea "el primero", Firestore no garantiza
+           orden) y el resto se borra por id. Todo en un lote. */
+        ops.push({type:'set', store:'calDayLabels', data:{...existing[0], ...payload}});
+        existing.slice(1).forEach(d => ops.push({type:'delete', store:'calDayLabels', id:d.id}));
+      }
     } else if(text.trim() || type){
-      await dbAdd('calDayLabels', payload);
+      ops.push({type:'add', store:'calDayLabels', data:payload});
     }
+    if(ops.length) await dbWriteBatch(ops);
     /* feedback visual en el input */
     if(inp){ inp.classList.add('cal-lbl-inp--saved'); setTimeout(()=>inp.classList.remove('cal-lbl-inp--saved'), 900); }
   } catch(e){
     console.warn('[calDayLabels] Error al guardar:', e.code || e.message);
-    showToast('Error al guardar. Verifica permisos de Firestore.');
+    showToast('No se pudo guardar la etiqueta: ' + dbErrorMsg(e), 'error');
   }
 }
 
@@ -687,7 +779,15 @@ async function renderAdmCalendarLabels(){
   const el = document.getElementById('adm-calendar-labels');
   if(!el) return;
 
-  const labels = await dbGetAll('calDayLabels', r => r.season === STATE.season).catch(()=>[]);
+  let labels;
+  try{ labels = await dbGetAll('calDayLabels', r => r.season === STATE.season); }
+  catch(err){
+    // Antes un fallo de lectura mostraba el cronograma vacío, y escribir encima
+    // creaba etiquetas duplicadas de las que no se veían.
+    console.error('[calDayLabels]', err);
+    el.innerHTML = `<div class="cal-empty"><p>No se pudo cargar el cronograma: ${escHtml(dbErrorMsg(err))}</p></div>`;
+    return;
+  }
   const labelByDate = Object.fromEntries(labels.map(l => [l.date, {text: l.text||'', type: l.type||''}]));
 
   const today = _calTodayStr();
@@ -716,13 +816,13 @@ async function renderAdmCalendarLabels(){
     rows.push(`
     <div class="cal-lbl-day cal-lbl-day--${cls}">
       <span class="cal-lbl-dot"></span>
-      <span class="cal-lbl-date" title="${_esc(dayAbbr)}">${_esc(shortDate)}</span>
-      <select class="cal-lbl-type" data-date="${_esc(dateStr)}" onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
+      <span class="cal-lbl-date" title="${escHtml(dayAbbr)}">${escHtml(shortDate)}</span>
+      <select class="cal-lbl-type" data-date="${escHtml(dateStr)}" data-onchange="_calSaveDayLabel(this.dataset.date)">${selOpts}</select>
       <input class="cal-lbl-inp" type="text" maxlength="64"
         placeholder="Etiqueta del día..."
-        data-date="${_esc(dateStr)}"
-        value="${_esc(val.text)}"
-        oninput="_calSaveDayLabel(this.dataset.date)">
+        data-date="${escHtml(dateStr)}"
+        value="${escHtml(val.text)}"
+        data-oninput="_calSaveDayLabel(this.dataset.date)">
     </div>`);
   }
 
@@ -738,11 +838,11 @@ async function renderAdmCalendarLabels(){
       Cronograma
     </div>
     <div class="cal-lbl-nav">
-      <button class="cal-lbl-arrow" type="button" onclick="calLblNavMonth(-1)" aria-label="Mes anterior">
+      <button class="cal-lbl-arrow" type="button" data-onclick="calLblNavMonth(-1)" aria-label="Mes anterior">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
-      <span class="cal-lbl-nav-title">${_esc(monthName)} ${year}</span>
-      <button class="cal-lbl-arrow" type="button" onclick="calLblNavMonth(1)" aria-label="Mes siguiente">
+      <span class="cal-lbl-nav-title">${escHtml(monthName)} ${year}</span>
+      <button class="cal-lbl-arrow" type="button" data-onclick="calLblNavMonth(1)" aria-label="Mes siguiente">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
     </div>
@@ -778,7 +878,7 @@ let _calAnchorDateStr = null;
    icono: es lo único que escribe la máquina de escribir, así el SVG nunca se borra.
    El aria-label fija el nombre accesible aunque el rótulo se vacíe durante la animación. */
 function _calCtaBtn(cls, label, icon){
-  return `<button type="button" class="btn ${cls}" aria-label="${_esc(label)}">${icon||''}<span class="hm-btn-label">${_esc(label)}</span></button>`;
+  return `<button type="button" class="btn ${cls}" aria-label="${escHtml(label)}">${icon||''}<span class="hm-btn-label">${escHtml(label)}</span></button>`;
 }
 
 function _calHeroHtml(m, isLive, ctx){
@@ -794,7 +894,7 @@ function _calHeroHtml(m, isLive, ctx){
   const when  = m.scheduledDate ? `${_calFormatDay(_calLocalDateStr(heroInst) || m.scheduledDate)}${time?` · ${time}`:''}` : (time||'');
   const eyebrowChip = isLive
     ? `<span class="chip chip-live"><span class="chip-dot"></span><span class="hm-chip-label">En vivo</span></span>`
-    : (label ? `<span class="chip"><span class="hm-chip-label">${_esc(label)}</span></span>` : '');
+    : (label ? `<span class="chip"><span class="hm-chip-label">${escHtml(label)}</span></span>` : '');
 
   // CTAs reales: H2H (si ambos equipos están definidos) + ir a la competición.
   const bothReal = !!(ta && tb);
@@ -809,7 +909,7 @@ function _calHeroHtml(m, isLive, ctx){
   return `
   <div class="hero hero-match hm-collapsible" style="margin-bottom:0;" data-reveal>
     <div class="hm-border"></div>
-    <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${_esc(taN)} contra ${_esc(tbN)}">
+    <button type="button" class="hm-peek hm-toggle" aria-expanded="false" aria-label="${isLive?'Partido en vivo':'Próximo partido'}: ${escHtml(taN)} contra ${escHtml(tbN)}">
       <span class="hm-peek-lbl">${isLive ? 'En vivo' : 'Próximo partido'}</span>
       ${isLive
         ? `<span class="hm-count" style="color:var(--red);">${m.goalsA??0} — ${m.goalsB??0}</span>`
@@ -824,15 +924,15 @@ function _calHeroHtml(m, isLive, ctx){
       <div class="hm-face">
         <div class="hm-side home">
           ${_calLogo(ta, 64, taN)}
-          <span class="hm-name">${_esc(taN)}</span>
+          <span class="hm-name">${escHtml(taN)}</span>
         </div>
         <div class="hm-mid">
           ${isLive
             ? `<div class="hm-count" style="font-size:3rem;color:var(--red);">${m.goalsA??0}—${m.goalsB??0}</div>`
-            : when ? `<div class="hm-when">${_esc(when)}</div>` : ''}
+            : when ? `<div class="hm-when">${escHtml(when)}</div>` : ''}
         </div>
         <div class="hm-side away">
-          <span class="hm-name">${_esc(tbN)}</span>
+          <span class="hm-name">${escHtml(tbN)}</span>
           ${_calLogo(tb, 64, tbN)}
         </div>
       </div>
@@ -1346,16 +1446,16 @@ async function renderPubCalendar(){
     const iniA = (mmTa?.ini || mmTaN).substring(0,3).toUpperCase();
     const iniB = (mmTb?.ini || mmTbN).substring(0,3).toUpperCase();
     const colA = mmTa?.color || '#333', colB = mmTb?.color || '#333';
-    const crestA = safeImgUrl(mmTa?.logo) ? `<img src="${safeImgUrl(mmTa?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
-    const crestB = safeImgUrl(mmTb?.logo) ? `<img src="${safeImgUrl(mmTb?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
+    const crestA = safeImgUrl(mmTa?.logo) ? `<img src="${safeImgUrl(mmTa?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(iniA);
+    const crestB = safeImgUrl(mmTb?.logo) ? `<img src="${safeImgUrl(mmTb?.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(iniB);
     const time = _calMatchTimeLocal(m);
     const played = m.goalsA!=null && m.goalsB!=null;
     /* en vuelta el marcador también se invierte visualmente */
     const scoreA = isVueltaMm ? m.goalsB : m.goalsA;
     const scoreB = isVueltaMm ? m.goalsA : m.goalsB;
     const lead = played
-      ? `<span class="mm-score">${_esc(scoreA)}-${_esc(scoreB)}</span>`
-      : `<span class="mm-time">${_esc(time||'—')}</span>`;
+      ? `<span class="mm-score">${escHtml(scoreA)}-${escHtml(scoreB)}</span>`
+      : `<span class="mm-time">${escHtml(time||'—')}</span>`;
     const label = [comp?.name||'', phase?.name||''].filter(Boolean).join(' · ');
     const legBadge = mLeg===1
       ? '<span class="mm-leg mm-leg--ida">IDA</span>'
@@ -1364,17 +1464,17 @@ async function renderPubCalendar(){
       ${lead}
       <span class="mm-fixture">
         <span class="mm-side mm-side-a">
-          <span class="mm-crest" style="--tc:${_esc(colA)};">${crestA}</span>
-          <span class="mm-name">${_esc(mmTaN)}</span>
+          <span class="mm-crest" style="--tc:${escHtml(colA)};">${crestA}</span>
+          <span class="mm-name">${escHtml(mmTaN)}</span>
         </span>
         <span class="mm-sep">–</span>
         <span class="mm-side mm-side-b">
-          <span class="mm-name">${_esc(mmTbN)}</span>
-          <span class="mm-crest" style="--tc:${_esc(colB)};">${crestB}</span>
+          <span class="mm-name">${escHtml(mmTbN)}</span>
+          <span class="mm-crest" style="--tc:${escHtml(colB)};">${crestB}</span>
         </span>
       </span>
       ${legBadge}
-      ${label?`<span class="mm-comp">${_esc(label)}</span>`:''}
+      ${label?`<span class="mm-comp">${escHtml(label)}</span>`:''}
     </div>`;
   };
 
@@ -1393,7 +1493,7 @@ async function renderPubCalendar(){
     const cls = ['metro-day', has?'has':'empty', isToday?'today':'', isPast?'past':''].filter(Boolean).join(' ');
     return `<div class="${cls}" data-cal-date="${dateStr}">
       <div class="metro-dot"></div>
-      <div class="metro-date">${_esc(_calFormatDay(viewerDateStr))}${tagText?`<span class="mm-tag">${_esc(tagText)}</span>`:''}</div>
+      <div class="metro-date">${escHtml(_calFormatDay(viewerDateStr))}${tagText?`<span class="mm-tag">${escHtml(tagText)}</span>`:''}</div>
       ${has ? ms.map(metroMatch).join('') : (tagText ? '' : '<div class="metro-empty">Sin partidos</div>')}
     </div>`;
   };

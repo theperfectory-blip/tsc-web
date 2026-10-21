@@ -61,9 +61,6 @@ function setTheme(theme){
   document.documentElement.setAttribute('data-theme',theme);
   localStorage.setItem('tsc_theme',theme);
   // El pill toggle se actualiza solo vía CSS (data-theme en <html>), no necesita JS extra.
-  // Compatibilidad con los viejos botones si quedaran en el DOM:
-  document.getElementById('theme-dark-btn')?.classList.toggle('btn-primary',theme==='dark');
-  document.getElementById('theme-light-btn')?.classList.toggle('btn-primary',theme==='light');
   // Notifica a módulos que cachean colores derivados del tema en inline style
   // (p.ej. palmares.js → --metal-ink) para que se recalculen sin esperar un re-render.
   document.dispatchEvent(new CustomEvent('tsc:theme-changed', { detail: { theme } }));
@@ -77,6 +74,9 @@ function setTheme(theme){
       window.Capacitor.Plugins.SystemBars?.setBarsTheme({ theme }).catch(()=>{});
     }
   } catch (_) {}
+}
+function toggleThemeKey(e){
+  if(e.key==='Enter' || e.key===' ') toggleTheme();
 }
 function toggleTheme(){
   setTheme(STATE.theme === 'light' ? 'dark' : 'light');
@@ -195,10 +195,9 @@ async function setPushOn(b){
    (window.UPDATER) — acá solo el render de #settings-update-group y
    la orquestación de los distintos estados. `notes` del manifiesto
    viene de la red (GitHub Releases): es dato externo aunque lo
-   escriba el propio dev, así que se escapa con _updEsc() antes de
+   escriba el propio dev, así que se escapa con escHtml() antes de
    entrar por innerHTML (regla de CLAUDE.md).
    ---------------------------------------------------------- */
-function _updEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 let _updLastResult = null;  // último UPDATER.check() — lo reusa installUpdate() sin re-pedir el manifiesto
 let _updInstalling = false; // guarda de UI aparte del flag interno de updater.js — evita el doble-tap desde el primer click, antes de que exista una descarga real que bloquear
@@ -226,20 +225,20 @@ function _updRenderCheckResult(res){
     if (res.reason === 'network-error') msg = 'No se pudo comprobar si hay actualizaciones — revisa tu conexión.';
     else if (res.reason === 'bad-manifest') msg = 'El servidor devolvió un formato inesperado.';
     else if (res.reason === 'app-info-error') msg = 'No se pudo leer la versión instalada.';
-    _updSetStatus(`${msg} <button type="button" class="btn btn-xs" style="margin-top:4px;" onclick="checkForUpdates()">Reintentar</button>`);
+    _updSetStatus(`${msg} <button type="button" class="btn btn-xs" style="margin-top:4px;" data-onclick="checkForUpdates()">Reintentar</button>`);
     return;
   }
 
   if (!res.hasUpdate){
-    _updSetStatus(`Ya tienes la última versión (v${_updEsc(res.currentName || res.currentCode)}).`);
+    _updSetStatus(`Ya tienes la última versión (v${escHtml(res.currentName || res.currentCode)}).`);
     return;
   }
 
-  const notes = res.notes ? `<div style="margin-top:2px;">${_updEsc(res.notes)}</div>` : '';
+  const notes = res.notes ? `<div style="margin-top:2px;">${escHtml(res.notes)}</div>` : '';
   _updSetStatus(`
-    <div>Hay una versión nueva: v${_updEsc(res.remoteName || res.remoteCode)}</div>
+    <div>Hay una versión nueva: v${escHtml(res.remoteName || res.remoteCode)}</div>
     ${notes}
-    <button type="button" class="btn btn-xs" id="update-install-btn" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;" onclick="installUpdate()">
+    <button type="button" class="btn btn-xs" id="update-install-btn" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;" data-onclick="installUpdate()">
       <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
       Descargar e instalar
     </button>
@@ -297,8 +296,8 @@ async function installUpdate(){
       _updSetStatus(`
         ${_UI_ALERT_SVG}No puedes instalar actualizaciones todavía — activa el permiso en Ajustes.
         <div style="margin-top:6px;display:flex;gap:6px;">
-          <button type="button" class="btn btn-xs" onclick="openUpdatePermission()">Habilitar</button>
-          <button type="button" class="btn btn-xs" onclick="installUpdate()">Ya lo activé — reintentar</button>
+          <button type="button" class="btn btn-xs" data-onclick="openUpdatePermission()">Habilitar</button>
+          <button type="button" class="btn btn-xs" data-onclick="installUpdate()">Ya lo activé — reintentar</button>
         </div>
       `);
       return;
@@ -316,8 +315,8 @@ async function installUpdate(){
 
     const detail = (res.error && (res.error.message || String(res.error))) || 'Error desconocido.';
     _updSetStatus(`
-      ${_UI_ALERT_SVG}Falló la descarga: ${_updEsc(detail)}
-      <div style="margin-top:6px;"><button type="button" class="btn btn-xs" onclick="installUpdate()">Reintentar</button></div>
+      ${_UI_ALERT_SVG}Falló la descarga: ${escHtml(detail)}
+      <div style="margin-top:6px;"><button type="button" class="btn btn-xs" data-onclick="installUpdate()">Reintentar</button></div>
     `);
   } finally {
     _updInstalling = false;
@@ -524,6 +523,11 @@ function initVolSlider(){
   });
 }
 
+function settingsUseDeviceTz(){
+  const i = document.getElementById('settings-timezone');
+  i.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  settingsUpdateTzPreview();
+}
 function settingsUpdateTzPreview(){
   const tz = document.getElementById('settings-timezone')?.value.trim();
   const el = document.getElementById('settings-tz-preview');
@@ -628,13 +632,11 @@ const EQUIPOS_INICIALES = [
 async function seedInitialData(){
   const seasons = await dbGetAll('seasons');
   if(seasons.length>0) return; // ya inicializado
-  if(_isFS()){
-    // En Firestore se confirma con el SERVIDOR antes de sembrar: una lectura
-    // sin conexión puede volver vacía desde la caché y sembraría una temporada
-    // y 60 equipos duplicados (MS-2.4). Sin conexión, esto lanza y no siembra.
-    const snap = await db.collection('seasons').limit(1).get({source:'server'});
-    if(!snap.empty) return;
-  }
+  // Se confirma con el SERVIDOR antes de sembrar: una lectura sin conexión
+  // puede volver vacía desde la caché y sembraría una temporada y 60 equipos
+  // duplicados (MS-2.4). Sin conexión, esto lanza y no siembra.
+  const snap = await db.collection('seasons').limit(1).get({source:'server'});
+  if(!snap.empty) return;
   // Temporada 1
   await dbAdd('seasons',{number:1,status:'active',createdAt:new Date().toISOString()});
   // 60 equipos
@@ -794,9 +796,32 @@ async function _bootStep(name, fn){
   catch(e){ console.error(`[arranque] ${name} falló:`, e); return false; }
 }
 
+/* Sin SDK de Firebase no hay datos que mostrar (D6): el splash queda con el
+   aviso y un botón para reintentar, en vez de un sitio vacío o inventado. */
+function _bootOffline(){
+  window.__TSC_BOOT_OFFLINE__ = true;
+  const st = document.getElementById('boot-splash-status');
+  if(!st) return;
+  st.textContent = 'Sin conexión con el servidor. Revisa tu conexión e intenta de nuevo.';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'Reintentar';
+  btn.style.cssText = 'display:block;margin:14px auto 0;padding:8px 22px;border:1px solid #C9A84C;border-radius:8px;background:transparent;color:#C9A84C;font:inherit;cursor:pointer;pointer-events:auto;';
+  btn.addEventListener('click', ()=>location.reload());
+  st.appendChild(btn);
+  const splash = document.getElementById('boot-splash');
+  if(splash) splash.removeAttribute('aria-hidden');
+}
+
 window.addEventListener('load', async ()=>{
+  if(!_isFS()){ console.error('[arranque] sin Firebase: no hay conexión con el servidor'); _bootOffline(); return; }
   const dbOk = await _bootStep('initDB', initDB);
   if(!dbOk) showToast('No se pudo abrir la base de datos','error');
+  // Base local de la rama IndexedDB retirada (D6): tenía datos sembrados
+  // inventados. Se borra de los navegadores que la llegaron a crear.
+  try { indexedDB.deleteDatabase('TSC_v4'); } catch(_){}
+  // Temporadas archivadas que no cargaron: faltarían datos, no se calla (MS-5.15).
+  if(dbOk && typeof dbArchiveInfo==='function' && dbArchiveInfo().error) showToast('No se pudieron cargar las temporadas archivadas: faltan datos de temporadas pasadas. Recarga la página.','error');
   await _bootStep('setTheme', ()=>setTheme(localStorage.getItem('tsc_theme')||'dark'));
   if(dbOk){
     await _bootStep('seedInitialData', seedInitialData);
@@ -807,7 +832,7 @@ window.addEventListener('load', async ()=>{
     await _bootStep('syncTeamPreviousNames', syncTeamPreviousNames);
     // v3: DIABLOS ROJOS es el nombre antiguo de AC ANGELES ROJOS (fusionar)
     await _bootStep('migrateTeamsV3MergeDiablos', migrateTeamsV3MergeDiablos);
-    // Sembrar palmarés histórico si la IDB está vacía
+    // Sembrar palmarés histórico si la colección está vacía
     if(typeof seedPalmaresIfEmpty==='function') await _bootStep('seedPalmaresIfEmpty', seedPalmaresIfEmpty);
     // v4: re-asignar títulos huérfanos de DIABLOS ROJOS a AC ANGELES ROJOS
     await _bootStep('migratePalmaresV4DiablosToAngeles', migratePalmaresV4DiablosToAngeles);
@@ -840,7 +865,7 @@ window.addEventListener('load', async ()=>{
       STATE.publicPage = savedPublicPage;
     }
     const savedAdminPage = localStorage.getItem('tsc_admin_page');
-    if(savedAdminPage) STATE.adminPage = savedAdminPage;
+    if(savedAdminPage && (typeof isAdminPage!=='function' || isAdminPage(savedAdminPage))) STATE.adminPage = savedAdminPage;
   }catch(e){}
 
   await _bootStep('loadSeasons', loadSeasons);

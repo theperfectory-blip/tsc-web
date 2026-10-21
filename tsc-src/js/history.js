@@ -65,10 +65,6 @@ function computeResultado(gA, gB, pA, pB){
   return 'Empate';
 }
 
-function _esc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 /* ----------------------------------------------------------
    Carga del JSON estático (cacheado en memoria por sesión)
    ---------------------------------------------------------- */
@@ -127,9 +123,18 @@ async function seedHistoryIfEmpty(){
    API — sync con matches store
    ---------------------------------------------------------- */
 async function appendOrUpdateHistory(matchId){
-  const m = await dbGet('matches', matchId);
-  if(!m) return;
-  if(m.goalsA==null || m.goalsB==null) return;
+  const rec = await historyRecordFor(await dbGet('matches', matchId));
+  if(rec) await dbPut('matchHistory', rec);
+}
+
+/* Registro de historial que corresponde a un partido (con su id), o null si
+   no hay que escribir nada (sin resultado, o idéntico al guardado). Recibe
+   el partido ya armado para que el que guarda pueda escribir partido e
+   historial en el mismo lote (dbWriteBatch, H-53). */
+async function historyRecordFor(m){
+  if(!m) return null;
+  if(m.goalsA==null || m.goalsB==null) return null;
+  const matchId = m.id;
 
   const phase  = m.phaseId ? await dbGet('phases', m.phaseId) : null;
   const comp   = phase?.compId ? await dbGet('competitions', phase.compId) : null;
@@ -151,24 +156,18 @@ async function appendOrUpdateHistory(matchId){
     // al mostrar), así que refreshHistoryForSeason, que corre al guardar un
     // equipo, reescribía los ~420 partidos idénticos, uno por uno: minutos
     // con el modal abierto (H-29, MS-2.5).
-    if(Object.keys(data).every(k => existing[0][k] === data[k])) return;
-    await dbPut('matchHistory', {...existing[0], ...data});
-  } else {
-    // Continuar IDs después del max(estáticos, IDB)
-    const [staticRows, idbAll] = await Promise.all([
-      loadStaticHistory(),
-      dbGetAll('matchHistory'),
-    ]);
-    const maxStatic = staticRows.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
-    const maxIdb    = idbAll.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
-    const nextId    = Math.max(maxStatic, maxIdb) + 1;
-    await dbPut('matchHistory', {id:nextId, ...data, createdAt: new Date().toISOString()});
+    if(Object.keys(data).every(k => existing[0][k] === data[k])) return null;
+    return {...existing[0], ...data};
   }
-}
-
-async function removeHistoryByMatchRef(matchId){
-  const existing = await dbGetAll('matchHistory', h=>h.matchRef===matchId);
-  for(const h of existing) await dbDelete('matchHistory', h.id);
+  // Continuar IDs después del max(estáticos, IDB)
+  const [staticRows, idbAll] = await Promise.all([
+    loadStaticHistory(),
+    dbGetAll('matchHistory'),
+  ]);
+  const maxStatic = staticRows.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
+  const maxIdb    = idbAll.reduce((mx,r)=>Math.max(mx, r.id||0), 0);
+  const nextId    = Math.max(maxStatic, maxIdb) + 1;
+  return {id:nextId, ...data, createdAt: new Date().toISOString()};
 }
 
 /* ----------------------------------------------------------
@@ -276,6 +275,8 @@ async function resolveHistoryRecord(h){
 
 /* Re-genera todas las filas live de una temporada (cuando cambia su nombre o juego). */
 async function refreshHistoryForSeason(seasonNumber){
+  // Temporada archivada: su historial está en el archivo, fijo (MS-5.15).
+  if(typeof dbIsArchivedSeason==='function' && dbIsArchivedSeason(seasonNumber)) return;
   const matches = await dbGetAll('matches', m=>m.season===seasonNumber);
   for(const m of matches){
     if(m.goalsA!=null && m.goalsB!=null){
@@ -492,17 +493,17 @@ function _pubHScopeLabel(){
 function _pubHistmList(matches, title, selectedId){
   const rows = matches.filter(_pubHValid).slice(0, 40);
   if(!rows.length){
-    return `<div class="histm-row"><div class="hr-num">${_esc(title||'Sin partidos')}</div>
+    return `<div class="histm-row"><div class="hr-num">${escHtml(title||'Sin partidos')}</div>
       <div class="hr-duel"><span class="hr-team">No hay partidos para este filtro</span><span class="hr-score">—</span><span class="hr-team away">Ajusta juego o temporada</span></div></div>`;
   }
-  const head = `<div class="histm-row" style="background:var(--bg-deep);"><div class="hr-num">${_esc(title||'Partidos')}</div>
-    <div class="hr-duel"><span class="hr-team">${rows.length} partido${rows.length===1?'':'s'}</span><span class="hr-score">${matches.length>rows.length?'+':''}</span><span class="hr-team away">${_esc(_pubHScopeLabel())}</span></div></div>`;
+  const head = `<div class="histm-row" style="background:var(--bg-deep);"><div class="hr-num">${escHtml(title||'Partidos')}</div>
+    <div class="hr-duel"><span class="hr-team">${rows.length} partido${rows.length===1?'':'s'}</span><span class="hr-score">${matches.length>rows.length?'+':''}</span><span class="hr-team away">${escHtml(_pubHScopeLabel())}</span></div></div>`;
   const body = rows.map(m=>{
     const w = _pubHWinner(m), wa = w===1, wb = w===2;
     const meta = [m.temporada, m.juego, m.instancia].filter(Boolean).join(' · ');
     return `<div class="histm-row ${String(m.id)===String(selectedId)?'selected':''}">
-      <div class="hr-num">#${_esc(m.id||'')}<span style="display:block;font-size:10px;color:var(--txt3);letter-spacing:.5px;">${_esc(meta)}</span></div>
-      <div class="hr-duel"><span class="hr-team ${wa?'win':''}">${_esc(m.equipoA)}</span><span class="hr-score">${_esc(_pubHScore(m))}</span><span class="hr-team away ${wb?'win':''}">${_esc(m.equipoB)}</span></div>
+      <div class="hr-num">#${escHtml(m.id||'')}<span style="display:block;font-size:10px;color:var(--txt3);letter-spacing:.5px;">${escHtml(meta)}</span></div>
+      <div class="hr-duel"><span class="hr-team ${wa?'win':''}">${escHtml(m.equipoA)}</span><span class="hr-score">${escHtml(_pubHScore(m))}</span><span class="hr-team away ${wb?'win':''}">${escHtml(m.equipoB)}</span></div>
     </div>`;
   }).join('');
   return head + body;
@@ -658,13 +659,13 @@ function _pubDrawH2H(title){
   // spread de _histTeams, así que .logo viaja igual que color/ini) — cae a
   // iniciales para los equipos sintéticos de _pubHTeamMeta (nombres del
   // histórico sin equipo real asociado), que nunca traen .logo.
-  const crestA = safeImgUrl(pickA.logo) ? `<img src="${safeImgUrl(pickA.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniA);
-  const crestB = safeImgUrl(pickB.logo) ? `<img src="${safeImgUrl(pickB.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(iniB);
+  const crestA = safeImgUrl(pickA.logo) ? `<img src="${safeImgUrl(pickA.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(iniA);
+  const crestB = safeImgUrl(pickB.logo) ? `<img src="${safeImgUrl(pickB.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(iniB);
   result.innerHTML = `<div class="h2h-face">
-    <div class="h2h-side" style="--team-color:${_esc(pickA.color||'#5f6368')};--team-color-2:${_esc(pickA.color2||pickA.color||'#3c4043')};"><div class="h2h-crest">${crestA}</div><div class="h2h-name">${_esc(pickA.name)}</div></div>
+    <div class="h2h-side" style="--team-color:${escHtml(pickA.color||'#5f6368')};--team-color-2:${escHtml(pickA.color2||pickA.color||'#3c4043')};"><div class="h2h-crest">${crestA}</div><div class="h2h-name">${escHtml(pickA.name)}</div></div>
     <div class="h2h-vs">VS</div>
-    <div class="h2h-side" style="--team-color:${_esc(pickB.color||'#5f6368')};--team-color-2:${_esc(pickB.color2||pickB.color||'#3c4043')};"><div class="h2h-crest">${crestB}</div><div class="h2h-name">${_esc(pickB.name)}</div></div>
-  </div><div class="h2h-record">${direct.length} duelo${direct.length===1?'':'s'} · <b>${wa}</b> ${_esc(iniA)} · <b>${dr}</b> empate${dr===1?'':'s'} · <b>${wb}</b> ${_esc(iniB)} · GF ${gfA}-${gfB}</div>`;
+    <div class="h2h-side" style="--team-color:${escHtml(pickB.color||'#5f6368')};--team-color-2:${escHtml(pickB.color2||pickB.color||'#3c4043')};"><div class="h2h-crest">${crestB}</div><div class="h2h-name">${escHtml(pickB.name)}</div></div>
+  </div><div class="h2h-record">${direct.length} duelo${direct.length===1?'':'s'} · <b>${wa}</b> ${escHtml(iniA)} · <b>${dr}</b> empate${dr===1?'':'s'} · <b>${wb}</b> ${escHtml(iniB)} · GF ${gfA}-${gfB}</div>`;
   result.classList.add('show'); hint.style.display='none';
   if(histm) histm.innerHTML = _pubHistmList(direct.slice().sort((a,b)=>(b.id||0)-(a.id||0)), title||'Mano a mano', _pubH.selectedId);
 }
@@ -719,8 +720,8 @@ function _pubSetupH2H(){
       const q = _histNorm(input.value);
       items = q ? _pubH.teamList.filter(t=>t.search.includes(q)).slice(0,7) : [];
       ac.innerHTML = items.map((t,i)=>{
-        const crest = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : _esc(t.ini||_pubHIni(t.name));
-        return `<div class="h2h-ac-item" id="${ac.id}-opt-${i}" role="option" aria-selected="false" style="--team-color:${_esc(t.color||'#5f6368')};" data-id="${_esc(t.id)}"><span class="h2h-ac-crest">${crest}</span>${_esc(t.name)}</div>`;
+        const crest = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;">` : escHtml(t.ini||_pubHIni(t.name));
+        return `<div class="h2h-ac-item" id="${ac.id}-opt-${i}" role="option" aria-selected="false" style="--team-color:${escHtml(t.color||'#5f6368')};" data-id="${escHtml(t.id)}"><span class="h2h-ac-crest">${crest}</span>${escHtml(t.name)}</div>`;
       }).join('');
       const open = !!items.length;
       ac.classList.toggle('show', open);
@@ -903,37 +904,37 @@ function _renderFiltersZone(el, all, isAdmin){
 
   const juegos = [...new Set(all.map(r=>r.juego).filter(Boolean))].sort();
   const exportBtn = isAdmin
-    ? `<button class="btn btn-primary btn-sm" onclick="exportHistoryToExcel()">⤓ Exportar Excel</button>`
+    ? `<button class="btn btn-primary btn-sm" data-onclick="exportHistoryToExcel()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar Excel</button>`
     : '';
 
   zone.innerHTML = `
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
       <div class="form-group" style="margin:0;min-width:120px;">
         <label>Juego</label>
-        <select class="hist-sel-juego" onchange="histSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+        <select class="hist-sel-juego" data-onchange="histSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
           <option value="">Todos</option>
-          ${juegos.map(j=>`<option value="${_esc(j)}">${_esc(j)}</option>`).join('')}
+          ${juegos.map(j=>`<option value="${escHtml(j)}">${escHtml(j)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin:0;min-width:140px;">
         <label>Temporada</label>
-        <select class="hist-sel-temp" onchange="histSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
+        <select class="hist-sel-temp" data-onchange="histSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
       </div>
       <div class="form-group" style="margin:0;min-width:160px;">
         <label>Instancia</label>
-        <select class="hist-sel-inst" onchange="histSetFilter('fInst',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
+        <select class="hist-sel-inst" data-onchange="histSetFilter('fInst',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;"></select>
       </div>
       <div class="form-group" style="margin:0;flex:1;min-width:150px;">
         <label>Equipo A</label>
-        <input type="text" class="hist-qa" value="${_esc(_histState.qA)}" oninput="histSetSearch('qA', this.value)" placeholder="Ej: ANGELES, PROMETEUS..."
+        <input type="text" class="hist-qa" value="${escHtml(_histState.qA)}" data-oninput="histSetSearch('qA', this.value)" placeholder="Ej: ANGELES, PROMETEUS..."
           style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
       </div>
       <div class="form-group" style="margin:0;flex:1;min-width:150px;">
         <label>Equipo B <span style="color:var(--txt3);font-weight:400;text-transform:none;font-size:11px;">(para Mano a Mano)</span></label>
-        <input type="text" class="hist-qb" value="${_esc(_histState.qB)}" oninput="histSetSearch('qB', this.value)" placeholder="vs. otro equipo..."
+        <input type="text" class="hist-qb" value="${escHtml(_histState.qB)}" data-oninput="histSetSearch('qB', this.value)" placeholder="vs. otro equipo..."
           style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
       </div>
-      <button class="btn btn-sm" onclick="histClearFilters()">Limpiar</button>
+      <button class="btn btn-sm" data-onclick="histClearFilters()">Limpiar</button>
       ${exportBtn}
     </div>
   `;
@@ -949,7 +950,7 @@ function _refreshDependentSelects(el, all){
   const selTemp = el.querySelector('.hist-sel-temp');
   if(selTemp){
     selTemp.innerHTML = `<option value="">Todas</option>` +
-      temps.map(t=>`<option value="${_esc(t)}">${_esc(t)}</option>`).join('');
+      temps.map(t=>`<option value="${escHtml(t)}">${escHtml(t)}</option>`).join('');
     selTemp.value = temps.includes(_histState.fTemp) ? _histState.fTemp : '';
     _histState.fTemp = selTemp.value;
   }
@@ -960,7 +961,7 @@ function _refreshDependentSelects(el, all){
   const selInst = el.querySelector('.hist-sel-inst');
   if(selInst){
     selInst.innerHTML = `<option value="">Todas</option>` +
-      insts.map(i=>`<option value="${_esc(i)}">${_esc(i)}</option>`).join('');
+      insts.map(i=>`<option value="${escHtml(i)}">${escHtml(i)}</option>`).join('');
     selInst.value = insts.includes(_histState.fInst) ? _histState.fInst : '';
     _histState.fInst = selInst.value;
   }
@@ -1025,7 +1026,7 @@ function _refreshTableZone(el, all, isAdmin){
   if(more){
     more.innerHTML = (slice.length<total)
       ? `<div style="text-align:center;margin-top:14px;">
-           <button class="btn" onclick="histShowMore()">Mostrar más (${(total-slice.length).toLocaleString('es-CL')} restantes)</button>
+           <button class="btn" data-onclick="histShowMore()">Mostrar más (${(total-slice.length).toLocaleString('es-CL')} restantes)</button>
          </div>`
       : '';
   }
@@ -1043,16 +1044,16 @@ function _histRowHTML(r){
 
   return `<tr>
     <td style="text-align:right;font-family:'Bebas Neue';color:var(--txt3);padding:6px 10px;">${r.id}</td>
-    <td style="padding:6px 10px;">${_esc(r.juego)}</td>
-    <td style="padding:6px 10px;">${_esc(r.temporada)}</td>
-    <td style="padding:6px 10px;">${_esc(r.instancia)}</td>
+    <td style="padding:6px 10px;">${escHtml(r.juego)}</td>
+    <td style="padding:6px 10px;">${escHtml(r.temporada)}</td>
+    <td style="padding:6px 10px;">${escHtml(r.instancia)}</td>
     <td style="text-align:right;padding:6px 10px;${styleA}">${_teamCellHTML(r.equipoA, 'right')}</td>
     <td style="text-align:center;font-family:'Bebas Neue';font-size:18px;padding:6px 4px;${styleA}">${gA}</td>
     <td style="text-align:center;font-family:'Bebas Neue';font-size:18px;padding:6px 4px;${styleB}">${gB}</td>
     <td style="padding:6px 10px;${styleB}">${_teamCellHTML(r.equipoB, 'left')}</td>
     <td style="text-align:center;color:var(--txt3);padding:6px 4px;">${penA}</td>
     <td style="text-align:center;color:var(--txt3);padding:6px 4px;">${penB}</td>
-    <td style="padding:6px 10px;font-size:12px;color:${isLive?'var(--gold)':'var(--txt2)'};">${_esc(r.resultado)}</td>
+    <td style="padding:6px 10px;font-size:12px;color:${isLive?'var(--gold)':'var(--txt2)'};">${escHtml(r.resultado)}</td>
   </tr>`;
 }
 
@@ -1062,14 +1063,14 @@ function _histRowHTML(r){
 */
 function _teamCellHTML(equipoName, align='left'){
   const lookup = window._histTeamLookup;
-  const safeRaw = _esc(equipoName);
+  const safeRaw = escHtml(equipoName);
   if(!lookup || !equipoName) return safeRaw;
 
   const entry = lookup.get(_histNorm(equipoName));
   if(!entry) return safeRaw;   // nombre sin equipo conocido: mostrar tal cual
 
   // Mostrar SIEMPRE el nombre actual/canónico del club (resuelto por id de equipo)
-  const displayName = _esc(entry.currentName || equipoName);
+  const displayName = escHtml(entry.currentName || equipoName);
   const recordedDiffers = _histNorm(entry.currentName) !== _histNorm(equipoName);
   const hasPrev = entry.previousNames.length > 0;
   if(!recordedDiffers && !hasPrev) return displayName;
@@ -1082,9 +1083,9 @@ function _teamCellHTML(equipoName, align='left'){
     tooltipLines.push('Nombres anteriores:');
     entry.previousNames.forEach(p=>tooltipLines.push(`• ${p}`));
   }
-  const tooltip = _esc(tooltipLines.join('\n'));
+  const tooltip = escHtml(tooltipLines.join('\n'));
 
-  return `<span class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;">${displayName}<sup style="color:var(--gold);margin-left:3px;font-size:10px;">ⓘ</sup></span>`;
+  return `<span class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" data-onclick="histShowPrev(event,this)" style="cursor:pointer;">${displayName}<sup style="color:var(--gold);margin-left:3px;font-size:10px;">ⓘ</sup></span>`;
 }
 
 /* Muestra los nombres anteriores en un popover al TOCAR la ⓘ (clave en móvil,
@@ -1180,7 +1181,10 @@ async function _loadXLSXLib(){
   return window.XLSX;
 }
 
+let _histExporting = false;
 async function exportHistoryToExcel(){
+  if(_histExporting) return;   // doble clic: dos descargas
+  _histExporting = true;
   try {
     showToast('Preparando Excel...');
     const XLSX = await _loadXLSXLib();
@@ -1207,7 +1211,7 @@ async function exportHistoryToExcel(){
   } catch(err){
     console.error(err);
     showToast('Error al exportar Excel: '+err.message,'error');
-  }
+  } finally { _histExporting = false; }
 }
 
 /* ==========================================================
@@ -1231,9 +1235,9 @@ const _histStdState = {
 /* Encabezado de columna ordenable (con flecha si está activa) */
 function _histStdTh(label, key){
   const active = _histStdState.sortBy === key;
-  const arrow  = active ? (_histStdState.sortDir==='asc' ? ' ▲' : ' ▼') : '';
+  const arrow  = active ? (_histStdState.sortDir==='asc' ? '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px"><polyline points="18 15 12 9 6 15"/></svg>' : '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:3px"><polyline points="6 9 12 15 18 9"/></svg>') : '';
   const col    = active ? 'color:var(--gold);font-weight:700;' : '';
-  return `<th onclick="histStdSort('${key}')" title="Ordenar por ${label}" style="text-align:center;cursor:pointer;user-select:none;white-space:nowrap;${col}">${label}${arrow}</th>`;
+  return `<th data-onclick="histStdSort('${key}')" title="Ordenar por ${label}" style="text-align:center;cursor:pointer;user-select:none;white-space:nowrap;${col}">${label}${arrow}</th>`;
 }
 
 function _classifyOutcomeFIFA(r){
@@ -1393,8 +1397,8 @@ async function renderPubHistoryStandings(resetView=false){
 const _htState = { rows:[], expanded:false, token:0, sig:null };
 function _htNum(v){ return Number.isFinite(Number(v)) ? String(Number(v)) : '—'; }
 function _htPct(v){ return Number.isFinite(Number(v)) ? `${Number(v).toFixed(1)}%` : '—'; }
-function _htStatCell(value){ return `<div class="ht-detail-item"><b>${_esc(_htNum(value))}</b></div>`; }
-function _htStatHeadCell(label){ return `<div class="ht-detail-item"><span>${_esc(label)}</span></div>`; }
+function _htStatCell(value){ return `<div class="ht-detail-item"><b>${escHtml(_htNum(value))}</b></div>`; }
+function _htStatHeadCell(label){ return `<div class="ht-detail-item"><span>${escHtml(label)}</span></div>`; }
 const _PB_X = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 const _PB_PLUS = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 
@@ -1419,16 +1423,16 @@ function _htHeader(layout){
   }).join('');
 }
 function _htCrest(r){
-  const inner = safeImgUrl(r.logo) ? `<img src="${safeImgUrl(r.logo)}" alt="">` : _esc(r.ini||_pubHIni(r.name));
-  return `<span class="ht-crest" style="background:${_esc(r.color||'#5f6368')};">${inner}</span>`;
+  const inner = safeImgUrl(r.logo) ? `<img src="${safeImgUrl(r.logo)}" alt="">` : escHtml(r.ini||_pubHIni(r.name));
+  return `<span class="ht-crest" style="background:${escHtml(r.color||'#5f6368')};">${inner}</span>`;
 }
 /* Nombre del equipo + ícono ⓘ si tiene nombres anteriores (mismo patrón que
    _histStdRowHTML: hover muestra title en desktop, tocar abre popover vía
    histShowPrev en móvil). */
 function _htNameHTML(r){
-  if(!(r.previousNames && r.previousNames.length)) return `<span class="ht-name">${_esc(r.name)}</span>`;
-  const tooltip = _esc(['Nombres anteriores:', ...r.previousNames.map(p=>`• ${p}`)].join('\n'));
-  return `<span class="ht-name hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;">${_esc(r.name)}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
+  if(!(r.previousNames && r.previousNames.length)) return `<span class="ht-name">${escHtml(r.name)}</span>`;
+  const tooltip = escHtml(['Nombres anteriores:', ...r.previousNames.map(p=>`• ${p}`)].join('\n'));
+  return `<span class="ht-name hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" data-onclick="histShowPrev(event,this)" style="cursor:pointer;">${escHtml(r.name)}<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup></span>`;
 }
 function _htRow(r, layout){
   const detail = `<div class="ht-detail">`
@@ -1446,7 +1450,7 @@ function _htRow(r, layout){
     }
     const val = ({pj:r.pj,pg:r.w,pe:r.d,pp:r.l,gf:r.gf,gc:r.gc,dif:r.dif,pts:r.pts})[col];
     const cls = col==='pts' ? 'ht-pts' : 'ht-col';
-    return `<span class="${cls} ${layout.canToggle?'ht-col-hide-in-detail':''}">${_esc(_htNum(val))}</span>`;
+    return `<span class="${cls} ${layout.canToggle?'ht-col-hide-in-detail':''}">${escHtml(_htNum(val))}</span>`;
   }).join('');
   return `<div class="ht-row"><span class="ht-pos">${r.pos}</span>
     <div class="ht-team">${_htCrest(r)}${_htNameHTML(r)}</div>${cells}</div>`;
@@ -1613,19 +1617,19 @@ async function _renderHistoryStandingsInto(el, isAdmin){
       <div id="hist-std-filters" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
         <div class="form-group" style="margin:0;min-width:120px;">
           <label>Juego</label>
-          <select onchange="histStdSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+          <select data-onchange="histStdSetFilter('fJuego',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
             <option value="">Todos</option>
-            ${data.juegosAll.map(j=>`<option value="${_esc(j)}" ${_histStdState.fJuego===j?'selected':''}>${_esc(j)}</option>`).join('')}
+            ${data.juegosAll.map(j=>`<option value="${escHtml(j)}" ${_histStdState.fJuego===j?'selected':''}>${escHtml(j)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group" style="margin:0;min-width:140px;">
           <label>Temporada</label>
-          <select onchange="histStdSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
+          <select data-onchange="histStdSetFilter('fTemp',this.value)" style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;width:100%;">
             <option value="">Todas</option>
-            ${data.temporadas.map(t=>`<option value="${_esc(t)}" ${_histStdState.fTemp===t?'selected':''}>${_esc(t)}</option>`).join('')}
+            ${data.temporadas.map(t=>`<option value="${escHtml(t)}" ${_histStdState.fTemp===t?'selected':''}>${escHtml(t)}</option>`).join('')}
           </select>
         </div>
-        <button class="btn btn-sm" onclick="histStdClearFilters()">Limpiar</button>
+        <button class="btn btn-sm" data-onclick="histStdClearFilters()">Limpiar</button>
         <div style="margin-left:auto;font-size:12px;color:var(--txt3);">
           ${data.standings.length.toLocaleString('es-CL')} equipo${data.standings.length===1?'':'s'} · ${data.totalMatches.toLocaleString('es-CL')} partidos
           ${data.livesPending>0 ? `<br><span style="color:var(--gold);">${data.livesPending} partido${data.livesPending===1?'':'s'} pendiente${data.livesPending===1?'':'s'} de finalizar temporada</span>`:''}
@@ -1656,7 +1660,7 @@ async function _renderHistoryStandingsInto(el, isAdmin){
     console.error('[Tabla histórica] Error:', err);
     el.innerHTML = `<div style="background:rgba(239,68,68,0.1);border:1px solid var(--red);border-radius:var(--r);padding:14px;color:var(--red);font-size:13px;">
       <strong>Error al calcular tabla histórica:</strong><br>
-      <code style="font-size:11px;color:var(--txt2);">${(err.message||err).toString().replace(/</g,'&lt;')}</code>
+      <code style="font-size:11px;color:var(--txt2);">${escHtml(err.message||err)}</code>
     </div>`;
   }
 }
@@ -1670,7 +1674,7 @@ function _histStdRowHTML(s, i){
   const ini = s.ini || (s.name?.substring(0,3) || '?').toUpperCase();
   const logoHTML = safeImgUrl(s.logo)
     ? `<img src="${safeImgUrl(s.logo)}" style="width:100%;height:100%;object-fit:cover;">`
-    : `${_esc(ini)}`;
+    : `${escHtml(ini)}`;
 
   // Tooltip de previousNames si tiene
   const tooltipLines = [];
@@ -1678,7 +1682,7 @@ function _histStdRowHTML(s, i){
     tooltipLines.push('Nombres anteriores:');
     s.previousNames.forEach(p=>tooltipLines.push(`• ${p}`));
   }
-  const tooltip = _esc(tooltipLines.join('\n'));
+  const tooltip = escHtml(tooltipLines.join('\n'));
   const iconPrev = s.previousNames && s.previousNames.length
     ? `<sup style="color:var(--gold);margin-left:3px;cursor:help;font-size:10px;">ⓘ</sup>`
     : '';
@@ -1688,7 +1692,7 @@ function _histStdRowHTML(s, i){
     <td style="padding:6px 10px;">
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="width:24px;height:24px;border-radius:50%;background:${s.color||'#333'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;">${logoHTML}</div>
-        <span ${tooltip?`class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" onclick="histShowPrev(event,this)" style="cursor:pointer;"`:''}>${_esc(s.name)}${iconPrev}</span>
+        <span ${tooltip?`class="hist-prev-tap" data-prev="${tooltip}" title="${tooltip}" data-onclick="histShowPrev(event,this)" style="cursor:pointer;"`:''}>${escHtml(s.name)}${iconPrev}</span>
       </div>
     </td>
     <td style="text-align:center;color:var(--txt2);padding:6px 4px;">${s.pj}</td>
@@ -1752,7 +1756,7 @@ function _buildH2HPanel(teamA, teamB, records){
 
   if(!matches.length){
     return `<div style="color:var(--txt3);font-size:14px;padding:24px;text-align:center;">
-      <b>${_esc(teamA.name)}</b> y <b>${_esc(teamB.name)}</b> no se han enfrentado${(_histState.fJuego||_histState.fTemp||_histState.fInst)?' (con los filtros actuales)':' en el historial'}.</div>`;
+      <b>${escHtml(teamA.name)}</b> y <b>${escHtml(teamB.name)}</b> no se han enfrentado${(_histState.fJuego||_histState.fTemp||_histState.fInst)?' (con los filtros actuales)':' en el historial'}.</div>`;
   }
 
   let winsA=0, draws=0, winsB=0, gfA=0, gfB=0, penWinsA=0, penWinsB=0;
@@ -1777,20 +1781,20 @@ function _buildH2HPanel(teamA, teamB, records){
            (aIsHome?`${parseInt(r.penA)}-${parseInt(r.penB)}`:`${parseInt(r.penB)}-${parseInt(r.penA)}`) : '' });
   }
 
-  const badge = (t)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:${t.color||'#333'};color:#fff;font-size:10px;font-weight:700;flex:none;">${_esc(t.ini||t.name.slice(0,3))}</span>`;
-  const penNote = (penWinsA||penWinsB) ? `<div style="font-size:11px;color:var(--txt3);margin-top:4px;text-align:center;">(${penWinsA+penWinsB} empate${(penWinsA+penWinsB)===1?'':'s'} definido${(penWinsA+penWinsB)===1?'':'s'} por penales: ${_esc(teamA.ini||'A')} ${penWinsA} · ${penWinsB} ${_esc(teamB.ini||'B')})</div>` : '';
+  const badge = (t)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:${t.color||'#333'};color:#fff;font-size:10px;font-weight:700;flex:none;">${escHtml(t.ini||t.name.slice(0,3))}</span>`;
+  const penNote = (penWinsA||penWinsB) ? `<div style="font-size:11px;color:var(--txt3);margin-top:4px;text-align:center;">(${penWinsA+penWinsB} empate${(penWinsA+penWinsB)===1?'':'s'} definido${(penWinsA+penWinsB)===1?'':'s'} por penales: ${escHtml(teamA.ini||'A')} ${penWinsA} · ${penWinsB} ${escHtml(teamB.ini||'B')})</div>` : '';
 
   return `
     <div class="card" style="padding:16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;gap:8px;min-width:0;">${badge(teamA)}<b style="font-size:14px;">${_esc(teamA.name)}</b></div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">${badge(teamA)}<b style="font-size:14px;">${escHtml(teamA.name)}</b></div>
         <span style="color:var(--txt3);font-size:12px;">${matches.length} partido${matches.length===1?'':'s'}</span>
-        <div style="display:flex;align-items:center;gap:8px;min-width:0;justify-content:flex-end;"><b style="font-size:14px;">${_esc(teamB.name)}</b>${badge(teamB)}</div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;justify-content:flex-end;"><b style="font-size:14px;">${escHtml(teamB.name)}</b>${badge(teamB)}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;gap:8px;">
-        <div><div style="font-size:26px;font-weight:800;color:var(--green,#2ecc71);">${winsA}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Gana ${_esc(teamA.ini||'A')}</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:var(--green,#2ecc71);">${winsA}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Gana ${escHtml(teamA.ini||'A')}</div></div>
         <div><div style="font-size:26px;font-weight:800;color:var(--txt2);">${draws}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Empates</div></div>
-        <div><div style="font-size:26px;font-weight:800;color:var(--gold);">${winsB}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Gana ${_esc(teamB.ini||'B')}</div></div>
+        <div><div style="font-size:26px;font-weight:800;color:var(--gold);">${winsB}</div><div style="font-size:11px;color:var(--txt3);text-transform:uppercase;">Gana ${escHtml(teamB.ini||'B')}</div></div>
       </div>
       <div style="text-align:center;font-size:13px;color:var(--txt2);margin-top:10px;">Goles: <b>${gfA}</b> — <b>${gfB}</b></div>
       ${penNote}
@@ -1799,16 +1803,16 @@ function _buildH2HPanel(teamA, teamB, records){
       <table class="tbl" style="width:100%;font-size:13px;">
         <thead><tr>
           <th>Temporada</th><th>Juego</th><th>Instancia</th>
-          <th style="text-align:right;">${_esc(teamA.ini||'A')}</th>
+          <th style="text-align:right;">${escHtml(teamA.ini||'A')}</th>
           <th style="text-align:center;">Marcador</th>
-          <th>${_esc(teamB.ini||'B')}</th>
+          <th>${escHtml(teamB.ini||'B')}</th>
         </tr></thead>
         <tbody>
           ${rows.map(r=>`<tr>
-            <td>${_esc(r.temporada||'')}</td><td>${_esc(r.juego||'')}</td><td>${_esc(r.instancia||'')}</td>
-            <td style="text-align:right;${r.gA>r.gB?'font-weight:700;color:var(--green,#2ecc71);':''}">${_esc(teamA.name)}</td>
+            <td>${escHtml(r.temporada||'')}</td><td>${escHtml(r.juego||'')}</td><td>${escHtml(r.instancia||'')}</td>
+            <td style="text-align:right;${r.gA>r.gB?'font-weight:700;color:var(--green,#2ecc71);':''}">${escHtml(teamA.name)}</td>
             <td style="text-align:center;font-weight:700;">${r.gA} - ${r.gB}${r.pen?`<div style="font-size:10px;color:var(--txt3);font-weight:400;">pen ${r.pen}</div>`:''}</td>
-            <td style="${r.gB>r.gA?'font-weight:700;color:var(--gold);':''}">${_esc(teamB.name)}</td>
+            <td style="${r.gB>r.gA?'font-weight:700;color:var(--gold);':''}">${escHtml(teamB.name)}</td>
           </tr>`).join('')}
         </tbody>
       </table>

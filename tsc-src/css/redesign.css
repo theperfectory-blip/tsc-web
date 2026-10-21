@@ -3,12 +3,6 @@
    (se activa solo cuando el shell público nuevo está montado), para no romper
    el layout actual con sidebar mientras la migración está en curso. */
 body.redesign{overflow-x:hidden;}
-#proto-badge{
-  position:fixed;bottom:16px;right:16px;z-index:var(--z-toast);
-  background:var(--card2);border:1px solid var(--gold-b);color:var(--gold);
-  font-family:'Barlow Condensed';font-weight:700;font-size:12px;
-  letter-spacing:2px;text-transform:uppercase;padding:6px 12px;border-radius:999px;
-}
 /* Full-width: toda la pantalla es lienzo — sin espacio muerto lateral en desktop */
 body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px clamp(14px,2.5vw,48px) 80px;}
 
@@ -54,26 +48,6 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
    Se oculta solo en modo admin (JS añade .is-hidden). En móvil el .tn-track scrollea horizontal. */
 .topbar-nav.is-hidden{display:none;}
 #pub-sidebar, #pub-sidebar-backdrop, #pub-menu-btn{display:none!important;}
-/* Panel público: selectores inline de competición (chips scrollables) y fase (tabs). */
-.pub-cnav{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-bottom:14px;
-  -webkit-mask:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);
-  mask:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);}
-.pub-cnav::-webkit-scrollbar{display:none;}
-.pub-cnav-item{flex:none;background:var(--card);border:1px solid var(--brd);border-radius:999px;
-  padding:7px 16px;cursor:pointer;white-space:nowrap;color:var(--txt2);
-  font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:.6px;text-transform:uppercase;
-  transition:color var(--dur-fast),border-color var(--dur-fast),background var(--dur-fast);}
-.pub-cnav-item:hover{color:var(--txt);}
-.pub-cnav-item.active{color:#fff;background:var(--accent,var(--gold));border-color:var(--accent,var(--gold));}
-.pub-pnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
-.pub-pnav-item{background:none;border:none;border-bottom:2px solid transparent;
-  padding:4px 6px 6px;cursor:pointer;color:var(--txt3);
-  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:.5px;text-transform:uppercase;
-  transition:color var(--dur-fast),border-color var(--dur-fast);}
-.pub-pnav-item:hover{color:var(--txt2);}
-.pub-pnav-item.active{color:var(--gold-ink);border-bottom-color:var(--gold);}
-/* Pantalla chica: fuera [Temporada], queda solo la foto de perfil a la derecha. */
-@media(max-width:600px){ #topbar .chip-today{display:none;} }
 /* Móvil público: la nav de secciones ocupa una fila propia completa (Opción A, C-polish).
    Gateado por #topbar.public-mode → admin sigue en una sola fila. */
 @media(max-width:600px){
@@ -109,13 +83,6 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 
 /* Perfil en la esquina superior derecha del topbar → tarjeta del presidente */
 .topbar-right{display:flex;align-items:center;gap:10px;}
-/* «Entrar» discreto (estado deslogueado): ghost con borde dorado, sin gritar. */
-.tb-enter{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:999px;
-  background:transparent;border:1px solid var(--gold-b);color:var(--gold);cursor:pointer;
-  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;
-  transition:background var(--dur-fast),border-color var(--dur-fast),transform var(--dur-fast);}
-.tb-enter:hover{background:var(--gold-l);border-color:var(--gold);transform:translateY(-1px);}
-.tb-enter svg{width:15px;height:15px;flex:none;}
 /* Acceso Admin discreto dentro del menú de perfil (sólo rol admin en la app real). */
 .pp-admin{border:1px solid var(--gold-b)!important;color:var(--gold-ink)!important;}
 .pp-admin svg{width:16px;height:16px;flex:none;}
@@ -218,8 +185,6 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
   .profile-menu .pp-drawer{border:none;border-radius:0;max-height:100dvh;height:100dvh;}
 }
 
-.proto-section{margin:64px 0 0;}
-.proto-section:first-child{margin-top:18px;}
 .proto-divider{
   display:flex;align-items:baseline;gap:14px;margin-bottom:22px;
   position:sticky;top:var(--chrome-h);z-index:30;
@@ -230,18 +195,6 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 .proto-divider::after{content:'';flex:1;height:1px;background:var(--brd);align-self:center;}
 
 /* ============ 01 · PALMARÉS — sala de trofeos ============ */
-.palm-stage{
-  position:relative;border-radius:var(--rl);overflow:hidden;
-  background:
-    radial-gradient(ellipse 70% 80% at 50% 115%, rgba(201,168,76,0.20), transparent 65%),
-    radial-gradient(ellipse 50% 40% at 50% -10%, rgba(201,168,76,0.06), transparent 70%),
-    var(--bg-deep);
-  border:1px solid var(--brd);
-  padding:clamp(24px,4vw,48px) clamp(16px,3vw,40px);
-}
-.palm-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:30px;}
-.palm-kicker{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:3px;color:var(--gold);text-transform:uppercase;margin-bottom:8px;}
-.palm-title{font-family:'Bebas Neue';font-size:clamp(2rem,1.2rem+3vw,3.6rem);line-height:0.95;letter-spacing:1px;margin:0 0 18px;}
 .palm-plate{position:relative;max-width:380px;margin-bottom:20px;filter:drop-shadow(0 10px 28px rgba(0,0,0,0.6));}
 .palm-plate img{width:100%;display:block;}
 .palm-plate-txt{
@@ -251,31 +204,10 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 }
 .palm-plate-txt b{font-size:clamp(18px,3.4vw,26px);font-weight:400;}
 .palm-plate-txt small{font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:3px;}
-.palm-hist{background:rgba(10,12,18,0.55);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;backdrop-filter:blur(4px);}
-.palm-hist-hdr{padding:10px 16px;border-bottom:1px solid var(--brd);font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
-.palm-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--brd);font-family:'Barlow Condensed';font-weight:600;font-size:15px;}
-.palm-row:last-child{border-bottom:none;}
-.palm-row .pr-ed{font-size:11px;color:var(--txt3);letter-spacing:1px;min-width:64px;}
-.palm-row .pr-crest{width:26px;height:26px;border-radius:7px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--team-color);color:#fff;font-family:'Bebas Neue';font-size:10px;}
-.palm-row.vigente{background:linear-gradient(90deg,var(--gold-l),transparent 70%);}
-.palm-row.vigente .pr-name{color:var(--gold);}
-@media(min-width:1000px){
-  .palm-grid{grid-template-columns:1.1fr 0.9fr;align-items:center;gap:48px;}
-}
-.palm-hint{display:flex;align-items:center;gap:7px;margin:0 0 16px;
-  font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.8px;}
-.palm-hint svg{width:13px;height:13px;color:var(--gold-lo);flex:none;}
-.amb-btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;cursor:pointer;
-  background:none;border:1px solid var(--brd2);color:var(--txt3);
-  font-family:'Barlow Condensed';font-weight:700;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
-  transition:color var(--dur-fast),border-color var(--dur-fast);}
-.amb-btn svg{width:14px;height:14px;display:block;}
-.amb-btn:hover{color:var(--txt);}
-.amb-btn.on{border-color:var(--gold-b);color:var(--gold);}
 
 /* ---- LA SALA — umbral fullscreen: del 2D al fotorrealismo ----
    Capas (de atrás a delante): pared (gradiente CSS) → collage de momentos →
-   sin_fondo.png (piso+podio, alfa real, re-tapa para que las fotos queden
+   sin_fondo.webp (piso+podio, alfa real, re-tapa para que las fotos queden
    detrás) → focos.png (alfa real, MISMO encuadre 1:1 que sin_fondo) → haces
    de luz → partículas → copa 3D → placa → humo (canvas, por delante de todo).
    sin_fondo y focos son el MISMO render 1536×1024 → se superponen 1:1 vía
@@ -376,7 +308,7 @@ body.sala-open{overflow:hidden;}
     radial-gradient(ellipse 52% 80% at 6% 22%, rgba(3,4,7,0.84) 0%, transparent 58%),
     radial-gradient(ellipse 52% 80% at 94% 22%, rgba(3,4,7,0.84) 0%, transparent 58%),
     linear-gradient(180deg, rgba(3,4,7,0.56) 0%, transparent 30%);}
-/* Piso + podio recortados con alfa real (sin_fondo.png) POR DELANTE del
+/* Piso + podio recortados con alfa real (sin_fondo.webp) POR DELANTE del
    collage: las fotos nacen en la pared del fondo y quedan detrás del piso y
    del podio. Los focos (z2) quedan detrás del foreground (z3) → el podio
    tapa la base de los trípodes, que es la perspectiva correcta. */
@@ -486,34 +418,6 @@ body.sala-open{overflow:hidden;}
 .sala-plate img{width:100%;display:block;}
 .sala-plate .palm-plate-txt b{font-size:var(--plate-fs,22px);}
 .sala-plate .palm-plate-txt small{font-size:calc(var(--plate-fs,22px)*0.42);letter-spacing:2px;}
-/* Panel de campeones: seleccionado brilla con sus colores, el resto se difumina */
-.sala-panel{position:absolute;top:64px;right:14px;bottom:80px;width:min(280px,32vw);z-index:9;
-  display:flex;flex-direction:column;border-radius:var(--rl);overflow:hidden;
-  background:rgba(8,10,14,0.55);border:1px solid var(--brd);backdrop-filter:blur(8px);
-  opacity:0;transform:translateX(16px);
-  transition:opacity 0.8s var(--ease-out) 0.6s, transform 0.8s var(--ease-out) 0.6s;}
-#sala.open .sala-panel{opacity:1;transform:none;}
-.sala-panel-hdr{padding:10px 14px;border-bottom:1px solid var(--brd);flex:none;
-  font-family:'Barlow Condensed';font-size:11px;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;}
-.sala-panel-list{padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;}
-.s-champ{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;
-  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);color:var(--txt);text-align:left;
-  transition:opacity 0.3s, transform 0.3s, box-shadow 0.3s, border-color 0.3s, background 0.3s;}
-.s-champ .sc-crest{width:30px;height:30px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;font-family:'Bebas Neue';font-size:11px;transition:filter 0.3s;}
-.s-champ .sc-txt{min-width:0;display:flex;flex-direction:column;gap:1px;}
-.s-champ .sc-nm{font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:0.5px;line-height:1.1;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:filter 0.3s;}
-.s-champ .sc-ed{font-family:'Barlow Condensed';font-size:10px;color:var(--txt3);letter-spacing:1px;}
-.s-champ .sc-vig{margin-left:auto;flex:none;font-family:'Barlow Condensed';font-size:8px;font-weight:800;letter-spacing:1px;
-  padding:2px 6px;border-radius:4px;color:#1a1407;background:linear-gradient(135deg,var(--gold),var(--gold-hi));}
-.s-champ.is-selected{transform:scale(1.04);border-color:transparent;z-index:2;
-  background:linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.04));
-  box-shadow:0 0 0 1.5px var(--c1), 0 0 22px -2px var(--c1), 0 0 38px -6px var(--c2), inset 0 0 18px -8px var(--c2);}
-.s-champ.is-dimmed{opacity:0.62;}
-.s-champ.is-dimmed .sc-nm,.s-champ.is-dimmed .sc-crest{filter:blur(2.4px);}
-.s-champ.is-dimmed:hover{opacity:0.95;}
-.s-champ.is-dimmed:hover .sc-nm,.s-champ.is-dimmed:hover .sc-crest{filter:blur(0.5px);}
 .sala-cap{position:absolute;left:50%;bottom:44px;z-index:9;text-align:center;
   opacity:0;transform:translateX(-50%) translateY(14px);
   transition:opacity 0.8s var(--ease-out) 0.75s, transform 0.8s var(--ease-out) 0.75s;}
@@ -617,8 +521,6 @@ body.sala-open{overflow:hidden;}
 /* === INICIO: COMPETICIONES PUBLIC === */
 /* Cabecera del navegador comp/fase en el panel público real (sin el sticky del
    prototipo: el panel multipágina no comparte el cromo scrolly). */
-.pub-comp-head{margin:2px 0 18px;}
-.pub-comp-head .comp-title{padding:4px 0;}
 .pub-fase-single{font-family:'Bebas Neue';font-size:clamp(16px,4vw,30px);letter-spacing:0.5px;line-height:1;color:var(--txt);white-space:nowrap;}
 /* === FIN: COMPETICIONES PUBLIC === */
 .comps-duo{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;}
@@ -771,16 +673,10 @@ body.sala-open{overflow:hidden;}
 
 /* ── Bracket broadcast (.gbr-*) — móvil/tablet: pager por ronda (Google-style);
    desktop ≥1025px: árbol completo. Portado de prototype.html. ── */
-@keyframes gbrRoundIn{from{opacity:0;transform:translateX(18px);}to{opacity:1;transform:none;}}
-@keyframes gbrCardIn {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 @media(prefers-reduced-motion:reduce){.gbr-round,.gbr-card,.gbr-mobile-rail.go{animation:none!important;transition:none!important;}}
 .gbr-shell{position:relative;overflow:hidden;border:1px solid var(--brd);border-radius:var(--rl);
   background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 30%),var(--bg-deep);}
-.gbr-top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:18px 20px 10px;}
 .gbr-kicker{font-family:'Barlow Condensed';font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);}
-.gbr-rh{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:22px;
-  font-family:'Barlow Condensed';font-size:13px;font-weight:700;letter-spacing:.9px;color:var(--txt2);
-  text-transform:uppercase;padding-bottom:4px;border-bottom:1px solid var(--brd);}
 .gbr-empty{padding:24px 20px;color:var(--txt3);font-family:'Barlow Condensed';letter-spacing:.5px;text-align:center;}
 .gbr-nav-bar{display:grid;grid-template-columns:44px minmax(0,1fr) minmax(0,1fr) 44px;
   align-items:center;padding:10px 10px 6px;gap:6px;min-height:42px;}
@@ -918,11 +814,6 @@ body.sala-open{overflow:hidden;}
 .hm-side{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;width:100%;min-width:0;}
 .hm-side.home{flex-direction:column-reverse;}
 .hm-name{font-family:'Bebas Neue';font-size:1.7rem;line-height:0.95;letter-spacing:0.5px;}
-.hm-crest{width:clamp(48px,7vw,72px);height:clamp(48px,7vw,72px);border-radius:14px;flex:none;
-  display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,var(--team-color),var(--team-color-2,var(--team-color)));color:var(--team-ink);
-  font-family:'Bebas Neue';font-size:clamp(15px,2vw,22px);
-  box-shadow:0 8px 30px rgba(0,0,0,0.45);}
 .hm-mid{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;min-width:clamp(110px,16vw,170px);}
 .hm-count{font-family:'Bebas Neue';font-size:clamp(1.8rem,1rem+2.8vw,3rem);color:var(--gold);line-height:1;letter-spacing:1px;
   font-variant-numeric:tabular-nums;text-shadow:0 0 30px var(--gold-glow);}
@@ -1012,8 +903,6 @@ body.sala-open{overflow:hidden;}
 .metro-empty{font-family:'Barlow Condensed';font-size:12px;color:var(--txt3);letter-spacing:0.5px;}
 /* Resto de la temporada: oculto hasta «Mostrar más». display:contents para que
    los días revelados se comporten como hijos directos del metro (línea + dots). */
-.metro-rest{display:none;}
-.metro-rest.show{display:contents;}
 .metro-more{margin-top:6px;display:inline-flex;align-items:center;gap:7px;cursor:pointer;
   font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;
   color:var(--gold);background:none;border:1px solid var(--brd);border-radius:999px;padding:7px 16px;
@@ -1110,7 +999,6 @@ body.sala-open{overflow:hidden;}
 .club-foot .form-pip{width:17px;height:17px;font-size:10px;}
 /* Equipos públicos (datos reales): logo dentro del crest + nombre de presidente en el pie */
 .club-crest img{width:100%;height:100%;object-fit:cover;border-radius:inherit;}
-.club-pres{font-family:'Barlow Condensed';font-weight:600;font-size:12px;color:var(--txt2);text-align:right;}
 @media(min-width:700px){
   .club-band{height:64px;gap:12px;padding:0 14px;}
   .club-crest{width:42px;height:42px;border-radius:10px;font-size:15px;}
@@ -1180,7 +1068,6 @@ body.sala-open{overflow:hidden;}
 .urna-sum .us-chev{width:16px;height:16px;color:var(--gold-ink);transition:transform var(--dur);flex:none;}
 .urna-wrap[open] .urna-sum .us-chev{transform:rotate(180deg);}
 .urna-sum b{color:var(--txt);}
-.urna-sum .us-sep{color:var(--txt3);font-weight:600;}
 .urna-sum:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px;}
 .urna-body{padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px;}
 .urna-group{display:flex;flex-direction:column;gap:7px;}
@@ -1437,9 +1324,6 @@ body.sala-open{overflow:hidden;}
   .ht-card[data-layout="detail"] .ht-fix-close{width:15px;height:15px;}
 }
 
-/* === INICIO: HISTORIAL PUBLIC === */
-/* Carrusel de vistas «Partidos | Tabla histórica» del historial público. */
-.hist-pub-tabs{display:flex;gap:0;margin:4px 0 18px;border-bottom:1px solid var(--brd);}
 .hist-tab{position:relative;background:none;border:none;cursor:pointer;padding:8px 4px;margin-right:22px;
   font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:1px;text-transform:uppercase;
   color:var(--txt3);transition:color var(--dur-fast);}
@@ -1447,7 +1331,6 @@ body.sala-open{overflow:hidden;}
 .hist-tab.active{color:var(--gold-ink);}
 .hist-tab.active::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:2px;
   background:linear-gradient(90deg,var(--gold),var(--green-hi));}
-.hist-pane[hidden]{display:none;}
 /* === FIN: HISTORIAL PUBLIC === */
 
 /* ============ 09 · PERFIL PRESIDENTE (drawer) ============ */
@@ -1472,14 +1355,7 @@ body.sala-open{overflow:hidden;}
 .pp-body::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:999px;}
 .pp-stats{display:flex;gap:16px;align-items:center;background:var(--bg-deep);border-radius:var(--rl);padding:14px;}
 .pp-donut{position:relative;width:84px;height:84px;flex:none;}
-.pp-donut .pd-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
-.pp-donut .pd-c b{font-family:'Bebas Neue';font-size:22px;font-weight:400;}
-.pp-donut .pd-c span{font-size:9px;color:var(--txt3);letter-spacing:1px;}
 .pp-bars{flex:1;display:flex;flex-direction:column;gap:8px;font-family:'Barlow Condensed';font-size:12px;}
-.pp-bars .pb-lbl{display:flex;justify-content:space-between;color:var(--txt3);}
-.pp-bars .pb-lbl b{color:var(--txt);}
-.pp-bars .pb-track{height:5px;border-radius:3px;background:var(--brd);overflow:hidden;}
-.pp-bars .pb-track i{display:block;height:100%;border-radius:3px;}
 .pp-line{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .pp-line-label{font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
 .pp-vitrina{display:flex;flex-direction:column;gap:8px;padding:10px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
@@ -1587,8 +1463,6 @@ body.photo-viewer-open{overflow:hidden;}
 .dossier-body{display:flex;flex-direction:column;gap:14px;margin-top:14px;}
 .dossier-section{display:flex;flex-direction:column;gap:8px;}
 .dossier-section-card{padding:10px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
-.dossier-winpct{font-size:12px;color:var(--txt3);}
-.dossier-winpct b{color:var(--txt);font-family:'Bebas Neue';font-size:14px;font-weight:400;}
 .dossier-rivals{display:flex;flex-direction:column;gap:6px;}
 .dossier-rival-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .dossier-rival-name{font-family:'Barlow Condensed';font-weight:600;font-size:13px;color:var(--txt);

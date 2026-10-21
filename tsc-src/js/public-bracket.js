@@ -6,7 +6,6 @@
    inyectan botones de edición y lanzan los fuegos del admin). Cargado entre playoff.js
    y public.js (ver index.html). */
 
-function _pbEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 function _pbFmtDate(d){
   if(!d) return '';
@@ -86,7 +85,7 @@ function _pbBracketCards(phase, rounds, slots, teamMap){
           else if(awayGoal && (slot.leg2a||0)!==(slot.leg1b||0)) decidedBy='away';
           else if(slot.penA!=null && slot.penB!=null) decidedBy='pen';
           else decidedBy='global';
-          status = decidedBy==='pen' ? `Global · pen ${_pbEsc(slot.penA)}-${_pbEsc(slot.penB)}`
+          status = decidedBy==='pen' ? `Global · pen ${escHtml(slot.penA)}-${escHtml(slot.penB)}`
                  : decidedBy==='away' ? 'Global · visita' : 'Global';
         } else if(live){
           status = slot.leg2Live ? 'En vivo · Vuelta' : 'En vivo · Ida';
@@ -100,7 +99,7 @@ function _pbBracketCards(phase, rounds, slots, teamMap){
           wA = winner===slot.teamA; wB = winner===slot.teamB;
           const isDraw = slot.ga===slot.gb;
           decidedBy = (isDraw && slot.penA!=null && slot.penB!=null) ? 'pen' : 'global';
-          status = decidedBy==='pen' ? `Final · pen ${_pbEsc(slot.penA)}-${_pbEsc(slot.penB)}` : 'Final';
+          status = decidedBy==='pen' ? `Final · pen ${escHtml(slot.penA)}-${escHtml(slot.penB)}` : 'Final';
         } else if(live){
           status='En vivo';
         }
@@ -120,12 +119,12 @@ function _pbBracketCards(phase, rounds, slots, teamMap){
 }
 
 function _pbCrestMini(t){
-  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="">` : _pbEsc(t.ini||'?');
-  return `<span class="gbr-crest-mini" style="--team-color:${_pbEsc(t.color||'#444')};--team-color-2:${_pbEsc(t.color2||'#222')};">${inner}</span>`;
+  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="">` : escHtml(t.ini||'?');
+  return `<span class="gbr-crest-mini" style="--team-color:${escHtml(t.color||'#444')};--team-color-2:${escHtml(t.color2||'#222')};">${inner}</span>`;
 }
 function _pbCrestTree(t){
-  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="">` : _pbEsc(t.ini||'?');
-  return `<span class="gbr-tree-crest" style="--team-color:${_pbEsc(t.color||'#444')};--team-color-2:${_pbEsc(t.color2||'#222')};">${inner}</span>`;
+  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="">` : escHtml(t.ini||'?');
+  return `<span class="gbr-tree-crest" style="--team-color:${escHtml(t.color||'#444')};--team-color-2:${escHtml(t.color2||'#222')};">${inner}</span>`;
 }
 
 function _pbScoreMini(c, side){
@@ -133,10 +132,10 @@ function _pbScoreMini(c, side){
     const d1 = side==='A' ? c.leg1A : c.leg1B;
     const d2 = side==='A' ? c.leg2A : c.leg2B;
     const pen = c.decidedBy==='pen' ? (side==='A' ? c.penA : c.penB) : null;
-    return `<span class="gbr-score-mini" style="font-size:14px;letter-spacing:.6px;">${_pbEsc(d1!=null?d1:'–')}<span style="color:var(--txt3);margin:0 2px;">|</span>${_pbEsc(d2!=null?d2:'–')}${pen!=null?`(${_pbEsc(pen)})`:''}</span>`;
+    return `<span class="gbr-score-mini" style="font-size:14px;letter-spacing:.6px;">${escHtml(d1!=null?d1:'–')}<span style="color:var(--txt3);margin:0 2px;">|</span>${escHtml(d2!=null?d2:'–')}${pen!=null?`(${escHtml(pen)})`:''}</span>`;
   }
   const s = side==='A' ? c.scoreA : c.scoreB;
-  return `<span class="gbr-score-mini">${_pbEsc(s==null||s===''?'-':s)}</span>`;
+  return `<span class="gbr-score-mini">${escHtml(s==null||s===''?'-':s)}</span>`;
 }
 
 /* Fila de equipo (mobile mini) */
@@ -145,7 +144,7 @@ function _pbTeamlineMini(c, side, t, win){
   const tbd = t.tbd;
   return `<div class="gbr-teamline ${win?'win':''} ${tbd?'tbd':''}">
     ${_pbCrestMini(t)}
-    <span class="gbr-name-mini">${_pbEsc(t.name||t.label||'Por definir')}</span>
+    <span class="gbr-name-mini">${escHtml(t.name||t.label||'Por definir')}</span>
     ${win?_pbWinBadge(c.decidedBy):''}
     ${_pbScoreMini(c, side)}
   </div>`;
@@ -154,8 +153,8 @@ function _pbTeamlineMini(c, side, t, win){
 function _pbMobCard(c, slotH){
   const live = c.live;
   const head = live
-    ? `<div class="gbr-date-mini">${_pbEsc(c.slot||'Llave')}<span class="gbr-live-tag"><span class="live-dot"></span>${_pbEsc(c.status)}</span></div>`
-    : `<div class="gbr-date-mini">${_pbEsc(c.slot || _pbFmtDate(c.date) || c.status || 'Llave')}</div>`;
+    ? `<div class="gbr-date-mini">${escHtml(c.slot||'Llave')}<span class="gbr-live-tag"><span class="live-dot"></span>${escHtml(c.status)}</span></div>`
+    : `<div class="gbr-date-mini">${escHtml(c.slot || _pbFmtDate(c.date) || c.status || 'Llave')}</div>`;
   return `<div class="gbr-mobile-slot" style="height:${slotH}px;">
     <div class="gbr-mobile-card ${live?'is-live':''}">
       ${head}
@@ -201,16 +200,16 @@ function _pbDesktopTreeHTML(roundCards, compName, phaseName, copaKey){
       const pen = c.decidedBy==='pen' ? (side==='A'?c.penA:c.penB) : null;
       const hasAny = d1!=null || d2!=null;
       if(!hasAny) return `<span class="gbr-tree-score" style="color:${col};">-</span>`;
-      return `<span class="gbr-tree-score" style="font-size:18px;letter-spacing:1px;white-space:nowrap;color:${col};">${_pbEsc(d1!=null?d1:'–')}<span style="color:var(--txt3);margin:0 2px;">|</span>${_pbEsc(d2!=null?d2:'–')}${pen!=null?`(${_pbEsc(pen)})`:''}</span>`;
+      return `<span class="gbr-tree-score" style="font-size:18px;letter-spacing:1px;white-space:nowrap;color:${col};">${escHtml(d1!=null?d1:'–')}<span style="color:var(--txt3);margin:0 2px;">|</span>${escHtml(d2!=null?d2:'–')}${pen!=null?`(${escHtml(pen)})`:''}</span>`;
     }
     const s = side==='A'?c.scoreA:c.scoreB;
-    return `<span class="gbr-tree-score" style="color:${col};">${_pbEsc(s==null||s===''?'-':s)}</span>`;
+    return `<span class="gbr-tree-score" style="color:${col};">${escHtml(s==null||s===''?'-':s)}</span>`;
   };
   const tr = (c, side, t, win)=>{
     if(!t) return '';
     return `<div class="gbr-tree-row ${win?'win':''} ${t.tbd?'tbd':''}">
       ${_pbCrestTree(t)}
-      <span class="gbr-tree-name">${_pbEsc(t.name||t.label||'Por definir')}</span>
+      <span class="gbr-tree-name">${escHtml(t.name||t.label||'Por definir')}</span>
       ${win?_pbWinBadge(c.decidedBy):''}
       ${scoreHTML(c, side, win)}
     </div>`;
@@ -225,7 +224,7 @@ function _pbDesktopTreeHTML(roundCards, compName, phaseName, copaKey){
   const col = (roundCards2, roundName, nSlots)=>{
     const slotH = `calc(var(--gbr-row-h) * ${(nFirstLeft*2/Math.max(1,nSlots)).toFixed(4)})`;
     return `<div style="display:flex;flex-direction:column;width:${COL_W};flex-shrink:0;">
-      <div class="gbr-rtitle">${_pbEsc(roundName)}</div>
+      <div class="gbr-rtitle">${escHtml(roundName)}</div>
       ${roundCards2.map(c=>card(c, slotH)).join('')}
     </div>`;
   };
@@ -244,7 +243,7 @@ function _pbDesktopTreeHTML(roundCards, compName, phaseName, copaKey){
   const trophy = _pbTrophyHTML(copaKey, 96);
   const champ = winner
     ? `<div class="gbr-champ"><div style="filter:drop-shadow(0 0 18px rgba(201,168,76,.55));display:inline-block;">${trophy}</div>
-        <div class="gbr-champ-lbl">Campeón</div><div class="gbr-champ-name">${_pbEsc(winner.name)}</div></div>`
+        <div class="gbr-champ-lbl">Campeón</div><div class="gbr-champ-name">${escHtml(winner.name)}</div></div>`
     : `<div class="gbr-champ tbd"><div style="display:inline-block;">${trophy}</div><div class="gbr-champ-lbl">Campeón por definir</div></div>`;
 
   const finalCenterW = 'calc(var(--gbr-card-w) + 40px)';
@@ -291,11 +290,11 @@ function _pbBracketMount(el, roundCards, compName, phase, copaKey){
   const N = roundCards.length;
 
   const mobileHTML = `
-    <div class="gbr-kicker" style="padding:10px 14px 0;">${_pbEsc(compName||'Competición')}</div>
+    <div class="gbr-kicker" style="padding:10px 14px 0;">${escHtml(compName||'Competición')}</div>
     <div class="gbr-nav-bar">
       <button type="button" class="gbr-nav-btn gbr-nav-back" aria-label="Ronda anterior">${_PB_CHEVL}</button>
-      <div class="gbr-round-title gbr-title-left">${_pbEsc(roundCards[0]?.name||'')}</div>
-      <div class="gbr-round-title gbr-title-right">${_pbEsc(roundCards[1]?.name||'')}</div>
+      <div class="gbr-round-title gbr-title-left">${escHtml(roundCards[0]?.name||'')}</div>
+      <div class="gbr-round-title gbr-title-right">${escHtml(roundCards[1]?.name||'')}</div>
       <button type="button" class="gbr-nav-btn gbr-nav-fwd" aria-label="Ronda siguiente">${_PB_CHEVR}</button>
     </div>
     <div class="gbr-mobile-viewport"></div>`;
@@ -451,18 +450,18 @@ async function _pubRenderBracketBroadcast(phaseId, containerId){
    ════════════════════════════════════════════════════════════════ */
 
 function _pbTieCrest(t){
-  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">` : _pbEsc(t.ini||'?');
+  const inner = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;">` : escHtml(t.ini||'?');
   return `<div class="tie-crest">${inner}</div>`;
 }
 
 /* Una fila de equipo dentro de una tie-card */
 function _pbTieRow(t, legs, agg, cls, decidedBy){
-  const legCells = legs.map(v=>`<span class="tie-leg">${_pbEsc(v)}</span>`).join('');
+  const legCells = legs.map(v=>`<span class="tie-leg">${escHtml(v)}</span>`).join('');
   const badge = cls==='winner' ? `<span class="tie-win">${_PB_CHECK}${decidedBy==='away'?'<small>v</small>':''}</span>` : '';
-  return `<div class="tie-row ${cls}" style="--team-color:${_pbEsc(t.color||'#444')};--team-color-2:${_pbEsc(t.color2||'#222')};">
-    <div class="tie-team">${_pbTieCrest(t)}<span class="tie-name"><span>${_pbEsc(t.name||t.label||'Por definir')}</span>${badge}</span></div>
+  return `<div class="tie-row ${cls}" style="--team-color:${escHtml(t.color||'#444')};--team-color-2:${escHtml(t.color2||'#222')};">
+    <div class="tie-team">${_pbTieCrest(t)}<span class="tie-name"><span>${escHtml(t.name||t.label||'Por definir')}</span>${badge}</span></div>
     ${legCells}
-    <span class="tie-agg">${_pbEsc(agg)}</span>
+    <span class="tie-agg">${escHtml(agg)}</span>
   </div>`;
 }
 
@@ -553,7 +552,7 @@ async function _pubRenderPlayoffBroadcast(phaseId, containerId){
     if(anyLegLive){
       const liveIdx = legData.findIndex(l=>l.live);
       const tag = legsCount>1 ? ` · ${liveIdx===0?'Ida':'Vuelta'}` : '';
-      stateHTML = `<span class="chip chip-live"><span class="chip-dot"></span>En vivo${_pbEsc(tag)}</span>`;
+      stateHTML = `<span class="chip chip-live"><span class="chip-dot"></span>En vivo${escHtml(tag)}</span>`;
     } else if(allPlayed){
       stateHTML = `<span class="chip chip-final">Finalizado</span>`;
     } else {
@@ -575,12 +574,12 @@ async function _pubRenderPlayoffBroadcast(phaseId, containerId){
 
     // Para 1 leg, ajustar el grid de las filas vía estilo inline
     const rowA = legsCount>1 ? _pbTieRow(ta, legsArrA, aggA, clsA, decidedBy)
-               : `<div class="tie-row ${clsA}" style="${rowStyle}--team-color:${_pbEsc(ta.color||'#444')};--team-color-2:${_pbEsc(ta.color2||'#222')};"><div class="tie-team">${_pbTieCrest(ta)}<span class="tie-name"><span>${_pbEsc(ta.name||ta.label||'Por definir')}</span>${clsA==='winner'?`<span class="tie-win">${_PB_CHECK}${decidedBy==='away'?'<small>v</small>':''}</span>`:''}</span></div><span class="tie-leg">${_pbEsc(legsArrA[0])}</span><span class="tie-agg">${_pbEsc(aggA)}</span></div>`;
+               : `<div class="tie-row ${clsA}" style="${rowStyle}--team-color:${escHtml(ta.color||'#444')};--team-color-2:${escHtml(ta.color2||'#222')};"><div class="tie-team">${_pbTieCrest(ta)}<span class="tie-name"><span>${escHtml(ta.name||ta.label||'Por definir')}</span>${clsA==='winner'?`<span class="tie-win">${_PB_CHECK}${decidedBy==='away'?'<small>v</small>':''}</span>`:''}</span></div><span class="tie-leg">${escHtml(legsArrA[0])}</span><span class="tie-agg">${escHtml(aggA)}</span></div>`;
     const rowB = legsCount>1 ? _pbTieRow(tb, legsArrB, aggB, clsB, decidedBy)
-               : `<div class="tie-row ${clsB}" style="${rowStyle}--team-color:${_pbEsc(tb.color||'#444')};--team-color-2:${_pbEsc(tb.color2||'#222')};"><div class="tie-team">${_pbTieCrest(tb)}<span class="tie-name"><span>${_pbEsc(tb.name||tb.label||'Por definir')}</span>${clsB==='winner'?`<span class="tie-win">${_PB_CHECK}${decidedBy==='away'?'<small>v</small>':''}</span>`:''}</span></div><span class="tie-leg">${_pbEsc(legsArrB[0])}</span><span class="tie-agg">${_pbEsc(aggB)}</span></div>`;
+               : `<div class="tie-row ${clsB}" style="${rowStyle}--team-color:${escHtml(tb.color||'#444')};--team-color-2:${escHtml(tb.color2||'#222')};"><div class="tie-team">${_pbTieCrest(tb)}<span class="tie-name"><span>${escHtml(tb.name||tb.label||'Por definir')}</span>${clsB==='winner'?`<span class="tie-win">${_PB_CHECK}${decidedBy==='away'?'<small>v</small>':''}</span>`:''}</span></div><span class="tie-leg">${escHtml(legsArrB[0])}</span><span class="tie-agg">${escHtml(aggB)}</span></div>`;
 
     cards.push(`<div class="tie-card">
-      <div class="tie-hdr"><span class="th-lbl">${_pbEsc(lbl)}</span>${stateHTML}</div>
+      <div class="tie-hdr"><span class="th-lbl">${escHtml(lbl)}</span>${stateHTML}</div>
       ${colHdr}
       ${rowA}
       ${rowB}
@@ -592,10 +591,10 @@ async function _pubRenderPlayoffBroadcast(phaseId, containerId){
   if(isSingle){
     const trophy = _pbTrophyHTML(phase.bracketCopaKey||null, 110);
     el.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;gap:18px;padding:8px 0 4px;">
-      <div style="font-family:'Bebas Neue';font-size:28px;letter-spacing:6px;color:var(--gold);text-align:center;text-shadow:0 0 30px rgba(201,168,76,0.35);">${_pbEsc(phase.name||'Final')}</div>
+      <div style="font-family:'Bebas Neue';font-size:28px;letter-spacing:6px;color:var(--gold);text-align:center;text-shadow:0 0 30px rgba(201,168,76,0.35);">${escHtml(phase.name||'Final')}</div>
       <div style="filter:drop-shadow(0 0 26px rgba(201,168,76,0.7));">${trophy}</div>
       <div class="ties-grid" style="width:100%;max-width:480px;">${cards.join('')}</div>
-      ${championTeam ? `<div class="gbr-champ"><div class="gbr-champ-lbl">Campeón</div><div class="gbr-champ-name" style="font-size:36px;">${_pbEsc(championTeam.name||'')}</div></div>` : ''}
+      ${championTeam ? `<div class="gbr-champ"><div class="gbr-champ-lbl">Campeón</div><div class="gbr-champ-name" style="font-size:36px;">${escHtml(championTeam.name||'')}</div></div>` : ''}
     </div>`;
   } else {
     el.innerHTML = `<div class="ties-grid${cards.length===4?' ties-grid--four':''}">${cards.join('')}</div>`;

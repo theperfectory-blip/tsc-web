@@ -14,7 +14,8 @@ El grafo de conocimiento del proyecto está en `tsc-src/graphify-out/`.
 - Después de modificar código en la sesión, correr `graphify update .`
   dentro de `tsc-src/` (solo AST, sin costo de API) y luego
   `python ../scripts/graphify-label.py` para restaurar los nombres de
-  comunidad (si cambian los módulos, ajustar `NAMES` en ese script).
+  comunidad (los toma del archivo dominante de cada una: si se agrega un
+  módulo, sumarlo a `FILE_NAMES` en ese script).
 
 ### Íconos
 

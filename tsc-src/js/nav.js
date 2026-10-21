@@ -35,21 +35,6 @@ function _syncPublicNavigation(page, navEl){
   if(page !== 'historial') renderPubSidebarHistorial();
 }
 
-/* Inicializa el flyout-hover del sidebar colapsado (una sola vez, solo escritorio) */
-function _initPubSidebarHover(sidebar){
-  if(sidebar._hoverInit) return;
-  sidebar._hoverInit = true;
-  sidebar.addEventListener('mouseenter', ()=>{
-    if(!_pubSidebarCollapsed || window.innerWidth <= 768) return;
-    clearTimeout(_pubHoverTimer);
-    sidebar.classList.add('hover-expand');
-  });
-  sidebar.addEventListener('mouseleave', ()=>{
-    if(!_pubSidebarCollapsed) return;
-    _pubHoverTimer = setTimeout(()=> sidebar.classList.remove('hover-expand'), 120);
-  });
-}
-
 function _applyPubSidebar(visible){
   // Sidebar público retirado: la navegación vive solo en el topnav (topbar fijo, lógica del prototipo).
   // Garantizar que no quede ningún resto visible y dejar #main a ancho completo (sin margen lateral).
@@ -230,7 +215,24 @@ function goPublicPage(page, navEl){
 /* ----------------------------------------------------------
    NAVEGACIÓN ADMIN
    ---------------------------------------------------------- */
+/* Páginas del panel admin (las del switch de renderAdminPage). Sirve para
+   validar la página restaurada desde localStorage: una guardada que ya no
+   existe dejaba el panel en blanco, sin ninguna página activa. */
+const _ADMIN_PAGES = ['dashboard','equipos-admin','usuarios-admin','competiciones-admin','fases-admin',
+  'partidos-admin','sorteo-admin','coins-admin','temporadas-admin','datos-admin','historial-admin',
+  'historial-tabla-admin','palmares-admin','calendario-admin'];
+function isAdminPage(page){ return _ADMIN_PAGES.includes(page); }
+
 function goAdminPage(page, navEl){
+  if(!isAdminPage(page)) page = 'dashboard';
+  // Entrar al panel siempre pasa por setMode, que exige el rol admin y arma
+  // el layout (sidebar, topnav oculta). Antes, el acceso «Panel admin» del
+  // perfil abría el dashboard dentro del layout público.
+  if(STATE.mode !== 'admin'){
+    STATE.adminPage = page;
+    setMode('admin');
+    return;
+  }
   if(typeof liveStop==='function') liveStop();   // sin tiempo real en modo admin
   if(typeof liveRadarStop==='function') liveRadarStop();
   STATE.adminPage = page;
@@ -241,7 +243,7 @@ function goAdminPage(page, navEl){
   if(navEl) navEl.classList.add('active');
   else{
     document.querySelectorAll('.nav-item').forEach(n=>{
-      if(n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('active');
+      if(n.getAttribute('data-onclick')?.includes("'"+page+"'")) n.classList.add('active');
     });
   }
   renderAdminPage(page);
@@ -260,9 +262,6 @@ async function renderPublicPage(page){
       await renderPubPanel();
       // Panel: partidos (marcadores/vivo) + fases (publicar) + equipos (nombre/logo).
       break;
-    case 'competiciones':
-      await renderPubComps();
-      // Competiciones: estructura de fases, partidos, equipos y competiciones.
       break;
     case 'equipos':
       await renderPubTeams();
@@ -481,7 +480,17 @@ async function _focusPublicSectionInner(page, options){
   return true;
 }
 
+/* Los llamadores no esperan el render (goAdminPage, onSeasonChange…): un
+   fallo de lectura (sin red, permiso) quedaba como promesa sin capturar y la
+   sección vacía sin aviso. */
 async function renderAdminPage(page){
+  try { await _renderAdminPage(page); }
+  catch(e){
+    console.error('[admin] render de '+page+':', e);
+    showToast('No se pudo cargar la sección: '+dbErrorMsg(e),'error');
+  }
+}
+async function _renderAdminPage(page){
   switch(page){
     case 'dashboard':           await renderAdmDashboard();   break;
     case 'equipos-admin':       await renderAdmTeams();       break;
@@ -552,11 +561,11 @@ function renderPubSidebarHistorial(activeTab){
   const tab = activeTab || 'partidos';
   container.innerHTML = `
     <div class="pub-sub-comp${tab==='partidos'?' active':''}"
-      onclick="renderPubHistory()" title="Partidos">
+      data-onclick="renderPubHistory()" title="Partidos">
       Partidos
     </div>
     <div class="pub-sub-comp${tab==='tabla'?' active':''}"
-      onclick="renderPubHistoryStandings(true)" title="Tabla histórica">
+      data-onclick="renderPubHistoryStandings(true)" title="Tabla histórica">
       Tabla histórica
     </div>`;
 }
@@ -595,7 +604,7 @@ async function renderPubSidebarComps(){
     const isSel = c.id===selComp.id;
     const col   = c.color || 'var(--gold)';
     html += `<div class="pub-sub-comp${isSel?' active':''}"
-      onclick="pubSelectComp(${Number(c.id)})"
+      data-onclick="pubSelectComp(${Number(c.id)})"
       title="${escAttr(c.name)}"
       ${isSel?`style="color:${escAttr(col)};border-left-color:${escAttr(col)};"`:''}>
       ${escHtml(c.name)}
@@ -604,7 +613,7 @@ async function renderPubSidebarComps(){
       for(const p of phases){
         const isPSel = p.id===selPhaseId;
         html += `<div class="pub-sub-phase${isPSel?' active':''}"
-          onclick="pubSelectPhase(${Number(p.id)})"
+          data-onclick="pubSelectPhase(${Number(p.id)})"
           title="${escAttr(p.name)}">
           <span class="pub-sub-dot"></span>${escHtml(p.name)}
         </div>`;
@@ -622,20 +631,22 @@ async function renderAdmDashboard(){
     getForSeason('matches'),
   ]);
   const currentSeason = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
-  const seasonName = getSeasonName(currentSeason);
+  const seasonName = currentSeason ? getSeasonName(currentSeason) : '—';
+  // Es la temporada seleccionada, que puede estar finalizada.
+  const seasonLbl = currentSeason?.status==='finished' ? 'Temporada (finalizada)' : 'Temporada activa';
   el.innerHTML = `
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${teams.length}</div><div class="stat-lbl">Equipos</div></div>
     <div class="stat-card"><div class="stat-num">${comps.length}</div><div class="stat-lbl">Competiciones</div></div>
     <div class="stat-card"><div class="stat-num">${matches.length}</div><div class="stat-lbl">Partidos</div></div>
-    <div class="stat-card"><div class="stat-num">${seasonName}</div><div class="stat-lbl">Temporada activa</div></div>
+    <div class="stat-card"><div class="stat-num">${escHtml(seasonName)}</div><div class="stat-lbl">${seasonLbl}</div></div>
   </div>
   <div class="section-lbl">Acciones rápidas</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
-    <button class="btn btn-primary" onclick="goAdminPage('equipos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Gestionar equipos</button>
-    <button class="btn btn-primary" onclick="goAdminPage('competiciones-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Nueva competición</button>
-    <button class="btn btn-primary" onclick="goAdminPage('partidos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Registrar partido</button>
-    <button class="btn btn-primary" onclick="goAdminPage('coins-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> YuNaCoins</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('equipos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Gestionar equipos</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('competiciones-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Nueva competición</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('partidos-admin')"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Registrar partido</button>
+    <button class="btn btn-primary" data-onclick="goAdminPage('coins-admin')"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> YuNaCoins</button>
   </div>`;
 }
 
@@ -643,7 +654,7 @@ async function loadSeasons(){
   const seasons = await dbGetAll('seasons');
   const sel = document.getElementById('season-sel');
   sel.innerHTML = '<option value="">Temporada...</option>' +
-    seasons.map(s=>`<option value="${s.number}" ${s.number===STATE.season?'selected':''}>${getSeasonName(s)} ${s.status==='active'?'●':''}</option>`).join('');
+    seasons.map(s=>`<option value="${s.number}" ${s.number===STATE.season?'selected':''}>${escHtml(getSeasonName(s))} ${s.status==='active'?'●':''}</option>`).join('');
 }
 
 async function onSeasonChange(val){

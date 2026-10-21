@@ -5,10 +5,6 @@
    (Los presidentes se auto-registran; aquí el admin los vincula.)
    ============================================================ */
 
-function _uaEsc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 async function renderAdmUsuarios(){
   const el = document.getElementById('adm-usuarios-content');
   if(!el) return;
@@ -28,10 +24,12 @@ async function renderAdmUsuarios(){
     // uid sale del id del documento y va al final: un campo `uid` dentro del
     // perfil (lo escribe el propio usuario al registrarse) no puede pisarlo.
     users = snap.docs.map(d => ({ ...d.data(), uid: d.id }));
+    window._uaUsers = users;   // para adminSetUserTeam (quién tiene ya cada club)
     _uaBackfillUsernames(users);   // sin esperar
     teams = teamsRaw;
+    window._uaTeams = teamsRaw;
   } catch(e){
-    el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${_uaEsc(e.code||e.message)}</div>`;
+    el.innerHTML = `<div style="color:var(--red);padding:14px;">Error al cargar usuarios: ${escHtml(dbErrorMsg(e))}</div>`;
     return;
   }
 
@@ -56,7 +54,7 @@ async function renderAdmUsuarios(){
   // Solo se asigna club a cuentas con el email verificado (slice 3.7, D7;
   // lo exigen también las reglas). Se puede seguir quitando el club.
   const teamOpts = (sel, canAssign)=> `<option value="">— sin club —</option>` +
-    teamsSorted.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''} ${(!canAssign && t.id!==sel)?'disabled':''}>${_uaEsc(t.name)}</option>`).join('');
+    teamsSorted.map(t=>`<option value="${t.id}" ${t.id===sel?'selected':''} ${(!canAssign && t.id!==sel)?'disabled':''}>${escHtml(t.name)}</option>`).join('');
 
   el.innerHTML = `
     <div style="color:var(--txt3);font-size:13px;margin-bottom:12px;">
@@ -76,23 +74,23 @@ async function renderAdmUsuarios(){
           ${users.map(u=>{
             const isMe = u.uid===myUid;
             return `<tr>
-              <td style="padding:8px 10px;font-weight:600;">${_uaEsc(u.displayName||'(sin nombre)')}${isMe?' <span style="color:var(--gold);font-size:11px;">(tú)</span>':''}</td>
-              <td style="padding:8px 10px;color:var(--txt2);">${_uaEsc(u.email||'')}
+              <td style="padding:8px 10px;font-weight:600;">${escHtml(u.displayName||'(sin nombre)')}${isMe?' <span style="color:var(--gold);font-size:11px;">(tú)</span>':''}</td>
+              <td style="padding:8px 10px;color:var(--txt2);">${escHtml(u.email||'')}
                 ${u.emailVerified===true
                   ? '<span title="Email verificado" style="margin-left:6px;font-size:11px;color:var(--green);">verificado</span>'
                   : '<span title="Esta cuenta aún no verificó su email (o no inició sesión desde que existe la verificación): no se le puede asignar club" style="margin-left:6px;font-size:11px;color:var(--gold);">sin verificar</span>'}
               </td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} onchange="adminSetUserRole(${escAttr(JSON.stringify(u.uid))}, this.value)">
+                <select style="${selStyle}" ${isMe?'disabled title="No puedes cambiar tu propio rol (evita quedar sin acceso)"':''} data-onchange="adminSetUserRole(${escAttr(JSON.stringify(u.uid))}, this.value)">
                   <option value="president" ${u.role==='president'?'selected':''}>Presidente</option>
                   <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
                 </select>
               </td>
               <td style="padding:8px 10px;">
-                <select style="${selStyle}" ${(!u.emailVerified && !isMe)?'title="Email sin verificar: no se puede asignar club"':''} onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null, u.emailVerified===true || isMe)}</select>
+                <select style="${selStyle}" ${(!u.emailVerified && !isMe)?'title="Email sin verificar: no se puede asignar club"':''} data-onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null, u.emailVerified===true || isMe)}</select>
               </td>
               <td style="padding:8px 10px;text-align:center;">
-                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
+                <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" data-onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
               </td>
             </tr>`;
           }).join('')}
@@ -120,30 +118,56 @@ async function adminSetUserLock(uid, locked){
     await firebase.firestore().collection('users').doc(uid).update({ lockEdits: locked });
     showToast(locked ? 'Edición de club bloqueada para este usuario' : 'Edición de club habilitada');
   } catch(e){
-    showToast('Error: '+(e.code||e.message), 'error');
+    showToast('Error: '+dbErrorMsg(e), 'error');
     renderAdmUsuarios();
   }
 }
 
 async function adminSetUserRole(uid, role){
+  if(role!=='president' && role!=='admin'){ renderAdmUsuarios(); return; }
   try {
     await firebase.firestore().collection('users').doc(uid).update({ role });
     showToast('Rol actualizado');
   } catch(e){
-    showToast('Error al actualizar rol: '+(e.code||e.message), 'error');
+    showToast('Error al actualizar rol: '+dbErrorMsg(e), 'error');
     renderAdmUsuarios();
   }
 }
 
+/* Un club tiene un solo presidente (lo mismo que hace el selector del modal
+   de equipo, updatePresidentLink). Antes, asignar desde esta tabla un club
+   que ya tenía cuenta dejaba a las dos vinculadas al mismo club. */
 async function adminSetUserTeam(uid, val){
   const teamId = val ? parseInt(val) : null;
+  const other = teamId!=null
+    ? (window._uaUsers||[]).find(u=>u.uid!==uid && u.teamId===teamId)
+    : null;
+  if(other){
+    // Restaurar el <select> mientras se confirma (si se cancela, queda como estaba).
+    await renderAdmUsuarios();
+    const team = (window._uaTeams||[]).find(t=>t.id===teamId);
+    showConfirm(
+      '¿Mover el club a esta cuenta?',
+      `${team?.name||'Ese club'} ya está vinculado a ${other.displayName||other.email||'otra cuenta'}. Esa cuenta quedará sin club.`,
+      async()=>{ await _uaApplyTeam(uid, teamId, other.uid); }
+    );
+    return;
+  }
+  await _uaApplyTeam(uid, teamId, null);
+}
+
+async function _uaApplyTeam(uid, teamId, unlinkUid){
   try {
-    await firebase.firestore().collection('users').doc(uid).update({ teamId });
+    const fs = firebase.firestore();
+    const batch = fs.batch();   // las dos cuentas o ninguna
+    if(unlinkUid) batch.update(fs.collection('users').doc(unlinkUid), { teamId: null });
+    batch.update(fs.collection('users').doc(uid), { teamId });
+    await batch.commit();
     showToast(teamId ? 'Club vinculado' : 'Club desvinculado');
   } catch(e){
-    showToast('Error al vincular club: '+(e.code||e.message), 'error');
-    renderAdmUsuarios();
+    showToast('Error al vincular club: '+dbErrorMsg(e), 'error');
   }
+  renderAdmUsuarios();
 }
 
 /* Lista de cuentas para el selector de presidente en el modal de equipo.
@@ -164,22 +188,30 @@ async function loadUsersForSelect(){
 }
 
 /* Vincula un equipo a una cuenta (users.teamId). Quita el vínculo previo
-   de quien tuviera este equipo, y asigna el nuevo presidente. Solo admin. */
-async function updatePresidentLink(teamId, newUid){
+   de quien tuviera este equipo, y asigna el nuevo presidente. Solo admin.
+   En un solo lote: antes, si la cuenta nueva no se podía vincular (p. ej.
+   email sin verificar), la anterior ya había quedado desvinculada.
+   `strict`: relanza el error en vez de avisar (lo usa deleteTeam). */
+async function updatePresidentLink(teamId, newUid, opts = {}){
   if(typeof USE_FIRESTORE==='undefined' || !USE_FIRESTORE) return;
   if(typeof firebase==='undefined' || typeof firebase.firestore!=='function') return;
   try {
     const fs = firebase.firestore();
-    const snap = await fs.collection('users').get();
-    for(const d of snap.docs){
-      if(d.data().teamId===teamId && d.id!==newUid){
-        await fs.collection('users').doc(d.id).update({ teamId: null });
-      }
+    const snap = await fs.collection('users').where('teamId', '==', teamId).get();
+    const batch = fs.batch();
+    let n = 0;
+    snap.docs.forEach(d=>{
+      if(d.id!==newUid){ batch.update(d.ref, { teamId: null }); n++; }
+    });
+    if(newUid && !snap.docs.some(d=>d.id===newUid)){
+      batch.update(fs.collection('users').doc(newUid), { teamId }); n++;
     }
-    if(newUid){
-      await fs.collection('users').doc(newUid).update({ teamId });
-    }
-  } catch(e){ console.warn('[pres-link]', e.code||e.message); showToast('No se pudo vincular el presidente: '+(e.code||e.message),'error'); }
+    if(n) await batch.commit();
+  } catch(e){
+    if(opts.strict) throw e;
+    console.warn('[pres-link]', e.code||e.message);
+    showToast('No se pudo vincular el presidente: '+dbErrorMsg(e),'error');
+  }
 }
 
 /* Mapa { teamId: nombre del presidente } a partir de las cuentas vinculadas

@@ -51,7 +51,7 @@ function makeStub(label, listeners) {
 
 function runVariant(dir, label) {
   const html = readFileSync(join(dir, 'index.html'), 'utf8');
-  const scripts = [...html.matchAll(/<script(?:\s+src="([^"]+)")?\s*>([\s\S]*?)<\/script>/g)]
+  const scripts = [...html.matchAll(/<script(?:\s+data-boot)?(?:\s+src="([^"]+)")?\s*>([\s\S]*?)<\/script>/g)]
     .map(m => ({ src: m[1], code: m[2] }))
     .filter(s => !s.src || !/^https?:/.test(s.src));
   const store = new Map();

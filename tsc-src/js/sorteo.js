@@ -361,13 +361,54 @@
       state.activeId = state.bombos[0]?.id || null;
     }
   }
-  async function saveState() {
-    if (stateRecordId == null) return;
-    await dbPut('sorteo', {
+  /* ----------------------------------------------------------
+     Escrituras del sorteo (MS-5.10)
+     - Todo cambio parte de una copia FRESCA del registro (no del estado local,
+       que puede estar viejo si otro dispositivo sorteó) y se escribe en UN lote
+       junto con lo demás que toque (fases, partidos, historial, eventos).
+     - Una sola operación a la vez (doble clic) y errores de red o de reglas
+       como aviso claro.
+     - Con la temporada finalizada el código se niega (H-49).
+     ---------------------------------------------------------- */
+  function _clone(x) { return JSON.parse(JSON.stringify(x)); }
+  let _sBusy = false;
+  async function _sRun(fn, what) {
+    if (_sBusy) return;
+    _sBusy = true;
+    try { return await fn(); }
+    catch (err) {
+      console.error('[Sorteo]', err);
+      showToastSafe((what ? what + ': ' : '') + dbErrorMsg(err), 'error');
+    }
+    finally { _sBusy = false; }
+  }
+  async function _sorteoLocked(quiet) {
+    const num = stateSeason ?? ((typeof STATE !== 'undefined' && STATE.season) || 1);
+    const season = (await dbGetAll('seasons')).find(x => x.number === num);
+    if (season?.status === 'finished') {
+      if (!quiet) showToastSafe(`${getSeasonName(season)} está finalizada: el sorteo no admite cambios`, 'error');
+      return true;
+    }
+    return false;
+  }
+  async function _stateDraft() {
+    const rec = stateRecordId != null ? await dbGet('sorteo', stateRecordId) : null;
+    if (!rec) throw new Error('El registro del sorteo ya no existe: recarga la página');
+    const bombos = _clone(rec.bombos || []);
+    const activeId = bombos.find(b => b.id === state.activeId) ? state.activeId : (rec.activeId || bombos[0]?.id || null);
+    return { bombos, activeId };
+  }
+  function _stateOp(draft) {
+    return { type: 'set', store: 'sorteo', data: {
       id: stateRecordId, season: stateSeason,
-      bombos: state.bombos, activeId: state.activeId, updatedAt: Date.now()
-    });
-    broadcast({ type:'state', season: stateSeason });
+      bombos: draft.bombos, activeId: draft.activeId, updatedAt: Date.now()
+    } };
+  }
+  async function _commitState(draft, extraOps) {
+    await dbWriteBatch([...(extraOps || []), _stateOp(draft)]);
+    state = draft;
+    if (!state.activeId || !state.bombos.find(b => b.id === state.activeId)) state.activeId = state.bombos[0]?.id || null;
+    broadcast({ type: 'state', season: stateSeason });
   }
 
   async function refreshTeamsCache() {
@@ -538,38 +579,68 @@
 
   /* ---------------- Bombos UI ---------------- */
   async function addBombo() {
-    const name = prompt('Nombre del nuevo bombo:', `Bombo ${String.fromCharCode(65 + state.bombos.length)}`);
-    if (!name) return;
-    const b = newBombo(name.trim());
-    state.bombos.push(b);
-    state.activeId = b.id;
-    await saveState();
-    await renderAll();
+    if (await _sorteoLocked()) return;
+    const raw = prompt('Nombre del nuevo bombo:', `Bombo ${String.fromCharCode(65 + state.bombos.length)}`);
+    if (raw == null) return;
+    const name = raw.trim().slice(0, 30);
+    if (!name) { showToastSafe('El nombre del bombo no puede estar vacío', 'error'); return; }
+    return _sRun(async () => {
+      const d = await _stateDraft();
+      const nb = newBombo(name);
+      d.bombos.push(nb);
+      d.activeId = nb.id;
+      await _commitState(d);
+      await renderAll();
+    }, 'No se pudo crear el bombo');
   }
   async function renameActiveBombo() {
     const b = activeBombo(); if (!b) return;
-    const name = prompt('Nuevo nombre:', b.name);
-    if (!name) return;
-    b.name = name.trim();
-    await saveState();
-    await renderBombosBar();
-    renderHint();
+    if (await _sorteoLocked()) return;
+    const raw = prompt('Nuevo nombre:', b.name);
+    if (raw == null) return;
+    const name = raw.trim().slice(0, 30);
+    if (!name) { showToastSafe('El nombre del bombo no puede estar vacío', 'error'); return; }
+    return _sRun(async () => {
+      const d = await _stateDraft();
+      const nb = d.bombos.find(x => x.id === b.id);
+      if (!nb) throw new Error('El bombo ya no existe');
+      nb.name = name;
+      await _commitState(d);
+      await renderBombosBar();
+      renderHint();
+    }, 'No se pudo renombrar el bombo');
   }
   async function deleteActiveBombo() {
     const b = activeBombo(); if (!b) return;
     if (state.bombos.length <= 1) { showToastSafe('Debe haber al menos un bombo.', 'error'); return; }
-    if (!confirm(`¿Eliminar "${b.name}" y sus equipos?`)) return;
-    state.bombos = state.bombos.filter(x => x.id !== b.id);
-    state.activeId = state.bombos[0].id;
-    await saveState();
-    await renderAll();
+    if (await _sorteoLocked()) return;
+    const links = b.drawn.filter(d => d.link).length;
+    const lost = [`${b.teamIds.length} equipo${b.teamIds.length === 1 ? '' : 's'}`];
+    if (b.drawn.length) lost.push(`${b.drawn.length} sorteado${b.drawn.length === 1 ? '' : 's'} con su registro de eventos`);
+    if (links) lost.push(`${links} vínculo${links === 1 ? '' : 's'} a fases (las posiciones ya asignadas en las fases se conservan)`);
+    showConfirm(`¿Eliminar "${b.name}"?`, `Se pierde el bombo con ${lost.join(', ')}.`, () => _sRun(async () => {
+      const d = await _stateDraft();
+      if (d.bombos.length <= 1) { showToastSafe('Debe haber al menos un bombo.', 'error'); return; }
+      d.bombos = d.bombos.filter(x => x.id !== b.id);
+      d.activeId = d.bombos[0].id;
+      const events = await dbGetAll('sorteoEvents', r => r.bomboId === b.id && r.season === stateSeason);
+      await _commitState(d, events.map(ev => ({ type: 'delete', store: 'sorteoEvents', id: ev.id })));
+      await renderAll();
+    }, 'No se pudo eliminar el bombo'));
   }
   async function selectBombo(id) {
     if (busy) return;
     state.activeId = id;
     // En público (readOnly) el cambio es local: no persistir ni emitir, así
-    // el admin no se ve forzado a seguir la selección del espectador.
-    if (!readOnly) await saveState();
+    // el admin no se ve forzado a seguir la selección del espectador. En una
+    // temporada finalizada tampoco se persiste (solo mira).
+    if (!readOnly && !(await _sorteoLocked(true))) {
+      await _sRun(async () => {
+        const d = await _stateDraft();
+        d.activeId = id;
+        await _commitState(d);
+      }, 'No se pudo cambiar de bombo');
+    }
     await refreshActive();
   }
 
@@ -584,7 +655,7 @@
       tab.className = 'bombo-tab' + (b.id === state.activeId ? ' active' : '');
       tab.dataset.id = b.id;
       tab.innerHTML = `
-        <span class="bombo-tab-name">${escapeHtml(b.name)}</span>
+        <span class="bombo-tab-name">${escHtml(b.name)}</span>
         <span class="bombo-tab-count">${remaining}/${total}</span>`;
       tab.addEventListener('click', () => selectBombo(b.id));
       bombosBar.appendChild(tab);
@@ -666,7 +737,14 @@
     return x % n;
   }
 
+  /* Un solo sorteo a la vez: `busy` recién se activa al empezar la animación,
+     y entre el clic y la transacción un doble clic sorteaba dos equipos. */
   async function drawNext() {
+    if (busy || readOnly) return;
+    if (await _sorteoLocked()) return;
+    return _sRun(_drawNextInner, 'No se pudo sortear');
+  }
+  async function _drawNextInner() {
     if (busy || readOnly) return;
     const b = activeBombo();
     if (!b) { flashHint('Crea un bombo primero'); return; }
@@ -734,12 +812,15 @@
       ord = b.drawn.length + 1;
       remaining = pool.length - 1;
       b.drawn.push({ teamId, at: Date.now() });
-      await saveState();
-      await dbAdd('sorteoEvents', {
-        season: stateSeason, bomboId: b.id, teamId,
-        poolBefore: pool, poolAfter: pool.filter(id => id !== teamId),
-        at: Date.now(), adminUid: null, stateRecordId
-      });
+      await dbWriteBatch([
+        { type: 'add', store: 'sorteoEvents', data: {
+          season: stateSeason, bomboId: b.id, teamId,
+          poolBefore: pool, poolAfter: pool.filter(id => id !== teamId),
+          at: Date.now(), adminUid: null, stateRecordId
+        } },
+        _stateOp(state)
+      ]);
+      broadcast({ type: 'state', season: stateSeason });
     }
 
     broadcast({ type:'draw', season: stateSeason, bomboId: b.id, teamId, ord });
@@ -901,14 +982,21 @@
   /* ---------------- Reset ---------------- */
   async function resetActive() {
     const b = activeBombo(); if (!b || !b.drawn.length) return;
-    if (!confirm(`¿Reiniciar "${b.name}"? Los equipos volverán a la urna.`)) return;
-    b.drawn = [];
-    await saveState();
-    // Borrar también el log de eventos de este bombo (reset = empezar de
-    // cero, mismo criterio que ya aplicaba al array `drawn`).
-    const oldEvents = await dbGetAll('sorteoEvents', r => r.bomboId === b.id && r.season === stateSeason);
-    await Promise.all(oldEvents.map(ev => dbDelete('sorteoEvents', ev.id)));
-    await refreshActive();
+    if (await _sorteoLocked()) return;
+    const links = b.drawn.filter(d => d.link).length;
+    const msg = `Los ${b.drawn.length} equipo${b.drawn.length === 1 ? '' : 's'} sorteado${b.drawn.length === 1 ? '' : 's'} vuelven a la urna y se borra el registro de eventos de este bombo`
+      + (links ? `; se pierden ${links} vínculo${links === 1 ? '' : 's'} a fases (las posiciones ya asignadas en las fases se conservan)` : '') + '.';
+    showConfirm(`¿Reiniciar "${b.name}"?`, msg, () => _sRun(async () => {
+      const d = await _stateDraft();
+      const nb = d.bombos.find(x => x.id === b.id);
+      if (!nb) throw new Error('El bombo ya no existe');
+      nb.drawn = [];
+      // Borrar también el log de eventos de este bombo (reset = empezar de
+      // cero), en el mismo lote que el registro.
+      const oldEvents = await dbGetAll('sorteoEvents', r => r.bomboId === b.id && r.season === stateSeason);
+      await _commitState(d, oldEvents.map(ev => ({ type: 'delete', store: 'sorteoEvents', id: ev.id })));
+      await refreshActive();
+    }, 'No se pudo reiniciar el bombo'));
   }
 
   /* ---------------- Team picker modal ---------------- */
@@ -935,8 +1023,8 @@
     wrap.innerHTML = `
       <div class="modal" style="max-width:540px;">
         <div class="modal-hdr">
-          <div class="modal-title">Equipos en ${escapeHtml(b.name)}</div>
-          <button class="modal-close" onclick="document.getElementById('sorteo-team-picker').remove()">×</button>
+          <div class="modal-title">Equipos en ${escHtml(b.name)}</div>
+          <button class="modal-close" data-onclick="_tscRemove('sorteo-team-picker')">×</button>
         </div>
         <div class="modal-body">
           <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
@@ -949,7 +1037,7 @@
           <div id="stp-count" style="margin-top:8px;font-size:13px;color:var(--txt3);"></div>
         </div>
         <div class="modal-footer">
-          <button class="btn" onclick="document.getElementById('sorteo-team-picker').remove()">Cancelar</button>
+          <button class="btn" data-onclick="_tscRemove('sorteo-team-picker')">Cancelar</button>
           <button class="btn btn-primary" id="stp-save">Guardar</button>
         </div>
       </div>`;
@@ -968,13 +1056,13 @@
         const col = safeCssColor(t.color, '#333');
         const logo = safeImgUrl(t.logo)
           ? `<img src="${safeImgUrl(t.logo)}" style="width:100%;height:100%;object-fit:cover;">`
-          : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escapeHtml(ini)}</span>`;
+          : `<span style="font-family:'Bebas Neue';font-size:11px;color:#fff;">${escHtml(ini)}</span>`;
         return `
           <label class="stp-row" data-id="${t.id}" style="display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--brd);cursor:pointer;">
             <input type="checkbox" data-id="${t.id}" ${checked}>
             <div style="width:26px;height:26px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${col};flex-shrink:0;">${logo}</div>
-            <span style="flex:1;font-size:14px;">${escapeHtml(t.name)}</span>
-            ${t.pres ? `<span style="font-size:12px;color:var(--txt3);">${escapeHtml(t.pres)}</span>` : ''}
+            <span style="flex:1;font-size:14px;">${escHtml(t.name)}</span>
+            ${t.pres ? `<span style="font-size:12px;color:var(--txt3);">${escHtml(t.pres)}</span>` : ''}
           </label>`;
       }).join('') || `<div style="padding:14px;color:var(--txt3);text-align:center;">Sin resultados</div>`;
       countEl.textContent = `${selected.size} de ${teams.length} seleccionados`;
@@ -996,16 +1084,33 @@
     });
 
     wrap.querySelector('#stp-save').addEventListener('click', async () => {
-      // Conserva orden previo y agrega los nuevos al final.
-      const prev = b.teamIds.filter(id => selected.has(id));
-      const added = [...selected].filter(id => !b.teamIds.includes(id));
-      b.teamIds = [...prev, ...added];
-      // Si removimos un team que estaba en drawn, sacarlo del histórico.
-      b.drawn = b.drawn.filter(d => selected.has(d.teamId));
-      await saveState();
-      wrap.remove();
-      await refreshActive();
-      showToastSafe(`${b.name} actualizado · ${selected.size} equipos`);
+      if (await _sorteoLocked()) return;
+      const removed = b.drawn.filter(d => !selected.has(d.teamId));
+      const doSave = () => _sRun(async () => {
+        const d = await _stateDraft();
+        const nb = d.bombos.find(x => x.id === b.id);
+        if (!nb) throw new Error('El bombo ya no existe');
+        // Un equipo solo puede estar en un bombo: se revisa contra la copia fresca.
+        const other = new Set();
+        d.bombos.forEach(bb => { if (bb.id !== nb.id) bb.teamIds.forEach(t => other.add(t)); });
+        const sel = [...selected].filter(id => !other.has(id));
+        // Conserva orden previo y agrega los nuevos al final.
+        const prev = nb.teamIds.filter(id => sel.includes(id));
+        const added = sel.filter(id => !nb.teamIds.includes(id));
+        nb.teamIds = [...prev, ...added];
+        // Si removimos un team que estaba en drawn, sacarlo del histórico.
+        nb.drawn = nb.drawn.filter(x => sel.includes(x.teamId));
+        await _commitState(d);
+        wrap.remove();
+        await refreshActive();
+        showToastSafe(`${nb.name} actualizado · ${sel.length} equipos`);
+      }, 'No se pudo guardar los equipos');
+      if (removed.length) {
+        const names = removed.map(r => teamName(r.teamId)).join(', ');
+        showConfirm('¿Quitar equipos ya sorteados?',
+          `Se quitan ${removed.length} equipo${removed.length === 1 ? '' : 's'} ya sorteado${removed.length === 1 ? '' : 's'} (${names}) del registro del sorteo, con sus vínculos. Sus posiciones en las fases se conservan.`,
+          doSave);
+      } else { doSave(); }
     });
   }
 
@@ -1071,14 +1176,14 @@
       const c = document.createElement('span');
       c.className = 'chip' + (highlightId === id ? ' now' : '');
       // Sin punto dorado para no contaminar la lectura de los disponibles.
-      c.innerHTML = escapeHtml(teamName(id));
+      c.innerHTML = escHtml(teamName(id));
       poolEls.appendChild(c);
     });
     alreadyDrawn.forEach(id => {
       const c = document.createElement('span');
       const isHighlight = highlightId === id;
       c.className = 'chip drawn' + (isHighlight ? ' now' : '');
-      c.innerHTML = escapeHtml(teamName(id));
+      c.innerHTML = escHtml(teamName(id));
       poolEls.appendChild(c);
     });
   }
@@ -1174,7 +1279,7 @@
       const btn = readOnly ? '' : `<button class="drawn-link-btn" data-gidx="${globalIdx}">${d.link ? 'Cambiar' : 'Vincular'}</button>`;
       li.innerHTML = `
         <span class="num">${displayIdx+1}</span>
-        <span class="name">${escapeHtml(teamName(d.teamId))}</span>
+        <span class="name">${escHtml(teamName(d.teamId))}</span>
         <span class="time">${hh}:${mm}</span>
         ${linkBadge}
         ${btn}`;
@@ -1240,8 +1345,8 @@
     wrap.innerHTML = `
       <div class="modal" style="max-width:780px;">
         <div class="modal-hdr">
-          <div class="modal-title">Vincular: <span style="color:var(--gold);">${escapeHtml(teamName(teamId))}</span></div>
-          <button class="modal-close" onclick="document.getElementById('sorteo-link-picker').remove()">×</button>
+          <div class="modal-title">Vincular: <span style="color:var(--gold);">${escHtml(teamName(teamId))}</span></div>
+          <button class="modal-close" data-onclick="_tscRemove('sorteo-link-picker')">×</button>
         </div>
         <div class="modal-body">
           <div style="display:flex;gap:12px;margin-bottom:14px;">
@@ -1258,10 +1363,10 @@
         </div>
         <div class="modal-footer" style="justify-content:space-between;">
           <div style="display:flex;gap:8px;">
-            <button class="btn" id="slp-undo" title="Restaurar al estado al abrir el modal">↺ Deshacer cambios</button>
+            <button class="btn" id="slp-undo" title="Restaurar al estado al abrir el modal"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Deshacer cambios</button>
             <button class="btn btn-danger" id="slp-clear">Limpiar vínculo</button>
           </div>
-          <button class="btn" onclick="document.getElementById('sorteo-link-picker').remove()">Cerrar</button>
+          <button class="btn" data-onclick="_tscRemove('sorteo-link-picker')">Cerrar</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);
@@ -1271,7 +1376,7 @@
     const gridEl   = wrap.querySelector('#slp-grid');
 
     compSel.innerHTML = comps.length
-      ? comps.map(c => `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${escapeHtml(c.name)}</option>`).join('')
+      ? comps.map(c => `<option value="${c.id}" ${c.id===selCompId?'selected':''}>${escHtml(c.name)}</option>`).join('')
       : '<option value="">Sin competiciones en la temporada</option>';
 
     async function refreshPhases() {
@@ -1282,7 +1387,7 @@
       phaseSel.innerHTML = phases.length
         ? phases.map(p => {
             const tag = p.type === 'groups' ? groupsIcon : bracketIcon;
-            return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${tag} ${escapeHtml(p.name || ('Fase '+p.id))}</option>`;
+            return `<option value="${p.id}" ${p.id===selPhaseId?'selected':''}>${tag} ${escHtml(p.name || ('Fase '+p.id))}</option>`;
           }).join('')
         : '<option value="">Sin fases tipo grupos / bracket / playoff</option>';
       if (!phases.find(p => p.id === selPhaseId)) selPhaseId = phases[0]?.id || null;
@@ -1344,7 +1449,7 @@
                   : '<span class="slp-tag-warn">ref dinámica</span>';
                 return `<div class="slp-bslot ${mine?'mine':'taken'}" data-si="${cell.si}" data-sd="${cell.sd}">
                   <span class="slp-side">${cell.sd}</span>
-                  <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                  <span class="slp-name">${escHtml(teamName(t))}</span>
                   ${mine ? '<span class="slp-tag">aquí</span>' : labelExtra}
                 </div>`;
               }
@@ -1410,7 +1515,7 @@
                   : (cell.kind ? '<span class="slp-tag-warn">ref dinámica</span>' : '');
                 return `<div class="slp-bslot ${mine?'mine':'taken'}" data-si="${cell.si}" data-sd="${cell.sd}">
                   <span class="slp-side">${cell.sd}</span>
-                  <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                  <span class="slp-name">${escHtml(teamName(t))}</span>
                   ${mine ? '<span class="slp-tag">aquí</span>' : labelExtra}
                 </div>`;
               }
@@ -1461,7 +1566,7 @@
               const mine = t === teamId;
               slotsHtml.push(`<div class="slp-slot ${mine?'mine':'taken'}" data-group="${gi}" data-pos="${pos}">
                 <span class="slp-pos">${pos+1}</span>
-                <span class="slp-name">${escapeHtml(teamName(t))}</span>
+                <span class="slp-name">${escHtml(teamName(t))}</span>
                 ${mine?'<span class="slp-tag">aquí</span>':''}
               </div>`);
             } else {
@@ -1503,23 +1608,27 @@
       await clearLink(drawnGlobalIdx);
       await refreshGrid();
     });
-    wrap.querySelector('#slp-undo').addEventListener('click', async () => {
+    wrap.querySelector('#slp-undo').addEventListener('click', () => _sRun(async () => {
+      if (await _sorteoLocked()) return;
       const journal = _linkSessionJournal;
       if (!journal) return;
-      // Restaurar SOLO las fases efectivamente tocadas durante esta sesión
-      // (no todas las fases de la DB: evita pisar ediciones concurrentes de
-      // otro admin en fases que esta sesión nunca modificó).
+      // Restaurar SOLO lo efectivamente tocado durante esta sesión (no todas
+      // las fases de la DB: evita pisar ediciones concurrentes en fases que
+      // esta sesión nunca modificó). Todo en un lote: antes eran puts sueltos
+      // y un corte dejaba fases restauradas con el sorteo sin restaurar.
+      const ops = [];
+      for (const p of journal.phases.values()) ops.push({ type: 'set', store: 'phases', data: p });
+      for (const entry of journal.matches.values()) {
+        entry.matches.forEach(m => ops.push({ type: 'set', store: 'matches', data: m }));
+        entry.history.forEach(h => ops.push({ type: 'set', store: 'matchHistory', data: h }));
+      }
+      if (journal.sorteoBefore) ops.push({ type: 'set', store: 'sorteo', data: journal.sorteoBefore });
+      if (!ops.length) { showToastSafe('No hay cambios para deshacer'); return; }
+      if (ops.length > DB_BATCH_MAX) throw new Error(`Son demasiados cambios para deshacerlos juntos (${ops.length})`);
+      await dbWriteBatch(ops);
       for (const p of journal.phases.values()) {
-        await dbPut('phases', p);
         if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(p.id);
       }
-      // Restaurar SOLO los matches (+ su historial) de los cruces playoff tocados.
-      for (const entry of journal.matches.values()) {
-        for (const m of entry.matches) await dbPut('matches', m);
-        for (const h of entry.history) await dbPut('matchHistory', h);
-      }
-      // Restaurar el registro sorteo de esta temporada a como estaba al abrir el modal.
-      if (journal.sorteoBefore) await dbPut('sorteo', journal.sorteoBefore);
       // Nueva baseline: la sesión sigue abierta y puede volver a tocar cosas.
       _linkSessionJournal = {
         phases: new Map(),
@@ -1532,267 +1641,355 @@
       await refreshActive();
       await refreshGrid();
       showToastSafe('Cambios deshechos');
-    });
+    }, 'No se pudo deshacer'));
 
     await refreshPhases();
   }
 
-  async function assignLink(drawnGlobalIdx, phaseId, groupIdx, posIdx) {
-    if (readOnly) return;
-    const b = activeBombo(); if (!b) return;
-    const entry = b.drawn[drawnGlobalIdx]; if (!entry) return;
-    const teamId = entry.teamId;
-
-    // 1. Liberar vínculo previo (si existía y apuntaba a otra fase/posición).
-    if (entry.link) await unbindFromPhase(entry.link, teamId);
-
-    // 2. Cargar fase y normalizar groups.
-    const phase = await dbGet('phases', phaseId);
-    if (!phase) return;
-    _journalCapturePhase(phase);
-    const groups = phase.groups ? JSON.parse(JSON.stringify(phase.groups)) : {};
-
-    // 3. Si el equipo está en otra posición de esta misma fase, lo quitamos.
-    Object.keys(groups).forEach(gi => {
-      const arr = groups[gi] || [];
-      for (let j = 0; j < arr.length; j++) if (arr[j] === teamId) arr[j] = null;
-      groups[gi] = arr;
-    });
-
-    // 4. Asegurar capacidad en el grupo destino y guardar la posición.
-    if (!groups[groupIdx]) groups[groupIdx] = [];
-    while (groups[groupIdx].length <= posIdx) groups[groupIdx].push(null);
-    const prevOccupant = groups[groupIdx][posIdx];
-    groups[groupIdx][posIdx] = teamId;
-
-    await dbPut('phases', { ...phase, groups });
-    if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(phaseId);
-
-    // 5. Invalidar links stale en TODOS los bombos:
-    //    a) cualquier link que apuntara a esta posición destino (lo perdió el ocupante anterior)
-    //    b) cualquier link del mismo teamId en otra posición de esta fase
-    for (const bb of state.bombos) {
-      for (const d of bb.drawn) {
-        if (!d.link || d.link.phaseId !== phaseId) continue;
-        if (d.link.groupIdx === groupIdx && d.link.posIdx === posIdx && d.teamId !== teamId) d.link = null;
-        else if (d.teamId === teamId && !(d.link.groupIdx === groupIdx && d.link.posIdx === posIdx)) d.link = null;
-      }
-    }
-
-    // 6. Persistir el link en el sorteo y refrescar.
-    entry.link = { phaseId, kind:'group', groupIdx, posIdx };
-    await saveState();
-    await refreshActive();
-
-    const groupLetter = String.fromCharCode(65 + groupIdx);
-    if (prevOccupant != null && prevOccupant !== teamId) {
-      showToastSafe(`${teamName(teamId)} → Grupo ${groupLetter} pos ${posIdx+1} · desplazado ${teamName(prevOccupant)}`);
-    } else {
-      showToastSafe(`${teamName(teamId)} → Grupo ${groupLetter} pos ${posIdx+1}`);
-    }
+  /* ---------------- Vínculos bola ↔ fase (MS-5.10) ----------------
+     Cada cambio arma un PLAN en memoria (fases tocadas, cruces de playoff
+     que se desarman, registro del sorteo) y se escribe en UN lote. Antes
+     eran hasta cuatro escrituras sueltas (liberar el vínculo previo, la fase,
+     los partidos del cruce, el sorteo) y un corte dejaba la fase cambiada con
+     el sorteo sin cambiar, o los partidos borrados con la fase intacta. */
+  async function _planStart() {
+    return { draft: await _stateDraft(), phases: new Map(), orig: new Map(), dirty: new Set(), cruces: [] };
   }
-
-  async function clearLink(drawnGlobalIdx) {
-    if (readOnly) return;
-    const b = activeBombo(); if (!b) return;
-    const entry = b.drawn[drawnGlobalIdx]; if (!entry?.link) return;
-    await unbindFromPhase(entry.link, entry.teamId);
-    entry.link = null;
-    await saveState();
-    await refreshActive();
-    showToastSafe(`${teamName(entry.teamId)} desvinculado`);
+  async function _planPhase(plan, id) {
+    if (!plan.phases.has(id)) {
+      const p = await dbGet('phases', id);
+      if (p) { _journalCapturePhase(p); plan.orig.set(id, _clone(p)); }
+      plan.phases.set(id, p ? _clone(p) : null);
+    }
+    return plan.phases.get(id);
   }
-
-  async function unbindFromPhase(link, teamId) {
+  function _planEntry(plan, bomboId, teamId) {
+    const nb = plan.draft.bombos.find(x => x.id === bomboId);
+    return nb ? nb.drawn.find(d => d.teamId === teamId) : null;
+  }
+  /* Libera el vínculo previo de una bola dentro del plan. */
+  async function _planUnbind(plan, link, teamId) {
     if (!link) return;
-    const phase = await dbGet('phases', link.phaseId);
+    const phase = await _planPhase(plan, link.phaseId);
     if (!phase) return;
-    _journalCapturePhase(phase);
     if (link.kind === 'group') {
-      const groups = phase.groups ? JSON.parse(JSON.stringify(phase.groups)) : {};
-      const arr = groups[link.groupIdx] || [];
-      if (arr[link.posIdx] === teamId) {
-        arr[link.posIdx] = null;
-        groups[link.groupIdx] = arr;
-        await dbPut('phases', { ...phase, groups });
-        if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(link.phaseId);
-      }
+      const arr = (phase.groups || {})[link.groupIdx];
+      if (arr && arr[link.posIdx] === teamId) { arr[link.posIdx] = null; plan.dirty.add(phase.id); }
     } else if (link.kind === 'bracket') {
-      const refs = (phase.slotRefs || []).filter(r => {
-        const match = r.slotIdx === link.slotIdx && r.side === link.side;
-        if (!match) return true;
-        // Solo retira refs tipo 'team' del mismo equipo (no toca refs dinámicas heredadas).
+      const before = (phase.slotRefs || []).length;
+      // Solo retira refs tipo 'team' del mismo equipo (no toca refs dinámicas heredadas).
+      phase.slotRefs = (phase.slotRefs || []).filter(r => {
+        if (!(r.slotIdx === link.slotIdx && r.side === link.side)) return true;
         return !(r.type === 'team' && parseInt(r.teamId) === teamId);
       });
-      await dbPut('phases', { ...phase, slotRefs: refs });
-      if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(link.phaseId);
+      if (phase.slotRefs.length !== before) plan.dirty.add(phase.id);
     } else if (link.kind === 'playoff') {
       const key = link.side === 'A' ? 'teamA' : 'teamB';
-      const slots = phase.playoffSlots ? JSON.parse(JSON.stringify(phase.playoffSlots)) : [];
+      const slots = phase.playoffSlots || [];
       let changed = false;
       if (slots[link.matchIdx] && slots[link.matchIdx][key] === teamId) {
         slots[link.matchIdx] = { ...slots[link.matchIdx], [key]: null };
         changed = true;
       }
-      // Solo retira refs tipo 'team' del mismo equipo en ese matchIdx+side (no toca refs dinámicas heredadas).
-      const refs = (phase.slotRefs || []).filter(r => {
-        const match = r.slotIdx === link.matchIdx && r.side === link.side;
-        if (!match) return true;
+      const before = (phase.slotRefs || []).length;
+      phase.slotRefs = (phase.slotRefs || []).filter(r => {
+        if (!(r.slotIdx === link.matchIdx && r.side === link.side)) return true;
         return !(r.type === 'team' && parseInt(r.teamId) === teamId);
       });
-      if (changed || refs.length !== (phase.slotRefs || []).length) {
-        await dbPut('phases', { ...phase, playoffSlots: slots, slotRefs: refs });
-        if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(link.phaseId);
+      if (changed || phase.slotRefs.length !== before) {
+        phase.playoffSlots = slots;
+        plan.dirty.add(phase.id);
+        // El cruce deja de ser el mismo: sus resultados no pueden quedar pegados a otra pareja.
+        if (changed) plan.cruces.push({ phaseId: phase.id, matchIdx: link.matchIdx });
       }
     }
+  }
+  /* Un equipo con partidos en un grupo no puede salir de él (misma guarda
+     que «Equipos por grupo»): sus partidos quedarían fuera de la tabla. */
+  async function _planGroupBlock(plan) {
+    for (const id of plan.dirty) {
+      const phase = plan.phases.get(id), orig = plan.orig.get(id);
+      if (!phase || phase.type !== 'groups' || !orig) continue;
+      const inGroup = (g, gi, tid) => ((g || {})[gi] || []).some(t => t != null && Number(t) === Number(tid));
+      const ms = await dbGetAll('matches', m => m.phaseId === id);
+      const bad = new Map();
+      for (const m of ms) {
+        for (const tid of [m.teamA, m.teamB]) {
+          if (tid == null) continue;
+          if (inGroup(orig.groups, m.groupIdx, tid) && !inGroup(phase.groups, m.groupIdx, tid)) bad.set(Number(tid), m.groupIdx);
+        }
+      }
+      if (bad.size) {
+        const names = [...bad].map(([tid, gi]) => `${teamName(tid)} (Grupo ${String.fromCharCode(65 + (parseInt(gi) || 0))})`).join(', ');
+        showToastSafe(`No se puede: ${names} ya tiene partidos en ese grupo. Borra esas fechas antes de moverlo.`, 'error');
+        return true;
+      }
+    }
+    return false;
+  }
+  /* Escribe el plan. Devuelve false si no se escribió nada (guarda, partido en
+     vivo o confirmación pendiente: `redo` repite la acción ya confirmada). */
+  async function _planCommit(plan, redo) {
+    if (await _planGroupBlock(plan)) return false;
+    const doomed = [];
+    const seen = new Set();
+    for (const c of plan.cruces) {
+      const k = c.phaseId + ':' + c.matchIdx;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const ms = await dbGetAll('matches', m => m.phaseId === c.phaseId && m.matchIdx === c.matchIdx);
+      await _journalCaptureMatches(c.phaseId, c.matchIdx, ms);
+      doomed.push(...ms);
+    }
+    if (doomed.some(m => m.live)) {
+      showToastSafe('El cruce tiene un partido en vivo: finalízalo o descártalo antes de cambiar los equipos', 'error');
+      return false;
+    }
+    const played = doomed.filter(m => m.goalsA != null || m.goalsB != null);
+    if (played.length && redo) {
+      const sc = played.map(m => `${m.goalsA ?? '-'}-${m.goalsB ?? '-'}`).join(', ');
+      showConfirm('¿Cambiar el cruce?',
+        `Se borra${played.length === 1 ? '' : 'n'} ${played.length} resultado${played.length === 1 ? '' : 's'} ya cargado${played.length === 1 ? '' : 's'} (${sc}) de este cruce y su historial.`, redo);
+      return false;
+    }
+    const ops = [];
+    for (const id of plan.dirty) ops.push({ type: 'set', store: 'phases', data: plan.phases.get(id) });
+    ops.push(...await _mxDeleteOps(doomed.map(m => m.id)));
+    if (ops.length + 1 > DB_BATCH_MAX) throw new Error('Son demasiados cambios para un solo lote');
+    await _commitState(plan.draft, ops);
+    for (const id of plan.dirty) {
+      if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(id);
+    }
+    return true;
+  }
+
+  async function assignLink(drawnGlobalIdx, phaseId, groupIdx, posIdx, confirmed) {
+    if (readOnly) return;
+    const b = activeBombo(); if (!b) return;
+    const e0 = b.drawn[drawnGlobalIdx]; if (!e0) return;
+    if (await _sorteoLocked()) return;
+    return _sRun(async () => {
+      const teamId = e0.teamId;
+      const plan = await _planStart();
+      const entry = _planEntry(plan, b.id, teamId);
+      if (!entry) { showToastSafe('Esa bola ya no está en el sorteo: recarga la página', 'error'); return; }
+
+      // 1. Liberar vínculo previo (si existía y apuntaba a otra fase/posición).
+      if (entry.link) await _planUnbind(plan, entry.link, teamId);
+
+      // 2. Cargar fase y normalizar groups.
+      const phase = await _planPhase(plan, phaseId);
+      if (!phase) { showToastSafe('La fase ya no existe', 'error'); return; }
+      const groups = phase.groups || {};
+
+      // 3. Si el equipo está en otra posición de esta misma fase, lo quitamos.
+      Object.keys(groups).forEach(gi => {
+        const arr = groups[gi] || [];
+        for (let j = 0; j < arr.length; j++) if (arr[j] === teamId) arr[j] = null;
+        groups[gi] = arr;
+      });
+
+      // 4. Asegurar capacidad en el grupo destino y guardar la posición.
+      if (!groups[groupIdx]) groups[groupIdx] = [];
+      while (groups[groupIdx].length <= posIdx) groups[groupIdx].push(null);
+      const prevOccupant = groups[groupIdx][posIdx];
+      groups[groupIdx][posIdx] = teamId;
+      phase.groups = groups;
+      plan.dirty.add(phaseId);
+
+      // 5. Invalidar links stale en TODOS los bombos:
+      //    a) cualquier link que apuntara a esta posición destino (lo perdió el ocupante anterior)
+      //    b) cualquier link del mismo teamId en otra posición de esta fase
+      for (const bb of plan.draft.bombos) {
+        for (const d of bb.drawn) {
+          if (!d.link || d.link.phaseId !== phaseId) continue;
+          if (d.link.groupIdx === groupIdx && d.link.posIdx === posIdx && d.teamId !== teamId) d.link = null;
+          else if (d.teamId === teamId && !(d.link.groupIdx === groupIdx && d.link.posIdx === posIdx)) d.link = null;
+        }
+      }
+      entry.link = { phaseId, kind: 'group', groupIdx, posIdx };
+
+      // 6. Un solo lote: fases + sorteo.
+      if (!await _planCommit(plan, confirmed ? null : () => assignLink(drawnGlobalIdx, phaseId, groupIdx, posIdx, true))) return;
+      await refreshActive();
+
+      const groupLetter = String.fromCharCode(65 + groupIdx);
+      if (prevOccupant != null && prevOccupant !== teamId) {
+        showToastSafe(`${teamName(teamId)} → Grupo ${groupLetter} pos ${posIdx+1} · desplazado ${teamName(prevOccupant)}`);
+      } else {
+        showToastSafe(`${teamName(teamId)} → Grupo ${groupLetter} pos ${posIdx+1}`);
+      }
+    }, 'No se pudo vincular');
+  }
+
+  async function clearLink(drawnGlobalIdx, confirmed) {
+    if (readOnly) return;
+    const b = activeBombo(); if (!b) return;
+    const e0 = b.drawn[drawnGlobalIdx]; if (!e0?.link) return;
+    if (await _sorteoLocked()) return;
+    return _sRun(async () => {
+      const plan = await _planStart();
+      const entry = _planEntry(plan, b.id, e0.teamId);
+      if (!entry?.link) return;
+      if (entry.link.kind === 'bracket' && typeof _bkRefPhaseEditable === 'function'
+          && !(await _bkRefPhaseEditable(entry.link.phaseId, entry.link.slotIdx))) return;
+      await _planUnbind(plan, entry.link, e0.teamId);
+      entry.link = null;
+      if (!await _planCommit(plan, confirmed ? null : () => clearLink(drawnGlobalIdx, true))) return;
+      await refreshActive();
+      showToastSafe(`${teamName(e0.teamId)} desvinculado`);
+    }, 'No se pudo desvincular');
   }
 
   /* Asignar bola a slot (lado A/B) de un bracket. Sorteo es autoridad:
-     reemplaza cualquier ref previa en ese slot (incluyendo refs dinámicas). */
-  async function assignBracketLink(drawnGlobalIdx, phaseId, slotIdx, side) {
+     reemplaza cualquier ref previa en ese slot (incluyendo refs dinámicas).
+     Un cruce que ya tiene resultado o está en vivo no se cambia (mismo
+     criterio que «Referencia de cruce» del bracket, MS-5.7). */
+  async function assignBracketLink(drawnGlobalIdx, phaseId, slotIdx, side, confirmed) {
     if (readOnly) return;
     const b = activeBombo(); if (!b) return;
-    const entry = b.drawn[drawnGlobalIdx]; if (!entry) return;
-    const teamId = entry.teamId;
+    const e0 = b.drawn[drawnGlobalIdx]; if (!e0) return;
+    if (await _sorteoLocked()) return;
+    return _sRun(async () => {
+      const teamId = e0.teamId;
+      if (typeof _bkRefPhaseEditable === 'function' && !(await _bkRefPhaseEditable(phaseId, slotIdx))) return;
+      const plan = await _planStart();
+      const entry = _planEntry(plan, b.id, teamId);
+      if (!entry) { showToastSafe('Esa bola ya no está en el sorteo: recarga la página', 'error'); return; }
+      if (entry.link?.kind === 'bracket' && typeof _bkRefPhaseEditable === 'function'
+          && !(await _bkRefPhaseEditable(entry.link.phaseId, entry.link.slotIdx))) return;
 
-    // 1. Liberar vínculo previo de esta bola.
-    if (entry.link) await unbindFromPhase(entry.link, teamId);
+      // 1. Liberar vínculo previo de esta bola.
+      if (entry.link) await _planUnbind(plan, entry.link, teamId);
 
-    // 2. Cargar fase y trabajar sobre slotRefs.
-    const phase = await dbGet('phases', phaseId);
-    if (!phase) return;
-    _journalCapturePhase(phase);
-    let refs = (phase.slotRefs || []).slice();
+      // 2. Cargar fase y trabajar sobre slotRefs.
+      const phase = await _planPhase(plan, phaseId);
+      if (!phase) { showToastSafe('La fase ya no existe', 'error'); return; }
+      const before = phase.slotRefs || [];
+      let refs = before.slice();
 
-    // 3. Si el mismo equipo ya estaba en otro slot 'team' de esta fase, sacarlo.
-    refs = refs.filter(r => !(r.type === 'team' && parseInt(r.teamId) === teamId));
+      // 3. Si el mismo equipo ya estaba en otro slot 'team' de esta fase, sacarlo.
+      refs = refs.filter(r => !(r.type === 'team' && parseInt(r.teamId) === teamId));
 
-    // 4. Detectar ocupante anterior en el slot destino (para toast + invalidar links).
-    const prevRef = (phase.slotRefs || []).find(r => r.slotIdx === slotIdx && r.side === side);
-    let displacedTeamId = null;
-    if (prevRef) {
-      if (prevRef.type === 'team') displacedTeamId = parseInt(prevRef.teamId);
-      // refs no-'team' simplemente se eliminan: sorteo manda
-      refs = refs.filter(r => !(r.slotIdx === slotIdx && r.side === side));
-    }
-
-    // 5. Insertar nuestra ref.
-    refs.push({ type:'team', slotIdx, side, teamId });
-
-    await dbPut('phases', { ...phase, slotRefs: refs });
-    if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(phaseId);
-
-    // 6. Invalidar links stale en TODOS los bombos.
-    for (const bb of state.bombos) {
-      for (const d of bb.drawn) {
-        if (!d.link || d.link.phaseId !== phaseId || d.link.kind !== 'bracket') continue;
-        // a) link apuntando al destino (lo perdió el desplazado)
-        if (d.link.slotIdx === slotIdx && d.link.side === side && d.teamId !== teamId) d.link = null;
-        // b) link previo del mismo teamId en otro slot
-        else if (d.teamId === teamId && !(d.link.slotIdx === slotIdx && d.link.side === side)) d.link = null;
+      // 4. Detectar ocupante anterior en el slot destino (para toast + invalidar links).
+      const prevRef = before.find(r => r.slotIdx === slotIdx && r.side === side);
+      let displacedTeamId = null;
+      if (prevRef) {
+        if (prevRef.type === 'team') displacedTeamId = parseInt(prevRef.teamId);
+        // refs no-'team' simplemente se eliminan: sorteo manda
+        refs = refs.filter(r => !(r.slotIdx === slotIdx && r.side === side));
       }
-    }
 
-    entry.link = { phaseId, kind:'bracket', slotIdx, side };
-    await saveState();
-    await refreshActive();
+      // 5. Insertar nuestra ref.
+      refs.push({ type: 'team', slotIdx, side, teamId });
+      phase.slotRefs = refs;
+      plan.dirty.add(phaseId);
 
-    if (displacedTeamId != null && displacedTeamId !== teamId) {
-      showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side} · desplazado ${teamName(displacedTeamId)}`);
-    } else if (prevRef && prevRef.type !== 'team') {
-      showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side} · reemplazó ref dinámica`);
-    } else {
-      showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side}`);
-    }
+      // 6. Invalidar links stale en TODOS los bombos.
+      for (const bb of plan.draft.bombos) {
+        for (const d of bb.drawn) {
+          if (!d.link || d.link.phaseId !== phaseId || d.link.kind !== 'bracket') continue;
+          if (d.link.slotIdx === slotIdx && d.link.side === side && d.teamId !== teamId) d.link = null;
+          else if (d.teamId === teamId && !(d.link.slotIdx === slotIdx && d.link.side === side)) d.link = null;
+        }
+      }
+      entry.link = { phaseId, kind: 'bracket', slotIdx, side };
+
+      if (!await _planCommit(plan, confirmed ? null : () => assignBracketLink(drawnGlobalIdx, phaseId, slotIdx, side, true))) return;
+      await refreshActive();
+
+      if (displacedTeamId != null && displacedTeamId !== teamId) {
+        showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side} · desplazado ${teamName(displacedTeamId)}`);
+      } else if (prevRef && prevRef.type !== 'team') {
+        showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side} · reemplazó ref dinámica`);
+      } else {
+        showToastSafe(`${teamName(teamId)} → Llave ${slotIdx+1} lado ${side}`);
+      }
+    }, 'No se pudo vincular');
   }
 
   /* Asignar bola a un lado (A/B) de un cruce de playoff. Escribe en
-     playoffSlots[matchIdx] igual que savePlayoffAssign (playoff.js), pero
+     playoffSlots[matchIdx] igual que _plSaveAssign (playoff.js), pero
      retira SOLO el slotRef del mismo matchIdx+side (preserva el lado opuesto):
      los renderers reales aplican slotRefs DESPUÉS de playoffSlots, así que una
-     ref vieja en ese lado volvería a tapar el equipo recién sorteado. */
-  async function assignPlayoffLink(drawnGlobalIdx, phaseId, matchIdx, side) {
+     ref vieja en ese lado volvería a tapar el equipo recién sorteado. Si el
+     cruce tenía resultados, se avisa cuáles se borran y se pide confirmación. */
+  async function assignPlayoffLink(drawnGlobalIdx, phaseId, matchIdx, side, confirmed) {
     if (readOnly) return;
     if (side !== 'A' && side !== 'B') return;
     const b = activeBombo(); if (!b) return;
-    const entry = b.drawn[drawnGlobalIdx]; if (!entry) return;
-    const teamId = entry.teamId;
-    const key = side === 'A' ? 'teamA' : 'teamB';
+    const e0 = b.drawn[drawnGlobalIdx]; if (!e0) return;
+    if (await _sorteoLocked()) return;
+    return _sRun(async () => {
+      const teamId = e0.teamId;
+      const key = side === 'A' ? 'teamA' : 'teamB';
+      const plan = await _planStart();
+      const entry = _planEntry(plan, b.id, teamId);
+      if (!entry) { showToastSafe('Esa bola ya no está en el sorteo: recarga la página', 'error'); return; }
 
-    // 1. Liberar vínculo previo de esta bola.
-    if (entry.link) await unbindFromPhase(entry.link, teamId);
+      // 1. Liberar vínculo previo de esta bola.
+      if (entry.link) await _planUnbind(plan, entry.link, teamId);
 
-    // 2. Cargar fase y normalizar playoffSlots/slotRefs.
-    const phase = await dbGet('phases', phaseId);
-    if (!phase) return;
-    _journalCapturePhase(phase);
-    const baseCount = phase.playoffSlots?.length || parseInt(phase.config?.matchups) || 0;
-    const slots = phase.playoffSlots ? JSON.parse(JSON.stringify(phase.playoffSlots)) : [];
-    while (slots.length < Math.max(baseCount, matchIdx + 1)) slots.push({ teamA:null, teamB:null });
-    let refs = (phase.slotRefs || []).slice();
+      // 2. Cargar fase y normalizar playoffSlots/slotRefs.
+      const phase = await _planPhase(plan, phaseId);
+      if (!phase) { showToastSafe('La fase ya no existe', 'error'); return; }
+      const baseCount = phase.playoffSlots?.length || parseInt(phase.config?.matchups) || 0;
+      const slots = phase.playoffSlots || [];
+      while (slots.length < Math.max(baseCount, matchIdx + 1)) slots.push({ teamA: null, teamB: null });
+      const refsBefore = phase.slotRefs || [];
+      let refs = refsBefore.slice();
 
-    // 3. Si el mismo equipo ya estaba en OTRO lado directo de esta fase, retirarlo.
-    slots.forEach((s, i) => {
-      if (!s) return;
-      if (s.teamA === teamId && !(i === matchIdx && side === 'A')) s.teamA = null;
-      if (s.teamB === teamId && !(i === matchIdx && side === 'B')) s.teamB = null;
-    });
-    // ...y de cualquier slotRef tipo 'team' de esta fase en otro cruce/lado.
-    refs = refs.filter(r => !(r.type === 'team' && parseInt(r.teamId) === teamId && !(r.slotIdx === matchIdx && r.side === side)));
+      // 3. Si el mismo equipo ya estaba en OTRO lado directo de esta fase, retirarlo.
+      slots.forEach((sl, i) => {
+        if (!sl) return;
+        if (sl.teamA === teamId && !(i === matchIdx && side === 'A')) sl.teamA = null;
+        if (sl.teamB === teamId && !(i === matchIdx && side === 'B')) sl.teamB = null;
+      });
+      // ...y de cualquier slotRef tipo 'team' de esta fase en otro cruce/lado.
+      refs = refs.filter(r => !(r.type === 'team' && parseInt(r.teamId) === teamId && !(r.slotIdx === matchIdx && r.side === side)));
 
-    // 4. Detectar ocupante anterior del lado destino (directo o por ref dinámica).
-    const prevRef = (phase.slotRefs || []).find(r => r.slotIdx === matchIdx && r.side === side);
-    const prevDirect = slots[matchIdx][key];
-    const hadDynamicRef = !!prevRef && prevRef.type !== 'team';
-    const priorTeamId = prevRef && prevRef.type === 'team' ? parseInt(prevRef.teamId) : prevDirect;
-    const displacedTeamId = priorTeamId;
-    const changed = hadDynamicRef || priorTeamId !== teamId;
+      // 4. Detectar ocupante anterior del lado destino (directo o por ref dinámica).
+      const prevRef = refsBefore.find(r => r.slotIdx === matchIdx && r.side === side);
+      const prevDirect = slots[matchIdx][key];
+      const hadDynamicRef = !!prevRef && prevRef.type !== 'team';
+      const priorTeamId = prevRef && prevRef.type === 'team' ? parseInt(prevRef.teamId) : prevDirect;
+      const displacedTeamId = priorTeamId;
+      const changed = hadDynamicRef || priorTeamId !== teamId;
 
-    // 5. Retirar únicamente el slotRef del mismo matchIdx+side (preserva el lado opuesto).
-    refs = refs.filter(r => !(r.slotIdx === matchIdx && r.side === side));
+      // 5. Retirar únicamente el slotRef del mismo matchIdx+side (preserva el lado opuesto).
+      refs = refs.filter(r => !(r.slotIdx === matchIdx && r.side === side));
 
-    // 6. Escribir la asignación canónica (mismo destino que savePlayoffAssign).
-    slots[matchIdx] = { ...slots[matchIdx], [key]: teamId };
+      // 6. Escribir la asignación canónica (mismo destino que _plSaveAssign).
+      slots[matchIdx] = { ...slots[matchIdx], [key]: teamId };
+      phase.playoffSlots = slots;
+      phase.slotRefs = refs;
+      plan.dirty.add(phaseId);
 
-    await dbPut('phases', { ...phase, playoffSlots: slots, slotRefs: refs });
-    if (typeof invalidateStandingsAndSyncBrackets === 'function') invalidateStandingsAndSyncBrackets(phaseId);
+      // 7. Si cambió el ocupante de este lado, limpiar matches + historial del cruce
+      //    (mismo criterio que _plSaveAssign: evita mezclar resultados de una pareja anterior).
+      if (changed) plan.cruces.push({ phaseId, matchIdx });
 
-    // 7. Si cambió el ocupante de este lado, limpiar matches + historial del cruce
-    //    (mismo criterio que savePlayoffAssign: evita mezclar resultados de una pareja anterior).
-    if (changed) {
-      const oldMatches = await dbGetAll('matches', m => m.phaseId === phaseId && m.matchIdx === matchIdx);
-      await _journalCaptureMatches(phaseId, matchIdx, oldMatches);
-      for (const m of oldMatches) {
-        await dbDelete('matches', m.id);
-        if (typeof removeHistoryByMatchRef === 'function') await removeHistoryByMatchRef(m.id);
+      // 8. Invalidar links stale en TODOS los bombos.
+      for (const bb of plan.draft.bombos) {
+        for (const d of bb.drawn) {
+          if (!d.link || d.link.phaseId !== phaseId || d.link.kind !== 'playoff') continue;
+          if (d.link.matchIdx === matchIdx && d.link.side === side && d.teamId !== teamId) d.link = null;
+          else if (d.teamId === teamId && !(d.link.matchIdx === matchIdx && d.link.side === side)) d.link = null;
+        }
       }
-    }
+      entry.link = { phaseId, kind: 'playoff', matchIdx, side };
 
-    // 8. Invalidar links stale en TODOS los bombos.
-    for (const bb of state.bombos) {
-      for (const d of bb.drawn) {
-        if (!d.link || d.link.phaseId !== phaseId || d.link.kind !== 'playoff') continue;
-        if (d.link.matchIdx === matchIdx && d.link.side === side && d.teamId !== teamId) d.link = null;
-        else if (d.teamId === teamId && !(d.link.matchIdx === matchIdx && d.link.side === side)) d.link = null;
+      if (!await _planCommit(plan, confirmed ? null : () => assignPlayoffLink(drawnGlobalIdx, phaseId, matchIdx, side, true))) return;
+      await refreshActive();
+
+      if (displacedTeamId != null && displacedTeamId !== teamId) {
+        showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side} · desplazado ${teamName(displacedTeamId)}`);
+      } else if (prevRef && prevRef.type !== 'team') {
+        showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side} · reemplazó ref dinámica`);
+      } else {
+        showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side}`);
       }
-    }
-
-    entry.link = { phaseId, kind:'playoff', matchIdx, side };
-    await saveState();
-    await refreshActive();
-
-    if (displacedTeamId != null && displacedTeamId !== teamId) {
-      showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side} · desplazado ${teamName(displacedTeamId)}`);
-    } else if (prevRef && prevRef.type !== 'team') {
-      showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side} · reemplazó ref dinámica`);
-    } else {
-      showToastSafe(`${teamName(teamId)} → Playoff · Cruce ${matchIdx+1} lado ${side}`);
-    }
-  }
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, ch => ({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    }[ch]));
+    }, 'No se pudo vincular');
   }
   function showToastSafe(msg, type) {
     if (typeof showToast === 'function') showToast(msg, type);
@@ -1987,7 +2184,7 @@
     getActive() { return JSON.parse(JSON.stringify(activeBombo())); },
     async reset() { if (!readOnly) await resetActive(); },
     /** Consistencia bidireccional con la administración normal de playoff
-     *  (playoff.js): si `savePlayoffAssign`/`clearPlayoffAssign` reemplaza o
+     *  (playoff.js): si `_plSaveAssign` reemplaza o
      *  limpia un lado que el Sorteo había vinculado, invalida ese link para
      *  no dejar badges/destinos stale. Funciona aunque el módulo Sorteo no
      *  esté montado (opera directo sobre el registro en DB); si SÍ está

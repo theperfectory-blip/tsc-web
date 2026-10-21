@@ -18,12 +18,16 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
   - Reglas en `firebase/firestore.rules` y `firebase/storage.rules`. Se
     despliegan **a mano** (`firebase deploy --only firestore:rules,storage`);
     el CI (`rules-tests.yml`) solo corre los tests.
+  - Functions también a mano: `firebase deploy --only functions`. En Windows,
+    si falla con «Timeout after 10000», antes en PowerShell:
+    `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60`.
 - **Capa de datos (`js/db.js`):** API única `dbGetAll / dbGet / dbAdd /
   dbAddMany / dbPut / dbDelete / dbDeleteMany / dbSubscribe / getForSeason`.
-  - `USE_FIRESTORE` (lo define `firebase-config.js`) elige el backend. Si el
-    SDK de Firebase no carga, queda en `false` y la app cae a **IndexedDB**
-    local (`TSC_v4`). Esa rama está bajo revisión (D6 / H-23 del plan de
-    debugging).
+  - Solo Firestore. Si el SDK de Firebase no carga, `USE_FIRESTORE`
+    (lo define `firebase-config.js`) queda en `false`, `initDB` lanza (code
+    `offline`) y el splash muestra «Sin conexión» con «Reintentar». La rama
+    IndexedDB local se quitó (D6, MS-7.2): mostraba datos sembrados
+    inventados sin aviso.
   - **Espejo en memoria:** la primera lectura de una colección abre un
     `onSnapshot` y las siguientes salen de memoria. Cae a lectura directa si
     el listener falla, no hay confirmación del servidor en 10 s o el
@@ -34,6 +38,14 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
     lanza (nunca devuelve una caché vacía como dato).
     `window.TSC_FS_MIRROR = false` lo apaga en caliente.
   - IDs enteros autoincrementales vía contadores en `_counters/{store}`.
+  - **Temporadas archivadas (D8, MS-5.14–5.16):** una temporada finalizada
+    pasa a `data/temporadas/<número>.json` (`node scripts/season-archive.mjs
+    --season N`, con `--verify`). `initDB` carga el índice y los archivos;
+    `dbGetAll`/`dbGet`/`dbSubscribe` los suman a Firestore y toda escritura
+    sobre algo archivado lanza (code `archived`). `dbGetAllLive` = solo
+    Firestore (export/import). Las reglas rechazan escrituras de las
+    temporadas listadas en `archive/seasons`, que escribe «Liberar Firestore»
+    (panel de Temporadas) después de verificar y borrar.
 - **Arranque** (`ui-utils.js`, evento `load`): `initDB` → seeds y
   migraciones (`seedInitialData`, `seedHistoryIfEmpty`,
   `seedPalmaresIfEmpty`, `migrate*`) → restaurar temporada/página/modo
@@ -104,8 +116,9 @@ de Functions va a `:5001`.
 Sinks con datos de usuario: `node scripts/emu-xss.mjs data|users|page`
 (datos con marcador en el sandbox y `localhost:3001/xss.html`,
 `window.__XSS__.report()`, MS-3.1).
-CSP: fuente única en `scripts/csp.mjs` (header Report-Only en
-`firebase.json`, `<meta>` que inyecta `build-www` en la APK);
+CSP: fuente única en `scripts/csp.mjs` (header en modo enforce en
+`firebase.json`, `<meta>` que inyecta `build-www` en la APK; `script-src`
+sin `'unsafe-inline'` desde MS-7.5);
 `node scripts/csp.mjs --check` y `node scripts/emu-xss.mjs csp` (enforce en
 el sandbox, `window.__CSP__`). Drift de reglas publicadas vs repo:
 `node scripts/rules-drift.mjs` (solo lectura, sesión del CLI).
@@ -121,12 +134,14 @@ Tests (emulador, desde `functions/`): `npm run test:emulator` (Functions),
 ```
 index.html          Shell: topbar, sidebars, páginas, modales globales y el orden de <script>
 css/                variables · layout · components · redesign · palmares · calendar · sorteo
-data/               historial-seed.json, palmares-seed.json
+data/               historial-seed.json, palmares-seed.json, temporadas/ (temporadas archivadas)
 assets/             imágenes, sonidos, trofeos .glb, vendor/ (three.js, draco)
 js/
   Núcleo
     state.js        STATE {season, mode}, STORES, db
     sanitize.js     escHtml, escAttr, safeImgUrl (helper único de escape)
+    events.js       Despacha los data-on* (delegación, sin eval; MS-7.5)
+    boot-splash.js  Splash de arranque (se carga con data-boot, fuera de los bundles)
     firebase-config.js, cloudinary.js   Config pública (+ sus .example.js)
     db.js           Capa de datos (ver Arquitectura)
     ui-utils.js     Modales, toasts, confirm, tema, ajustes, seeds y arranque
@@ -167,11 +182,14 @@ Fuera de `tsc-src/`: `functions/` (Cloud Functions: `notifyStreamToday`,
 índices), `android/` (proyecto Capacitor), `scripts/` (builds y
 utilidades), `docs/` (protocolo, planes, reportes).
 
-## Trabajo en curso
+## Plan de debugging (cerrado)
 
-El plan vigente es [`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md).
-Cada sesión ejecuta un slice: leer solo esa sección y los hallazgos que
-cita. Reportes en `docs/reportes/MS-<n>.<m>.md`.
+[`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md) se cerró
+el 2026-10-20 (M0 a M7); reportes por slice en `docs/reportes/MS-<n>.<m>.md`
+y resumen final con lo que queda en `docs/reportes/MS-7.6.md` (acciones del
+dueño M-11 y M-13, y hallazgos bajos o de reglamento abiertos). Un trabajo
+nuevo sigue el mismo formato: un slice por sesión, verificado en el sandbox,
+con su reporte.
 
 ## UI
 
@@ -179,6 +197,12 @@ cita. Reportes en `docs/reportes/MS-<n>.<m>.md`.
   `fill`, `currentColor`, `stroke-width` 1.7–2.2, `stroke-linecap="round"`,
   `stroke-linejoin="round"`. Aplica a botones, badges, toasts, modales y
   hints.
+- **Handlers:** `data-onclick="fn(…)"` (y `data-onchange`, `data-oninput`,
+  etc.), nunca `onclick=`, y nada de `<script>` inline: la CSP no tiene
+  `'unsafe-inline'`. `js/events.js` solo ejecuta llamadas a funciones
+  globales de la app con argumentos literales o `this`/`event`; lo demás va
+  en una función nombrada. `node scripts/audit-wiring.mjs` (sección 1b)
+  marca los que no cumplen.
 
 ## Seguridad (ver [`SECURITY.md`](SECURITY.md))
 
@@ -195,8 +219,7 @@ cita. Reportes en `docs/reportes/MS-<n>.<m>.md`.
 - **Escape obligatorio:** todo `innerHTML` con datos que puede escribir un
   rol no admin (`teams.name`, `teams.logo`, `users.displayName`,
   `users.username`, `users.photoURL`) pasa por `escHtml` / `escAttr` /
-  `safeImgUrl` de `sanitize.js`. Hay copias locales viejas (`_esc`,
-  `_uaEsc`…) pendientes de unificar; en código nuevo usar el helper.
+  `safeImgUrl` de `sanitize.js`. No definir copias locales: `sanitize.js` es el único escape (7.1).
 - Reglas Firestore: no tocar `isAdmin()` / roles sin tests en el emulador.
   Allowlist de campos (`hasOnly`), nunca blocklist.
 - No dejar `TODO: fix security` sin issue: documentarlo en `SECURITY.md`

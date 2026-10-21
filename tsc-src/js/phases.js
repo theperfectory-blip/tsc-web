@@ -4,6 +4,9 @@
 let _currentCompId   = null;
 let _currentCompName = '';
 
+const _PH_EYE     = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const _PH_EYE_OFF = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px;"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>';
+
 /* Helpers para validación contra comp.totalTeams */
 function computePhaseTeamTotal(type, config){
   if(!config) return null;
@@ -19,12 +22,9 @@ function computePhaseTeamTotal(type, config){
   return null;
 }
 
-function _esc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
 function openFasesForComp(compId, compName){
-  _currentCompId   = compId;
+  // Llega como texto desde data-cid; los ids de competiciones son números.
+  _currentCompId   = parseInt(compId) || null;
   _currentCompName = compName;
   goAdminPage('fases-admin');
 }
@@ -47,16 +47,16 @@ async function renderAdmFases(){
   }
   if(!_currentCompId && comps.length>0) _currentCompId = comps[0].id, _currentCompName = comps[0].name;
 
-  const compOpts = comps.map(c=>`<option value="${c.id}" ${c.id===_currentCompId?'selected':''}>${c.name}</option>`).join('');
+  const compOpts = comps.map(c=>`<option value="${c.id}" ${c.id===_currentCompId?'selected':''}>${escHtml(c.name)}</option>`).join('');
 
   el.innerHTML = `
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
     <div style="font-size:14px;color:var(--txt2);">Competición:</div>
-    <select id="fase-comp-sel" onchange="onFaseCompChange(this.value)"
+    <select id="fase-comp-sel" data-onchange="onFaseCompChange(this.value)"
       style="padding:6px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
       ${compOpts}
     </select>
-    <button class="btn btn-primary btn-sm" onclick="openPhaseModal()" ${!_currentCompId||isFinalized?'disabled':''} style="${isFinalized?'opacity:0.5;cursor:not-allowed;':''}">+ Nueva fase</button>
+    <button class="btn btn-primary btn-sm" data-onclick="openPhaseModal()" ${!_currentCompId||isFinalized?'disabled':''} style="${isFinalized?'opacity:0.5;cursor:not-allowed;':''}">+ Nueva fase</button>
   </div>
   ${isFinalized?'<div style="padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt2);font-size:13px;margin-bottom:12px;"><svg style="display:inline;vertical-align:-2px;" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Esta temporada está finalizada. Los cambios no están permitidos.</div>':''}
   <div id="phases-list" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -83,7 +83,7 @@ async function renderPhasesList(){
   if(!sorted.length){
     el.innerHTML=`<div style="text-align:center;padding:32px;color:var(--txt3);border:1px dashed var(--brd2);border-radius:var(--rl);">
       <div style="font-size:16px;margin-bottom:10px;">No hay fases en esta competición.</div>
-      <button class="btn btn-primary btn-sm" onclick="openPhaseModal()">+ Crear primera fase</button>
+      ${isFinalized?'':'<button class="btn btn-primary btn-sm" data-onclick="openPhaseModal()">+ Crear primera fase</button>'}
     </div>`;
     return;
   }
@@ -111,12 +111,12 @@ async function renderPhasesList(){
     }
 
     // v1.7.01: botón rápido para publicar/despublicar
-    const togglePublishBtn = isDone
-      ? '' // Si está finalizada, no toggle
+    const togglePublishBtn = (isDone || isFinalized)
+      ? '' // Fase o temporada finalizada: sin toggle
       : `<button class="btn btn-sm" title="${isDraft?'Publicar (visible al público)':'Despublicar (ocultar al público)'}"
-           onclick="togglePhasePublish(${p.id})"
+           data-onclick="togglePhasePublish(${p.id})"
            style="${isDraft?'background:var(--green);color:#000;font-weight:600;':''}">
-           ${isDraft?'▲ Publicar':'▼ Ocultar'}
+           ${isDraft?_PH_EYE+'Publicar':_PH_EYE_OFF+'Ocultar'}
          </button>`;
 
     return `
@@ -125,7 +125,7 @@ async function renderPhasesList(){
         <div style="flex:1;padding:12px 14px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
             <div style="width:22px;height:22px;border-radius:50%;background:${typeColor}22;color:${typeColor};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">${p.order}</div>
-            <div style="font-size:16px;font-weight:600;flex:1;">${p.name}</div>
+            <div style="font-size:16px;font-weight:600;flex:1;">${escHtml(p.name)}</div>
             <span class="badge badge-blue" style="font-size:11px;">${tipo.name}</span>
             <span class="badge ${statusCls}">${statusLbl}</span>
           </div>
@@ -133,8 +133,8 @@ async function renderPhasesList(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;padding:12px;border-left:1px solid var(--brd);">
           ${togglePublishBtn}
-          <button class="btn btn-sm" onclick="openPhaseModal(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
-          <button class="btn btn-sm btn-danger" onclick="deletePhase(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>✕</button>
+          <button class="btn btn-sm" data-onclick="openPhaseModal(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>Editar</button>
+          <button class="btn btn-sm btn-danger" title="Eliminar fase" aria-label="Eliminar fase" data-onclick="deletePhase(${p.id})" ${isFinalized?'disabled style="opacity:0.5;cursor:not-allowed;"':''}>${_ICON_X}</button>
         </div>
       </div>
     </div>`;
@@ -143,12 +143,17 @@ async function renderPhasesList(){
 
 // v1.7.01: toggle rápido publicar/despublicar
 async function togglePhasePublish(phaseId){
-  const phase = await dbGet('phases', phaseId);
-  if(!phase) return;
-  const newStatus = phase.status==='draft' ? 'active' : 'draft';
-  await dbPut('phases', {...phase, status:newStatus, updatedAt:new Date().toISOString()});
-  showToast(newStatus==='active' ? `"${phase.name}" publicada` : `"${phase.name}" oculta al público`);
-  await renderPhasesList();
+  try {
+    const phase = await dbGet('phases', phaseId);
+    if(!phase){ showToast('La fase ya no existe','error'); return; }
+    const newStatus = phase.status==='draft' ? 'active' : 'draft';
+    await dbPut('phases', {...phase, status:newStatus, updatedAt:new Date().toISOString()});
+    showToast(newStatus==='active' ? `"${phase.name}" publicada` : `"${phase.name}" oculta al público`);
+  } catch(err){
+    showToast('No se pudo cambiar la publicación: '+dbErrorMsg(err),'error');
+  } finally {
+    await renderPhasesList();
+  }
 }
 
 /* ----------------------------------------------------------
@@ -164,19 +169,15 @@ async function openPhaseModal(id=null){
     {color:'#E84040', name:'Eliminado', positions:[], count:0},
   ];
 
-  // Fases de grupos disponibles para fase derivada
-  const groupPhases = await dbGetAll('phases', p=>p.compId===_currentCompId && p.type==='groups');
-  const gpOpts = groupPhases.map(p=>`<option value="${p.id}" ${phase?.originPhaseId===p.id?'selected':''}>${p.name}</option>`).join('');
-
   // Total de equipos declarado por la competición (para mostrar como referencia)
   const _comp = _currentCompId ? await dbGet('competitions', _currentCompId) : null;
   const _compTotal = parseInt(_comp?.totalTeams);
   const compInfoBanner = Number.isFinite(_compTotal) && _compTotal > 0
     ? `<div style="background:var(--card2);border:1px solid var(--brd);border-left:3px solid var(--gold);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:13px;color:var(--txt2);">
-         <strong style="color:var(--txt);">${_esc(_comp.name)}</strong> declara <strong style="color:var(--gold);">${_compTotal} equipos</strong>. La configuración de esta fase no puede excederlos.
+         <strong style="color:var(--txt);">${escHtml(_comp.name)}</strong> declara <strong style="color:var(--gold);">${_compTotal} equipos</strong>. La configuración de esta fase no puede excederlos.
        </div>`
     : (_comp ? `<div style="background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--txt3);">
-         La competición <strong>${_esc(_comp.name)}</strong> no declara total de equipos. Configurá <em>Total equipos</em> en la competición para activar la validación.
+         La competición <strong>${escHtml(_comp.name)}</strong> no declara total de equipos. Configurá <em>Total equipos</em> en la competición para activar la validación.
        </div>` : '');
 
   wrap.innerHTML = `
@@ -184,13 +185,13 @@ async function openPhaseModal(id=null){
     <div class="modal" style="max-width:560px;">
       <div class="modal-hdr">
         <div class="modal-title">${id?'Editar fase':'Nueva fase'}</div>
-        <button class="modal-close" onclick="closePhaseModal()">×</button>
+        <button class="modal-close" data-onclick="closePhaseModal()">×</button>
       </div>
       <div class="modal-body">
         ${compInfoBanner}
         <div class="form-group">
           <label>Nombre de la fase</label>
-          <input type="text" id="pf-name" value="${phase?.name||''}" placeholder="Ej: Fase de grupos, Cuartos de final...">
+          <input type="text" id="pf-name" value="${escAttr(phase?.name||'')}" maxlength="60" placeholder="Ej: Fase de grupos, Cuartos de final...">
         </div>
 
         <div class="form-group">
@@ -232,7 +233,7 @@ async function openPhaseModal(id=null){
           <div id="group-sizes-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;"></div>
           <div style="font-size:12px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--brd);padding-bottom:4px;margin-bottom:10px;">Zonas de clasificación</div>
           <div id="zones-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-          <button onclick="addZone()" style="margin-top:6px;width:100%;padding:6px;border:1px dashed var(--brd2);background:transparent;color:var(--txt2);border-radius:var(--r);cursor:pointer;font-size:14px;">+ Agregar zona</button>
+          <button data-onclick="addZone()" style="margin-top:6px;width:100%;padding:6px;border:1px dashed var(--brd2);background:transparent;color:var(--txt2);border-radius:var(--r);cursor:pointer;font-size:14px;">+ Agregar zona</button>
         </div>
 
         <!-- Config: Bracket -->
@@ -341,8 +342,8 @@ async function openPhaseModal(id=null){
 
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePhaseModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePhase(${id||'null'})">Guardar fase</button>
+        <button class="btn" data-onclick="closePhaseModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="savePhase(${id||'null'})">Guardar fase</button>
       </div>
     </div>
   </div>`;
@@ -469,13 +470,13 @@ async function openPhaseModal(id=null){
 
       return `
       <div style="display:grid;grid-template-columns:28px 1fr auto 28px;align-items:center;gap:6px;margin-bottom:2px;">
-        <div data-zone-color="${i}" style="width:24px;height:24px;border-radius:50%;background:${z.color};cursor:pointer;border:2px solid rgba(255,255,255,0.2);flex-shrink:0;" title="Cambiar color"></div>
-        <input data-zone-name="${i}" value="${z.name}" placeholder="Nombre de zona"
+        <div data-zone-color="${i}" style="width:24px;height:24px;border-radius:50%;background:${safeCssColor(z.color)};cursor:pointer;border:2px solid rgba(255,255,255,0.2);flex-shrink:0;" title="Cambiar color"></div>
+        <input type="text" data-zone-name="${i}" value="${escAttr(z.name)}" maxlength="40" placeholder="Nombre de zona"
           style="padding:5px 8px;border-radius:var(--r);border:1px solid var(--brd);background:var(--card2);color:var(--txt);font-size:14px;width:100%;">
-        <button data-zone-pos="${i}" style="padding:4px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--card2);color:${label!=='Sin posiciones'?'var(--txt)':'var(--txt3)'};font-size:13px;cursor:pointer;white-space:nowrap;min-width:90px;text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${label}">
+        <button data-zone-pos="${i}" style="padding:4px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--card2);color:${label!=='Sin posiciones'?'var(--txt)':'var(--txt3)'};font-size:13px;cursor:pointer;white-space:nowrap;min-width:90px;text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${escAttr(label)}">
           ${label!=='Sin posiciones' ? label : '+ Posiciones'}
         </button>
-        <button onclick="removeZone(${i})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:22px;line-height:1;padding:2px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--txt3)'">×</button>
+        <button data-onclick="removeZone(${i})" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:22px;line-height:1;padding:2px;" data-onmouseover="_tscStyle(this,'color','var(--red)')" data-onmouseout="_tscStyle(this,'color','var(--txt3)')">×</button>
       </div>`;
     }).join('');
 
@@ -666,18 +667,23 @@ async function openPhaseModal(id=null){
     renderGroupSizes();
     renderZones();
   });
-
-  // Cuando cambia equipos por grupo → cerrar picker y re-renderizar zonas
-  document.getElementById('pf-tpg')?.addEventListener('input', ()=>{
-    document.getElementById('pos-picker-drop')?.remove();
-    renderZones();
-  });
 } // fin openPhaseModal
 
 function closePhaseModal(){ document.getElementById('phase-modal-wrap').innerHTML=''; }
 
+let _phaseSaving = false;
+
 async function savePhase(id){
+  if(_phaseSaving) return;   // doble clic en «Guardar fase» creaba dos fases
+  _phaseSaving = true;
+  try { await _savePhase(id); }
+  catch(err){ showToast('No se pudo guardar la fase: '+dbErrorMsg(err),'error'); }
+  finally { _phaseSaving = false; }
+}
+
+async function _savePhase(id){
   id = (id && id!=='null') ? parseInt(id) : null;
+  if(!_currentCompId){ showToast('Elige una competición','error'); return; }
   const name   = document.getElementById('pf-name').value.trim();
   const status = document.getElementById('pf-status').value;
   const order  = parseInt(document.getElementById('pf-order').value)||1;
@@ -760,6 +766,9 @@ async function savePhase(id){
   // ── Validación: total de equipos de la fase ≤ comp.totalTeams ──
   // Solo se valida si la competición tiene `totalTeams` declarado.
   const _comp = _currentCompId ? await dbGet('competitions', _currentCompId) : null;
+  if(!_comp){ showToast('La competición ya no existe','error'); closePhaseModal(); renderAdmFases(); return; }
+  const _season = (await dbGetAll('seasons')).find(s=>s.number===_comp.season);
+  if(_season?.status==='finished'){ showToast(`${getSeasonName(_season)} está finalizada: no admite cambios`,'error'); return; }
   const _compTotal = parseInt(_comp?.totalTeams);
   if(Number.isFinite(_compTotal) && _compTotal > 0){
     const phaseTotal = computePhaseTeamTotal(type, config);
@@ -771,6 +780,7 @@ async function savePhase(id){
 
   if(id){
     const existing = await dbGet('phases',id);
+    if(!existing){ showToast('La fase ya no existe','error'); closePhaseModal(); renderPhasesList(); return; }
     await dbPut('phases',{...existing,...data});
     invalidateStandingsAndSyncBrackets(id); // zonas cambiaron, invalidar cache y resincronizar brackets
     showToast('Fase actualizada');
@@ -786,51 +796,34 @@ async function savePhase(id){
   }
 }
 
+let _phaseDeleting = false;
+
 async function deletePhase(id){
-  const phase = await dbGet('phases',id);
-  showConfirm(
-    '¿Eliminar fase?',
-    `Se eliminará "${phase?.name}" y todos sus partidos asociados.`,
-    async()=>{
-      await dbDelete('phases',id);
-      showToast('Fase eliminada');
-      renderPhasesList();
-    }
-  );
-}
-
-/* ----------------------------------------------------------
-   RENDER PÚBLICO — COMPETICIONES
-   ---------------------------------------------------------- */
-async function renderPubComps(){
-  const el = document.getElementById('pub-comps-content');
-  const comps = _sortComps(await getForSeason('competitions'));
-  // v1.7: filtro tolerante (igual criterio que renderPubPanel)
-  const isActiveStatus = s => {
-    if(s==null) return true;
-    const norm = String(s).trim().toLowerCase();
-    return norm==='active' || norm==='activa' || norm==='';
-  };
-  const active = comps.filter(c=>isActiveStatus(c.status));
-
-  if(!active.length){
-    el.innerHTML=`<div style="color:var(--txt3);font-size:16px;">No hay competiciones activas en T${STATE.season}.</div>`;
-    return;
+  try {
+    const phase = await dbGet('phases',id);
+    if(!phase){ showToast('La fase ya no existe','error'); renderPhasesList(); return; }
+    // Partidos e historial de la fase (antes el aviso los anunciaba pero
+    // solo se borraba la fase: quedaban huérfanos). Ver _collectPhaseCascade.
+    const parts = _cascadeSummary([], await _collectPhaseCascade([phase.id]));
+    showConfirm(
+      '¿Eliminar fase?',
+      `Se eliminará "${phase.name}"`+(parts.length?` junto con ${parts.join(', ')}`:' (no tiene partidos)')+'. Esta acción no se puede deshacer.',
+      async()=>{
+        if(_phaseDeleting) return;
+        _phaseDeleting = true;
+        try {
+          await _deletePhaseCascade([phase], await _collectPhaseCascade([phase.id]));
+          showToast('Fase eliminada');
+        } catch(err){
+          showToast('Error al eliminar la fase: '+dbErrorMsg(err),'error');
+        } finally {
+          _phaseDeleting = false;
+          renderPhasesList();
+        }
+      }
+    );
+  } catch(err){
+    showToast('Error al preparar el borrado: '+dbErrorMsg(err),'error');
   }
-
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">
-    ${active.map(c=>{
-      const tipo = COMP_TYPES.find(t=>t.id===c.type)||COMP_TYPES[0];
-      const col = /^#[0-9A-Fa-f]{3,8}$/.test(String(c.color||'')) ? c.color : 'var(--gold)';
-      return `
-      <div class="card" style="border-top:4px solid ${col};padding:14px;">
-        <div style="font-size:17px;font-weight:600;margin-bottom:4px;">${_esc(c.name)}</div>
-        <div style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--txt3);padding:2px 8px;background:var(--card2);border-radius:20px;border:1px solid var(--brd);margin-bottom:8px;">
-          ${_esc(tipo.name)}
-        </div>
-        <div style="font-size:13px;color:var(--txt2);">Equipos: <strong>${c.totalTeams||'—'}</strong></div>
-        ${c.desc?`<div style="font-size:13px;color:var(--txt3);margin-top:6px;line-height:1.5;">${_esc(c.desc)}</div>`:''}
-      </div>`;
-    }).join('')}
-  </div>`;
 }
+

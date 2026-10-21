@@ -2,7 +2,6 @@
    PARTE 2 — MÓDULO DE EQUIPOS
    ========================================================== */
 
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ----------------------------------------------------------
    RENDER ADMIN — EQUIPOS
@@ -24,16 +23,16 @@ async function renderAdmTeams(){
   el.innerHTML = `
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <input type="text" id="team-search" placeholder="Buscar equipo..." oninput="filterTeamsTable()"
+      <input type="text" id="team-search" placeholder="Buscar equipo..." data-oninput="filterTeamsTable()"
         style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;width:180px;">
-      <select id="team-status-filter" onchange="filterTeamsTable()"
+      <select id="team-status-filter" data-onchange="filterTeamsTable()"
         style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
         <option value="">Todos</option>
         <option value="ACTIVO">Activos</option>
         <option value="INACTIVO">Inactivos</option>
       </select>
     </div>
-    <button class="btn btn-primary" onclick="openTeamModal()">+ Nuevo equipo</button>
+    <button class="btn btn-primary" data-onclick="openTeamModal()">+ Nuevo equipo</button>
   </div>
   <div class="card">
     <div class="tbl-wrap">
@@ -72,13 +71,12 @@ function renderTeamsTable(teams){
     if(!tcMap) return [];
     return (tcMap instanceof Map) ? (tcMap.get(tid)||[]) : (tcMap[tid]||[]);
   };
-  const escTxt = (v)=>String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   tbody.innerHTML = teams.map((t,i)=>{
     const comps = compsOf(t.id);
     const chips = comps.length
       ? `<div style="display:flex;gap:3px;flex-wrap:wrap;">` + comps.map(c=>{
-          const safeName = escTxt(c.name);
+          const safeName = escHtml(c.name);
           const color = c.color || 'var(--gold)';
           return `<span title="${safeName}" style="font-size:10px;font-weight:600;color:${color};background:${color}22;border:1px solid ${color}44;border-radius:3px;padding:1px 6px;line-height:1.4;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;">● ${safeName}</span>`;
         }).join('') + `</div>`
@@ -96,7 +94,7 @@ function renderTeamsTable(teams){
       </td>
       <td style="font-weight:600;">${escHtml(t.name)}</td>
       <td><span class="badge badge-gray">${escHtml(t.ini||'—')}</span></td>
-      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escTxt(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
+      <td style="color:var(--txt2);">${(()=>{const p=(window._presByTeam&&window._presByTeam[t.id])||t.pres;return p?`<span style="display:inline-flex;align-items:center;gap:5px;">${escHtml(p)}${(window._presByTeam&&window._presByTeam[t.id])?'<span title="Cuenta vinculada" style="font-size:9px;color:var(--green);">●</span>':''}</span>`:'<span style="color:var(--txt3);">—</span>';})()}</td>
       <td>
         <span class="badge ${t.status==='ACTIVO'?'badge-green':'badge-gray'}">
           ${t.status||'ACTIVO'}
@@ -106,8 +104,8 @@ function renderTeamsTable(teams){
       <td style="text-align:right;font-family:'Bebas Neue';font-size:19px;color:var(--gold);">${t.yunacoin||0}</td>
       <td>
         <div style="display:flex;gap:4px;">
-          <button class="btn btn-xs" onclick="openTeamModal(${t.id})">Editar</button>
-          <button class="btn btn-xs btn-danger" onclick="deleteTeam(${t.id})">✕</button>
+          <button class="btn btn-xs" data-onclick="openTeamModal(${t.id})">Editar</button>
+          <button class="btn btn-xs btn-danger" title="Eliminar equipo" aria-label="Eliminar equipo" data-onclick="deleteTeam(${t.id})">${_ICON_X}</button>
         </div>
       </td>
     </tr>`;
@@ -133,39 +131,38 @@ async function openTeamModal(id=null){
   const _presUsers = (typeof loadUsersForSelect==='function') ? await loadUsersForSelect() : [];
   const _presMyUid = (typeof AUTH!=='undefined' && AUTH.user) ? AUTH.user.uid : null;   // la regla exime al admin solo en su propia cuenta
   const _presLinkedUid = id ? (_presUsers.find(u=>u.teamId===id)?.uid || '') : '';
-  const _presEsc = (v)=>String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   wrap.innerHTML = `
   <div class="modal-overlay open" id="team-modal">
     <div class="modal">
       <div class="modal-hdr">
         <div class="modal-title">${id?'Editar equipo':'Nuevo equipo'}</div>
-        <button class="modal-close" onclick="closeTeamModal()">×</button>
+        <button class="modal-close" data-onclick="closeTeamModal()">×</button>
       </div>
       <div class="modal-body">
         <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:16px;">
           <!-- Logo uploader -->
           <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
-            <div id="logo-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(team?.color,'#333')};border:2px solid var(--brd2);cursor:pointer;" onclick="document.getElementById('logo-file').click()">
+            <div id="logo-preview" style="width:64px;height:64px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(team?.color,'#333')};border:2px solid var(--brd2);cursor:pointer;" data-onclick="_tscClick('logo-file')">
               ${safeImgUrl(team?.logo)
                 ? `<img src="${safeImgUrl(team.logo)}" style="width:100%;height:100%;object-fit:cover;">`
                 : `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${escHtml(team?.ini||'?')}</span>`
               }
             </div>
-            <input type="file" id="logo-file" accept="image/*" style="display:none;" onchange="previewLogo(this)">
-            <button class="btn btn-xs" onclick="document.getElementById('logo-file').click()">Subir logo</button>
-            ${team?.logo?`<button class="btn btn-xs btn-danger" onclick="removeLogo()">Quitar</button>`:''}
+            <input type="file" id="logo-file" accept="image/*" style="display:none;" data-onchange="previewLogo(this)">
+            <button class="btn btn-xs" data-onclick="_tscClick('logo-file')">Subir logo</button>
+            ${team?.logo?`<button class="btn btn-xs btn-danger" data-onclick="removeLogo()">Quitar</button>`:''}
           </div>
           <div style="flex:1;">
             <div class="form-group">
               <label>Nombre del equipo</label>
-              <input type="text" id="tf-name" value="${escAttr(team?.name||'')}" placeholder="YUNAITED FC">
+              <input type="text" id="tf-name" value="${escAttr(team?.name||'')}" maxlength="40" placeholder="YUNAITED FC">
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label>Iniciales (3 max)</label>
                 <input type="text" id="tf-ini" value="${escAttr(team?.ini||'')}" maxlength="3" placeholder="YUN"
-                  oninput="document.getElementById('logo-ini-preview')&&(document.getElementById('logo-ini-preview').textContent=this.value.toUpperCase())">
+                  data-oninput="_teamIniPreview(this.value)">
               </div>
               <div class="form-group">
                 <label>Estado</label>
@@ -183,7 +180,7 @@ async function openTeamModal(id=null){
           ${_presUsers.length
             ? `<select id="tf-pres-uid" style="width:100%;padding:9px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:15px;">
                  <option value="">— sin presidente —</option>
-                 ${_presUsers.map(u=>`<option value="${escAttr(u.uid)}" ${u.uid===_presLinkedUid?'selected':''} ${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?'disabled':''}>${_presEsc(u.name)}${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?' · email sin verificar':''}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
+                 ${_presUsers.map(u=>`<option value="${escAttr(u.uid)}" ${u.uid===_presLinkedUid?'selected':''} ${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?'disabled':''}>${escHtml(u.name)}${(!u.emailVerified && u.uid!==_presLinkedUid && u.uid!==_presMyUid)?' · email sin verificar':''}${u.role==='president'?' (presidente)':u.role==='admin'?' (admin)':''}${(u.teamId!=null&&u.teamId!==id)?' · ya tiene club':''}</option>`).join('')}
                </select>
                <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Se asigna la cuenta del suscriptor; el vínculo es la fuente de verdad (no texto libre).</div>`
             : `<input type="text" id="tf-pres" value="${escAttr(team?.pres||'')}" placeholder="Nombre del suscriptor">
@@ -194,7 +191,7 @@ async function openTeamModal(id=null){
         <div class="form-group">
           <label style="display:flex;align-items:center;justify-content:space-between;">
             <span>Nombres anteriores</span>
-            <button type="button" class="btn btn-xs" onclick="addPrevName('')">+ Agregar nombre</button>
+            <button type="button" class="btn btn-xs" data-onclick="addPrevName('')">+ Agregar nombre</button>
           </label>
           <div id="tf-prev-names" style="display:flex;flex-direction:column;gap:6px;"></div>
           <div style="font-size:11px;color:var(--txt3);margin-top:4px;">
@@ -207,42 +204,45 @@ async function openTeamModal(id=null){
         <div class="form-group">
           <label>Colores del equipo</label>
           <div style="display:flex;align-items:center;gap:10px;">
-            <input type="color" id="tf-color" value="${team?.color||'#1A4A7A'}"
+            <input type="color" id="tf-color" value="${escAttr(safeCssColor(team?.color,'#1A4A7A'))}"
               style="width:44px;height:36px;padding:2px;border-radius:var(--r);border:1px solid var(--brd);cursor:pointer;background:transparent;"
-              oninput="updateColorPreview(this.value,'primary')">
-            <input type="text" id="tf-color-hex" value="${team?.color||'#1A4A7A'}"
+              data-oninput="updateColorPreview(this.value,'primary')">
+            <input type="text" id="tf-color-hex" value="${escAttr(safeCssColor(team?.color,'#1A4A7A'))}"
               style="width:100px;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:16px;"
-              oninput="syncColorPicker(this.value,'primary')">
-            <div id="color-swatch" style="width:36px;height:36px;border-radius:50%;background:${team?.color||'#1A4A7A'};border:2px solid var(--brd2);"></div>
+              data-oninput="syncColorPicker(this.value,'primary')">
+            <div id="color-swatch" style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team?.color,'#1A4A7A')};border:2px solid var(--brd2);"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-            <input type="color" id="tf-color2" value="${team?.color2||team?.color||'#C9A84C'}"
+            <input type="color" id="tf-color2" value="${escAttr(safeCssColor(team?.color2||team?.color,'#C9A84C'))}"
               style="width:44px;height:36px;padding:2px;border-radius:var(--r);border:1px solid var(--brd);cursor:pointer;background:transparent;"
-              oninput="updateColorPreview(this.value,'secondary')">
-            <input type="text" id="tf-color2-hex" value="${team?.color2||team?.color||'#C9A84C'}"
+              data-oninput="updateColorPreview(this.value,'secondary')">
+            <input type="text" id="tf-color2-hex" value="${escAttr(safeCssColor(team?.color2||team?.color,'#C9A84C'))}"
               style="width:100px;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:16px;"
-              oninput="syncColorPicker(this.value,'secondary')">
-            <div id="color2-swatch" style="width:36px;height:36px;border-radius:50%;background:${team?.color2||team?.color||'#C9A84C'};border:2px solid var(--brd2);"></div>
+              data-oninput="syncColorPicker(this.value,'secondary')">
+            <div id="color2-swatch" style="width:36px;height:36px;border-radius:50%;background:${safeCssColor(team?.color2||team?.color,'#C9A84C')};border:2px solid var(--brd2);"></div>
             <span style="font-size:12px;color:var(--txt3);">Secundario</span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
             ${['#1A4A7A','#C0392B','#2E7D32','#B8860B','#1A1A4A','#4A235A','#1A4A2E','#3D2B1F','#1F618D','#1A3A4A','#784212','#1A5E3A']
-              .map(c=>`<div onclick="setTeamColor('${c}','primary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--txt)'" onmouseout="this.style.borderColor='transparent'"></div>`).join('')}
+              .map(c=>`<div data-onclick="setTeamColor('${c}','primary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" data-onmouseover="_tscStyle(this,'borderColor','var(--txt)')" data-onmouseout="_tscStyle(this,'borderColor','transparent')"></div>`).join('')}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
             ${['#1A4A7A','#C0392B','#2E7D32','#B8860B','#1A1A4A','#4A235A','#1A4A2E','#3D2B1F','#1F618D','#1A3A4A','#784212','#1A5E3A']
-              .map(c=>`<div onclick="setTeamColor('${c}','secondary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--txt)'" onmouseout="this.style.borderColor='transparent'"></div>`).join('')}
+              .map(c=>`<div data-onclick="setTeamColor('${c}','secondary')" style="width:22px;height:22px;border-radius:50%;background:${c};cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;" data-onmouseover="_tscStyle(this,'borderColor','var(--txt)')" data-onmouseout="_tscStyle(this,'borderColor','transparent')"></div>`).join('')}
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:0;">
+        ${team ? `<div class="form-group" style="margin-bottom:0;">
           <label>YuNaCoins actuales</label>
-          <input type="number" id="tf-coins" value="${team?.yunacoin||0}" min="0">
-        </div>
+          <div style="padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${(team.yunacoin||0).toLocaleString('es-CL')}</strong>
+            <span style="font-size:12px;color:var(--txt3);">Solo lectura: el saldo se cambia en la sección YuNaCoins, que deja el movimiento en el historial.</span>
+          </div>
+        </div>` : ''}
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closeTeamModal()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveTeam(${id||'null'})">Guardar</button>
+        <button class="btn" data-onclick="closeTeamModal()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveTeam(${id||'null'})">Guardar</button>
       </div>
     </div>
   </div>`;
@@ -280,12 +280,17 @@ function addPrevName(value){
   row.className = 'tf-prev-row';
   row.style.cssText = 'display:flex;gap:6px;align-items:center;';
   row.innerHTML = `
-    <input type="text" class="tf-prev-input" value="${String(value||'').replace(/"/g,'&quot;')}" placeholder="Ej: NOMBRE ANTERIOR"
+    <input type="text" class="tf-prev-input" value="${escAttr(value||'')}" maxlength="40" placeholder="Ej: NOMBRE ANTERIOR"
       style="flex:1;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
-    <button type="button" class="btn btn-xs btn-danger" onclick="this.parentElement.remove();_normalizePrevContainer()" title="Quitar">×</button>
+    <button type="button" class="btn btn-xs btn-danger" data-onclick="_tscRemoveParent(this);_normalizePrevContainer()" title="Quitar">×</button>
   `;
   container.appendChild(row);
   row.querySelector('input')?.focus();
+}
+
+function _teamIniPreview(v){
+  const el = document.getElementById('logo-ini-preview');
+  if(el) el.textContent = v.toUpperCase();
 }
 
 function _normalizePrevContainer(){
@@ -320,7 +325,7 @@ function removeLogo(){
   const preview = document.getElementById('logo-preview');
   if(preview){
     preview.style.background = color;
-    preview.innerHTML = `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${ini.toUpperCase()}</span>`;
+    preview.innerHTML = `<span style="font-family:'Bebas Neue';font-size:17px;color:#fff;" id="logo-ini-preview">${escHtml(ini.toUpperCase())}</span>`;
   }
 }
 
@@ -371,7 +376,28 @@ function setTeamColor(color, target='primary'){
   }
 }
 
+let _teamSaving = false;
+
 async function saveTeam(id){
+  if(_teamSaving) return;   // doble clic en «Guardar» creaba dos equipos
+  _teamSaving = true;
+  try { await _saveTeam(id); }
+  catch(err){ showToast('No se pudo guardar el equipo: '+dbErrorMsg(err),'error'); }
+  finally { _teamSaving = false; }
+}
+
+/* El historial y la tabla histórica enlazan los partidos por nombre (actual
+   o anterior): dos equipos con el mismo nombre mezclarían sus historiales.
+   Devuelve el equipo que ya usa `name` (sin contar `selfId`) o null. */
+async function _teamNameOwner(name, selfId){
+  const norm = v => String(v||'').trim().toLowerCase();
+  const q = norm(name);
+  const teams = await dbGetAll('teams');
+  return teams.find(t => t.id!==selfId
+    && (norm(t.name)===q || (Array.isArray(t.previousNames) && t.previousNames.some(p=>norm(p)===q)))) || null;
+}
+
+async function _saveTeam(id){
   const name  = document.getElementById('tf-name').value.trim();
   const ini   = document.getElementById('tf-ini').value.trim().toUpperCase();
   // `pres` (texto legacy) solo existe en modo sin cuentas; si hay selector, se preserva el valor previo.
@@ -380,9 +406,19 @@ async function saveTeam(id){
   const color = document.getElementById('tf-color').value;
   const color2 = document.getElementById('tf-color2')?.value || color;
   const status= document.getElementById('tf-status').value;
-  const coins = parseInt(document.getElementById('tf-coins').value)||0;
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
+  if(name.length>40){ showToast('El nombre admite hasta 40 caracteres','error'); return; }
+  // Solo si el nombre es nuevo o cambia: un choque viejo no bloquea editar otros campos.
+  const _prevName = id ? (await dbGet('teams',id))?.name : null;
+  const owner = (!id || String(_prevName||'').trim().toLowerCase()!==name.toLowerCase())
+    ? await _teamNameOwner(name, id) : null;
+  if(owner){
+    showToast(owner.name.trim().toLowerCase()===name.toLowerCase()
+      ? `Ya existe un equipo llamado "${owner.name}"`
+      : `"${name}" es un nombre anterior de ${owner.name}: el historial los mezclaría`, 'error');
+    return;
+  }
 
   // Subir el logo nuevo a la nube (Cloudinary) → guardamos solo la URL.
   let logoUrl = window._logoData || null;
@@ -416,7 +452,6 @@ async function saveTeam(id){
 
   const data = {
     name, ini, pres, color, color2, status,
-    yunacoin: coins,
     previousNames,                                  // ← nuevo (array)
     historyNames: previousNames.join(' → '),        // ← compatibilidad legacy (string)
     logo: logoUrl,
@@ -426,6 +461,7 @@ async function saveTeam(id){
   let teamId = id;
   if(id){
     const existing = await dbGet('teams',id);
+    if(!existing){ showToast('El equipo ya no existe','error'); closeTeamModal(); renderAdmTeams(); return; }
     // Si el nombre cambió, agregar el nombre anterior automáticamente al historial
     if(existing.name && existing.name !== name){
       // Agregar nombre anterior solo si no está ya en previousNames
@@ -440,7 +476,7 @@ async function saveTeam(id){
     // Notificar cambio de equipo para recargar vistas dinámicas
     await notifyTeamChanged(id);
   } else {
-    teamId = await dbAdd('teams',{...data, season:1, createdAt:new Date().toISOString()});
+    teamId = await dbAdd('teams',{...data, yunacoin:0, season:1, createdAt:new Date().toISOString()});
     showToast('Equipo creado');
     // Notificar cambio de equipo para recargar vistas dinámicas (mismo trato que editar)
     await notifyTeamChanged(teamId);
@@ -454,18 +490,68 @@ async function saveTeam(id){
   renderAdmTeams();
 }
 
+/* Dónde se usa un equipo. Un equipo con partidos, títulos, movimientos de
+   YuNaCoins o lugar en un grupo/sorteo no se borra: dejaría referencias
+   rotas (partidos sin rival, palmarés sin club) y borrar todo eso en cascada
+   destruiría historia de otros clubes. Se marca «Inactivo» (MS-5.4). */
+async function _teamReferences(id){
+  const [matches, coins, palmares, phases, sorteo, sorteoEv] = await Promise.all([
+    dbGetAll('matches',      m=>m.teamA===id || m.teamB===id),
+    dbGetAll('coins',        c=>c.teamId===id),
+    dbGetAll('palmares',     p=>p.teamId===id),
+    dbGetAll('phases'),
+    dbGetAll('sorteo'),
+    dbGetAll('sorteoEvents', e=>e.teamId===id),
+  ]);
+  const inGroups = phases.filter(p=>
+    Object.values(p.groups||{}).some(g=>Array.isArray(g) && g.some(t=>Number(t)===id))
+    || (p.slotRefs||[]).some(r=>r && r.type==='team' && Number(r.teamId)===id));
+  const inSorteo = sorteo.filter(s=>(s.bombos||[]).some(b=>(b.teamIds||[]).some(t=>Number(t)===id)));
+  const n = (k, one, many) => `${k} ${k===1?one:many}`;
+  return [
+    matches.length  && n(matches.length, 'partido', 'partidos'),
+    palmares.length && n(palmares.length, 'título del palmarés', 'títulos del palmarés'),
+    coins.length    && n(coins.length, 'movimiento de YuNaCoins', 'movimientos de YuNaCoins'),
+    inGroups.length && n(inGroups.length, 'fase (grupo o cuadro)', 'fases (grupos o cuadros)'),
+    (inSorteo.length || sorteoEv.length) && 'el sorteo',
+  ].filter(Boolean);
+}
+
+let _teamDeleting = false;
+
 async function deleteTeam(id){
-  const team = await dbGet('teams',id);
-  showConfirm(
-    '¿Eliminar equipo?',
-    `Se eliminará "${team?.name}" permanentemente.`,
-    async ()=>{
-      await dbDelete('teams',id);
-      showToast('Equipo eliminado');
-      await notifyTeamChanged(id);
-      renderAdmTeams();
+  try {
+    const team = await dbGet('teams',id);
+    if(!team){ showToast('El equipo ya no existe','error'); renderAdmTeams(); return; }
+    const refs = await _teamReferences(id);
+    if(refs.length){
+      showToast(`No se puede eliminar "${team.name}": aparece en ${refs.join(', ')}. Márcalo como Inactivo.`,'error');
+      return;
     }
-  );
+    showConfirm(
+      '¿Eliminar equipo?',
+      `Se eliminará "${team.name}" permanentemente. No tiene partidos, títulos ni movimientos. Si una cuenta de presidente lo tiene vinculado, queda sin club.`,
+      async ()=>{
+        if(_teamDeleting) return;
+        _teamDeleting = true;
+        try {
+          if((await _teamReferences(id)).length){ showToast('El equipo empezó a usarse: no se eliminó','error'); return; }
+          // Primero el vínculo del presidente: si falla, el equipo sigue.
+          if(typeof updatePresidentLink==='function') await updatePresidentLink(id, null, { strict:true });
+          await dbDelete('teams',id);
+          showToast('Equipo eliminado');
+          await notifyTeamChanged(id);
+        } catch(err){
+          showToast('Error al eliminar el equipo: '+dbErrorMsg(err),'error');
+        } finally {
+          _teamDeleting = false;
+          renderAdmTeams();
+        }
+      }
+    );
+  } catch(err){
+    showToast('Error al preparar el borrado: '+dbErrorMsg(err),'error');
+  }
 }
 
 /* ----------------------------------------------------------
@@ -532,7 +618,7 @@ function _pubTeamCardHtml(t){
   const titles = window._pubTeamTitles || new Map();
   const c1 = _col(t.color), c2 = _col(t.color2 || t.color);
   const crest = safeImgUrl(t.logo) ? `<img src="${safeImgUrl(t.logo)}" alt="" loading="lazy">`
-    : `${_esc(t.ini||'?')}`;
+    : `${escHtml(t.ini||'?')}`;
   const s = stats[t.id] || {pj:0,v:0,recent:[]};
   const winPct = s.pj>0 ? Math.round(s.v/s.pj*100) : 0;
   const tit = (titles.get(t.id)?._total) || 0;
@@ -544,12 +630,12 @@ function _pubTeamCardHtml(t){
     <div class="club-stage">
       <div class="club-card" style="--team-color:${c1};--team-color-2:${c2};"
         role="button" tabindex="0"
-        onclick="_pubTeamCardOpen(${t.id}, this)"
-        onkeydown="_pubTeamCardKeydown(event, ${t.id})"
-        aria-label="Ver ficha de ${_esc(t.name)}">
+        data-onclick="_pubTeamCardOpen(${t.id}, this)"
+        data-onkeydown="_pubTeamCardKeydown(event, ${t.id})"
+        aria-label="Ver ficha de ${escHtml(t.name)}">
         <div class="club-band">
           <div class="club-crest">${crest}</div>
-          <div class="club-name">${_esc(t.name)}</div>
+          <div class="club-name">${escHtml(t.name)}</div>
         </div>
         <div class="club-body">
           <div class="club-stats">
@@ -665,7 +751,7 @@ async function renderPubTeams(){
   <div id="pub-teams-load-more" class="load-more-wrap" style="display:none;">
     <button id="pub-teams-btn-more" type="button" class="load-more"
       aria-controls="pub-teams-grid"
-      onclick="loadMorePubTeams(false)">
+      data-onclick="loadMorePubTeams(false)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6 2.1-2.1"/>
       </svg>

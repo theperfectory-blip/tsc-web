@@ -98,10 +98,12 @@ if (cmd === 'data') {
   const { cspString } = await import('./csp.mjs');
   const emu = ['http://localhost:8080', 'http://localhost:9099', 'http://localhost:5001'];
   const policy = cspString({ meta: true, extra: { 'connect-src': emu } });
-  const collector = `<script>window.__CSP__=[];document.addEventListener('securitypolicyviolation',function(e){window.__CSP__.push({directive:e.effectiveDirective,blocked:e.blockedURI,source:(e.sourceFile||'')+':'+e.lineNumber,sample:e.sample})});</script>`;
+  // El colector va en un archivo: sin 'unsafe-inline' (MS-7.5) un <script> inline no corre.
+  const collector = `<script src="_csp.js"></script>`;
   for (const dir of ['site', 'dist']) {
     const base = join(SANDBOX, dir);
     if (!existsSync(join(base, 'index.html'))) continue;
+    writeFileSync(join(base, '_csp.js'), "window.__CSP__=[];document.addEventListener('securitypolicyviolation',function(e){window.__CSP__.push({directive:e.effectiveDirective,blocked:e.blockedURI,source:(e.sourceFile||'')+':'+e.lineNumber,sample:e.sample})});\n");
     const html = readFileSync(join(base, 'index.html'), 'utf8');
     writeFileSync(join(base, 'csp.html'), html.replace(/(<meta charset[^>]*>)/i, `$1
 <meta http-equiv="Content-Security-Policy" content="${policy}">

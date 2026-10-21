@@ -15,20 +15,48 @@ service cloud.firestore {
     function isAdmin()     { return signedIn() && meExists() && me().role == 'admin'; }
     function isPresident() { return signedIn() && meExists() && me().role == 'president'; }
 
+    // --- Temporadas archivadas (D8, MS-5.16) ---
+    // archive/seasons = { numbers: [n…], compIds: [id…] }: temporadas cuyo
+    // archivo fijo (tsc-src/data/temporadas) ya reemplazó a Firestore. Nadie
+    // escribe documentos de esas temporadas, ni el admin. La lista solo crece.
+    function archiveRef()   { return /databases/$(database)/documents/archive/seasons; }
+    function archivedNums() { return exists(archiveRef()) ? get(archiveRef()).data.numbers : []; }
+    function archivedComps(){ return exists(archiveRef()) ? get(archiveRef()).data.compIds : []; }
+    // El campo `field` (número de temporada) no apunta a una archivada, ni en
+    // el documento que queda ni en el que había.
+    function notArchived(field, list) {
+      return (request.resource == null || !(request.resource.data.get(field, null) in list))
+          && (resource == null || !(resource.data.get(field, null) in list));
+    }
+    function seasonOpen(field) { return notArchived(field, archivedNums()); }
+
+    match /archive/{doc} {
+      allow read: if true;
+      allow create: if isAdmin() && doc == 'seasons'
+                    && request.resource.data.keys().hasOnly(['numbers', 'compIds', 'updatedAt'])
+                    && request.resource.data.numbers is list && request.resource.data.compIds is list;
+      allow update: if isAdmin() && doc == 'seasons'
+                    && request.resource.data.keys().hasOnly(['numbers', 'compIds', 'updatedAt'])
+                    && request.resource.data.numbers is list && request.resource.data.compIds is list
+                    && request.resource.data.numbers.hasAll(resource.data.numbers)
+                    && request.resource.data.compIds.hasAll(resource.data.compIds);
+      allow delete: if false;
+    }
+
     // --- Colecciones del torneo: lectura PÚBLICA, escritura solo admin ---
-    match /seasons/{id}        { allow read: if true; allow write: if isAdmin(); }
-    match /competitions/{id}   { allow read: if true; allow write: if isAdmin(); }
-    match /phases/{id}         { allow read: if true; allow write: if isAdmin(); }
-    match /matches/{id}        { allow read: if true; allow write: if isAdmin(); }
-    match /coins/{id}          { allow read: if true; allow write: if isAdmin(); }
+    match /seasons/{id}        { allow read: if true; allow write: if isAdmin() && seasonOpen('number'); }
+    match /competitions/{id}   { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
+    match /phases/{id}         { allow read: if true; allow write: if isAdmin() && notArchived('compId', archivedComps()); }
+    match /matches/{id}        { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
+    match /coins/{id}          { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /history/{id}        { allow read: if true; allow write: if isAdmin(); }
     match /settings/{id}       { allow read: if true; allow write: if isAdmin(); }
-    match /matchHistory/{id}   { allow read: if true; allow write: if isAdmin(); }
-    match /sorteo/{id}         { allow read: if true; allow write: if isAdmin(); }
-    match /sorteoEvents/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /matchHistory/{id}   { allow read: if true; allow write: if isAdmin() && seasonOpen('seasonRef'); }
+    match /sorteo/{id}         { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
+    match /sorteoEvents/{id}   { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /palmares/{id}       { allow read: if true; allow write: if isAdmin(); }
     match /palmares-comps/{id} { allow read: if true; allow write: if isAdmin(); }
-    match /calDayLabels/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /calDayLabels/{id}   { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
 
     // --- Equipos: el presidente edita SU equipo ---
     // Solo name y logo, y con valores validados (H-01: el logo se inserta
@@ -49,14 +77,37 @@ service cloud.firestore {
               && l.matches('https://res[.]cloudinary[.]com/dnjijd8mx/[A-Za-z0-9_./,:%=+~-]+'));
     }
 
+    // H-42 (MS-5.4): al renombrar, el presidente guarda el nombre que deja en
+    // previousNames (el historial enlaza por nombre). Solo así: el nombre
+    // anterior al frente y los que ya estaban, sin tocar nada más; y solo en
+    // el mismo cambio que renombra. historyNames es la copia legacy en texto.
+    // Renombrar sin previousNames sigue valiendo (APK 1.6.3 y anteriores).
+    function validTeamPrevNames() {
+      let oldPrev = resource.data.get('previousNames', []);
+      let newPrev = request.resource.data.get('previousNames', null);
+      return !teamChanged('previousNames')
+          || (teamChanged('name') && resource.data.get('name', null) is string
+              && oldPrev is list && newPrev is list && newPrev.size() <= 50
+              && newPrev == [resource.data.name].concat(oldPrev));
+    }
+    function validTeamHistoryNames() {
+      let newPrev = request.resource.data.get('previousNames', null);
+      return !teamChanged('historyNames')
+          || (teamChanged('previousNames') && newPrev is list
+              && request.resource.data.get('historyNames', null) == newPrev.join(' → '));
+    }
+
     match /teams/{teamId} {
       allow read: if true;
       allow update: if isAdmin()
                     || (isPresident() && me().teamId != null && string(me().teamId) == teamId
                         && me().lockEdits != true
-                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'logo'])
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['name', 'logo', 'previousNames', 'historyNames'])
                         && validTeamName()
-                        && validTeamLogo());
+                        && validTeamLogo()
+                        && validTeamPrevNames()
+                        && validTeamHistoryNames());
       allow create, delete: if isAdmin();
     }
 

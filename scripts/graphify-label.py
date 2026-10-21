@@ -10,30 +10,38 @@ from graphify.analyze import god_nodes, surprising_connections, suggest_question
 from graphify.report import generate
 from graphify.export import to_json, to_html
 
-NAMES = {
-    0: "Bracket, partidos y playoff",
-    1: "Palmares (Sala de Trofeos 3D)",
-    2: "Navegacion y paginas publicas",
-    3: "Historial y H2H",
-    4: "Sorteo en vivo",
-    5: "Sonido y efectos de partido",
-    6: "Equipos y animacion de UI",
-    7: "Push, ajustes y actualizador",
-    8: "Perfil y panel del presidente",
-    9: "Capa de datos y fixture",
-    10: "Calendario",
-    11: "Tablas de posiciones",
-    12: "Bracket publico",
-    13: "Auth y registro",
-    14: "Competiciones",
-    15: "Export / import de datos",
-    16: "Promo APK",
-    17: "Config Cloudinary",
-    18: "Selector de color",
-    19: "Config Firebase (ejemplo)",
-    20: "Config Firebase",
-    21: "Estado global",
+# Nombre de dominio por archivo. Cada comunidad toma el de su archivo
+# dominante (y el del segundo si pesa al menos un 35 % de la comunidad):
+# los números de comunidad cambian con cada `graphify update`, los archivos no.
+FILE_NAMES = {
+    "matches.js": "Partidos", "livematch.js": "Partido en vivo", "seasons.js": "Temporadas",
+    "playoff.js": "Playoff", "palmares.js": "Palmares (Sala de Trofeos 3D)", "sorteo.js": "Sorteo en vivo",
+    "history.js": "Historial y H2H", "profile.js": "Perfil del presidente", "auth.js": "Auth y registro",
+    "calendar.js": "Calendario", "public.js": "Panel publico", "nav.js": "Navegacion",
+    "redesign-shell.js": "Topnav y secciones", "push.js": "Push", "ui-utils.js": "Ajustes y arranque",
+    "updater.js": "Actualizador", "teams.js": "Equipos", "motion.js": "Animacion de UI",
+    "sounds.js": "Sonido", "bracket.js": "Bracket", "db.js": "Capa de datos", "data.js": "Export / import",
+    "public-bracket.js": "Bracket publico", "standings.js": "Tablas de posiciones", "coins.js": "YuNaCoins",
+    "users-admin.js": "Usuarios (admin)", "competitions.js": "Competiciones", "fixture-gen.js": "Generador de fechas",
+    "events.js": "Delegacion de eventos", "apk-promo.js": "Promo APK", "boot-splash.js": "Splash de arranque",
+    "cloudinary.example.js": "Config Cloudinary (ejemplo)", "cloudinary.js": "Config Cloudinary",
+    "firebase-config.example.js": "Config Firebase (ejemplo)", "firebase-config.js": "Config Firebase",
+    "state.js": "Estado global", "color-picker.js": "Selector de color", "sanitize.js": "Escape (sanitize)",
+    "phases.js": "Fases", "live.js": "Tiempo real", "cursor-fx.js": "Estela del cursor",
 }
+
+
+def _label(nodes):
+    from collections import Counter
+    import os
+    files = Counter(os.path.basename(str(G.nodes[n].get("source_file") or "?")) for n in nodes)
+    top = files.most_common(2)
+    if not top:
+        return None
+    names = [FILE_NAMES.get(top[0][0], top[0][0])]
+    if len(top) > 1 and top[1][1] >= 0.35 * sum(files.values()):
+        names.append(FILE_NAMES.get(top[1][0], top[1][0]))
+    return " y ".join(names)
 
 root = Path(".")
 out = root / "graphify-out"
@@ -43,7 +51,7 @@ communities = {}
 for nid, d in G.nodes(data=True):
     communities.setdefault(d.get("community"), []).append(nid)
 communities.pop(None, None)
-labels = {cid: NAMES.get(cid, f"Community {cid}") for cid in communities}
+labels = {cid: _label(nodes) or f"Community {cid}" for cid, nodes in communities.items()}
 cohesion = score_all(G, communities)
 gods = god_nodes(G)
 surprises = surprising_connections(G, communities)

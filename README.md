@@ -41,78 +41,29 @@ Y los administradores pueden:
 ## 📁 Estructura
 
 ```
-tsc-src/                      # ⭐ App principal (modular)
-  ├── index.html              # Shell: topbar, sidebar, páginas, modales
-  ├── css/
-  │   ├── variables.css       # Colores, tipografía, temas dark/light
-  │   ├── layout.css          # Topbar, sidebar, main grid
-  │   ├── components.css      # Botones, modales, tablas, animaciones
-  │   ├── sorteo.css          # Módulo de sorteo
-  │   └── palmares.css        # Sala de trofeos
-  ├── js/
-  │   ├── state.js            # Estado global (season, mode)
-  │   ├── db.js               # Firestore CRUD (dual-mode compatible)
-  │   ├── auth.js             # Autenticación Firebase (login, perfil)
-  │   ├── ui-utils.js         # Modal, toast, theme, settings
-  │   ├── nav.js              # Navegación public/admin
-  │   ├── live.js             # Gestor de suscripciones en tiempo real
-  │   ├── livematch.js        # Modal de partidos en vivo
-  │   ├── competitions.js     # CRUD competiciones
-  │   ├── phases.js           # Gestión de fases
-  │   ├── standings.js        # Clasificaciones + drag-drop criterios
-  │   ├── matches.js          # Registro de partidos
-  │   ├── bracket.js          # Render de brackets eliminatorios
-  │   ├── playoff.js          # Formato playoff/supercopa
-  │   ├── teams.js            # CRUD equipos + colores
-  │   ├── coins.js            # Gestión de YuNaCoins
-  │   ├── seasons.js          # Gestión de temporadas
-  │   ├── profile.js          # Perfil usuario (presidente)
-  │   ├── users-admin.js      # Panel admin de usuarios
-  │   ├── history.js          # Historial H2H
-  │   ├── palmares.js         # Sala de trofeos (champions)
-  │   ├── sorteo.js           # Módulo de sorteo animado
-  │   ├── sounds.js           # SFX (Web Audio API)
-  │   ├── color-picker.js     # Selector color
-  │   ├── public.js           # Vistas públicas
-  │   ├── data.js             # Export/import
-  │   └── cloudinary.js       # Upload de logos
-  ├── data/
-  │   ├── historial-seed.json
-  │   └── palmares-seed.json
-  └── assets/
-      ├── chibi/              # Sprites sorteo (8 frames)
-      └── sounds/             # drumroll.mp3
-
-functions/                    # Cloud Functions (backend de notificaciones push)
-  └── lib/                    # notifyStreamToday, notifyStartupContinuation, onMatchWentLive
-
-android/                      # App nativa Capacitor (misma web, empaquetada)
-  └── app/src/main/           # Manifest, recursos nativos (ícono, splash, notificación)
-
-firebase/                     # Reglas de seguridad (Firestore + Storage)
-  ├── firestore.rules
-  └── storage.rules
-
-scripts/                      # Utilidades de build (build-www.mjs, conversión de imágenes)
-
-docs/                         # Documentación
-  ├── android-build.md        # Ciclo debug/release y publicación en GitHub Releases
-  ├── android-push-notifications.md
-  ├── PROTOCOLO_VERIFICACION.md
-  ├── MACRO_SLICE_UPDATER.md
-  └── reportes/               # Reportes de cada slice
+tsc-src/      App (única fuente): index.html, css/, js/, data/, assets/
+functions/    Cloud Functions (push FCM) y tests de reglas contra el emulador
+firebase/     Reglas de Firestore y Storage, índices
+android/      App nativa Capacitor (la misma web empaquetada)
+scripts/      Builds (build-web, build-www), sandbox de emuladores, auditores, CSP
+docs/         Protocolo de verificación, plan de debugging y reportes por slice
+dist/ · www/  Generados por los builds (no se editan)
 ```
+
+El mapa módulo por módulo de `tsc-src/js/` está en [AGENTS.md](./AGENTS.md#mapa-de-código--tsc-src).
 
 ## 🚀 Empezar
 
 ### Correr localmente
 
 ```bash
-cd tsc-src
-npm install -g serve
-serve .
+npx serve tsc-src
 # Abre http://localhost:3000
 ```
+
+Ojo: `localhost` usa la base **real** de producción. Para probar escrituras, usa el sandbox
+de emuladores (copia de la base, admin y presidente de prueba); los pasos están en
+[AGENTS.md](./AGENTS.md#correr-localmente).
 
 ### Setup Firebase (para deploy)
 
@@ -120,15 +71,15 @@ Requiere cuenta Firebase en [console.firebase.google.com](https://console.fireba
 
 1. Crea proyecto Firebase (plan Spark es gratuito)
 2. Habilita **Firestore**, **Authentication** (email + Google), **Hosting**, **Cloud Messaging**
-3. Copia las plantillas y completa tus valores reales (ambas están gitignored — nunca se
-   pisan las de otro dev/fork, y **no son secretas**: ver `SECURITY.md`):
+3. En un fork, reemplaza la config pública por la de tu proyecto (las de este repo están
+   commiteadas a propósito: **no son secretas**, ver `SECURITY.md`):
    ```bash
    cp tsc-src/js/firebase-config.example.js tsc-src/js/firebase-config.js
    cp tsc-src/js/cloudinary.example.js tsc-src/js/cloudinary.js
    ```
    Completa `firebase-config.js` con los datos de **Project settings → Tus apps → SDK setup**
    de tu proyecto Firebase.
-4. Despliega reglas Firestore/Storage: `firebase deploy --only firestore:rules,storage:rules`
+4. Despliega reglas Firestore/Storage: `firebase deploy --only firestore:rules,storage`
    (ver `DEPLOY.md`)
 5. Configura **Cloudinary** (gratis) para logos:
    - Crea cuenta en cloudinary.com
@@ -160,9 +111,11 @@ O automático con GitHub Actions (ver `.github/workflows/firebase-hosting.yml`).
 - **Notificaciones push (FCM)**: backend en Cloud Functions, probado de punta a punta en
   producción (envío manual + trigger automático al marcar un partido en vivo)
 
-⏳ **En desarrollo**
-- Popup promocional de descarga de la APK (web pública)
-- Merge del backend de push a `main` (vive en `feature/capacitor-android`)
+✅ **Plan de debugging cerrado (2026-10)** — `docs/MACRO_SLICE_DEBUGGING.md`
+- Escape único de datos de usuario, CSP en enforce sin `'unsafe-inline'`
+- Reglas con tests por rol en el CI, sandbox de emuladores para probar escrituras
+- Escrituras atómicas en partidos, cruces, import y calendario
+- Temporadas finalizadas archivadas en archivos fijos (menos lecturas por visita)
 
 ⏭️ **Backlog / no bloqueante**
 - Correo SMTP personalizado para los correos automáticos de Firebase (verificación, reset)
@@ -170,28 +123,34 @@ O automático con GitHub Actions (ver `.github/workflows/firebase-hosting.yml`).
 
 ## 🔧 Arquitectura
 
-- **Dual-mode DB**: `db.js` soporta Firestore (cloud) e IndexedDB (local) con mismas firmas
+- **Capa de datos única**: `db.js` sobre Firestore (sin SDK, la app muestra «Sin conexión»)
 - **Modular**: cada feature (competiciones, partidos, brackets) en módulo independiente
-- **No-build**: vanilla JS, sin bundler, solo compat SDK por CDN
-- **GraphQL-inspired**: código indexable con graphify para análisis de dependencias
+- **Sin bundler en desarrollo**: vanilla JS y SDK compat por CDN; `build-web` concatena en
+  bundles con hash para el hosting
+- **Grafo de código** con graphify (`tsc-src/graphify-out/GRAPH_REPORT.md`)
 
-Ver [CLAUDE.md](./CLAUDE.md) para documentación completa de módulos.
+Ver [AGENTS.md](./AGENTS.md) para la arquitectura completa (capa de datos, arranque, roles,
+builds, sandbox).
 
 ## 📝 Desarrollo
 
 ### Agregar una feature
 
 1. Crea módulo en `tsc-src/js/mifeature.js`
-2. Carga en `tsc-src/index.html` en orden de dependencias
-3. Usa `db.js` para CRUD (compatible con Firestore/IndexedDB)
-4. Render en una `<div id="mi-feature">` en index.html
-5. Actualiza grafo: `cd tsc-src && graphify update .`
+2. Carga en `tsc-src/index.html` en orden de dependencias (los dos builds leen ese orden)
+3. Usa `db.js` para CRUD (`dbGetAll`, `dbWriteBatch`, …)
+4. Render en una `<div id="mi-feature">` en index.html. Datos de usuario con `escHtml` /
+   `escAttr` / `safeImgUrl`; handlers como `data-onclick="fn(…)"` (nunca `onclick=`)
+5. Actualiza grafo: `cd tsc-src && graphify update . && python ../scripts/graphify-label.py`
 
 ### Tests
 
-El frontend es una SPA sin test runner — pruébalo manualmente con `serve` + DevTools, o en
-prod (https://teamsubscup.web.app). El backend de notificaciones (`functions/`) sí tiene un
-harness reproducible contra el emulador: `cd functions && npm run test:emulator`.
+- **Reglas y Functions** contra el emulador, desde `functions/`: `npm run test:rules`,
+  `npm run test:rules:storage`, `npm run test:emulator`. El CI corre los de reglas.
+- **Frontend**: sin test runner. Se verifica en el sandbox de emuladores (`dist` y
+  `tsc-src`) siguiendo `docs/PROTOCOLO_VERIFICACION.md`, más los chequeos sin navegador:
+  `node scripts/smoke-parity.mjs` (paridad `tsc-src`/`dist`), `node scripts/audit-wiring.mjs`
+  (handlers y funciones) y `node scripts/csp.mjs --check`.
 
 ### Linting
 

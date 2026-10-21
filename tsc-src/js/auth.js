@@ -12,9 +12,6 @@ let AUTH = { user: null, role: 'public', teamId: null, profile: null };
 let _authMode = 'signin';     // 'signin' | 'signup'
 let _pendingSignupName = null; // nombre escrito en el registro (evita carrera con updateProfile)
 
-function _authEsc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 function _usersCol(){ return firebase.firestore().collection('users'); }
 function isAdmin(){ return AUTH.role === 'admin'; }
 function isPresident(){ return AUTH.role === 'president'; }
@@ -29,7 +26,7 @@ function _injectAuthModal(){
     <div class="modal" style="max-width:360px;">
       <div class="modal-hdr">
         <div class="modal-title" id="auth-title">Iniciar sesión</div>
-        <button class="modal-close" onclick="closeModal('auth-modal')">×</button>
+        <button class="modal-close" data-onclick="closeModal('auth-modal')">×</button>
       </div>
       <div class="modal-body">
         <div class="form-group" id="auth-name-group" style="display:none;">
@@ -44,17 +41,17 @@ function _injectAuthModal(){
           <label>Contraseña</label>
           <div style="position:relative;">
             <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password" style="padding-right:40px;width:100%;box-sizing:border-box;">
-            <button type="button" id="auth-eye" onclick="toggleAuthPass()" title="Mostrar/ocultar contraseña"
+            <button type="button" id="auth-eye" data-onclick="toggleAuthPass()" title="Mostrar/ocultar contraseña"
               style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;line-height:1;padding:2px;display:flex;align-items:center;"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
         <div id="auth-error" style="color:#e74c3c;font-size:13px;min-height:18px;"></div>
-        <button type="button" id="auth-forgot" onclick="authForgotPassword()"
+        <button type="button" id="auth-forgot" data-onclick="authForgotPassword()"
           style="background:none;border:none;color:var(--txt2);font-size:12px;cursor:pointer;padding:0;text-align:left;">¿Olvidaste tu contraseña?</button>
       </div>
       <div class="modal-footer" style="flex-direction:column;align-items:stretch;gap:8px;">
-        <button class="btn btn-primary" id="auth-submit" onclick="authSubmit()">Entrar</button>
-        <button class="btn" id="auth-toggle" onclick="toggleAuthMode()" style="background:none;border:none;">¿No tienes cuenta? Crear una</button>
+        <button class="btn btn-primary" id="auth-submit" data-onclick="authSubmit()">Entrar</button>
+        <button class="btn" id="auth-toggle" data-onclick="toggleAuthMode()" style="background:none;border:none;">¿No tienes cuenta? Crear una</button>
       </div>
     </div>`;
   document.body.appendChild(div);
@@ -117,7 +114,7 @@ async function authForgotPassword(){
     // Aviso persistente con advertencia de SPAM (no se cierra el modal)
     errEl.style.color = '';
     errEl.innerHTML = `<div style="background:rgba(255,193,7,0.15);border:1px solid #FFC107;border-radius:6px;padding:10px;color:var(--txt);text-align:left;line-height:1.45;font-size:13px;">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Te enviamos un correo a <b>${_authEsc(email)}</b>.<br>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Te enviamos un correo a <b>${escHtml(email)}</b>.<br>
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <b>Revisa tu carpeta de SPAM</b> / correo no deseado si no lo ves en unos minutos.</div>`;
     showToast('Correo enviado · revisa tu carpeta de SPAM');
   } catch(e){
@@ -298,13 +295,16 @@ function renderAuthUI(){
     // Botón de perfil con el diseño del rediseño (pill + avatar + chevron),
     // pero conserva el flujo real: onclick → openProfile() (modal completo).
     area.innerHTML =
-      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-modal" onclick="openProfile()">
+      `<button class="tp-btn" id="profile-btn" title="Mi perfil" aria-label="Mi perfil" aria-haspopup="dialog" aria-expanded="false" aria-controls="profile-modal" data-onclick="openProfile()">
         <span class="tp-avatar" style="overflow:hidden;">${avatar}</span>
         <svg class="tp-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>`;
     if (btnMode) btnMode.style.display = (AUTH.role === 'admin') ? '' : 'none';
+    // Sesión sin rol admin (otra cuenta, o el perfil no cargó y quedó como
+    // presidente): no puede quedar dentro del panel.
+    if (AUTH.role !== 'admin' && STATE.mode === 'admin' && typeof setMode === 'function') setMode('public');
   } else {
-    area.innerHTML = `<button class="mode-btn" onclick="openAuthModal()">Entrar</button>`;
+    area.innerHTML = `<button class="mode-btn" data-onclick="openAuthModal()">Entrar</button>`;
     if (btnMode) btnMode.style.display = 'none';
     if (STATE.mode === 'admin' && typeof setMode === 'function') setMode('public');
   }

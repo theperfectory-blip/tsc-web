@@ -45,15 +45,6 @@
   flex-shrink: 0;
   display: inline-block;
 }
-.palm-vig-sel {
-  background: var(--card, #111);
-  border: 1px solid var(--brd, #333);
-  border-radius: var(--r, 4px);
-  color: var(--txt, #f0ede6);
-  font-size: 12px;
-  padding: 4px 6px;
-  max-width: 200px;
-}
 
 /* ============================================================
    ADMIN — Matrix table (sin cambios funcionales)
