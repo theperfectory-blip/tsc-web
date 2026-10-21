@@ -624,13 +624,11 @@ const EQUIPOS_INICIALES = [
 async function seedInitialData(){
   const seasons = await dbGetAll('seasons');
   if(seasons.length>0) return; // ya inicializado
-  if(_isFS()){
-    // En Firestore se confirma con el SERVIDOR antes de sembrar: una lectura
-    // sin conexión puede volver vacía desde la caché y sembraría una temporada
-    // y 60 equipos duplicados (MS-2.4). Sin conexión, esto lanza y no siembra.
-    const snap = await db.collection('seasons').limit(1).get({source:'server'});
-    if(!snap.empty) return;
-  }
+  // Se confirma con el SERVIDOR antes de sembrar: una lectura sin conexión
+  // puede volver vacía desde la caché y sembraría una temporada y 60 equipos
+  // duplicados (MS-2.4). Sin conexión, esto lanza y no siembra.
+  const snap = await db.collection('seasons').limit(1).get({source:'server'});
+  if(!snap.empty) return;
   // Temporada 1
   await dbAdd('seasons',{number:1,status:'active',createdAt:new Date().toISOString()});
   // 60 equipos
@@ -790,9 +788,30 @@ async function _bootStep(name, fn){
   catch(e){ console.error(`[arranque] ${name} falló:`, e); return false; }
 }
 
+/* Sin SDK de Firebase no hay datos que mostrar (D6): el splash queda con el
+   aviso y un botón para reintentar, en vez de un sitio vacío o inventado. */
+function _bootOffline(){
+  window.__TSC_BOOT_OFFLINE__ = true;
+  const st = document.getElementById('boot-splash-status');
+  if(!st) return;
+  st.textContent = 'Sin conexión con el servidor. Revisa tu conexión e intenta de nuevo.';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'Reintentar';
+  btn.style.cssText = 'display:block;margin:14px auto 0;padding:8px 22px;border:1px solid #C9A84C;border-radius:8px;background:transparent;color:#C9A84C;font:inherit;cursor:pointer;pointer-events:auto;';
+  btn.addEventListener('click', ()=>location.reload());
+  st.appendChild(btn);
+  const splash = document.getElementById('boot-splash');
+  if(splash) splash.removeAttribute('aria-hidden');
+}
+
 window.addEventListener('load', async ()=>{
+  if(!_isFS()){ console.error('[arranque] sin Firebase: no hay conexión con el servidor'); _bootOffline(); return; }
   const dbOk = await _bootStep('initDB', initDB);
   if(!dbOk) showToast('No se pudo abrir la base de datos','error');
+  // Base local de la rama IndexedDB retirada (D6): tenía datos sembrados
+  // inventados. Se borra de los navegadores que la llegaron a crear.
+  try { indexedDB.deleteDatabase('TSC_v4'); } catch(_){}
   // Temporadas archivadas que no cargaron: faltarían datos, no se calla (MS-5.15).
   if(dbOk && typeof dbArchiveInfo==='function' && dbArchiveInfo().error) showToast('No se pudieron cargar las temporadas archivadas: faltan datos de temporadas pasadas. Recarga la página.','error');
   await _bootStep('setTheme', ()=>setTheme(localStorage.getItem('tsc_theme')||'dark'));
@@ -805,7 +824,7 @@ window.addEventListener('load', async ()=>{
     await _bootStep('syncTeamPreviousNames', syncTeamPreviousNames);
     // v3: DIABLOS ROJOS es el nombre antiguo de AC ANGELES ROJOS (fusionar)
     await _bootStep('migrateTeamsV3MergeDiablos', migrateTeamsV3MergeDiablos);
-    // Sembrar palmarés histórico si la IDB está vacía
+    // Sembrar palmarés histórico si la colección está vacía
     if(typeof seedPalmaresIfEmpty==='function') await _bootStep('seedPalmaresIfEmpty', seedPalmaresIfEmpty);
     // v4: re-asignar títulos huérfanos de DIABLOS ROJOS a AC ANGELES ROJOS
     await _bootStep('migratePalmaresV4DiablosToAngeles', migratePalmaresV4DiablosToAngeles);

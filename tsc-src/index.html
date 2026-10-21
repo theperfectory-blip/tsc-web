@@ -143,10 +143,10 @@
     if(el) el.textContent = text;
   }
   setTimeout(function(){
-    if(document.getElementById('boot-splash')) showStatus('Esto está tardando más de lo normal…');
+    if(document.getElementById('boot-splash') && !window.__TSC_BOOT_OFFLINE__) showStatus('Esto está tardando más de lo normal…');
   }, 10000);
   setTimeout(function(){
-    if(document.getElementById('boot-splash')) showStatus('Problema al cargar. Revisa tu conexión e intenta de nuevo.');
+    if(document.getElementById('boot-splash') && !window.__TSC_BOOT_OFFLINE__) showStatus('Problema al cargar. Revisa tu conexión e intenta de nuevo.');
   }, 25000);
 })();
 </script>

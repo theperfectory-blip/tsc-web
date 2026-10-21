@@ -19,9 +19,9 @@ const FIREBASE_CONFIG = {
   measurementId:     "G-PSG9HJP98E",
 };
 
-/* Flag de activación: la app sigue usando IndexedDB mientras la
-   config tenga "TODO". Cuando pegues los valores reales, se activa
-   Firestore automáticamente (lo cablea db.js en la Fase 1). */
+/* Flag de activación: queda en false si el SDK de Firebase no cargó (o la
+   config tiene "TODO"). Sin Firestore la app no arranca: muestra «Sin
+   conexión» (db.js, initDB; D6). */
 let USE_FIRESTORE = false;
 if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.projectId !== 'TODO') {
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -34,7 +34,7 @@ if (typeof firebase !== 'undefined' && FIREBASE_CONFIG.projectId !== 'TODO') {
     && (new URLSearchParams(location.search).get('emu') === '1' || location.port === '3001');
   if (_emu) {
     // useEmulator solo lanza si la instancia ya se usó; acá no puede pasar.
-    // Si lanzara, USE_FIRESTORE queda en false y db.js usa IndexedDB local.
+    // Si lanzara, USE_FIRESTORE queda en false y la app muestra «Sin conexión».
     firebase.firestore().useEmulator('localhost', 8080);
     firebase.auth().useEmulator('http://localhost:9099', { disableWarnings: true });
     window.__TSC_EMULATOR__ = true;

@@ -170,7 +170,7 @@ O automático con GitHub Actions (ver `.github/workflows/firebase-hosting.yml`).
 
 ## 🔧 Arquitectura
 
-- **Dual-mode DB**: `db.js` soporta Firestore (cloud) e IndexedDB (local) con mismas firmas
+- **Capa de datos única**: `db.js` sobre Firestore (sin SDK, la app muestra «Sin conexión»)
 - **Modular**: cada feature (competiciones, partidos, brackets) en módulo independiente
 - **No-build**: vanilla JS, sin bundler, solo compat SDK por CDN
 - **GraphQL-inspired**: código indexable con graphify para análisis de dependencias
@@ -183,7 +183,7 @@ Ver [CLAUDE.md](./CLAUDE.md) para documentación completa de módulos.
 
 1. Crea módulo en `tsc-src/js/mifeature.js`
 2. Carga en `tsc-src/index.html` en orden de dependencias
-3. Usa `db.js` para CRUD (compatible con Firestore/IndexedDB)
+3. Usa `db.js` para CRUD (`dbGetAll`, `dbWriteBatch`, …)
 4. Render en una `<div id="mi-feature">` en index.html
 5. Actualiza grafo: `cd tsc-src && graphify update .`
 

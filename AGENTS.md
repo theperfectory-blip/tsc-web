@@ -23,10 +23,11 @@ Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
     `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60`.
 - **Capa de datos (`js/db.js`):** API única `dbGetAll / dbGet / dbAdd /
   dbAddMany / dbPut / dbDelete / dbDeleteMany / dbSubscribe / getForSeason`.
-  - `USE_FIRESTORE` (lo define `firebase-config.js`) elige el backend. Si el
-    SDK de Firebase no carga, queda en `false` y la app cae a **IndexedDB**
-    local (`TSC_v4`). Esa rama está bajo revisión (D6 / H-23 del plan de
-    debugging).
+  - Solo Firestore. Si el SDK de Firebase no carga, `USE_FIRESTORE`
+    (lo define `firebase-config.js`) queda en `false`, `initDB` lanza (code
+    `offline`) y el splash muestra «Sin conexión» con «Reintentar». La rama
+    IndexedDB local se quitó (D6, MS-7.2): mostraba datos sembrados
+    inventados sin aviso.
   - **Espejo en memoria:** la primera lectura de una colección abre un
     `onSnapshot` y las siguientes salen de memoria. Cae a lectura directa si
     el listener falla, no hay confirmación del servidor en 10 s o el

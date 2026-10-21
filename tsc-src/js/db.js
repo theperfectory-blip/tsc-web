@@ -1,18 +1,21 @@
 'use strict';
 /* ============================================================
-   CAPA DE DATOS — IndexedDB (local) o Firestore (nube)
+   CAPA DE DATOS — Firestore
    ------------------------------------------------------------
-   El backend se elige según USE_FIRESTORE (definido en
-   firebase-config.js). Las 6 funciones (dbGetAll/dbGet/dbAdd/
-   dbPut/dbDelete + getForSeason) tienen FIRMAS IDÉNTICAS en
-   ambos backends, así que el resto de la app no cambia.
+   API única para el resto de la app: dbGetAll/dbGet/dbAdd/
+   dbAddMany/dbPut/dbDelete/dbDeleteMany/dbWriteBatch/dbSubscribe
+   + getForSeason.
 
-   IDs: en Firestore se preservan los enteros autoincrementales
-   (mismo contrato que IndexedDB) usando un documento contador
-   por colección en _counters/{store}.
+   IDs: enteros autoincrementales, con un documento contador por
+   colección en _counters/{store}.
+
+   Sin SDK de Firebase (USE_FIRESTORE en false) no hay base: initDB
+   lanza (code 'offline') y el arranque muestra «Sin conexión». Antes
+   caía a un IndexedDB local que sembraba datos inventados con aspecto
+   de reales y sin aviso (H-23, decisión D6).
    ============================================================ */
 
-/* `db` ya está declarado en state.js (IDBDatabase local | Firestore nube) */
+/* `db` ya está declarado en state.js (instancia de Firestore) */
 
 function _isFS(){ return typeof USE_FIRESTORE !== 'undefined' && USE_FIRESTORE; }
 
@@ -171,7 +174,6 @@ function _archOfSeason(store, r, number){
    mostrando la temporada completa desde el archivo; se puede reintentar. */
 async function dbPurgeArchivedSeason(number, check){
   _assertWritable('dbPurgeArchivedSeason', 'archive');
-  if(!_isFS()) throw new Error('Solo con Firestore');
   number = Number(number);
   if(check.changed.length || check.extra.length) throw new Error('El archivo no coincide con Firestore: regenera el archivo antes de borrar');
   const rows = check.same;
@@ -212,31 +214,21 @@ function _archGuard(op, store, rec, id){
 }
 
 function initDB(){
-  if (_isFS()) {
-    db = firebase.firestore();
-    console.log('[db] backend: Firestore (nube) ·', FIREBASE_CONFIG.projectId);
-    // Abre YA, en paralelo, los espejos de las colecciones que lee cualquier
-    // visita pública (panel/palmarés/equipos/calendario). Sin esto el arranque
-    // las pedía una tras otra: un viaje completo al servidor por cada una.
-    if (_fsMirrorEnabled()) {
-      ['seasons','settings','teams','competitions','phases','matches','palmares','palmares-comps']
-        .forEach(store => { try { _fsMirror(store); } catch(_){} });
-    }
-    return _archLoad();
+  if (!_isFS()) {
+    const err = new Error('Sin conexión con el servidor (no cargó Firebase)');
+    err.code = 'offline';
+    return Promise.reject(err);
   }
-  // ---------- IndexedDB (local) ----------
-  return new Promise((res,rej)=>{
-    const req = indexedDB.open(DB_NAME, DB_VER);
-    req.onerror = ()=>rej(req.error);
-    req.onsuccess = ()=>{ db=req.result; _archLoad().then(res); };
-    req.onupgradeneeded = (e)=>{
-      const idb = e.target.result;
-      STORES.forEach(s=>{
-        if(!idb.objectStoreNames.contains(s))
-          idb.createObjectStore(s,{keyPath:'id',autoIncrement:true});
-      });
-    };
-  });
+  db = firebase.firestore();
+  console.log('[db] backend: Firestore (nube) ·', FIREBASE_CONFIG.projectId);
+  // Abre YA, en paralelo, los espejos de las colecciones que lee cualquier
+  // visita pública (panel/palmarés/equipos/calendario). Sin esto el arranque
+  // las pedía una tras otra: un viaje completo al servidor por cada una.
+  if (_fsMirrorEnabled()) {
+    ['seasons','settings','teams','competitions','phases','matches','palmares','palmares-comps']
+      .forEach(store => { try { _fsMirror(store); } catch(_){} });
+  }
+  return _archLoad();
 }
 
 /* Asigna el siguiente id entero de forma atómica (emula autoIncrement) */
@@ -250,11 +242,9 @@ function _fsNextId(store){
   });
 }
 
-/* Mantiene el contador Firestore por encima de IDs restaurados explícitamente.
-   IndexedDB ajusta su key generator automáticamente al hacer put(id). */
+/* Mantiene el contador Firestore por encima de IDs restaurados explícitamente. */
 function dbEnsureCounterAtLeast(store, value){
   _assertWritable('dbEnsureCounterAtLeast', store);
-  if (!_isFS()) return Promise.resolve();
   const target = Number(value);
   if (!Number.isSafeInteger(target) || target < 1) return Promise.resolve();
   const ref = db.collection('_counters').doc(store);
@@ -266,7 +256,7 @@ function dbEnsureCounterAtLeast(store, value){
 }
 
 /* ------------------------------------------------------------
-   ESPEJO EN MEMORIA (solo Firestore)
+   ESPEJO EN MEMORIA
    ------------------------------------------------------------
    Antes, CADA dbGetAll() era un viaje de ida y vuelta al servidor
    (Firestore está en Santiago): recorrer las páginas públicas hacía
@@ -407,30 +397,18 @@ function _fsGetAllDirect(store, filter, m){
   });
 }
 
-/* Solo Firestore (o IndexedDB), sin las temporadas archivadas: para export,
-   import y todo lo que necesita lo que vive en la base. */
+/* Solo Firestore, sin las temporadas archivadas: para export, import y todo
+   lo que necesita lo que vive en la base. */
 function dbGetAllLive(store, filter){
-  if (_isFS()) {
-    if (!_fsMirrorEnabled()) return _fsGetAllDirect(store, filter);
-    const m = _fsMirror(store);
-    // Si la primera espera venció, igual se mira el espejo: puede haber
-    // llegado el snapshot del servidor después del timeout.
-    return m.ready.then(() => _fsMirrorFresh(m), () => _fsMirrorFresh(m)).then(snap => {
-      if (!snap) return _fsGetAllDirect(store, filter, m);
-      let result = snap.docs.map(d=>d.data());
-      if(filter) result = result.filter(filter);
-      return result;
-    });
-  }
-  return new Promise((res,rej)=>{
-    const tx  = db.transaction(store,'readonly');
-    const req = tx.objectStore(store).getAll();
-    req.onsuccess = ()=>{
-      let result = req.result;
-      if(filter) result = result.filter(filter);
-      res(result);
-    };
-    req.onerror = ()=>rej(req.error);
+  if (!_fsMirrorEnabled()) return _fsGetAllDirect(store, filter);
+  const m = _fsMirror(store);
+  // Si la primera espera venció, igual se mira el espejo: puede haber
+  // llegado el snapshot del servidor después del timeout.
+  return m.ready.then(() => _fsMirrorFresh(m), () => _fsMirrorFresh(m)).then(snap => {
+    if (!snap) return _fsGetAllDirect(store, filter, m);
+    let result = snap.docs.map(d=>d.data());
+    if(filter) result = result.filter(filter);
+    return result;
   });
 }
 
@@ -447,42 +425,26 @@ function dbGet(store, id){
     const r = _ARCH.rows[store].find(x=>String(x.id)===String(id));
     return Promise.resolve(r ? { ...r } : undefined);
   }
-  if (_isFS()) {
-    // Solo usa el espejo si la colección ya está espejada y fresca: un get
-    // suelto no justifica suscribirse a la colección entera.
-    const snap = _fsMirrorEnabled() ? _fsMirrorFresh(_FS_MIRROR.get(store)) : null;
-    if (snap) {
-      const m = _FS_MIRROR.get(store);
-      m.lastUse = Date.now();
-      if (!m.byId) m.byId = new Map(snap.docs.map(d => [d.id, d]));
-      const doc = m.byId.get(String(id));
-      return Promise.resolve(doc ? doc.data() : undefined);
-    }
-    return db.collection(store).doc(String(id)).get()
-      .then(snap => snap.exists ? snap.data() : undefined);
+  // Solo usa el espejo si la colección ya está espejada y fresca: un get
+  // suelto no justifica suscribirse a la colección entera.
+  const snap = _fsMirrorEnabled() ? _fsMirrorFresh(_FS_MIRROR.get(store)) : null;
+  if (snap) {
+    const m = _FS_MIRROR.get(store);
+    m.lastUse = Date.now();
+    if (!m.byId) m.byId = new Map(snap.docs.map(d => [d.id, d]));
+    const doc = m.byId.get(String(id));
+    return Promise.resolve(doc ? doc.data() : undefined);
   }
-  return new Promise((res,rej)=>{
-    const tx  = db.transaction(store,'readonly');
-    const req = tx.objectStore(store).get(id);
-    req.onsuccess = ()=>res(req.result);
-    req.onerror = ()=>rej(req.error);
-  });
+  return db.collection(store).doc(String(id)).get()
+    .then(snap => snap.exists ? snap.data() : undefined);
 }
 
 async function dbAdd(store, data){
   _assertWritable('dbAdd', store);
   _archGuard('dbAdd', store, data);
-  if (_isFS()) {
-    const id = await _fsNextId(store);
-    await db.collection(store).doc(String(id)).set({ ...data, id });
-    return id;
-  }
-  return new Promise((res,rej)=>{
-    const tx  = db.transaction(store,'readwrite');
-    const req = tx.objectStore(store).add({...data});
-    req.onsuccess = ()=>res(req.result);
-    req.onerror = ()=>rej(req.error);
-  });
+  const id = await _fsNextId(store);
+  await db.collection(store).doc(String(id)).set({ ...data, id });
+  return id;
 }
 
 /* Reserva n IDs consecutivos en UNA sola transacción (bloque para dbAddMany) */
@@ -497,38 +459,23 @@ function _fsReserveIds(store, n){
 }
 
 /* Inserta N registros de una vez. Misma semántica que dbAdd, pero en lote:
-   - Firestore: 1 transacción reserva el bloque de IDs + writeBatch (límite 500 ops).
-   - IndexedDB: una sola transacción readwrite.
+   1 transacción reserva el bloque de IDs + writeBatch (límite 500 ops).
    Devuelve los IDs asignados en el mismo orden que `items`. */
 async function dbAddMany(store, items){
   _assertWritable('dbAddMany', store);
   if(!Array.isArray(items) || !items.length) return [];
   items.forEach(it=>_archGuard('dbAddMany', store, it));
-  if (_isFS()) {
-    const ids = await _fsReserveIds(store, items.length);
-    for(let i=0;i<items.length;i+=450){
-      const chunk = items.slice(i, i+450);
-      const batch = db.batch();
-      chunk.forEach((data,j)=>{
-        const id = ids[i+j];
-        batch.set(db.collection(store).doc(String(id)), {...data, id});
-      });
-      await batch.commit();
-    }
-    return ids;
-  }
-  return new Promise((res,rej)=>{
-    const tx  = db.transaction(store,'readwrite');
-    const os  = tx.objectStore(store);
-    const ids = [];
-    items.forEach(data=>{
-      const req = os.add({...data});
-      req.onsuccess = ()=>ids.push(req.result);
+  const ids = await _fsReserveIds(store, items.length);
+  for(let i=0;i<items.length;i+=450){
+    const chunk = items.slice(i, i+450);
+    const batch = db.batch();
+    chunk.forEach((data,j)=>{
+      const id = ids[i+j];
+      batch.set(db.collection(store).doc(String(id)), {...data, id});
     });
-    tx.oncomplete = ()=>res(ids);
-    tx.onerror    = ()=>rej(tx.error);
-    tx.onabort    = ()=>rej(new Error('Transaction aborted'));
-  });
+    await batch.commit();
+  }
+  return ids;
 }
 
 /* Borra N registros de una vez (mismo criterio de lote que dbAddMany). */
@@ -536,22 +483,11 @@ async function dbDeleteMany(store, ids){
   _assertWritable('dbDeleteMany', store);
   if(!Array.isArray(ids) || !ids.length) return;
   ids.forEach(id=>_archGuard('dbDeleteMany', store, null, id));
-  if (_isFS()) {
-    for(let i=0;i<ids.length;i+=450){
-      const batch = db.batch();
-      ids.slice(i, i+450).forEach(id=>batch.delete(db.collection(store).doc(String(id))));
-      await batch.commit();
-    }
-    return;
+  for(let i=0;i<ids.length;i+=450){
+    const batch = db.batch();
+    ids.slice(i, i+450).forEach(id=>batch.delete(db.collection(store).doc(String(id))));
+    await batch.commit();
   }
-  return new Promise((res,rej)=>{
-    const tx = db.transaction(store,'readwrite');
-    const os = tx.objectStore(store);
-    ids.forEach(id=>os.delete(id));
-    tx.oncomplete = ()=>res();
-    tx.onerror    = ()=>rej(tx.error);
-    tx.onabort    = ()=>rej(new Error('Transaction aborted'));
-  });
 }
 
 /* Varias escrituras, de una o más colecciones, como UNA operación atómica:
@@ -560,12 +496,11 @@ async function dbDeleteMany(store, ids){
    ops: { type:'set', store, data }   (data.id obligatorio; reemplaza el doc)
         { type:'add', store, data }   (id nuevo; se devuelve en orden)
         { type:'delete', store, id }
-   Firestore: los ids de las altas se reservan antes (una transacción por
-   colección; si el lote falla, esos números quedan sin usar, como con
-   dbAddMany) y todo va en un solo writeBatch, que admite hasta 500
-   operaciones: un lote más grande se rechaza en vez de partirlo, porque
-   partido ya no sería atómico.
-   IndexedDB: una sola transacción sobre todas las colecciones. */
+   Los ids de las altas se reservan antes (una transacción por colección;
+   si el lote falla, esos números quedan sin usar, como con dbAddMany) y
+   todo va en un solo writeBatch, que admite hasta 500 operaciones: un lote
+   más grande se rechaza en vez de partirlo, porque partido ya no sería
+   atómico. */
 const DB_BATCH_MAX = 500;
 
 /* Reserva n ids nuevos de `store` sin escribir nada, para armar un lote con
@@ -573,126 +508,81 @@ const DB_BATCH_MAX = 500;
    matchHistory de un partido nuevo apunta a su id: MS-5.7). */
 async function dbNewIds(store, n){
   if(!(n > 0)) return [];
-  if (_isFS()) return _fsReserveIds(store, n);
-  const rows = await dbGetAll(store);
-  const max = rows.reduce((mx,r)=>Math.max(mx, Number(r.id)||0), 0);
-  return Array.from({length:n}, (_,i)=>max+1+i);
+  return _fsReserveIds(store, n);
 }
 async function dbWriteBatch(ops){
   if(!Array.isArray(ops) || !ops.length) return [];
   ops.forEach(o => _assertWritable('dbWriteBatch', o.store));
   ops.forEach(o => _archGuard('dbWriteBatch', o.store, o.type==='delete' ? null : o.data, o.type==='delete' ? o.id : null));
-  if (_isFS()) {
-    if(ops.length > DB_BATCH_MAX) throw new Error(`Lote de ${ops.length} escrituras: el máximo atómico es ${DB_BATCH_MAX}`);
-    const addsByStore = {};
-    ops.forEach(o => { if(o.type==='add') addsByStore[o.store] = (addsByStore[o.store]||0) + 1; });
-    const reserved = {};
-    for(const [store, n] of Object.entries(addsByStore)) reserved[store] = await _fsReserveIds(store, n);
-    const batch = db.batch();
-    const newIds = [];
-    for(const o of ops){
-      if(o.type==='delete'){ batch.delete(db.collection(o.store).doc(String(o.id))); continue; }
-      let id;
-      if(o.type==='add') { id = reserved[o.store].shift(); newIds.push(id); }
-      else if(o.type==='set') {
-        id = o.data?.id;
-        if(id == null) throw new Error(`dbWriteBatch: set en ${o.store} sin id`);
-      } else throw new Error(`dbWriteBatch: tipo desconocido ${o.type}`);
-      batch.set(db.collection(o.store).doc(String(id)), { ...o.data, id });
-    }
-    await batch.commit();
-    return newIds;
+  if(ops.length > DB_BATCH_MAX) throw new Error(`Lote de ${ops.length} escrituras: el máximo atómico es ${DB_BATCH_MAX}`);
+  const addsByStore = {};
+  ops.forEach(o => { if(o.type==='add') addsByStore[o.store] = (addsByStore[o.store]||0) + 1; });
+  const reserved = {};
+  for(const [store, n] of Object.entries(addsByStore)) reserved[store] = await _fsReserveIds(store, n);
+  const batch = db.batch();
+  const newIds = [];
+  for(const o of ops){
+    if(o.type==='delete'){ batch.delete(db.collection(o.store).doc(String(o.id))); continue; }
+    let id;
+    if(o.type==='add') { id = reserved[o.store].shift(); newIds.push(id); }
+    else if(o.type==='set') {
+      id = o.data?.id;
+      if(id == null) throw new Error(`dbWriteBatch: set en ${o.store} sin id`);
+    } else throw new Error(`dbWriteBatch: tipo desconocido ${o.type}`);
+    batch.set(db.collection(o.store).doc(String(id)), { ...o.data, id });
   }
-  const stores = [...new Set(ops.map(o=>o.store))];
-  return new Promise((res,rej)=>{
-    const tx = db.transaction(stores,'readwrite');
-    const newIds = [];
-    ops.forEach(o=>{
-      const os = tx.objectStore(o.store);
-      if(o.type==='delete') os.delete(o.id);
-      else if(o.type==='set') os.put({...o.data});
-      else if(o.type==='add'){
-        const slot = newIds.length; newIds.push(null);
-        const { id, ...rest } = o.data || {};
-        const req = os.add(rest);
-        req.onsuccess = ()=>{ newIds[slot] = req.result; };
-      }
-    });
-    tx.oncomplete = ()=>res(newIds);
-    tx.onerror    = ()=>rej(tx.error);
-    tx.onabort    = ()=>rej(tx.error || new Error('Transaction aborted'));
-  });
+  await batch.commit();
+  return newIds;
 }
 
 async function dbPut(store, data){
   _assertWritable('dbPut', store);
   _archGuard('dbPut', store, data);
-  if (_isFS()) {
-    let id = data.id;
-    if (id == null) id = await _fsNextId(store); // por si llaman put sin id
-    await db.collection(store).doc(String(id)).set({ ...data, id });
-    return id;
-  }
-  return new Promise((res,rej)=>{
-    const tx  = db.transaction(store,'readwrite');
-    const req = tx.objectStore(store).put({...data});
-    req.onsuccess = ()=>res(req.result);
-    req.onerror = ()=>rej(req.error);
-  });
+  let id = data.id;
+  if (id == null) id = await _fsNextId(store); // por si llaman put sin id
+  await db.collection(store).doc(String(id)).set({ ...data, id });
+  return id;
 }
 
 function dbDelete(store, id){
   _assertWritable('dbDelete', store);
   _archGuard('dbDelete', store, null, id);
-  if (_isFS()) {
-    return db.collection(store).doc(String(id)).delete();
-  }
-  return new Promise((res,rej)=>{
-    const tx = db.transaction(store,'readwrite');
-    tx.objectStore(store).delete(id);
-    tx.oncomplete = ()=>res();
-    tx.onerror    = ()=>rej(tx.error);
-    tx.onabort    = ()=>rej(new Error('Transaction aborted'));
-  });
+  return db.collection(store).doc(String(id)).delete();
 }
 
 /* Suscripción en tiempo real (Fase 6A).
-   En Firestore usa onSnapshot → llama cb(result) ante cada cambio.
-   En IndexedDB no hay reactividad → no-op. SIEMPRE devuelve una
-   función para cancelar la suscripción (unsubscribe). */
+   Usa onSnapshot → llama cb(result) ante cada cambio. SIEMPRE devuelve
+   una función para cancelar la suscripción (unsubscribe). */
 function dbSubscribe(store, filter, cb){
-  if (_isFS()) {
-    // Dedupe por snapshot: si el canal "Listen" está bloqueado/inestable (p.ej.
-    // un bloqueador de contenido devolviendo net::ERR_BLOCKED_BY_CLIENT), el SDK
-    // reintenta la conexión en segundo plano y cada reintento puede entregar un
-    // snapshot desde caché AUNQUE los datos no cambiaron — sin este chequeo, cada
-    // reintento dispara un re-render completo (reinicia animaciones de conteo,
-    // remonta el chibi del Sorteo) sin que el usuario haya hecho nada ni haya un
-    // cambio real. Comparar el JSON contra el snapshot anterior evita eso: solo
-    // se llama a `cb` cuando el contenido realmente difiere.
-    let prevJSON = null;
-    const deliver = snap => {
-      let result = _archMergeRows(store, snap.docs.map(d=>d.data()));
-      if(filter) result = result.filter(filter);
-      const json = JSON.stringify(result);
-      if(json === prevJSON) return;
-      prevJSON = json;
-      cb(result);
-    };
-    if (!_fsMirrorEnabled()) {
-      return db.collection(store).onSnapshot(deliver,
-        err => console.warn('[db] onSnapshot '+store+':', err.code||err.message));
-    }
-    // Comparte el listener del espejo: antes abría uno propio y la colección
-    // se leía entera DOS veces por visita (teams, palmares, settings,
-    // sorteo…; MS-2.5). Si el espejo ya tiene datos, entrega el estado
-    // actual como primer snapshot, igual que un onSnapshot nuevo.
-    const m = _fsMirror(store);
-    m.subs.add(deliver);
-    if (m.snap) Promise.resolve().then(() => { if (m.subs.has(deliver)) deliver(m.snap); });
-    return () => { m.subs.delete(deliver); m.lastUse = Date.now(); };
+  // Dedupe por snapshot: si el canal "Listen" está bloqueado/inestable (p.ej.
+  // un bloqueador de contenido devolviendo net::ERR_BLOCKED_BY_CLIENT), el SDK
+  // reintenta la conexión en segundo plano y cada reintento puede entregar un
+  // snapshot desde caché AUNQUE los datos no cambiaron — sin este chequeo, cada
+  // reintento dispara un re-render completo (reinicia animaciones de conteo,
+  // remonta el chibi del Sorteo) sin que el usuario haya hecho nada ni haya un
+  // cambio real. Comparar el JSON contra el snapshot anterior evita eso: solo
+  // se llama a `cb` cuando el contenido realmente difiere.
+  let prevJSON = null;
+  const deliver = snap => {
+    let result = _archMergeRows(store, snap.docs.map(d=>d.data()));
+    if(filter) result = result.filter(filter);
+    const json = JSON.stringify(result);
+    if(json === prevJSON) return;
+    prevJSON = json;
+    cb(result);
+  };
+  if (!_fsMirrorEnabled()) {
+    return db.collection(store).onSnapshot(deliver,
+      err => console.warn('[db] onSnapshot '+store+':', err.code||err.message));
   }
-  return ()=>{}; // IndexedDB local: sin tiempo real
+  // Comparte el listener del espejo: antes abría uno propio y la colección
+  // se leía entera DOS veces por visita (teams, palmares, settings,
+  // sorteo…; MS-2.5). Si el espejo ya tiene datos, entrega el estado
+  // actual como primer snapshot, igual que un onSnapshot nuevo.
+  const m = _fsMirror(store);
+  m.subs.add(deliver);
+  if (m.snap) Promise.resolve().then(() => { if (m.subs.has(deliver)) deliver(m.snap); });
+  return () => { m.subs.delete(deliver); m.lastUse = Date.now(); };
 }
 
 /* Helpers con filtro por temporada */
@@ -712,7 +602,7 @@ function dbErrorMsg(err){
   if(code==='archived') return 'Temporada archivada: es de solo lectura (sus datos viven en un archivo fijo).';
   if(code==='permission-denied' || /PERMISSION_DENIED/.test(err?.message||''))
     return 'Sin permiso: solo un administrador puede hacer esto.';
-  if(code==='unavailable') return 'Sin conexión con el servidor. Inténtalo de nuevo.';
+  if(code==='unavailable' || code==='offline') return 'Sin conexión con el servidor. Inténtalo de nuevo.';
   const msg = String(err?.message || err || 'Error desconocido');
   return msg.length > 160 ? msg.slice(0,160)+'…' : msg;
 }

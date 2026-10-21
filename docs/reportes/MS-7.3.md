@@ -32,7 +32,9 @@ Unas 460 líneas (4.692 → 4.230):
 
 - Las 7 hojas siguen balanceadas (llaves) y sin `@media` vacíos; `smoke-parity` → PARIDAD: OK; `audit-wiring` → 0 rotos (reporte restaurado); `csp.mjs --check` OK; `build-web` (7 CSS → 1) y `build-www` sin error.
 - Sandbox, `dist`, panel del navegador oculto: recorrido anónimo por las 6 páginas públicas y, con sesión admin, 14 páginas admin. En cada página se consultaron los 47 selectores borrados (más `[class*='cal-pub-']` y `[class*='cal-tl']`): **cero elementos** coinciden en todo el recorrido. Cero errores no capturados; en consola solo el 400 del arranque sin sesión que ya existía.
-- No verificado en pantalla (el panel estaba oculto, sin capturas): la apariencia visual lado a lado antes y después. El análisis es de referencias, así que no debería haber cambios.
+- Apariencia (segunda pasada, Opus, sandbox `tsc-src`), con las hojas de antes de 7.3 servidas aparte:
+  - **Estilos calculados:** en la misma página se toman unas 50 propiedades de cada elemento y de sus `::before`/`::after`, se cambian las hojas por las de antes y se vuelve a medir. Resultado idéntico en las 6 páginas públicas (escritorio y 375 px, tema oscuro y claro), en las 14 páginas admin y con los modales del generador de fechas, de editar fecha y de editar resultado abiertos. Las únicas diferencias fueron animaciones en curso (ticker, chibi) y el menú lateral en plena transición, que desaparecen al repetir. Control: una regla agregada a propósito sí se detecta.
+  - **Capturas** con Chrome headless (6 páginas públicas en 1280 px y 3 en 375 px, antes y después): iguales salvo el orden de las tarjetas de Equipos, que se baraja en cada carga, y el ticker y el brillo animado.
 
 ## Pendientes / hallazgos nuevos
 
