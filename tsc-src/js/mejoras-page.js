@@ -265,31 +265,42 @@ function isKeeperSlot(slot){ return PLAYER_BY_ID[slot.id]?.primaryPos === 'GK'; 
 /* porcentaje de ancho donde termina cada cuadro — para pintar el degradado */
 function pitchZoneStopPct(zone){ return zone.to/PITCH_COLS*100; }
 
-/* Formacion titular 4-1-2-3 compacto (contexto_copa_subs1.md).
-   Los 11 salen de los TITULAR de plantilla_fk_tupa_dre.md. */
-const DEFAULT_FORMATION = [
-  {id:'michelo',    x:3,  y:24},
-  {id:'huevitorey', x:10, y:40},
-  {id:'cannavaro',  x:9,  y:29},
-  {id:'bmoore',     x:9,  y:19},
-  {id:'kanyewest',  x:10, y:8},
-  {id:'goodman',    x:17, y:24},
-  {id:'didi',       x:25, y:31},
-  {id:'stojkovic',  x:25, y:17},
-  {id:'dsanchez',   x:37, y:39},
-  {id:'voller',     x:41, y:24},
-  {id:'kewell',     x:37, y:9},
+/* Formacion titular 4-1-2-3 compacto (contexto_copa_subs1.md): solo las
+   11 coordenadas del dibujo. La primera es la del arquero.
+   Los jugadores salen del plantel REAL publicado (ids 'r'+registro, ver
+   js/pes5-plantilla.js): antes esta lista traia ids fijos de la demo de
+   FK Tupadre ('michelo', 'kewell'...) y con cualquier plantilla publicada
+   el modal se rompia (PLAYER_BY_ID[id] undefined). */
+const FORMATION_COORDS = [
+  {x:3,  y:24},
+  {x:10, y:40}, {x:9,  y:29}, {x:9,  y:19}, {x:10, y:8},
+  {x:17, y:24},
+  {x:25, y:31}, {x:25, y:17},
+  {x:37, y:39}, {x:41, y:24}, {x:37, y:9},
 ];
 const FORMATION_NAME = '4-1-2-3 compacto';
-const FORMATION_KEY = 'tsc_ep_formation';
-function loadFormation(){
-  try{
-    const saved = JSON.parse(localStorage.getItem(FORMATION_KEY)||'null');
-    if(Array.isArray(saved) && saved.length===DEFAULT_FORMATION.length) return saved;
-  }catch(e){}
-  return JSON.parse(JSON.stringify(DEFAULT_FORMATION));
+function _formationKey(){ return 'tsc_ep_formation_' + (EQUIPO_TSC?.id ?? AUTH?.teamId ?? 'x'); }
+
+/* Los 11 titulares del archivo (slot 0-10, la seccion "Titulares" de la
+   lista; si faltan se completa con los siguientes por slot). El arquero,
+   si hay uno, va a la coordenada del arquero. */
+function formacionPorDefecto(){
+  const orden = [...PLAYERS].sort((a,b) => (a.slot ?? 999) - (b.slot ?? 999)).slice(0, FORMATION_COORDS.length);
+  const gk = orden.findIndex(p => p.primaryPos === 'GK');
+  if (gk > 0) orden.unshift(orden.splice(gk, 1)[0]);
+  return orden.map((p, i) => ({ id: p.id, x: FORMATION_COORDS[i].x, y: FORMATION_COORDS[i].y }));
 }
-let FORMATION = loadFormation();
+/* La guardada solo vale si sus 11 ids siguen existiendo en el plantel
+   actual (Luis pudo republicar o cambiar el club vinculado). */
+function formacionVigente(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(_formationKey())||'null');
+    if (Array.isArray(saved) && saved.length === FORMATION_COORDS.length
+        && saved.every(s => s && PLAYER_BY_ID[s.id]) && new Set(saved.map(s => s.id)).size === saved.length) return saved;
+  }catch(e){}
+  return formacionPorDefecto();
+}
+let FORMATION = null; // se arma al abrir el modal, cuando ya hay plantel
 
 /* ================= reglas de mejora (editables por el admin) =================
    Slice D.R: los NUMEROS y la logica de costo se movieron a
@@ -1015,6 +1026,11 @@ function clearAuditLog(){
 const FORM = { draft:null, sel:0 };
 
 function openFormationModal(){
+  if (PLAYERS.length < FORMATION_COORDS.length){
+    showMiniToast('El plantel todavia no tiene 11 jugadores para armar la formacion.');
+    return;
+  }
+  FORMATION = formacionVigente();
   FORM.draft = JSON.parse(JSON.stringify(FORMATION));
   FORM.sel = 0;
   const wrap = document.getElementById('ep-pitch-wrap');
@@ -1032,7 +1048,7 @@ function openFormationModal(){
       <div class="ep-modal-body">
         <div class="ep-pitch-crest">
           <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
-          FK Tupadre &middot; ${FORMATION_NAME}
+          ${_esc(EQUIPO_TSC?.name || 'Tu equipo')} &middot; ${FORMATION_NAME}
         </div>
         <div class="ep-pitch-field" id="ep-pitch-field" style="background:${gradient};">
           <div class="ep-pitch-halfline"></div>
@@ -1115,13 +1131,13 @@ function moveFormationDot(dx,dy){
   renderFormationModal();
 }
 function resetFormationDraft(){
-  FORM.draft = JSON.parse(JSON.stringify(DEFAULT_FORMATION));
+  FORM.draft = formacionPorDefecto();
   renderFormationModal();
   showMiniToast('Formacion restablecida a 4-1-2-3 compacto.');
 }
 function confirmFormation(){
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
-  try{ localStorage.setItem(FORMATION_KEY, JSON.stringify(FORMATION)); }catch(e){}
+  try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
   closeFormationModal();
   showMiniToast('Formacion confirmada y guardada.');
 }
