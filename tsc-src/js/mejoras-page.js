@@ -7,8 +7,21 @@ function jsq(s){ return String(s).replace(/'/g,"\\'"); }
 /* ================= auth (Firebase) — reusa js/auth.js del proyecto ================= */
 /* auth.js necesita estos globales minimos: STATE.mode, openModal/closeModal (toggle
    .open, via components.css) y showToast (acá alias del mini-toast propio del prototipo). */
-function openModal(id){ document.getElementById(id)?.classList.add('open'); }
-function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
+function openModal(id){ document.getElementById(id)?.classList.add('open'); _syncScrollLock(); }
+function closeModal(id){ document.getElementById(id)?.classList.remove('open'); _syncScrollLock(); }
+
+/* Mientras haya un modal abierto (confirmar, historial, formacion, login) la pagina de atras
+   no debe scrollear: pone/saca html.ep-lock (ver "Scroll aislado" en mejoras.html). Los tres
+   modales propios se montan/desmontan cambiando el innerHTML de su contenedor, asi que se
+   observan esos contenedores; el de login pasa por openModal/closeModal. */
+function _syncScrollLock(){
+  const abierto = !!document.querySelector('.ep-overlay, .modal-overlay.open');
+  document.documentElement.classList.toggle('ep-lock', abierto);
+}
+['ep-confirm-wrap', 'ep-audit-wrap', 'ep-pitch-wrap'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) new MutationObserver(_syncScrollLock).observe(el, { childList: true });
+});
 function showToast(msg){ showMiniToast(msg); }
 
 /* Sobreescribe el renderAuthUI() generico de auth.js (pensado para la topbar

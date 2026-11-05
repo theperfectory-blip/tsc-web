@@ -328,6 +328,18 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   .ep-modal-body::-webkit-scrollbar{display:none;}
   .ep-modal-close{min-width:44px;min-height:44px;font-size:26px;}
 }
+/* ================= Scroll aislado (movil / APK) =================
+   1) Con un modal abierto la pagina de atras no scrollea (clase ep-lock, la pone
+      _syncScrollLock en js/mejoras-page.js).
+   2) Las cajas con scroll propio no pasan el sobrante a la pagina ni disparan el
+      gesto de volver / recargar del navegador (overscroll-behavior).
+   3) En movil la lista de atributos no es una caja con scroll adentro de otra
+      pagina que tambien scrollea: queda un solo scroll. */
+html.ep-lock,html.ep-lock body{overflow:hidden;}
+.ep-overlay,.ep-modal-body,.ep-rows,.ep-roster-list{overscroll-behavior:contain;}
+@media(max-width:860px){
+  .ep-rows{max-height:none;overflow-y:visible;mask-image:none;-webkit-mask-image:none;}
+}
 /* ================= Slice Q2 — modo admin embebido (iframe de la Tool PES5) ================= */
 body.admin-embed .ep-roster{display:none;}
 body.admin-embed .ep-app{grid-template-columns:1fr;}
