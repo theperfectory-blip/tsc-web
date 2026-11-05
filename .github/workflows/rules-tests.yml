@@ -1,0 +1,55 @@
+name: Tests de reglas (Firestore y Storage)
+
+# Corre los tests de reglas contra los emuladores (rules-teams.js y
+# rules-suite.js de Firestore, rules-storage.js de Storage) en cada PR o
+# push a main que toque las reglas o sus tests (slice 3.4, H-07). Hoy no despliega: las reglas se
+# publican a mano con `firebase deploy --only firestore:rules,storage` hasta
+# que la service account del CI tenga el rol "Firebase Rules Admin" (M-6).
+# Cuando lo tenga, el deploy va como job aparte con `needs: rules`.
+on:
+  pull_request:
+    paths:
+      - 'firebase/**'
+      - 'functions/test/**'
+      - 'functions/lib/**'
+      - 'firebase.json'
+      - '.github/workflows/rules-tests.yml'
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - 'firebase/**'
+      - 'functions/test/**'
+      - 'functions/lib/**'
+      - 'firebase.json'
+      - '.github/workflows/rules-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm install -g firebase-tools@15.19.0
+      # Los tests de reglas no usan dependencias de functions/ (API REST del emulador).
+      - run: npm run test:rules
+        working-directory: functions
+      - run: npm run test:rules:storage
+        working-directory: functions
+      # Functions (usa firebase-admin: hace falta instalar las dependencias).
+      - run: npm ci --no-audit --no-fund
+        working-directory: functions
+      - run: npm run test:cleanup
+        working-directory: functions
+      # La CSP de firebase.json tiene que coincidir con scripts/csp.mjs (3.5).
+      - run: node scripts/csp.mjs --check

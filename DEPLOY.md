@@ -117,9 +117,17 @@ Las reglas definen:
 ## Paso 7: Deploy
 
 ```bash
-# Verifica que index.html está en tsc-src
 firebase deploy --project=tu-proyecto-id
 ```
+
+Hosting publica `dist/`, no `tsc-src/` directamente. `dist/` lo genera
+`scripts/build-web.mjs` (corre solo como `predeploy` antes de cada deploy, y
+también como paso explícito en el workflow de GitHub Actions): copia
+`tsc-src/` y junta los 36 `<script>` y 7 hojas de estilo de `index.html` en
+unos pocos archivos con hash en `dist/bundles/`, servidos con caché
+`immutable`. Para generarlo a mano: `node scripts/build-web.mjs`. `dist/`
+está en `.gitignore`; el código se sigue editando en `tsc-src/` y en local
+se sigue corriendo con `npx serve tsc-src`.
 
 Resultado:
 - URL: `https://tu-proyecto.web.app`

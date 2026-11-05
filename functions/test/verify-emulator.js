@@ -309,7 +309,69 @@ async function run() {
   assert.strictEqual(r8c.length, 0, 'pushEnabled=false sigue excluyendo, sea admin o presidente');
   console.log('  ✓ pushEnabled=false sigue excluyendo también para un admin-presidente');
 
-  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-8) ===');
+  // ---- Escenario 9 (MS-6.1): la task de continuación solo la invoca Cloud
+  // Tasks y valida su payload; un token mal formado se limpia igual que uno
+  // dado de baja. ----
+  assert.deepStrictEqual(notifyStartupContinuation.__endpoint.taskQueueTrigger.invoker, ['private'],
+    'notifyStartupContinuation debe desplegarse privada (sin allUsers como invoker)');
+  console.log('[9] ✓ notifyStartupContinuation declara invoker private');
+
+  const callsBefore9 = sendCalls;
+  for (const data of [{ season: SEASON, date: '2026-07-15T00:00' }, { season: SEASON, date: 'hoy' }, { season: 'x', date: DATE }]) {
+    const r9 = await notifyStartupContinuation.run({ data });
+    assert.strictEqual(r9, undefined, 'payload inválido debe cortarse antes de leer partidos: ' + JSON.stringify(data));
+  }
+  assert.strictEqual(sendCalls, callsBefore9, 'un payload inválido no debe enviar nada');
+  console.log('  ✓ payload con fecha o temporada inválida se descarta sin enviar');
+
+  await db.collection('users').doc('presMalformed').set({
+    role: 'president', teamId: 777, pushEnabled: true, fcmTokens: ['malformedTok', 'okTok777'], timezone: 'America/Lima',
+  });
+  const sendBefore9 = messaging.sendEachForMulticast;
+  messaging.sendEachForMulticast = async (message) => {
+    if (!message.tokens.includes('malformedTok')) return sendBefore9(message);
+    sendCalls++;
+    const responses = message.tokens.map(t => t === 'malformedTok'
+      ? { success: false, error: { code: 'messaging/invalid-registration-token' } }
+      : { success: true, messageId: 'mock-' + t });
+    return { responses, successCount: 1, failureCount: 1 };
+  };
+  const r9c = await notifyRecipients(db, messaging, {
+    type: 'today',
+    recipients: [{ uid: 'presMalformed', teamId: 777, tokens: ['malformedTok', 'okTok777'], timezone: 'America/Lima' }],
+    dedupKeyFor: () => 'today_9999_2099-01-02_777',
+    buildMessage: () => ({ title: 'x', body: 'y', data: {} }),
+  });
+  messaging.sendEachForMulticast = sendBefore9;
+  assert.strictEqual(r9c.invalidTokensRemoved, 1, 'el token mal formado debe contarse como limpiado');
+  const presMalformed = (await db.collection('users').doc('presMalformed').get()).data();
+  assert.deepStrictEqual(presMalformed.fcmTokens, ['okTok777'], 'invalid-registration-token debe salir de fcmTokens y el token sano quedar');
+  console.log('  ✓ messaging/invalid-registration-token limpia el token (el sano queda)');
+
+  // ---- Escenario 10 (MS-5.8): los partidos ya jugados no cuentan en el orden del día ----
+  const D2 = '2026-07-20';
+  await db.collection('matches').doc('302').set({ id: 302, season: SEASON, teamA: 1, teamB: 2, scheduledDate: D2, scheduledTime: '14:00', live: false, goalsA: null, goalsB: null });
+  await db.collection('matches').doc('301').set({ id: 301, season: SEASON, teamA: 5, teamB: 6, scheduledDate: D2, scheduledTime: '12:00', live: false, goalsA: 2, goalsB: 1 }); // ya jugado
+  await db.collection('matches').doc('303').set({ id: 303, season: SEASON, teamA: 3, teamB: 4, scheduledDate: D2, scheduledTime: '16:00', live: false, goalsA: 1, goalsB: 0 }); // ya jugado, entre medio
+  await db.collection('matches').doc('304').set({ id: 304, season: SEASON, teamA: 5, teamB: 7, scheduledDate: D2, scheduledTime: '18:00', live: false, goalsA: null, goalsB: null });
+  const r10 = await notifyStreamToday.run({ data: { date: D2, season: SEASON }, auth: { uid: 'admin-uid' } });
+  console.log('[10] notifyStreamToday con partidos jugados:', r10);
+  assert.strictEqual(r10.matchesToday, 2, 'solo cuentan los partidos por jugar (302 y 304)');
+  assert.strictEqual(r10.totalCandidates, 3, 'candidatos: pres1, pres2 (302) y pres5 (304); pres3 y pres4 ya jugaron');
+  const match302 = (await db.collection('matches').doc('302').get()).data();
+  await onMatchWentLive.run({
+    data: {
+      before: { data: () => ({ ...match302, live: false }) },
+      after: { data: () => ({ ...match302, live: true, goalsA: 0, goalsB: 0 }) },
+    },
+    params: { matchId: '302' },
+  });
+  const runs10 = (await db.collection('notificationRuns').where('type', '==', 'continuation').get()).docs.map(d => d.id);
+  assert.ok(runs10.includes('continuation_304_5'), 'el siguiente es el 304: el 303 ya se jugo y se salta');
+  assert.ok(!runs10.some(k => k.startsWith('continuation_303_')), 'no se avisa de un partido ya jugado');
+  console.log('  ok: los partidos ya jugados no reciben juega hoy ni a continuacion; el siguiente salta al proximo por jugar');
+
+  console.log('\n=== TODOS LOS ESCENARIOS DEL GATE PASARON (1-10) ===');
 }
 
 run().then(() => process.exit(0)).catch(e => { console.error('FALLÓ:', e); process.exit(1); });

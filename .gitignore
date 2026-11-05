@@ -29,10 +29,10 @@ ui-debug.log*
 .env.*
 !.env.example
 
-# ─── Configuración local (cada desarrollador usa su Firebase proyecto) ───
-tsc-src/js/firebase-config.js
-tsc-src/js/cloudinary.js
-# Ver DEPLOY.md para instrucciones de configuración
+# ─── Config de cliente ───
+# tsc-src/js/firebase-config.js y cloudinary.js SÍ se versionan a propósito:
+# son config pública (ver SECURITY.md). Un fork parte de los .example.js.
+# Versión anterior de este archivo: docs/backups/gitignore-antes-de-MS-1.4.txt
 
 # ─── App nativa Android (Capacitor) — el proyecto SÍ se versiona, solo
 #     sus artefactos de build quedan afuera (ver android/.gitignore) ───
@@ -77,3 +77,15 @@ tsc-src/prototipo_yunas/pes5/snapshots/*.bin
 # ─── PES5: copia de prueba del save para probar PES5_SAVE.escribir() /
 #     escribirJugadorCompleto() sin tocar nunca el save real del juego ───
 tsc-src/prototipo_yunas/pes5/test-save-copy/
+
+# ─── Originales de alta resolución (fuente de scripts/optimize-trophies.mjs) ───
+assets-src/
+
+# ─── Build de Hosting (scripts/build-web.mjs, se regenera en cada deploy) ───
+dist/
+
+# Credenciales locales del emulador (opcional; si no existe se usa el .example)
+scripts/emu-credentials.json
+
+# Copia del sandbox con datos reales (scripts/emu-snapshot.mjs): nunca a git
+sandbox/

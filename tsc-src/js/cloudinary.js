@@ -25,6 +25,12 @@ function cloudReady(){
 /* Sube un File/Blob a Cloudinary y devuelve la secure_url (https). */
 async function uploadImageToCloud(file){
   if(!cloudReady()) throw new Error('Cloudinary no está configurado (revisa js/cloudinary.js).');
+  // Sandbox (MS-2.1): no se sube nada a la cuenta real. Se devuelve una URL
+  // con la forma que exigen las reglas (validTeamLogo); la imagen no existe.
+  if(window.__TSC_EMULATOR__){
+    console.warn('[cloudinary] modo emulador: subida simulada, no sale nada a Cloudinary');
+    return `https://res.cloudinary.com/${CLOUDINARY_CONFIG.cloudName}/image/upload/emu-sandbox/${Date.now()}.png`;
+  }
   const fd = new FormData();
   fd.append('file', file);
   fd.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);

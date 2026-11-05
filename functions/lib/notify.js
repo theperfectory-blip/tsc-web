@@ -70,6 +70,15 @@ function formatKickoffForRecipient(dateStr, timeStr, recipientTz) {
   }
 }
 
+/* Códigos de FCM que significan "este token no sirve más" (app desinstalada,
+   token rotado o mal formado). Solo estos limpian fcmTokens: un error
+   transitorio (internal-error, server-unavailable…) no debe borrar un token
+   que mañana funciona. */
+const DEAD_TOKEN_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+]);
+
 function tokenHint(token) {
   if (!token) return 'none';
   const s = String(token);
@@ -133,7 +142,7 @@ async function loadTeamNames(db, teamIds) {
      previene; documentado en el reporte de cierre.
    - Envío: multicast de Admin SDK por destinatario (puede tener >1 token:
      celu + tablet).
-   - Limpieza: token con messaging/registration-token-not-registered se saca
+   - Limpieza: token con un código de DEAD_TOKEN_CODES se saca
      del array fcmTokens del usuario (arrayRemove) — mismo array que escribe
      tsc-src/js/push.js, nunca se toca ese archivo.
    - Auditoría: un doc en notificationEvents por token individual enviado. */
@@ -196,7 +205,7 @@ async function notifyRecipients(db, messaging, { type, recipients, dedupKeyFor, 
       });
       if (res.success) {
         anySuccess = true;
-      } else if (res.error && res.error.code === 'messaging/registration-token-not-registered') {
+      } else if (res.error && DEAD_TOKEN_CODES.has(res.error.code)) {
         batch.update(db.collection('users').doc(r.uid), { fcmTokens: FieldValue.arrayRemove(token) });
         invalidTokensRemoved++;
       }

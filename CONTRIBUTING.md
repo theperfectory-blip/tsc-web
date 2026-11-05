@@ -7,14 +7,14 @@
 1. **Fork** el repo en GitHub
 2. **Clone** tu fork: `git clone https://github.com/TU_USER/tsc-web.git`
 3. **Crea rama** para tu feature: `git checkout -b feature/tu-feature`
-4. **Instala dependencias**: `cd tsc-src && npm install -g serve`
-5. **Corre localmente**: `serve .` y abre http://localhost:3000
+4. **Corre localmente**: `npx serve tsc-src` y abre http://localhost:3000 (usa la base real:
+   para probar escrituras, el sandbox de emuladores de [AGENTS.md](./AGENTS.md#correr-localmente))
 
 ## Flujo de trabajo
 
 ### 1. Entiende la arquitectura
 
-Lee [CLAUDE.md](./CLAUDE.md) para entender:
+Lee [AGENTS.md](./AGENTS.md) para entender:
 - Estructura modular (state.js → db.js → otros)
 - Convenciones de naming
 - Flujo de datos global (STATE)
@@ -30,7 +30,7 @@ Lee [CLAUDE.md](./CLAUDE.md) para entender:
 ### 3. Actualiza documentación
 
 Si cambias:
-- **Estructura de archivo**: actualiza CLAUDE.md code map
+- **Estructura de archivo**: actualiza el mapa de código de AGENTS.md
 - **Dependencias**: actualiza el diagrama de dependencias
 - **Features**: documenta en el módulo correspondiente
 
@@ -38,6 +38,7 @@ Luego ejecuta:
 ```bash
 cd tsc-src
 graphify update .
+python ../scripts/graphify-label.py
 ```
 
 Esto actualiza `tsc-src/graphify-out/GRAPH_REPORT.md` (AST-only, sin costo).
@@ -109,6 +110,17 @@ function _renderCompList() {
 // 5. Inicialización (último, si la hay)
 ```
 
+### Seguridad en el HTML
+
+- Todo dato que puede escribir un no admin (nombre y logo de equipo, nombre y foto de
+  usuario) pasa por `escHtml` / `escAttr` / `safeImgUrl` de `js/sanitize.js` antes de ir a
+  `innerHTML`.
+- Handlers como `data-onclick="fn(1,'a',this)"` (también `data-onchange`, `data-oninput`…),
+  nunca `onclick=`, y nada de `<script>` inline: la CSP no tiene `'unsafe-inline'`.
+  `js/events.js` solo ejecuta llamadas a funciones globales de la app; lo demás va en una
+  función nombrada.
+- Sin emojis en la UI: íconos SVG inline estilo Lucide.
+
 ### HTML/CSS
 
 - **IDs**: kebab-case (`id="pub-panel"`)
@@ -121,7 +133,7 @@ function _renderCompList() {
 // Prefiere async/await
 async function saveTeam(team) {
   try {
-    const result = await db.put('teams', team);
+    const result = await dbPut('teams', team);
     return result;
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
@@ -131,13 +143,14 @@ async function saveTeam(team) {
 
 ## Testing
 
-**No hay test suite automatizada.** Prueba manualmente:
+No hay test suite del frontend. Antes de abrir un PR:
 
-- **Desktop**: http://localhost:3000
-- **Móvil**: DevTools → device emulation (375px), o dispositivo físico
-- **Dark mode**: ⚙ Configuración → tema
-- **Firestore**: si accedes datos, crea cuenta de prueba en Firebase console
-- **Admin vs público**: crear usuarios con diferentes roles
+- **Sandbox de emuladores** para todo lo que escribe (pasos en AGENTS.md): variante `dist` y
+  `tsc-src`, como anónimo, presidente y admin, con cero errores en consola.
+- **Chequeos sin navegador**: `node scripts/smoke-parity.mjs`, `node scripts/audit-wiring.mjs`,
+  `node scripts/csp.mjs --check`.
+- **Reglas** (si las tocas): `cd functions && npm run test:rules`.
+- **Móvil** (375 px) y **tema claro y oscuro**.
 
 ## Branches
 
@@ -171,20 +184,23 @@ regla o una function y no la desplegaste, el código en `main` puede fallar en p
 ### ¿Cómo uso Firestore desde mi feature?
 
 ```javascript
-// Leer
-const teams = await db.getAll('teams');
-const team = await db.get('teams', teamId);
+// Leer (sale del espejo en memoria tras la primera lectura)
+const teams = await dbGetAll('teams');
+const team  = await dbGet('teams', teamId);
+const comps = await getForSeason('competitions');
 
 // Escribir
-await db.put('teams', { id: 5, name: 'Mi Equipo' });
-await db.delete('teams', teamId);
+await dbPut('teams', { ...team, name: 'Mi Equipo' });
+await dbDelete('teams', teamId);
 
-// En tiempo real (Firestore only)
-if (dbSubscribe) {
-  db.subscribe('matches', { phaseId: 1 }, (matches) => {
-    console.log('Matches actualizado:', matches);
-  });
-}
+// Varias escrituras que deben ir juntas: un solo lote atómico (máx. 500)
+await dbWriteBatch([
+  { type: 'set', store: 'matches', data: match },
+  { type: 'delete', store: 'matchHistory', id: histId },
+]);
+
+// En tiempo real: devuelve la función para cancelar
+const unsub = dbSubscribe('matches', m => m.phaseId === 1, matches => render(matches));
 ```
 
 ### ¿Cómo creo un modal?
@@ -195,7 +211,7 @@ function openMiModal() {
     <div class="modal-content">
       <h2>Mi Modal</h2>
       <input id="tf-nombre" type="text" placeholder="Nombre">
-      <button onclick="saveMiModal()">Guardar</button>
+      <button data-onclick="saveMiModal()">Guardar</button>  <!-- nunca onclick= -->
     </div>
   `;
   openModal('mi-modal', html);

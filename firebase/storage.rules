@@ -8,10 +8,12 @@ service firebase.storage {
       allow write: if false;
     }
 
-    // Logos de equipos: lectura pública, escritura solo autenticados
+    // Logos de equipos: ya no se usan (las subidas van a Cloudinary,
+    // js/cloudinary.js). Antes cualquier cuenta registrada podía subir
+    // archivos de cualquier tipo y tamaño (H-04, slice 3.3).
     match /logos/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if false;
     }
 
     // Todo lo demás: denegado

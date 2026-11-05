@@ -17,6 +17,19 @@ generado, nunca se edita a mano ni se commitea.
 npm install
 ```
 
+## Regenerar ícono y splash
+
+Las fuentes están en `assets/` (`icon-only.png`, `icon-foreground.png`,
+`icon-background.png`, `splash.png`, `splash-dark.png`). Se generan con
+`@capacitor/assets`, que **ya no es dependencia del proyecto** (arrastraba
+vulnerabilidades de `sharp` y `tar` sin parche). Cuando haga falta:
+
+```bash
+npx @capacitor/assets generate --android
+```
+
+Revisar el diff de `android/app/src/main/res/` antes de commitear.
+
 ## Ciclo de desarrollo (debug)
 
 Cada vez que cambie algo en `tsc-src/` (JS/CSS/HTML/assets):
@@ -148,6 +161,45 @@ reglas sin motivo:
   del proyecto — ver `DEPLOY.md`; estos SÍ están commiteados intencionalmente
   porque son públicos por diseño, no tocar sin verificar `DEPLOY.md` primero)
 
+## Subir de versión (`versionCode` / `versionName`)
+
+La fuente de verdad es `defaultConfig` en `android/app/build.gradle` (hoy
+`versionCode 20` / `versionName "1.7.0"`; el último release publicado es
+la 1.6.3, `versionCode 19`).
+
+| Campo | Regla |
+|---|---|
+| `versionCode` | Entero. **+1 por cada release publicado**, sin saltos hacia atrás ni reutilizar. Android rechaza instalar un code menor o igual encima (`INSTALL_FAILED_VERSION_DOWNGRADE`) y el actualizador de la app compara **solo** este número |
+| `versionName` | `X.Y.Z`, solo para mostrar. No se compara como texto |
+
+Pasos, en este orden:
+
+1. Editar `versionCode` y `versionName` en `android/app/build.gradle` y
+   **commitear el bump** antes de buildear, con el mensaje
+   `chore(android): sube a versionCode N / versionName X.Y.Z`. Nunca se
+   buildea con un bump sin commitear (ver el checklist de abajo).
+2. `npm ci` si cambió `package.json` o `package-lock.json`; después
+   `npm run build:www && npx cap sync android`.
+3. `cd android && ./gradlew :app:assembleRelease` con `keystore.properties`
+   presente (sin ese archivo el APK sale **sin firmar**).
+4. Verificar sobre el binario, no sobre el fuente:
+   - `aapt2 dump badging app-release.apk | head -1` → `versionCode` y
+     `versionName` esperados.
+   - `apksigner verify --print-certs app-release.apk` → el SHA-256 de la
+     sección «Verificar la firma».
+5. Publicar el release (sección siguiente) con el mismo `versionCode` en
+   `update.json`.
+6. Comprobar que `update.json` responde `200` y que su `versionCode`
+   coincide con el del APK publicado.
+
+Si se publica un release sin tocar `tsc-src/` (por ejemplo, solo por una
+actualización de Capacitor o del runtime nativo), el bump es el mismo.
+
+**Windows.** Gradle falla con `Unable to establish loopback connection` si
+`TMP`/`TEMP` apuntan a una ruta con `~` (nombre corto 8.3). Alcanza con
+`TMP=C:\Temp` y `TEMP=C:\Temp` en esa sesión. Gradle también necesita un JDK
+17 o superior en `JAVA_HOME` (el `jbr/` de Android Studio sirve).
+
 ## Checklist antes de un release de prueba
 
 - [ ] `applicationId`/`namespace` = `web.teamsubscup.app` (`android/app/build.gradle`)
@@ -221,6 +273,11 @@ avisaba. Con el auto-actualizador la falla pasa a ocurrir **en silencio,
 dentro del instalador del sistema y para todos a la vez** — nadie sabe por qué
 "no anda actualizar".
 
+### Hash del APK en la nota del release
+
+Calcular `sha256sum TEAM-SUBS-CUP-vX.Y.Z-release.apk` y pegarlo en la nota del
+release de GitHub (ahí lo busca `SECURITY.md`; ya no hay `RELEASE_NOTES.md` en el repo).
+
 ### 2. Publicar `update.json` junto al APK
 
 Mismo release, nombre fijo:
@@ -283,7 +340,7 @@ cd android
 cd ..
 
 adb uninstall web.teamsubscup.app
-adb install releases/android/v1.0.0/TEAM-SUBS-CUP-v1.0.0-release.apk
+adb install android/app/build/outputs/apk/release/app-release.apk
 adb shell monkey -p web.teamsubscup.app -c android.intent.category.LAUNCHER 1
 ```
 

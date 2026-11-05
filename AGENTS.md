@@ -1,152 +1,233 @@
-## Proyecto TSC Web — Copa Suscriptores Admin
+# TSC Web · Copa Suscriptores
 
-Aplicación web de gestión de torneos de fútbol (TSC · Copa Suscriptores).
-Código fuente modular en `tsc-src/` (dividido desde `TSC_Admin_v1_91.html`, 6537 líneas monolíticas).
-Base de datos: **IndexedDB** en el navegador (sin backend).
-Para correr localmente: `cd tsc-src && npx serve .` → abrir `http://localhost:3000`
+Web y APK de gestión del torneo de fútbol TSC (Copa Suscriptores): vista
+pública (palmarés, competiciones, bracket, calendario, sorteo, historial) y
+panel admin. Vanilla JS sin framework ni bundler en desarrollo.
 
----
-
-## Code Map — tsc-src/
-
-```
-tsc-src/
-├── index.html                  # Shell HTML: topbar, sidebar, nav público, páginas, modales globales
-│
-├── css/
-│   ├── variables.css           # Custom properties: colores, temas dark/light, tipografía
-│   ├── layout.css              # Topbar, sidebar, nav público, main content (grid layout)
-│   └── components.css          # Botones, badges, forms, tablas, modales, grids, animaciones
-│
-└── js/                         # Carga en orden de dependencias (ver index.html)
-    │
-    ├── state.js                # GLOBALS: STATE{season,mode}, DB_NAME, DB_VER, STORES, db
-    │
-    ├── db.js                   # IndexedDB CRUD
-    │   └── initDB, dbGetAll, dbGet, dbAdd, dbPut, dbDelete, getForSeason, getSeasonName
-    │
-    ├── ui-utils.js             # UI helpers + arranque de la app
-    │   ├── openModal, closeModal, showConfirm, closeConfirm, runConfirm, showToast
-    │   ├── setTheme, openSettings, saveSettings
-    │   └── seedInitialData     # Datos iniciales + window.onload → initDB, setTheme, loadSeasons, setMode
-    │
-    ├── nav.js                  # Navegación modo público/admin
-    │   ├── setMode, goPublicPage, goAdminPage
-    │   ├── renderPublicPage, renderAdminPage
-    │   ├── renderPubPanel, renderPubHistory, renderAdmDashboard
-    │   └── loadSeasons, onSeasonChange
-    │
-    ├── color-picker.js         # Selector de color tipo rueda hexagonal
-    │   └── openColorPicker, PALETTE, COLOR_WHEEL
-    │
-    ├── competitions.js         # CRUD de competiciones
-    │   ├── renderAdmComps, renderCompsGrid
-    │   ├── openCompModal, closeCompModal, saveComp, deleteComp
-    │   └── COMP_TYPES, PHASE_TYPES
-    │
-    ├── phases.js               # Gestión de fases por competición
-    │   ├── openFasesForComp, renderAdmFases, onFaseCompChange, renderPhasesList
-    │   ├── togglePhasePublish
-    │   ├── openPhaseModal, closePhaseModal, savePhase, deletePhase
-    │   └── renderPubComps      # Vista pública de competiciones
-    │
-    ├── standings.js            # Clasificaciones de grupos
-    │   ├── getCriteria, saveCriteria, calcGroupStandings, isMathConfirmed, renderGroupTable
-    │   ├── openCriteriaModal, closeCriteriaModal, saveCriteriaAndRefresh (drag & drop criteria)
-    │   └── openGroupAssignModal, renderAssignTeamsList, addToGroup, removeFromGroup, saveGroupAssign
-    │
-    ├── matches.js              # Registro de partidos (grupos / jornadas / rondas)
-    │   ├── renderAdmMatches, onMatchPhaseChange, onMatchGroupChange, renderMatchesList
-    │   ├── navegarRonda, showMatchGroupTable, renderRondasAdmin
-    │   ├── openRondaModal, updateRondaSlot, saveRonda, deleteRonda
-    │   ├── openMatchInputModal, saveMatchResult, deleteMatch
-    │   └── openEditResultModal, saveEditResult, openAssignDateToJornada, saveJornadaDate
-    │
-    ├── bracket.js              # Render de cuadros eliminatorios (bracket visual)
-    │   ├── renderBracket, buildBracketRounds, buildBracketSlots, renderBracketHTML, scaleBracket
-    │   ├── resolveSlotRef, refLabel, refBadgeHTML, getClassifiedFromPhase
-    │   ├── openSlotRefModal, saveSlotRef, removeSlotRef
-    │   ├── openBracketMatchModal, saveBracketMatch, deleteBracketMatch
-    │   ├── getWinner, teamLogoHtml, loadBracketLogos
-    │   └── getStandingsForPhase, invalidateStandingsCache (_standingsCache)
-    │
-    ├── playoff.js              # Configuración de formato playoff / supercopa
-    │   ├── renderPlayoff
-    │   ├── openPlayoffLegModal, savePlayoffLeg, deletePlayoffLeg
-    │   ├── openPlayoffTeamAssign, buildPlayoffPools, clearPlayoffAssign, savePlayoffAssign
-    │   └── openSupercopaTeamAssign, saveSupercopaAssign, getPlayoffWinnersFromPhase
-    │
-    ├── teams.js                # CRUD de equipos + vista pública
-    │   ├── renderAdmTeams, renderTeamsTable, filterTeamsTable
-    │   ├── openTeamModal, closeTeamModal, saveTeam, deleteTeam
-    │   ├── previewLogo, removeLogo, updateColorPreview, syncColorPicker, setTeamColor
-    │   └── renderPubTeams, filterPubTeams, renderPubTeamsGrid
-    │
-    ├── coins.js                # Gestión de YuNaCoins (economía virtual)
-    │   ├── renderAdmCoins, renderCoinsTable, filterCoinsTable
-    │   ├── openCoinsModal, saveCoinsTransaction, openCoinsHistory
-    │   └── openBulkCoinsModal, setBulkMode, saveBulkCoins
-    │
-    ├── seasons.js              # Gestión de temporadas
-    │   ├── renderAdmSeasons, openSeasonModal, saveSeasonModal
-    │   ├── switchToSeason, confirmFinalizeSeason, finalizeSeason
-    │   └── confirmDeleteSeason, deleteSeason, confirmReactivateSeason, reactivateSeason
-    │
-    ├── data.js                 # Export / Import de la base de datos
-    │   ├── renderAdmData, renderDBInfo
-    │   ├── exportFullDB, exportSeason, downloadJSON
-    │   └── importDB
-    │
-    └── public.js               # Vistas públicas (panel, competiciones, equipos, historial)
-        ├── renderPubPanel, pubShowMatchesGroup
-        ├── pubSelectComp, pubSelectPhase
-        └── renderPubHistory
-```
-
-### Flujo de arranque
-```
-window.onload → initDB() → setTheme() → seedInitialData() → loadSeasons() → setMode('public')
-```
-
-### Dependencias entre módulos
-```
-state.js ← db.js ← todos los demás
-ui-utils.js ← nav.js ← public.js / competitions.js / phases.js / ...
-bracket.js ← standings.js (getStandingsForPhase)
-playoff.js ← bracket.js (getPlayoffWinner)
-phases.js → renderPubComps (usa bracket.js + standings.js)
-```
+Instrucciones canónicas para cualquier agente (Codex, Claude, etc.).
+`CLAUDE.md` importa este archivo y agrega solo lo específico de Claude.
 
 ---
 
-## graphify
+## Arquitectura
 
-This project has a graphify knowledge graph at `tsc-src/graphify-out/`.
+- **Backend:** Firebase, proyecto `tsc-web-yuna`.
+  - Firestore (datos), Auth (cuentas y roles), Cloud Functions en
+    `functions/` (push FCM), Storage (trofeos).
+  - Imágenes subidas por usuarios (logos): Cloudinary (`js/cloudinary.js`).
+  - Reglas en `firebase/firestore.rules` y `firebase/storage.rules`. Se
+    despliegan **a mano** (`firebase deploy --only firestore:rules,storage`);
+    el CI (`rules-tests.yml`) solo corre los tests.
+  - Functions también a mano: `firebase deploy --only functions`. En Windows,
+    si falla con «Timeout after 10000», antes en PowerShell:
+    `$env:FUNCTIONS_DISCOVERY_TIMEOUT=60`.
+- **Capa de datos (`js/db.js`):** API única `dbGetAll / dbGet / dbAdd /
+  dbAddMany / dbPut / dbDelete / dbDeleteMany / dbSubscribe / getForSeason`.
+  - Solo Firestore. Si el SDK de Firebase no carga, `USE_FIRESTORE`
+    (lo define `firebase-config.js`) queda en `false`, `initDB` lanza (code
+    `offline`) y el splash muestra «Sin conexión» con «Reintentar». La rama
+    IndexedDB local se quitó (D6, MS-7.2): mostraba datos sembrados
+    inventados sin aviso.
+  - **Espejo en memoria:** la primera lectura de una colección abre un
+    `onSnapshot` y las siguientes salen de memoria. Cae a lectura directa si
+    el listener falla, no hay confirmación del servidor en 10 s o el
+    snapshot viene de caché. Se cierra tras 3 min sin uso.
+    `dbMirrorInvalidate(...stores)` después de transacciones.
+    `dbSubscribe` comparte el listener del espejo. Sin conexión, la lectura
+    directa va al servidor y, si falla, usa la última copia del espejo o
+    lanza (nunca devuelve una caché vacía como dato).
+    `window.TSC_FS_MIRROR = false` lo apaga en caliente.
+  - IDs enteros autoincrementales vía contadores en `_counters/{store}`.
+  - **Temporadas archivadas (D8, MS-5.14–5.16):** una temporada finalizada
+    pasa a `data/temporadas/<número>.json` (`node scripts/season-archive.mjs
+    --season N`, con `--verify`). `initDB` carga el índice y los archivos;
+    `dbGetAll`/`dbGet`/`dbSubscribe` los suman a Firestore y toda escritura
+    sobre algo archivado lanza (code `archived`). `dbGetAllLive` = solo
+    Firestore (export/import). Las reglas rechazan escrituras de las
+    temporadas listadas en `archive/seasons`, que escribe «Liberar Firestore»
+    (panel de Temporadas) después de verificar y borrar.
+- **Arranque** (`ui-utils.js`, evento `load`): `initDB` → seeds y
+  migraciones (`seedInitialData`, `seedHistoryIfEmpty`,
+  `seedPalmaresIfEmpty`, `migrate*`) → restaurar temporada/página/modo
+  desde `localStorage` → `loadSeasons` → `setMode('public')`.
+- **Roles** (`users/{uid}.role`): anónimo (solo lectura), `president`
+  (edita `name`/`logo` de su propio equipo, salvo `lockEdits`), `admin`
+  (todo). El auto-registro crea `president` sin equipo.
 
-Rules:
-- **GRAPH FIRST — always:** before searching for ANY function, file, or dependency, read `tsc-src/graphify-out/GRAPH_REPORT.md`. Identify the relevant community by name and the god nodes involved. Only then use grep/Read. This applies to every task, not just architecture questions.
-- If `tsc-src/graphify-out/wiki/index.md` exists, navigate it instead of reading raw files
-- After modifying code files in this session, run `graphify update .` inside `tsc-src/` to keep the graph current (AST-only, no API cost)
+## Pipeline de build
 
-## Iconos — SVG obligatorio
+`tsc-src/` es la **única fuente**. Nunca editar `dist/` ni `www/`.
 
-- **Nunca usar emojis en la UI.** Cualquier icono nuevo debe ser SVG inline estilo Lucide: `stroke`, no `fill`, `currentColor`, `stroke-width="1.7–2.2"`, `stroke-linecap="round"`, `stroke-linejoin="round"`.
-- Esto aplica a botones, badges, labels, toasts, modales, hints — cualquier elemento visual nuevo o modificado.
+| Destino | Script | Qué hace |
+|---|---|---|
+| `dist/` → Firebase Hosting | `node scripts/build-web.mjs` | Concatena los `<script>` y CSS de `index.html` en bundles con hash (`bundles/`), en el mismo orden. Corre como predeploy y en el CI (`.github/workflows/firebase-hosting.yml`, deploy al hacer merge a `main`) |
+| `www/` → APK (Capacitor) | `node scripts/build-www.mjs` (`npm run sync:android` incluye `cap sync`) | Copia por whitelist: `index.html`, `manifest.webmanifest`, `css/`, `js/`, `assets/`, `data/` |
 
-## Seguridad — reglas estrictas (NUNCA violar)
+- Exclusión compartida en `scripts/build-exclude.mjs`: `*.md`, dotfiles,
+  `docs/`, `trophies-svg/`, `graphify-out/`, `trophies-upload/`, `_cmp/`.
+  **Nada que no se cargue en runtime vive dentro de `tsc-src/`** (los docs
+  y reportes van en `docs/`).
+- Diferencia a tener en cuenta: en `dist`, un error al cargar un archivo
+  corta el resto de **su bundle**. Verificar las dos variantes.
+- Un script nuevo se agrega como `<script>` en `tsc-src/index.html`; los
+  dos builds leen ese orden.
+- Android: `docs/android-build.md`. Las releases se publican en GitHub
+  Releases, de donde lee el actualizador (`js/updater.js`).
 
-### Archivos prohibidos en git
-- **NUNCA** tocar `tsc-src/js/firebase-config.js` ni `tsc-src/js/cloudinary.js` para commitearlos — están en `.gitignore` por diseño. Si se necesita config, editar solo los archivos `.example.js`.
-- **NUNCA** escribir credenciales, API keys, tokens o passwords inline en código. Firebase usa el objeto `firebaseConfig` importado del archivo ignorado.
-- **NUNCA** commitear archivos `*serviceAccount*.json` ni `*-firebase-adminsdk-*.json`.
+## Correr localmente
 
-### Código seguro
-- **innerHTML con datos de usuario:** siempre escapar con la función `_esc()` / `_uaEsc()` disponible en cada módulo. Solo se permite `innerHTML` con HTML generado internamente (nunca con input del usuario sin escapar).
-- **No agregar `TODO: fix security`** sin crear un issue asociado. Si se detecta una vulnerabilidad, documentarla en SECURITY.md o abrir issue — no dejarla como comentario suelto.
-- **Reglas Firestore:** no modificar lógica de roles (`isAdmin()`, `isUser()`) sin verificar que las reglas en Firestore console siguen siendo consistentes.
+Configs en `.claude/launch.json`:
+
+- `tsc-src`: `npx serve tsc-src` → `http://localhost:3000`.
+- `hosting-dist`: emulador de hosting sobre `dist/` en `:5050` (correr
+  antes `node scripts/build-web.mjs`).
+
+**localhost = producción**, salvo en el sandbox. `tsc-src` y `hosting-dist`
+pegan contra el Firestore real: toda verificación ahí sigue
+[`docs/PROTOCOLO_VERIFICACION.md`](docs/PROTOCOLO_VERIFICACION.md) (activar
+`window.__TSC_READONLY__ = true` después del `load`, sin flujos de
+escritura).
+
+**Sandbox (emuladores, MS-2.1).** Los flujos de escritura se prueban acá:
+
+1. `node scripts/emu-snapshot.mjs`: copia real en `sandbox/` (ignorado por
+   git). Lee la base de producción (solo GET) y copia el sitio con 2 de las
+   11 copas y el 20 % de las fotos de la vitrina.
+2. `tsc-emu-backend` (`node scripts/emu-start.mjs`): emuladores de
+   Firestore `:8080` y Auth `:9099`, con Java en el PATH.
+3. `node scripts/emu-seed.mjs sandbox/backup.json --clean`: carga la base y
+   crea admin y presidente de prueba (`scripts/emu-credentials.example.json`).
+4. `tsc-emu`: sirve `sandbox/site` en `:3001`. Para la variante `dist`,
+   `tsc-emu-dist` (`node scripts/emu-dist.mjs`): copia el código actual de
+   `tsc-src` a `sandbox/site`, arma `sandbox/dist` y lo sirve en el mismo
+   puerto. Una de las dos a la vez. No usar `hosting-dist` para probar
+   escrituras: abre sin `?emu=1`, contra producción.
+
+Lecturas por visita: `node scripts/emu-probe.mjs` y abrir
+`localhost:3001/probe.html` (`window.__PROBE__.report()`, MS-2.5).
+
+Paridad `tsc-src`/`dist` sin navegador: `node scripts/smoke-parity.mjs`
+(MS-2.2). Cableado: `node scripts/audit-wiring.mjs` (MS-2.3).
+
+`firebase-config.js` entra en modo emulador solo en `localhost` con
+`?emu=1` o en el puerto 3001. En ese modo Cloudinary se simula y la callable
+de Functions va a `:5001`.
+
+Sinks con datos de usuario: `node scripts/emu-xss.mjs data|users|page`
+(datos con marcador en el sandbox y `localhost:3001/xss.html`,
+`window.__XSS__.report()`, MS-3.1).
+CSP: fuente única en `scripts/csp.mjs` (header en modo enforce en
+`firebase.json`, `<meta>` que inyecta `build-www` en la APK; `script-src`
+sin `'unsafe-inline'` desde MS-7.5);
+`node scripts/csp.mjs --check` y `node scripts/emu-xss.mjs csp` (enforce en
+el sandbox, `window.__CSP__`). Drift de reglas publicadas vs repo:
+`node scripts/rules-drift.mjs` (solo lectura, sesión del CLI).
+
+Tests (emulador, desde `functions/`): `npm run test:emulator` (Functions),
+`npm run test:cleanup` (limpieza de perfiles huérfanos), `npm run test:rules`
+(`rules-teams.js` + `rules-suite.js`: todas las colecciones con los roles) y
+`npm run test:rules:storage`. El CI (`rules-tests.yml`) corre estos tres
+últimos.
+
+## Mapa de código — `tsc-src/`
+
+```
+index.html          Shell: topbar, sidebars, páginas, modales globales y el orden de <script>
+css/                variables · layout · components · redesign · palmares · calendar · sorteo
+data/               historial-seed.json, palmares-seed.json, temporadas/ (temporadas archivadas)
+assets/             imágenes, sonidos, trofeos .glb, vendor/ (three.js, draco)
+js/
+  Núcleo
+    state.js        STATE {season, mode}, STORES, db
+    sanitize.js     escHtml, escAttr, safeImgUrl (helper único de escape)
+    events.js       Despacha los data-on* (delegación, sin eval; MS-7.5)
+    boot-splash.js  Splash de arranque (se carga con data-boot, fuera de los bundles)
+    firebase-config.js, cloudinary.js   Config pública (+ sus .example.js)
+    db.js           Capa de datos (ver Arquitectura)
+    ui-utils.js     Modales, toasts, confirm, tema, ajustes, seeds y arranque
+    nav.js          setMode, goPublicPage / goAdminPage, render por página, temporadas
+    redesign-shell.js  Topnav pública y scroll por secciones
+    motion.js, cursor-fx.js, sounds.js   Animación, estela de cursor, SFX
+  Cuentas
+    auth.js         Login, registro, recuperación, rol del usuario
+    profile.js      Perfil y panel del presidente (nombre y logo de su equipo)
+    users-admin.js  Admin: asignar rol, equipo, lockEdits
+    push.js         Push FCM (opt-in, tokens)
+    updater.js, apk-promo.js   Actualizador y promo de la APK
+  Torneo (admin + público)
+    seasons.js      Crear, cambiar, finalizar, reactivar, borrar temporadas
+    competitions.js CRUD de competiciones (COMP_TYPES, PHASE_TYPES)
+    phases.js       Fases por competición, publicar; renderPubComps
+    standings.js    Tablas de grupo, criterios de desempate, asignación a grupos
+    matches.js      Partidos por grupo / jornada / ronda y resultados
+    fixture-gen.js  Generador automático de fechas (fases de grupos)
+    bracket.js      Cuadros eliminatorios, referencias de slots, logos
+    playoff.js      Playoff ida y vuelta, supercopa
+    public-bracket.js  Render público de bracket y playoff
+    public.js       Panel público, carrusel competición/fase
+    teams.js        CRUD de equipos y vista pública
+    color-picker.js Rueda de colores de equipo
+    coins.js        YuNaCoins: individual, masivo, historial
+    data.js         Export / import de la base
+  Secciones
+    palmares.js     Sala de Trofeos 3D (three.js) + matriz admin
+    history.js      Historial, H2H, tabla histórica
+    calendar.js     Calendario, cuenta regresiva, etiquetas de día
+    sorteo.js       Sorteo en vivo (bombos, chibi, sonido)
+    live.js, livematch.js   Tiempo real y centro de partido en vivo
+```
+
+Fuera de `tsc-src/`: `functions/` (Cloud Functions: `notifyStreamToday`,
+`onMatchWentLive`, `notifyStartupContinuation`), `firebase/` (reglas e
+índices), `android/` (proyecto Capacitor), `scripts/` (builds y
+utilidades), `docs/` (protocolo, planes, reportes).
+
+## Plan de debugging (cerrado)
+
+[`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md) se cerró
+el 2026-10-20 (M0 a M7); reportes por slice en `docs/reportes/MS-<n>.<m>.md`
+y resumen final con lo que queda en `docs/reportes/MS-7.6.md` (acciones del
+dueño M-11, M-15 (APK 1.7.0) y M-13, que requiere la 1.7.0 publicada, y hallazgos bajos o de reglamento abiertos). Un trabajo
+nuevo sigue el mismo formato: un slice por sesión, verificado en el sandbox,
+con su reporte.
+
+## UI
+
+- **Sin emojis en la UI.** Íconos SVG inline estilo Lucide: `stroke`, no
+  `fill`, `currentColor`, `stroke-width` 1.7–2.2, `stroke-linecap="round"`,
+  `stroke-linejoin="round"`. Aplica a botones, badges, toasts, modales y
+  hints.
+- **Handlers:** `data-onclick="fn(…)"` (y `data-onchange`, `data-oninput`,
+  etc.), nunca `onclick=`, y nada de `<script>` inline: la CSP no tiene
+  `'unsafe-inline'`. `js/events.js` solo ejecuta llamadas a funciones
+  globales de la app con argumentos literales o `this`/`event`; lo demás va
+  en una función nombrada. `node scripts/audit-wiring.mjs` (sección 1b)
+  marca los que no cumplen.
+
+## Seguridad (ver [`SECURITY.md`](SECURITY.md))
+
+### Qué se commitea y qué no
+- `tsc-src/js/firebase-config.js` y `tsc-src/js/cloudinary.js` **sí están
+  en git, a propósito**: son config pública del cliente (la seguridad la
+  dan las reglas). No agregarles secretos de servidor.
+- **Nunca** commitear: service accounts (`*serviceAccount*.json`,
+  `*-firebase-adminsdk-*.json`), `android/app/keystore.properties`,
+  `*.jks`/`*.keystore`, `.env*`, contraseñas o tokens.
+- Nunca escribir credenciales de servidor inline en código.
+
+### Código
+- **Escape obligatorio:** todo `innerHTML` con datos que puede escribir un
+  rol no admin (`teams.name`, `teams.logo`, `users.displayName`,
+  `users.username`, `users.photoURL`) pasa por `escHtml` / `escAttr` /
+  `safeImgUrl` de `sanitize.js`. No definir copias locales: `sanitize.js` es el único escape (7.1).
+- Reglas Firestore: no tocar `isAdmin()` / roles sin tests en el emulador.
+  Allowlist de campos (`hasOnly`), nunca blocklist.
+- No dejar `TODO: fix security` sin issue: documentarlo en `SECURITY.md`
+  o en el plan de debugging.
 
 ### Checklist antes de cada commit
-- [ ] `firebase-config.js` y `cloudinary.js` NO están en el staging area
-- [ ] Ningún valor hardcodeado de credencial en los archivos modificados
-- [ ] `innerHTML` con datos externos usa `_esc()` o equivalente
+- [ ] Sin service accounts, keystores ni `.env` en el staging area
+- [ ] Ninguna credencial de servidor hardcodeada en los archivos modificados
+- [ ] `innerHTML` con datos de usuario usa el helper de `sanitize.js`
 - [ ] Sin `TODO: fix security` sueltos
+- [ ] Nada nuevo dentro de `tsc-src/` que no se cargue en runtime

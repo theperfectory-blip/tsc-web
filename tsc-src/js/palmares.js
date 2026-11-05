@@ -38,11 +38,6 @@ async function loadPalmaresComps(){
 }
 
 function palmaresCompByKey(key){ return PALMARES_COMPS.find(c => c.key === key); }
-function palmaresCompIndex(key){
-  const i = PALMARES_COMPS.findIndex(c => c.key === key);
-  return i < 0 ? PALMARES_COMPS.length : i;
-}
-
 /* Obtener estilos de trofeos disponibles (para selector) */
 function getTrophyStyles(){
   return [
@@ -533,6 +528,13 @@ async function deleteCopa(key){
     if (typeof showToast === 'function') showToast('No se pueden borrar copas predefinidas');
     return false;
   }
+  // Una copa con títulos no se borra: sus títulos quedarían apuntando a una
+  // competición que ya no existe y desaparecerían del palmarés.
+  const used = await dbGetAll('palmares', r => r.competition === key);
+  if (used.length) {
+    showToast(`La copa tiene ${used.length} título${used.length===1?'':'s'} registrado${used.length===1?'':'s'}: quítalos antes de eliminarla`, 'error');
+    return false;
+  }
   const all = await dbGetAll('palmares-comps');
   const rec = all.find(c => c.key === key);
   if (!rec) return false;
@@ -947,17 +949,20 @@ async function _palmResetBadOrderOnce(){
     const flag = await dbGetAll('settings', s => s.key === 'palmaresOrderResetV1');
     if(flag.length) return;
     const recs = await getAllPalmaresRecords();
-    let cleared = 0;
+    // Un solo lote con la marca de «ya corrió»: antes eran puts sueltos y un
+    // corte dejaba parte de los registros limpios sin la marca.
+    const ops = [];
     for(const r of recs){
       if(r.pending || r.teamId == null) continue; // no tocar el order del pendiente "¿?"
       if(typeof r.order === 'number'){
         const { order, ...rest } = r;
-        await dbPut('palmares', rest);   // setDoc reemplaza: el campo order desaparece
-        cleared++;
+        ops.push({ type:'set', store:'palmares', data:rest });   // set reemplaza: el campo order desaparece
       }
     }
-    await dbAdd('settings', { key:'palmaresOrderResetV1', value:true });
-    if(cleared) console.log(`[palmares] reset de order viejo: ${cleared} registros`);
+    ops.push({ type:'add', store:'settings', data:{ key:'palmaresOrderResetV1', value:true } });
+    if(ops.length > DB_BATCH_MAX) return;
+    await dbWriteBatch(ops);
+    if(ops.length > 1) console.log(`[palmares] reset de order viejo: ${ops.length-1} registros`);
   } catch(e){ /* si no es admin la escritura falla; se ignora */ }
 }
 
@@ -1002,9 +1007,9 @@ async function renderAdmPalmares(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="font-size:14px;color:var(--txt2);">${recs.length} título(s) registrado(s) · ${teamsWithTitles.length} club(es) campeón(es) · ${PALMARES_COMPS.length} copa(s)</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-primary" onclick="openPalmaresAddModal()">+ Agregar título</button>
-      <button class="btn btn-secondary" onclick="openNewCopaModal()">+ Nueva copa</button>
-      <button class="btn btn-sm" onclick="openManagedCopaModal()" title="Gestionar copas personalizadas"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Copas</button>
+      <button class="btn btn-primary" data-onclick="openPalmaresAddModal()">+ Agregar título</button>
+      <button class="btn btn-secondary" data-onclick="openNewCopaModal()">+ Nueva copa</button>
+      <button class="btn btn-sm" data-onclick="openManagedCopaModal()" title="Gestionar copas personalizadas"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Copas</button>
     </div>
   </div>
 
@@ -1020,10 +1025,10 @@ async function renderAdmPalmares(){
         <div class="palm-vig-item">
           <div class="palm-vig-trophy">${renderTrophy(s.comp.key, 28)}</div>
           <div class="palm-vig-text">
-            <div class="palm-vig-comp">${_esc(s.comp.label)}</div>
+            <div class="palm-vig-comp">${escHtml(s.comp.label)}</div>
             <div class="palm-vig-eff">
-              ${effPending ? `<span class="palm-vig-dot" style="background:var(--gold);"></span>¿? — Campeón por definir${effExtras?` · ${_esc(effExtras)}`:''}`
-                : effTeam ? `<span class="palm-vig-dot" style="background:${_escAttr(_palmIsHex(effTeam.color)?effTeam.color:'#888888')}"></span>${_esc(effTeam.name)}${effExtras?` · ${_esc(effExtras)}`:''}`
+              ${effPending ? `<span class="palm-vig-dot" style="background:var(--gold);"></span>¿? — Campeón por definir${effExtras?` · ${escHtml(effExtras)}`:''}`
+                : effTeam ? `<span class="palm-vig-dot" style="background:${escAttr(_palmIsHex(effTeam.color)?effTeam.color:'#888888')}"></span>${escHtml(effTeam.name)}${effExtras?` · ${escHtml(effExtras)}`:''}`
                 : '<span style="color:var(--txt3);">sin campeón</span>'}
             </div>
           </div>
@@ -1032,15 +1037,15 @@ async function renderAdmPalmares(){
             const galleryCount = _palmGallerySafeItems(r.gallery).length;
             return `
             <div class="palm-vig-pending" style="grid-column:1/-1;margin-top:8px;padding-top:8px;border-top:1px dashed var(--brd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-              <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${_esc(extras)}`:''}</span>
+              <span style="font-size:11px;color:var(--txt3);">Pendiente${extras?` · ${escHtml(extras)}`:''}</span>
               <span style="display:flex;gap:6px;">
-                <button class="btn btn-xs" onclick="openPalmaresGallery(${_escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
-                <button class="btn btn-xs btn-primary" onclick="openPalmaresEditRecord(${_escAttr(JSON.stringify(r.id))})">Definir campeón</button>
-                <button class="btn btn-xs btn-danger" onclick="deletePendingPalmaresRecord(${_escAttr(JSON.stringify(r.id))}, '${_escAttr(s.comp.key)}')">Quitar</button>
+                <button class="btn btn-xs" data-onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                <button class="btn btn-xs btn-primary" data-onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Definir campeón</button>
+                <button class="btn btn-xs btn-danger" data-onclick="deletePendingPalmaresRecord(${escAttr(JSON.stringify(r.id))}, '${escAttr(s.comp.key)}')">Quitar</button>
               </span>
             </div>`;
           }).join('')}
-          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" onclick="openPalmaresReorder('${_escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;">↕ Ordenar campeones</button>` : ''}
+          ${s.recs.length > 1 ? `<button class="btn btn-xs" title="Ordenar campeones · el #1 es el vigente" data-onclick="openPalmaresReorder('${escAttr(s.comp.key)}')" style="grid-column:1/-1;justify-self:start;margin-top:6px;"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/></svg> Ordenar campeones</button>` : ''}
         </div>`;
       }).join('')}
     </div>
@@ -1051,7 +1056,7 @@ async function renderAdmPalmares(){
       <thead>
         <tr>
           <th class="head-teams">Clubes campeones</th>
-          ${PALMARES_COMPS.map(c => `<th class="head-comp"><div class="head-comp-inner">${renderTrophy(c.key, 22)}<span>${_esc(c.label)}</span></div></th>`).join('')}
+          ${PALMARES_COMPS.map(c => `<th class="head-comp"><div class="head-comp-inner">${renderTrophy(c.key, 22)}<span>${escHtml(c.label)}</span></div></th>`).join('')}
           <th class="head-total">Total</th>
           <th class="head-actions"></th>
         </tr>
@@ -1063,18 +1068,18 @@ async function renderAdmPalmares(){
               <tr>
                 <td class="cell-team">
                   <div class="team-cell">
-                    <div class="team-logo" style="background:${_escAttr(_palmIsHex(team.color)?team.color:'#333333')};">
-                      ${team.logo ? `<img src="${_escAttr(team.logo)}" alt="">` : `<span>${_esc(team.ini || team.name.substring(0,3))}</span>`}
+                    <div class="team-logo" style="background:${escAttr(_palmIsHex(team.color)?team.color:'#333333')};">
+                      ${safeImgUrl(team.logo) ? `<img src="${safeImgUrl(team.logo)}" alt="">` : `<span>${escHtml(team.ini || team.name.substring(0,3))}</span>`}
                     </div>
-                    <span class="team-name">${_esc(team.name)}</span>
+                    <span class="team-name">${escHtml(team.name)}</span>
                   </div>
                 </td>
                 ${PALMARES_COMPS.map(c => {
                   const n = counts[c.key] || 0;
-                  return `<td class="cell-count ${n>0?'has':'zero'}" onclick="openPalmaresCellEdit(${team.id}, '${_escAttr(c.key)}')">${n>0?`<span class="big-n">${n}</span>`:''}</td>`;
+                  return `<td class="cell-count ${n>0?'has':'zero'}" data-onclick="openPalmaresCellEdit(${team.id}, '${escAttr(c.key)}')">${n>0?`<span class="big-n">${n}</span>`:''}</td>`;
                 }).join('')}
                 <td class="cell-total">${counts._total}</td>
-                <td class="cell-actions"><button class="btn btn-xs" onclick="openPalmaresAddModal(${team.id})">+ Título</button></td>
+                <td class="cell-actions"><button class="btn btn-xs" data-onclick="openPalmaresAddModal(${team.id})">+ Título</button></td>
               </tr>`).join('')}
       </tbody>
     </table>
@@ -1093,11 +1098,11 @@ async function openPalmaresReorder(compKey){
   <div class="modal-overlay open" id="palmares-reorder-modal">
     <div class="modal" style="max-width:460px;">
       <div class="modal-hdr">
-        <div class="modal-title">Ordenar · ${_esc(comp?.label || compKey)}</div>
-        <button class="modal-close" onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
+        <div class="modal-title">Ordenar · ${escHtml(comp?.label || compKey)}</div>
+        <button class="modal-close" data-onclick="closePalmaresModals(); renderAdmPalmares();">×</button>
       </div>
       <div class="modal-body">
-        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Arrastrá las tarjetas para ordenar (o flechas ↑↓ con foco en una fila). <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
+        <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Arrastrá las tarjetas para ordenar (o las flechas arriba y abajo con foco en una fila). <b style="color:var(--gold);">El #1 (arriba) es el campeón vigente</b> — el más reciente.</div>
         <div id="palm-reorder-list">${_palmReorderListHTML(list, teamById)}</div>
       </div>
     </div>
@@ -1112,12 +1117,12 @@ function _palmReorderListHTML(list, teamById){
     const extras = [r.season, r.juego, r.year].filter(Boolean).join(' · ');
     const isVig = i === 0;
     return `<div class="palm-reorder-row${isVig?' is-vigente':''}" data-id="${r.id}" tabindex="0"
-        onkeydown="_palmReorderKeydown(event,'${_escAttr(r.competition)}',${r.id})">
+        data-onkeydown="_palmReorderKeydown(event,'${escAttr(r.competition)}',${r.id})">
       <span class="palm-reorder-handle" aria-hidden="true"
-        onpointerdown="_palmReorderPointerDown(event,'${_escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
+        data-onpointerdown="_palmReorderPointerDown(event,'${escAttr(r.competition)}')">${_PALM_DRAG_HANDLE_SVG}</span>
       <span class="palm-reorder-pos">${i+1}</span>
-      <span class="palm-reorder-crest" style="background:${_escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (t?.logo ? `<img src="${_escAttr(t.logo)}" alt="">` : _esc((t?.ini || t?.name || '?').slice(0,3)))}</span>
-      <span class="palm-reorder-name">${_esc(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${_esc(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
+      <span class="palm-reorder-crest" style="background:${escAttr(_palmIsHex(t?.color)?t.color:'#333333')};">${r.pending ? '¿?' : (safeImgUrl(t?.logo) ? `<img src="${safeImgUrl(t?.logo)}" alt="">` : escHtml((t?.ini || t?.name || '?').slice(0,3)))}</span>
+      <span class="palm-reorder-name">${escHtml(r.pending ? '¿? — Campeón por definir' : (t ? t.name : '#'+r.teamId))}${extras?`<span class="palm-reorder-extra"> · ${escHtml(extras)}</span>`:''}<span class="palm-reorder-vig">VIGENTE</span></span>
     </div>`;
   }).join('');
 }
@@ -1126,12 +1131,33 @@ function _palmReorderListHTML(list, teamById){
    persiste solo los registros cuyo order cambió. Reusado por el drag&drop y
    por el fallback de teclado. */
 async function _palmPersistOrder(list){
-  for(let i=0; i<list.length; i++){
-    if(list[i].order !== i+1){
-      await dbPut('palmares', {...list[i], order: i+1});
-      list[i].order = i+1;
-    }
-  }
+  // Un solo lote: antes eran puts sueltos y un corte dejaba el orden a medias
+  // (dos campeones con la misma posición).
+  const ops = [];
+  list.forEach((r, i) => { if(r.order !== i+1) ops.push({type:'set', store:'palmares', data:{...r, order:i+1}}); });
+  if(!ops.length) return;
+  if(ops.length > DB_BATCH_MAX) throw new Error(`Son demasiados títulos para ordenar de una vez (${ops.length})`);
+  await dbWriteBatch(ops);
+  list.forEach((r, i) => { r.order = i+1; });
+}
+
+/* Los cambios de orden se encolan: dos flechas seguidas leían el mismo orden
+   y se pisaban; y un fallo del soltar-arrastrar era una promesa sin capturar.
+   Si falla, la lista se vuelve a pintar con lo que hay guardado. */
+let _palmOrderQ = Promise.resolve();
+function _palmOrderEnqueue(fn, compKey){
+  const run = _palmOrderQ.then(fn);
+  _palmOrderQ = run.catch(()=>{});
+  return run.catch(async err => {
+    console.error('[Palmarés]', err);
+    showToast('No se pudo guardar el orden: ' + dbErrorMsg(err), 'error');
+    try{
+      const recs = await getAllPalmaresRecords();
+      const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+      const cont = document.getElementById('palm-reorder-list');
+      if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+    }catch(_){}
+  });
 }
 
 /* Fallback de teclado (foco en una fila, ↑/↓): mismo swap adyacente que el
@@ -1140,16 +1166,18 @@ async function _palmReorderKeydown(e, compKey, recId){
   if(e.key!=='ArrowUp' && e.key!=='ArrowDown') return;
   e.preventDefault();
   const dir = e.key==='ArrowUp' ? -1 : 1;
-  const recs = await getAllPalmaresRecords();
-  const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
-  const idx = list.findIndex(r => r.id === recId);
-  const ni = idx + dir;
-  if(idx < 0 || ni < 0 || ni >= list.length) return;
-  [list[idx], list[ni]] = [list[ni], list[idx]];
-  await _palmPersistOrder(list);
-  const cont = document.getElementById('palm-reorder-list');
-  if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
-  cont?.querySelectorAll('.palm-reorder-row')[ni]?.focus();
+  return _palmOrderEnqueue(async () => {
+    const recs = await getAllPalmaresRecords();
+    const list = recs.filter(r => r.competition === compKey).sort(_palmCompareChrono);
+    const idx = list.findIndex(r => r.id === recId);
+    const ni = idx + dir;
+    if(idx < 0 || ni < 0 || ni >= list.length) return;
+    [list[idx], list[ni]] = [list[ni], list[idx]];
+    await _palmPersistOrder(list);
+    const cont = document.getElementById('palm-reorder-list');
+    if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+    cont?.querySelectorAll('.palm-reorder-row')[ni]?.focus();
+  }, compKey);
 }
 
 /* ---- Drag & drop (pointer events — funciona con mouse y táctil) ---- */
@@ -1232,12 +1260,14 @@ function _palmReorderPointerUp(){ _palmReorderFinish(true); }
 function _palmReorderPointerCancel(){ _palmReorderFinish(false); }
 
 async function _palmReorderCommit(compKey, orderedIds){
-  const recs = await getAllPalmaresRecords();
-  const byId = new Map(recs.filter(r=>r.competition===compKey).map(r=>[r.id, r]));
-  const list = orderedIds.map(id=>byId.get(id)).filter(Boolean);
-  await _palmPersistOrder(list);
-  const cont = document.getElementById('palm-reorder-list');
-  if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+  return _palmOrderEnqueue(async () => {
+    const recs = await getAllPalmaresRecords();
+    const byId = new Map(recs.filter(r=>r.competition===compKey).map(r=>[r.id, r]));
+    const list = orderedIds.map(id=>byId.get(id)).filter(Boolean);
+    await _palmPersistOrder(list);
+    const cont = document.getElementById('palm-reorder-list');
+    if(cont) cont.innerHTML = _palmReorderListHTML(list, window._palmReorderTeams || {});
+  }, compKey);
 }
 
 /* Modal: agregar título */
@@ -1248,17 +1278,17 @@ async function openPalmaresAddModal(presetTeamId=null){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-add-modal">
     <div class="modal" style="max-width:440px;">
-      <div class="modal-hdr"><div class="modal-title">Agregar título</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Agregar título</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group"><label>Equipo</label>
           <select id="palm-team">
             <option value="" ${presetTeamId?'':'selected'}>¿? — Campeón por definir</option>
-            ${teams.map(t => `<option value="${t.id}" ${t.id===presetTeamId?'selected':''}>${_esc(t.name)}</option>`).join('')}
+            ${teams.map(t => `<option value="${t.id}" ${t.id===presetTeamId?'selected':''}>${escHtml(t.name)}</option>`).join('')}
           </select>
           <small style="display:block;margin-top:4px;color:var(--txt3);">"¿? — Campeón por definir" deja el título pendiente: sirve para mostrar la copa en la Sala con signo de interrogación antes del último partido, y después se edita para poner el equipo real.</small>
         </div>
         <div class="form-group"><label>Competición</label>
-          <select id="palm-comp">${PALMARES_COMPS.map(c => `<option value="${_escAttr(c.key)}">${_esc(c.label)}</option>`).join('')}</select>
+          <select id="palm-comp">${PALMARES_COMPS.map(c => `<option value="${escAttr(c.key)}">${escHtml(c.label)}</option>`).join('')}</select>
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
           <div><label>Temporada</label><input type="text" id="palm-season" placeholder="T1"></div>
@@ -1270,42 +1300,48 @@ async function openPalmaresAddModal(presetTeamId=null){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePalmaresAdd()">Guardar título</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="savePalmaresAdd()">Guardar título</button>
       </div>
     </div>
   </div>`;
 }
-async function savePalmaresAdd(){
-  const teamIdRaw = document.getElementById('palm-team').value;
-  const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
-  const competition = document.getElementById('palm-comp').value;
-  const yearRaw = document.getElementById('palm-year').value.trim();
-  const seasonRaw = document.getElementById('palm-season').value.trim();
-  const juegoRaw = document.getElementById('palm-juego').value.trim();
-  const rec = { teamId, competition };
-  if (yearRaw) rec.year = parseInt(yearRaw);
-  if (seasonRaw) rec.season = seasonRaw;
-  if (juegoRaw) rec.juego = juegoRaw;
-  if (teamId == null) {
-    // Título pendiente ("¿?"): forzar un order por debajo del mínimo actual
-    // de esa copa para que quede vigente (arriba de todo) sin necesitar un
-    // reordenamiento manual — así se puede crear en caliente, minutos antes
-    // del último partido, y ya aparece en la Sala con el signo de
-    // interrogación. Un order fijo (0) no alcanza: si ya hay un pendiente
-    // anterior con order 0 (o cualquier otro registro con order <= 0), el
-    // empate lo resuelve _palmCompareChrono por año/id — no determinista
-    // entre pendientes sin año, y Firestore no garantiza orden de lectura.
-    rec.pending = true;
-    const compRecs = await dbGetAll('palmares', r => r.competition === competition);
-    const orders = compRecs.map(r => r.order).filter(o => typeof o === 'number');
-    rec.order = Math.min(1, ...orders) - 1;
-  }
-  rec.createdAt = new Date().toISOString();
-  await dbAdd('palmares', rec);
-  if (typeof showToast === 'function') showToast(teamId == null ? 'Título pendiente creado — ya aparece en la Sala con "¿?"' : 'Título registrado');
-  closePalmaresModals();
-  renderAdmPalmares();
+function savePalmaresAdd(){
+  return _palmRun(async () => {
+    const teamIdRaw = document.getElementById('palm-team').value;
+    const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
+    const competition = document.getElementById('palm-comp').value;
+    const year = _palmYear(document.getElementById('palm-year').value);
+    const season = _palmTxt(document.getElementById('palm-season').value, 20);
+    const juego = _palmTxt(document.getElementById('palm-juego').value, 30);
+    if (Number.isNaN(year)) { showToast(_PALM_YEAR_MSG, 'error'); return; }
+    if (!palmaresCompByKey(competition)) { showToast('La competición ya no existe', 'error'); return; }
+    if (teamId != null && !(await dbGet('teams', teamId))) { showToast('El equipo ya no existe', 'error'); return; }
+    if (await _palmDuplicate(teamId, competition, season, null)) { showToast(_palmDupMsg(season), 'error'); return; }
+    const rec = { teamId, competition };
+    if (year !== undefined) rec.year = year;
+    if (season) rec.season = season;
+    if (juego) rec.juego = juego;
+    if (teamId == null) {
+      // Título pendiente ("¿?"): forzar un order por debajo del mínimo actual
+      // de esa copa para que quede vigente (arriba de todo) sin necesitar un
+      // reordenamiento manual — así se puede crear en caliente, minutos antes
+      // del último partido, y ya aparece en la Sala con el signo de
+      // interrogación. Un order fijo (0) no alcanza: si ya hay un pendiente
+      // anterior con order 0 (o cualquier otro registro con order <= 0), el
+      // empate lo resuelve _palmCompareChrono por año/id — no determinista
+      // entre pendientes sin año, y Firestore no garantiza orden de lectura.
+      rec.pending = true;
+      const compRecs = await dbGetAll('palmares', r => r.competition === competition);
+      const orders = compRecs.map(r => r.order).filter(o => typeof o === 'number');
+      rec.order = Math.min(1, ...orders) - 1;
+    }
+    rec.createdAt = new Date().toISOString();
+    await dbAdd('palmares', rec);
+    showToast(teamId == null ? 'Título pendiente creado — ya aparece en la Sala con "¿?"' : 'Título registrado');
+    closePalmaresModals();
+    renderAdmPalmares();
+  }, 'No se pudo guardar el título');
 }
 
 /* Modal: editar títulos en una celda (team × competición). Cada fila
@@ -1320,7 +1356,7 @@ async function openPalmaresCellEdit(teamId, compKey){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-cell-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">${_esc(team.name)} · ${_esc(comp.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">${escHtml(team.name)} · ${escHtml(comp.label)}</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div style="margin-bottom:12px;font-size:13px;color:var(--txt3);">${recs.length} título(s) registrado(s)</div>
         <div id="palm-cell-list" style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;">
@@ -1330,16 +1366,16 @@ async function openPalmaresCellEdit(teamId, compKey){
                 const galleryCount = _palmGallerySafeItems(r.gallery).length;
                 const missing = [!r.season ? 'temporada' : '', !r.juego ? 'juego' : ''].filter(Boolean);
                 return `
-                <div class="palm-rec-row" data-id="${_escAttr(String(r.id))}">
+                <div class="palm-rec-row" data-id="${escAttr(String(r.id))}">
                   ${renderTrophy(comp.key, 22)}
                   <span class="palm-rec-meta">
-                    <span>${r.season ? `<b>${_esc(r.season)}</b>` : '<span class="palm-rec-missing">Sin temporada</span>'}${r.juego ? ` · <span>${_esc(r.juego)}</span>` : ''}${r.year ? ` · <small>${_esc(r.year)}</small>` : ''}</span>
-                    ${missing.length ? `<small class="palm-rec-warning">Registro incompleto: falta ${_esc(missing.join(' y '))}</small>` : ''}
+                    <span>${r.season ? `<b>${escHtml(r.season)}</b>` : '<span class="palm-rec-missing">Sin temporada</span>'}${r.juego ? ` · <span>${escHtml(r.juego)}</span>` : ''}${r.year ? ` · <small>${escHtml(r.year)}</small>` : ''}</span>
+                    ${missing.length ? `<small class="palm-rec-warning">Registro incompleto: falta ${escHtml(missing.join(' y '))}</small>` : ''}
                   </span>
                   <span class="palm-rec-actions">
-                    <button type="button" class="btn btn-xs" onclick="openPalmaresEditRecord(${_escAttr(JSON.stringify(r.id))})">Editar</button>
-                    <button type="button" class="btn btn-xs" onclick="openPalmaresGallery(${_escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
-                    <button type="button" class="btn btn-xs btn-danger" onclick="deletePalmaresRecord(${_escAttr(JSON.stringify(r.id))}, ${Number(teamId)}, '${_escAttr(compKey)}')">Quitar</button>
+                    <button type="button" class="btn btn-xs" data-onclick="openPalmaresEditRecord(${escAttr(JSON.stringify(r.id))})">Editar</button>
+                    <button type="button" class="btn btn-xs" data-onclick="openPalmaresGallery(${escAttr(JSON.stringify(r.id))})">Imágenes (${galleryCount})</button>
+                    <button type="button" class="btn btn-xs btn-danger" data-onclick="deletePalmaresRecord(${escAttr(JSON.stringify(r.id))}, ${Number(teamId)}, '${escAttr(compKey)}')">Quitar</button>
                   </span>
                 </div>`;
               }).join('')}
@@ -1350,42 +1386,63 @@ async function openPalmaresCellEdit(teamId, compKey){
             <div><label style="font-size:11px;color:var(--txt3);">Temporada</label><input type="text" id="palm-cell-season" placeholder="T1"></div>
             <div><label style="font-size:11px;color:var(--txt3);">Juego</label><input type="text" id="palm-cell-juego" placeholder="PES 4"></div>
             <div><label style="font-size:11px;color:var(--txt3);">Año</label><input type="number" id="palm-cell-year" placeholder="2024" min="1900" max="2100"></div>
-            <button class="btn btn-primary" onclick="addPalmaresRecord(${teamId}, '${_escAttr(compKey)}')">+ Agregar</button>
+            <button class="btn btn-primary" data-onclick="addPalmaresRecord(${teamId}, '${escAttr(compKey)}')">+ Agregar</button>
           </div>
         </div>
       </div>
-      <div class="modal-footer"><button class="btn" onclick="closePalmaresModals()">Cerrar</button></div>
+      <div class="modal-footer"><button class="btn" data-onclick="closePalmaresModals()">Cerrar</button></div>
     </div>
   </div>`;
 }
-async function addPalmaresRecord(teamId, compKey){
-  const yearRaw = document.getElementById('palm-cell-year').value.trim();
-  const seasonRaw = document.getElementById('palm-cell-season').value.trim();
-  const juegoRaw = document.getElementById('palm-cell-juego').value.trim();
-  const rec = { teamId, competition: compKey, createdAt: new Date().toISOString() };
-  if (yearRaw) rec.year = parseInt(yearRaw);
-  if (seasonRaw) rec.season = seasonRaw;
-  if (juegoRaw) rec.juego = juegoRaw;
-  await dbAdd('palmares', rec);
-  if (typeof showToast === 'function') showToast('Título agregado');
-  await openPalmaresCellEdit(teamId, compKey);
-  renderAdmPalmares();
+function addPalmaresRecord(teamId, compKey){
+  return _palmRun(async () => {
+    const year = _palmYear(document.getElementById('palm-cell-year').value);
+    const season = _palmTxt(document.getElementById('palm-cell-season').value, 20);
+    const juego = _palmTxt(document.getElementById('palm-cell-juego').value, 30);
+    if (Number.isNaN(year)) { showToast(_PALM_YEAR_MSG, 'error'); return; }
+    if (!(await dbGet('teams', teamId))) { showToast('El equipo ya no existe', 'error'); return; }
+    if (await _palmDuplicate(teamId, compKey, season, null)) { showToast(_palmDupMsg(season), 'error'); return; }
+    const rec = { teamId, competition: compKey, createdAt: new Date().toISOString() };
+    if (year !== undefined) rec.year = year;
+    if (season) rec.season = season;
+    if (juego) rec.juego = juego;
+    await dbAdd('palmares', rec);
+    showToast('Título agregado');
+    await openPalmaresCellEdit(teamId, compKey);
+    renderAdmPalmares();
+  }, 'No se pudo agregar el título');
+}
+/* Texto que dice exactamente qué se pierde al quitar un título. */
+function _palmDeleteMsg(rec, teamName){
+  const comp = palmaresCompByKey(rec.competition)?.label || rec.competition;
+  const when = [rec.season, rec.juego, rec.year].filter(Boolean).join(' · ');
+  const imgs = _palmGallerySafeItems(rec.gallery).length;
+  return `Se quita el título de ${teamName} en ${comp}${when ? ' (' + when + ')' : ''}`
+    + (imgs ? ` y su galería de ${imgs} imagen${imgs===1?'':'es'} (los archivos subidos quedan en el almacenamiento, sin título al que mostrarse)` : '')
+    + '. El campeón vigente puede cambiar.';
 }
 async function deletePalmaresRecord(recId, teamId, compKey){
-  if (!confirm('¿Quitar este título del palmarés?')) return;
-  await dbDelete('palmares', recId);
-  if (typeof showToast === 'function') showToast('Título eliminado');
-  await openPalmaresCellEdit(teamId, compKey);
-  renderAdmPalmares();
+  const rec = await dbGet('palmares', recId);
+  if (!rec) { showToast('El título ya no existe', 'error'); await openPalmaresCellEdit(teamId, compKey); return; }
+  const team = await dbGet('teams', teamId);
+  showConfirm('¿Quitar este título?', _palmDeleteMsg(rec, team?.name || '#'+teamId), () => _palmRun(async () => {
+    await dbDelete('palmares', recId);
+    showToast('Título eliminado');
+    await openPalmaresCellEdit(teamId, compKey);
+    renderAdmPalmares();
+  }, 'No se pudo quitar el título'));
 }
 
 /* Igual que deletePalmaresRecord, pero para un título pendiente ("¿?") —
    no tiene equipo, así que no hay celda (team × comp) a la que volver. */
 async function deletePendingPalmaresRecord(recId, compKey){
-  if (!confirm('¿Quitar este título pendiente?')) return;
-  await dbDelete('palmares', recId);
-  if (typeof showToast === 'function') showToast('Título pendiente eliminado');
-  renderAdmPalmares();
+  const rec = await dbGet('palmares', recId);
+  if (!rec) { showToast('El título ya no existe', 'error'); renderAdmPalmares(); return; }
+  showConfirm('¿Quitar este título pendiente?', _palmDeleteMsg(rec, '«Campeón por definir»'), () => _palmRun(async () => {
+    await dbDelete('palmares', recId);
+    showToast('Título pendiente eliminado');
+    renderAdmPalmares();
+  }, 'No se pudo quitar el título'));
 }
 
 /* Modal: editar un registro (cambiar equipo / año / temporada) */
@@ -1398,52 +1455,57 @@ async function openPalmaresEditRecord(recId){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="palmares-edit-modal">
     <div class="modal" style="max-width:440px;">
-      <div class="modal-hdr"><div class="modal-title">Editar título</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Editar título</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           ${renderTrophy(rec.competition, 32)}
-          <div style="font:600 12px/1.3 'Barlow Condensed',sans-serif;letter-spacing:1px;color:var(--txt2);text-transform:uppercase;">${_esc(palmaresCompByKey(rec.competition)?.label || rec.competition)}</div>
+          <div style="font:600 12px/1.3 'Barlow Condensed',sans-serif;letter-spacing:1px;color:var(--txt2);text-transform:uppercase;">${escHtml(palmaresCompByKey(rec.competition)?.label || rec.competition)}</div>
         </div>
         <div class="form-group"><label>Equipo</label>
           <select id="palm-edit-team">
             <option value="" ${rec.teamId==null?'selected':''}>¿? — Campeón por definir</option>
-            ${teams.map(t => `<option value="${_escAttr(String(t.id))}" ${String(t.id)===String(rec.teamId)?'selected':''}>${_esc(t.name)}</option>`).join('')}
+            ${teams.map(t => `<option value="${escAttr(String(t.id))}" ${String(t.id)===String(rec.teamId)?'selected':''}>${escHtml(t.name)}</option>`).join('')}
           </select>
           ${rec.teamId==null ? '<small style="display:block;margin-top:4px;color:var(--txt3);">Elegí el equipo real para definir el campeón — deja de ser pendiente.</small>' : ''}
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div><label>Temporada</label><input type="text" id="palm-edit-season" placeholder="T1" value="${_escAttr(rec.season||'')}"></div>
-          <div><label>Juego</label><input type="text" id="palm-edit-juego" placeholder="PES 4" value="${_escAttr(rec.juego||'')}"></div>
+          <div><label>Temporada</label><input type="text" id="palm-edit-season" placeholder="T1" value="${escAttr(rec.season||'')}"></div>
+          <div><label>Juego</label><input type="text" id="palm-edit-juego" placeholder="PES 4" value="${escAttr(rec.juego||'')}"></div>
         </div>
         <div class="form-group">
           <label>Año <span style="opacity:.5;font-weight:400;">(opcional)</span></label>
-          <input type="number" id="palm-edit-year" placeholder="2024" min="1900" max="2100" value="${_escAttr(String(rec.year||''))}">
+          <input type="number" id="palm-edit-year" placeholder="2024" min="1900" max="2100" value="${escAttr(String(rec.year||''))}">
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="savePalmaresEditRecord(${_escAttr(JSON.stringify(rec.id))})">Guardar cambios</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="savePalmaresEditRecord(${escAttr(JSON.stringify(rec.id))})">Guardar cambios</button>
       </div>
     </div>
   </div>`;
 }
-async function savePalmaresEditRecord(recId){
-  const rec = await dbGet('palmares', recId);
-  if (!rec) return;
-  const teamIdRaw = document.getElementById('palm-edit-team').value;
-  const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
-  const yearRaw = document.getElementById('palm-edit-year').value.trim();
-  const seasonRaw = document.getElementById('palm-edit-season').value.trim();
-  const juegoRaw = document.getElementById('palm-edit-juego').value.trim();
-  const next = { ...rec, teamId, pending: teamId == null };
-  if (yearRaw) next.year = parseInt(yearRaw); else delete next.year;
-  if (seasonRaw) next.season = seasonRaw; else delete next.season;
-  if (juegoRaw) next.juego = juegoRaw; else delete next.juego;
-  next.updatedAt = new Date().toISOString();
-  await dbPut('palmares', next);
-  if (typeof showToast === 'function') showToast('Título actualizado');
-  closePalmaresModals();
-  renderAdmPalmares();
+function savePalmaresEditRecord(recId){
+  return _palmRun(async () => {
+    const rec = await dbGet('palmares', recId);
+    if (!rec) { showToast('El título ya no existe', 'error'); closePalmaresModals(); renderAdmPalmares(); return; }
+    const teamIdRaw = document.getElementById('palm-edit-team').value;
+    const teamId = teamIdRaw ? parseInt(teamIdRaw) : null;
+    const year = _palmYear(document.getElementById('palm-edit-year').value);
+    const season = _palmTxt(document.getElementById('palm-edit-season').value, 20);
+    const juego = _palmTxt(document.getElementById('palm-edit-juego').value, 30);
+    if (Number.isNaN(year)) { showToast(_PALM_YEAR_MSG, 'error'); return; }
+    if (teamId != null && !(await dbGet('teams', teamId))) { showToast('El equipo ya no existe', 'error'); return; }
+    if (await _palmDuplicate(teamId, rec.competition, season, rec.id)) { showToast(_palmDupMsg(season), 'error'); return; }
+    const next = { ...rec, teamId, pending: teamId == null };
+    if (year !== undefined) next.year = year; else delete next.year;
+    if (season) next.season = season; else delete next.season;
+    if (juego) next.juego = juego; else delete next.juego;
+    next.updatedAt = new Date().toISOString();
+    await dbPut('palmares', next);
+    showToast('Título actualizado');
+    closePalmaresModals();
+    renderAdmPalmares();
+  }, 'No se pudo guardar el título');
 }
 
 const _PALM_GALLERY = {
@@ -1496,35 +1558,35 @@ function _palmGalleryHTML(){
   const itemRows = state.items.length
     ? state.items.map((item, index) => `
       <div class="palm-gallery-item" draggable="${state.saving?'false':'true'}" data-gallery-index="${index}"
-        ondragstart="palmGalleryDragStart(${index})" ondragend="palmGalleryDragEnd()" ondragover="palmGalleryDragOver(event)" ondrop="palmGalleryDrop(event,${index})">
-        <img class="palm-gallery-thumb" src="${_escAttr(_palmCloudThumb(item.url, 160))}" alt="${_escAttr(item.alt)}">
+        data-ondragstart="palmGalleryDragStart(${index})" data-ondragend="palmGalleryDragEnd()" data-ondragover="palmGalleryDragOver(event)" data-ondrop="palmGalleryDrop(event,${index})">
+        <img class="palm-gallery-thumb" src="${escAttr(_palmCloudThumb(item.url, 160))}" alt="${escAttr(item.alt)}">
         <div class="palm-gallery-item-main">
           <label for="palm-gallery-alt-${index}">Texto alternativo</label>
-          <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${_escAttr(item.alt)}"
-            oninput="palmGallerySyncAlt(${index},this.value)" ${state.saving?'disabled':''}>
+          <input id="palm-gallery-alt-${index}" type="text" maxlength="240" value="${escAttr(item.alt)}"
+            data-oninput="palmGallerySyncAlt(${index},this.value)" ${state.saving?'disabled':''}>
         </div>
         <div class="palm-gallery-order">
           <button type="button" class="palm-gallery-icon-btn" aria-label="Mover a la izquierda" title="Mover a la izquierda"
-            onclick="palmGalleryMove(${index},-1)" ${index===0||state.saving?'disabled':''}>
+            data-onclick="palmGalleryMove(${index},-1)" ${index===0||state.saving?'disabled':''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
           </button>
           <button type="button" class="palm-gallery-icon-btn" aria-label="Mover a la derecha" title="Mover a la derecha"
-            onclick="palmGalleryMove(${index},1)" ${index===count-1||state.saving?'disabled':''}>
+            data-onclick="palmGalleryMove(${index},1)" ${index===count-1||state.saving?'disabled':''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
           </button>
           <button type="button" class="palm-gallery-icon-btn palm-gallery-remove" aria-label="Quitar imagen" title="Quitar imagen"
-            onclick="palmGalleryRemove(${index})" ${state.saving?'disabled':''}>
+            data-onclick="palmGalleryRemove(${index})" ${state.saving?'disabled':''}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
           </button>
         </div>
       </div>`).join('')
     : '<div class="palm-gallery-empty">Este título todavía no tiene imágenes.</div>';
   const uploadRows = state.uploads.map(upload => `
-    <div class="palm-upload-row is-${_escAttr(upload.status)}">
-      <span class="palm-upload-name">${_esc(upload.name)}</span>
-      <span class="palm-upload-status">${_esc(_palmGalleryStatusLabel(upload.status))}${upload.error?`: ${_esc(upload.error)}`:''}</span>
+    <div class="palm-upload-row is-${escAttr(upload.status)}">
+      <span class="palm-upload-name">${escHtml(upload.name)}</span>
+      <span class="palm-upload-status">${escHtml(_palmGalleryStatusLabel(upload.status))}${upload.error?`: ${escHtml(upload.error)}`:''}</span>
       ${upload.status==='error' && upload.file
-        ? `<button type="button" class="btn btn-xs" onclick="palmGalleryRetry('${_escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
+        ? `<button type="button" class="btn btn-xs" data-onclick="palmGalleryRetry('${escAttr(upload.id)}')" ${busy||count>=_PALM_GALLERY_MAX?'disabled':''}>Reintentar</button>`
         : ''}
     </div>`).join('');
   return `
@@ -1537,14 +1599,14 @@ function _palmGalleryHTML(){
         Subir imágenes
       </label>
       <input id="palm-gallery-files" type="file" accept="image/*" multiple hidden
-        onchange="palmGalleryChoose(this.files);this.value=''" ${count>=_PALM_GALLERY_MAX||state.saving?'disabled':''}>
+        data-onchange="palmGalleryChoose(this.files);_tscSetValue(this,'')" ${count>=_PALM_GALLERY_MAX||state.saving?'disabled':''}>
     </div>
     <div class="palm-gallery-list">${itemRows}</div>
     ${uploadRows ? `<div class="palm-upload-list" aria-live="polite">${uploadRows}</div>` : ''}
     <div class="palm-gallery-note">Quitar una imagen solo elimina su URL del título. El archivo remoto no se borra.</div>
     <div class="modal-footer palm-gallery-footer">
-      <button type="button" class="btn" onclick="closePalmaresModals()" ${state.saving?'disabled':''}>Cerrar</button>
-      <button type="button" class="btn btn-primary" onclick="savePalmaresGallery()" ${busy?'disabled':''}>${state.saving?'Guardando...':'Guardar imágenes'}</button>
+      <button type="button" class="btn" data-onclick="closePalmaresModals()" ${state.saving?'disabled':''}>Cerrar</button>
+      <button type="button" class="btn btn-primary" data-onclick="savePalmaresGallery()" ${busy?'disabled':''}>${state.saving?'Guardando...':'Guardar imágenes'}</button>
     </div>`;
 }
 
@@ -1569,8 +1631,8 @@ async function openPalmaresGallery(recId){
     <div class="modal-overlay open" id="palmares-gallery-modal">
       <div class="modal palm-gallery-modal" role="dialog" aria-modal="true" aria-labelledby="palm-gallery-title">
         <div class="modal-hdr">
-          <div class="modal-title" id="palm-gallery-title">Imágenes · ${_esc(team?.name || 'Título')}</div>
-          <button type="button" class="modal-close" aria-label="Cerrar administrador de imágenes" onclick="closePalmaresModals()">
+          <div class="modal-title" id="palm-gallery-title">Imágenes · ${escHtml(team?.name || 'Título')}</div>
+          <button type="button" class="modal-close" aria-label="Cerrar administrador de imágenes" data-onclick="closePalmaresModals()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 6-12 12"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
@@ -1733,7 +1795,7 @@ async function openNewCopaModal(){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="new-copa-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">Crear nueva copa</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Crear nueva copa</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div class="form-group">
           <label>Nombre de la copa</label>
@@ -1749,7 +1811,7 @@ async function openNewCopaModal(){
             ${trophyStyles.map(t => {
               const trophySvg = renderTrophyByStyle(t.id, 32);
               return `
-              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid transparent;border-radius:6px;cursor:pointer;transition:all 200ms;" onclick="selectTrophyStyle('${t.id}', this)">
+              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid transparent;border-radius:6px;cursor:pointer;transition:all 200ms;" data-onclick="selectTrophyStyle('${t.id}', this)">
                 <input type="radio" name="trophy-style" value="${t.id}" style="margin-bottom:4px;">
                 <div style="margin:4px 0;">${trophySvg}</div>
                 <span style="font-size:10px;text-align:center;color:var(--txt2);">${t.label}</span>
@@ -1760,8 +1822,8 @@ async function openNewCopaModal(){
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveNewCopa()">Crear copa</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveNewCopa()">Crear copa</button>
       </div>
     </div>
   </div>`;
@@ -1783,20 +1845,31 @@ function selectTrophyStyle(styleId, labelEl){
   if (radio) radio.checked = true;
 }
 
-async function saveNewCopa(){
-  const label = document.getElementById('nueva-copa-label').value.trim();
-  const short = document.getElementById('nueva-copa-short').value.trim();
-  const color = document.getElementById('nueva-copa-color').value;
-  const trophy = document.querySelector('input[name="trophy-style"]:checked')?.value;
+/* Validación común de una copa nueva o editada. Devuelve el mensaje de error o null. */
+function _palmCopaError(label, short, trophy, color, selfKey){
+  if (!label || label.length < 3) return 'Nombre debe tener al menos 3 caracteres';
+  if (label.length > 40) return 'El nombre admite hasta 40 caracteres';
+  if (!short || short.length < 2) return 'Abreviatura debe tener al menos 2 caracteres';
+  if (!trophy || !getTrophyStyles().some(t => t.id === trophy)) return 'Selecciona un estilo de trofeo';
+  if (!_palmIsHex(color)) return 'El color no es válido';
+  const dup = PALMARES_COMPS.find(c => c.key !== selfKey && String(c.label).trim().toLowerCase() === label.toLowerCase());
+  if (dup) return `Ya existe una copa llamada «${dup.label}»`;
+  return null;
+}
 
-  if (!label || label.length < 3) { if (typeof showToast === 'function') showToast('Nombre debe tener al menos 3 caracteres'); return; }
-  if (!short || short.length < 2) { if (typeof showToast === 'function') showToast('Abreviatura debe tener al menos 2 caracteres'); return; }
-  if (!trophy) { if (typeof showToast === 'function') showToast('Selecciona un estilo de trofeo'); return; }
-
-  await createNewCopa(label, short, trophy, color);
-  if (typeof showToast === 'function') showToast('Nueva copa creada');
-  closePalmaresModals();
-  renderAdmPalmares();
+function saveNewCopa(){
+  return _palmRun(async () => {
+    const label = document.getElementById('nueva-copa-label').value.trim();
+    const short = document.getElementById('nueva-copa-short').value.trim().slice(0, 6);
+    const color = document.getElementById('nueva-copa-color').value;
+    const trophy = document.querySelector('input[name="trophy-style"]:checked')?.value;
+    const err = _palmCopaError(label, short, trophy, color, null);
+    if (err) { showToast(err, 'error'); return; }
+    await createNewCopa(label, short, trophy, color);
+    showToast('Nueva copa creada');
+    closePalmaresModals();
+    renderAdmPalmares();
+  }, 'No se pudo crear la copa');
 }
 
 /* Modal: gestionar TODAS las copas (predefinidas + personalizadas) */
@@ -1806,7 +1879,7 @@ async function openManagedCopaModal(){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="manage-copas-modal">
     <div class="modal" style="max-width:700px;">
-      <div class="modal-hdr"><div class="modal-title">Gestionar copas</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Gestionar copas</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         <div style="margin-bottom:14px;">
           <div style="font-size:12px;color:var(--txt3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Copas predefinidas</div>
@@ -1815,10 +1888,10 @@ async function openManagedCopaModal(){
               <div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:6px;">
                 <div style="font-size:18px;">${renderTrophyByStyle(c.trophy, 22)}</div>
                 <div>
-                  <div style="font-weight:600;color:var(--txt1);">${_esc(c.label)}</div>
-                  <div style="font-size:11px;color:var(--txt3);">${_esc(c.short)} · ${_esc(c.trophy)}</div>
+                  <div style="font-weight:600;color:var(--txt1);">${escHtml(c.label)}</div>
+                  <div style="font-size:11px;color:var(--txt3);">${escHtml(c.short)} · ${escHtml(c.trophy)}</div>
                 </div>
-                <button class="btn btn-xs" onclick="openEditCopaModal('${_escAttr(c.key)}')">Editar</button>
+                <button class="btn btn-xs" data-onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
               </div>
             `).join('')}
           </div>
@@ -1832,11 +1905,11 @@ async function openManagedCopaModal(){
               <div style="display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:12px;padding:10px;background:var(--card2);border:1px solid var(--brd);border-radius:6px;">
                 <div style="font-size:18px;">${renderTrophyByStyle(c.trophy, 22)}</div>
                 <div>
-                  <div style="font-weight:600;color:var(--txt1);">${_esc(c.label)}</div>
-                  <div style="font-size:11px;color:var(--txt3);">${_esc(c.short)} · ${_esc(c.trophy)}</div>
+                  <div style="font-weight:600;color:var(--txt1);">${escHtml(c.label)}</div>
+                  <div style="font-size:11px;color:var(--txt3);">${escHtml(c.short)} · ${escHtml(c.trophy)}</div>
                 </div>
-                <button class="btn btn-xs" onclick="openEditCopaModal('${_escAttr(c.key)}')">Editar</button>
-                <button class="btn btn-xs btn-danger" onclick="deleteCopaAndRefresh('${_escAttr(c.key)}')">Eliminar</button>
+                <button class="btn btn-xs" data-onclick="openEditCopaModal('${escAttr(c.key)}')">Editar</button>
+                <button class="btn btn-xs btn-danger" data-onclick="deleteCopaAndRefresh('${escAttr(c.key)}')">Eliminar</button>
               </div>
             `).join('')}
           </div>
@@ -1844,19 +1917,25 @@ async function openManagedCopaModal(){
         ` : ''}
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="openNewCopaModal()">+ Nueva copa</button>
-        <button class="btn" onclick="closePalmaresModals()">Cerrar</button>
+        <button class="btn btn-secondary" data-onclick="openNewCopaModal()">+ Nueva copa</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cerrar</button>
       </div>
     </div>
   </div>`;
 }
 
 async function deleteCopaAndRefresh(key){
-  if (!confirm(`¿Eliminar la copa "${palmaresCompByKey(key)?.label}"?\n\nNota: Los títulos registrados en esta copa se mantendrán, solo desaparecerá la copa del listado.`)) return;
-  await deleteCopa(key);
-  if (typeof showToast === 'function') showToast('Copa eliminada');
-  await openManagedCopaModal();
-  renderAdmPalmares();
+  const label = palmaresCompByKey(key)?.label || key;
+  const used = await dbGetAll('palmares', r => r.competition === key);
+  if (used.length) {
+    showToast(`«${label}» tiene ${used.length} título${used.length===1?'':'s'} registrado${used.length===1?'':'s'}: quítalos antes de eliminarla`, 'error');
+    return;
+  }
+  showConfirm(`¿Eliminar la copa «${label}»?`, 'Se quita la copa del listado. No tiene títulos registrados.', () => _palmRun(async () => {
+    if (await deleteCopa(key)) showToast('Copa eliminada');
+    await openManagedCopaModal();
+    renderAdmPalmares();
+  }, 'No se pudo eliminar la copa'));
 }
 
 /* Modal: editar copa (predefinida o personalizada) */
@@ -1869,7 +1948,7 @@ async function openEditCopaModal(key){
 
   const isPredefined = PALMARES_COMPS_DEFAULT.find(c => c.key === key);
   const resetBtn = isPredefined
-    ? `<button class="btn btn-xs" style="margin-left:auto;" onclick="resetCopaToDefault('${_escAttr(key)}')">↺ Restaurar original</button>`
+    ? `<button class="btn btn-xs" style="margin-left:auto;" data-onclick="resetCopaToDefault('${escAttr(key)}')"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg> Restaurar original</button>`
     : '';
   const noteText = '';
   const trophyStyles = getTrophyStyles();
@@ -1877,15 +1956,15 @@ async function openEditCopaModal(key){
   wrap.innerHTML = `
   <div class="modal-overlay open" id="edit-copa-modal">
     <div class="modal" style="max-width:520px;">
-      <div class="modal-hdr"><div class="modal-title">Editar copa: ${_esc(copa.label)}</div><button class="modal-close" onclick="closePalmaresModals()">×</button></div>
+      <div class="modal-hdr"><div class="modal-title">Editar copa: ${escHtml(copa.label)}</div><button class="modal-close" data-onclick="closePalmaresModals()">×</button></div>
       <div class="modal-body">
         ${noteText}
         <div class="form-group">
           <label>Nombre de la copa</label>
-          <input type="text" id="edit-copa-label" placeholder="ej: Mi Copa Personalizada" value="${_esc(copa.label)}">
+          <input type="text" id="edit-copa-label" placeholder="ej: Mi Copa Personalizada" value="${escHtml(copa.label)}">
         </div>
         <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div><label>Abreviatura</label><input type="text" id="edit-copa-short" placeholder="ej: MCP" maxlength="6" value="${_esc(copa.short)}"></div>
+          <div><label>Abreviatura</label><input type="text" id="edit-copa-short" placeholder="ej: MCP" maxlength="6" value="${escHtml(copa.short)}"></div>
           <div><label>Color</label><input type="color" id="edit-copa-color" value="${copa.color}"></div>
         </div>
         <div class="form-group">
@@ -1894,7 +1973,7 @@ async function openEditCopaModal(key){
             ${trophyStyles.map(t => {
               const trophySvg = renderTrophyByStyle(t.id, 32);
               return `
-              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid ${t.id === copa.trophy ? 'var(--accent, #FFD700)' : 'transparent'};border-radius:6px;cursor:pointer;transition:all 200ms;" onclick="selectTrophyStyleEdit('${t.id}', this)">
+              <label style="display:flex;flex-direction:column;align-items:center;padding:8px;border:2px solid ${t.id === copa.trophy ? 'var(--accent, #FFD700)' : 'transparent'};border-radius:6px;cursor:pointer;transition:all 200ms;" data-onclick="selectTrophyStyleEdit('${t.id}', this)">
                 <input type="radio" name="trophy-style-edit" value="${t.id}" ${t.id === copa.trophy ? 'checked' : ''} style="margin-bottom:4px;">
                 <div style="margin:4px 0;">${trophySvg}</div>
                 <span style="font-size:10px;text-align:center;color:var(--txt2);">${t.label}</span>
@@ -1906,8 +1985,8 @@ async function openEditCopaModal(key){
       </div>
       <div class="modal-footer" style="display:flex;gap:8px;align-items:center;">
         ${resetBtn}
-        <button class="btn" onclick="closePalmaresModals()">Cancelar</button>
-        <button class="btn btn-primary" onclick="saveEditCopa('${_escAttr(key)}')">Guardar cambios</button>
+        <button class="btn" data-onclick="closePalmaresModals()">Cancelar</button>
+        <button class="btn btn-primary" data-onclick="saveEditCopa('${escAttr(key)}')">Guardar cambios</button>
       </div>
     </div>
   </div>`;
@@ -1923,40 +2002,72 @@ function selectTrophyStyleEdit(styleId, labelEl){
 }
 
 async function resetCopaToDefault(key){
-  if (!confirm('¿Restaurar esta copa a sus valores originales?')) return;
-  const all = await dbGetAll('palmares-comps');
-  const rec = all.find(c => c.key === key);
-  if (rec) await dbDelete('palmares-comps', rec.id);
-  await loadPalmaresComps();
-  if (typeof showToast === 'function') showToast('Copa restaurada a valores originales');
-  closePalmaresModals();
-  renderAdmPalmares();
-  renderPubPalmares();
+  const copa = palmaresCompByKey(key);
+  showConfirm(`¿Restaurar «${copa?.label || key}»?`, 'Se pierden los cambios de nombre, abreviatura, color y trofeo de esta copa: vuelve a sus valores originales. Los títulos registrados no cambian.', () => _palmRun(async () => {
+    const all = await dbGetAll('palmares-comps');
+    const rec = all.find(c => c.key === key);
+    if (rec) await dbDelete('palmares-comps', rec.id);
+    await loadPalmaresComps();
+    showToast('Copa restaurada a valores originales');
+    closePalmaresModals();
+    renderAdmPalmares();
+    renderPubPalmares();
+  }, 'No se pudo restaurar la copa'));
 }
 
-async function saveEditCopa(key){
-  const label = document.getElementById('edit-copa-label').value.trim();
-  const short = document.getElementById('edit-copa-short').value.trim();
-  const color = document.getElementById('edit-copa-color').value;
-  const trophy = document.querySelector('input[name="trophy-style-edit"]:checked')?.value;
-
-  if (!label || label.length < 3) { if (typeof showToast === 'function') showToast('Nombre debe tener al menos 3 caracteres'); return; }
-  if (!short || short.length < 2) { if (typeof showToast === 'function') showToast('Abreviatura debe tener al menos 2 caracteres'); return; }
-  if (!trophy) { if (typeof showToast === 'function') showToast('Selecciona un estilo de trofeo'); return; }
-
-  const success = await editCopa(key, label, short, trophy, color);
-  if (!success) { if (typeof showToast === 'function') showToast('Error al guardar la copa'); return; }
-  if (typeof showToast === 'function') showToast('Copa actualizada');
-  closePalmaresModals();
-  renderAdmPalmares();
-  renderPubPalmares();
+function saveEditCopa(key){
+  return _palmRun(async () => {
+    const label = document.getElementById('edit-copa-label').value.trim();
+    const short = document.getElementById('edit-copa-short').value.trim().slice(0, 6);
+    const color = document.getElementById('edit-copa-color').value;
+    const trophy = document.querySelector('input[name="trophy-style-edit"]:checked')?.value;
+    const err = _palmCopaError(label, short, trophy, color, key);
+    if (err) { showToast(err, 'error'); return; }
+    const success = await editCopa(key, label, short, trophy, color);
+    if (!success) { showToast('Error al guardar la copa', 'error'); return; }
+    showToast('Copa actualizada');
+    closePalmaresModals();
+    renderAdmPalmares();
+    renderPubPalmares();
+  }, 'No se pudo guardar la copa');
 }
+
+/* ---------------- Guardas de escritura del admin (MS-5.11) ----------------
+   Una sola escritura a la vez (doble clic), errores de red o de reglas como
+   aviso claro, y valores validados (el año aceptaba «20x4» como 20 y vacío
+   como NaN). */
+let _palmBusy = false;
+async function _palmRun(fn, what){
+  if(_palmBusy) return;
+  _palmBusy = true;
+  try{ return await fn(); }
+  catch(err){
+    console.error('[Palmarés]', err);
+    showToast((what ? what+': ' : '') + dbErrorMsg(err), 'error');
+  }
+  finally{ _palmBusy = false; }
+}
+/* Año de un input: undefined si está vacío, NaN si no son 4 cifras entre 1900 y 2100. */
+function _palmYear(raw){
+  const t = String(raw==null?'':raw).trim();
+  if(!t) return undefined;
+  if(!/^\d{4}$/.test(t)) return NaN;
+  const n = Number(t);
+  return n>=1900 && n<=2100 ? n : NaN;
+}
+const _PALM_YEAR_MSG = 'El año debe ser un número de 4 cifras entre 1900 y 2100';
+function _palmTxt(raw, max){ return String(raw==null?'':raw).trim().slice(0, max); }
+/* ¿El equipo ya tiene un título de esa copa en esa temporada? */
+async function _palmDuplicate(teamId, competition, season, selfId){
+  if(teamId==null || !season) return null;
+  const q = season.toLowerCase();
+  const recs = await dbGetAll('palmares', r => r.teamId===teamId && r.competition===competition
+    && String(r.season||'').trim().toLowerCase()===q && r.id!==selfId);
+  return recs[0] || null;
+}
+function _palmDupMsg(season){ return `Ese equipo ya tiene un título de esa copa en la temporada ${season}`; }
 
 /* ---------------- Utils ---------------- */
-function _esc(s){
-  return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function _escAttr(s){ return _esc(s).replace(/`/g,'&#96;'); }
 
 /* Wrap único para todos los modales del palmarés. Garantiza que admin y
    público compartan el mismo contenedor (evita el bug de IDs duplicados
@@ -2023,7 +2134,10 @@ const _PALM_PUB = {
   roomImagesPromise: null,
   // Cancela una transición de swap (comp/campeón) en curso si el usuario
   // dispara otra antes de que termine — ver _palmSwapSala().
-  salaSwapToken: 0
+  salaSwapToken: 0,
+  // Firma de lo que _palmRenderSala() pintó por última vez — un re-render de
+  // la vitrina con la sala abierta solo la vuelve a pintar si cambió.
+  salaRenderSig: null
 };
 
 const _PALM_SALA_IMG = {
@@ -2031,8 +2145,8 @@ const _PALM_SALA_IMG = {
   h: 1024,
   shiftXr: 0,
   focoH: 0.86,
-  focoL: { img: 'foco_izquierdo.png', cw: 531, ch: 912, lcx: 0.437, lcy: 0.081, Lx: 0.145, Ly: 0.168 },
-  focoR: { img: 'foco_derecho.png',  cw: 354, ch: 912, lcx: 0.352, lcy: 0.102, Lx: 0.807, Ly: 0.168 },
+  focoL: { img: 'foco_izquierdo.webp', cw: 531, ch: 912, lcx: 0.437, lcy: 0.081, Lx: 0.145, Ly: 0.168 },
+  focoR: { img: 'foco_derecho.webp',  cw: 354, ch: 912, lcx: 0.352, lcy: 0.102, Lx: 0.807, Ly: 0.168 },
   ped: { cx: 744, contact: 568, w: 401, panel: { cx: 744, cy: 715, w: 330 } }
 };
 
@@ -2244,7 +2358,7 @@ function _palmVitrineShellHTML(){
   const rawMetal = _PALM_PUB.compData[_PALM_PUB.compIdx]?.comp?.color;
   const metal = _palmIsHex(rawMetal) ? rawMetal : '#DAA520';
   return `
-    <section class="mv" id="mv" style="--metal:${_escAttr(metal)};--metal-ink:${_escAttr(_palmMetalInk(rawMetal))}">
+    <section class="mv" id="mv" style="--metal:${escAttr(metal)};--metal-ink:${escAttr(_palmMetalInk(rawMetal))}">
       <div class="mv-head">
         <div class="mv-head-id">
           <span class="mv-head-ico" aria-hidden="true">${headIcon}</span>
@@ -2269,7 +2383,7 @@ function _palmVitrineShellHTML(){
     </section>
     <div id="sala" role="dialog" aria-modal="true" aria-labelledby="sala-comp" aria-hidden="true" aria-describedby="sala-hint" hidden>
       <div class="sala-loader" id="sala-loader" aria-hidden="true">
-        <img src="assets/tsc_sin_fondo.png" alt="">
+        <img src="assets/tsc_sin_fondo.webp" alt="">
         <div class="sala-loader-text" id="sala-loader-text" aria-live="polite">Cargando sala de trofeos…</div>
         <div class="sala-loader-bar"><div class="sala-loader-fill" id="sala-loader-fill"></div></div>
       </div>
@@ -2285,7 +2399,7 @@ function _palmVitrineShellHTML(){
       <div class="sala-particles" aria-hidden="true">${particles}</div>
       <div class="sala-cup" id="sala-cup"></div>
       <div class="sala-plate" id="sala-plate">
-        <img src="assets/placa_dorada.png" alt="">
+        <img src="assets/placa_dorada.webp" alt="">
         <div class="palm-plate-txt" id="sala-plate-txt"></div>
       </div>
       <div class="sala-cap">
@@ -2322,9 +2436,9 @@ function _palmVitrineNavHTML(){
   return _PALM_PUB.compData.map((entry, idx) => {
     const icon = _palmLineArt(renderTrophy(entry.comp.key, 36), 2.2);
     return `
-      <button class="mv-nav-row${idx === _PALM_PUB.compIdx ? ' on' : ''}" type="button" data-comp-idx="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${_escAttr(_palmMetalInk(entry.comp.color))}" aria-pressed="${idx === _PALM_PUB.compIdx ? 'true' : 'false'}">
+      <button class="mv-nav-row${idx === _PALM_PUB.compIdx ? ' on' : ''}" type="button" data-comp-idx="${idx}" style="--metal:${escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${escAttr(_palmMetalInk(entry.comp.color))}" aria-pressed="${idx === _PALM_PUB.compIdx ? 'true' : 'false'}">
         <span class="mv-nav-ico" aria-hidden="true">${icon}</span>
-        <span class="mv-nav-name">${_esc(entry.comp.label)}</span>
+        <span class="mv-nav-name">${escHtml(entry.comp.label)}</span>
         <svg class="mv-nav-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
       </button>
     `;
@@ -2337,7 +2451,7 @@ function _palmVitrineHeroHTML(entry, idx){
   const full = renderTrophy(entry.comp.key, 200);
   const line = _palmLineArt(full, 1.5);
   return `
-    <button class="mv-stage" type="button" data-open-sala="${idx}" style="--metal:${_escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${_escAttr(_palmMetalInk(entry.comp.color))}" aria-haspopup="dialog" aria-controls="sala"${disabled}>
+    <button class="mv-stage" type="button" data-open-sala="${idx}" style="--metal:${escAttr(_palmIsHex(entry.comp.color)?entry.comp.color:'#DAA520')};--metal-ink:${escAttr(_palmMetalInk(entry.comp.color))}" aria-haspopup="dialog" aria-controls="sala"${disabled}>
       <div class="mv-scene">
         <div class="mv-axis"></div>
         <div class="mv-halo"></div>
@@ -2347,7 +2461,7 @@ function _palmVitrineHeroHTML(entry, idx){
         </div>
       </div>
       <div class="mv-cap">
-        <div class="mv-comp-name">${_esc(entry.comp.label)}</div>
+        <div class="mv-comp-name">${escHtml(entry.comp.label)}</div>
         <span class="mv-cta">${entry.records.length ? '[ Inspeccionar vitrina ]' : '[ Sin campeón aún ]'}</span>
       </div>
     </button>
@@ -2365,7 +2479,7 @@ function _palmVitrinePendingLogosHTML(pendingRec){
   if (!items.length) return '';
   return `
     <div class="mv-vig-pending-logos">
-      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${_escAttr(_palmCloudThumb(item.url, 90))}" alt="${_escAttr(item.alt)}" loading="lazy"></span>`).join('')}
+      ${items.map(item => `<span class="mv-vig-pending-logo"><img src="${escAttr(_palmCloudThumb(item.url, 90))}" alt="${escAttr(item.alt)}" loading="lazy"></span>`).join('')}
     </div>
   `;
 }
@@ -2374,16 +2488,15 @@ function _palmVitrineDataHTML(entry){
   if (!entry) return '';
   const team = entry.champTeam;
   const colors = entry.colors;
-  const badgeContent = team?.logo
-    ? `<img src="${_escAttr(team.logo)}" alt="">`
-    : _esc(_palmTeamIni(team));
+  const badgeContent = safeImgUrl(team?.logo) ? `<img src="${safeImgUrl(team?.logo)}" alt="">`
+    : escHtml(_palmTeamIni(team));
   const championHtml = team ? `
     <div class="mv-vig-row">
-      <span class="mv-badge" style="background:${_escAttr(colors.c1)}">${badgeContent}</span>
-      <span class="mv-vig-name">${_esc(team.name || '—')}</span>
+      <span class="mv-badge" style="background:${escAttr(colors.c1)}">${badgeContent}</span>
+      <span class="mv-vig-name">${escHtml(team.name || '—')}</span>
     </div>
   ` : entry.champion?.pending
-    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${_escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>${_palmVitrinePendingLogosHTML(entry.champion)}`
+    ? `<div class="mv-vig-row"><span class="mv-badge" style="background:${escAttr(colors.c1)}">¿?</span><span class="mv-vig-name">¿? — Campeón por definir</span></div>${_palmVitrinePendingLogosHTML(entry.champion)}`
     : `<div class="mv-vig-row"><span class="mv-vig-name">Sin campeón registrado</span></div>`;
   return `
     <div class="mv-vig">
@@ -2478,9 +2591,15 @@ function _palmBindEdgeFade(el){
 
 function _palmBindPublicPalmares(root){
   if (!root) return;
-  _palmDisposeSala();
-  const sala = document.getElementById('sala');
-  if (sala) sala.hidden = true;
+  // Con la sala abierta (o cargando) no se toca: renderPubPalmares() ya
+  // re-insertó el mismo nodo en el shell nuevo y la re-sincroniza con
+  // _palmSyncSalaAfterRerender(). Ocultarla acá a mano dejaba body.sala-open
+  // puesto y la página sin scroll.
+  if (!_palmSalaIsOpen()) {
+    _palmDisposeSala();
+    const sala = document.getElementById('sala');
+    if (sala) sala.hidden = true;
+  }
   _palmBindEdgeFade(root.querySelector('#mv-nav'));
   _PALM_PUB.vitrineAbort?.abort();
   _PALM_PUB.vitrineAbort = new AbortController();
@@ -2512,6 +2631,52 @@ function _palmEnsureVisibilityBinding(){
     _palmTheme().setVisible(_PALM_PUB.visible);
     if (!_PALM_PUB.visible) _palmCloseSala(false);
   });
+}
+
+function _palmSalaIsOpen(){
+  const sala = document.getElementById('sala');
+  return !!sala && !sala.hidden && document.body.classList.contains('sala-open');
+}
+
+function _palmSalaSignature(){
+  const comp = _palmCurrentSalaComp();
+  const rec = _palmCurrentSalaRecord();
+  if (!comp || !rec) return null;
+  const team = _PALM_PUB.teamById[rec.teamId] || null;
+  return JSON.stringify([
+    comp.comp,
+    _PALM_PUB.salaChampIdx,
+    team?.name || '',
+    _palmTeamColors(team, comp.comp),
+    getPalmaresMedia(rec.id),
+    comp.records.map(entry => [
+      entry.id, entry.teamId, !!entry.pending, entry.season, entry.juego, entry.year,
+      _PALM_PUB.teamById[entry.teamId]?.name || ''
+    ])
+  ]);
+}
+
+/* Tras un re-render de la vitrina (liveSubscribe, volver a la sección,
+   edición admin) con la sala abierta: re-ubica en el compData nuevo el récord
+   que se estaba viendo (por key de competición e id, porque el orden puede
+   cambiar) y refresca la sala solo si su contenido cambió. Si la competición
+   ya no tiene récords se cierra por el camino normal (_palmCloseSala). */
+function _palmSyncSalaAfterRerender(prev){
+  if (!prev || !_palmSalaIsOpen()) return;
+  // El disparador original quedó fuera del DOM: el foco vuelve a la copa nueva.
+  if (!_PALM_PUB.focusReturn?.isConnected) {
+    _PALM_PUB.focusReturn = document.querySelector('#mv-hero .mv-stage');
+  }
+  const compIdx = _PALM_PUB.compData.findIndex(entry => entry.comp.key === prev.compKey);
+  const records = compIdx >= 0 ? _PALM_PUB.compData[compIdx].records : [];
+  if (!records.length) { _palmCloseSala(); return; }
+  const champIdx = records.findIndex(rec => String(rec.id) === String(prev.recId));
+  _PALM_PUB.salaCompIdx = compIdx;
+  _PALM_PUB.salaChampIdx = Math.max(0, champIdx);
+  // Cargando: el .then() de _palmOpenSala pinta con los índices ya re-ubicados.
+  const sala = document.getElementById('sala');
+  if (sala.classList.contains('loading')) return;
+  if (_palmSalaSignature() !== _PALM_PUB.salaRenderSig) _palmRenderSala();
 }
 
 function _palmCurrentSalaComp(){
@@ -2577,6 +2742,7 @@ function _palmRenderSala(){
   const comp = _palmCurrentSalaComp();
   const rec = _palmCurrentSalaRecord();
   if (!sala || !comp || !rec) return;
+  _PALM_PUB.salaRenderSig = _palmSalaSignature();
   const team = _PALM_PUB.teamById[rec.teamId] || null;
   const colors = _palmTeamColors(team, comp.comp);
   const lightColors = {
@@ -2599,14 +2765,14 @@ function _palmRenderSala(){
   if (compEl) compEl.textContent = comp.comp.label;
   if (plateEl) {
     const plateName = rec.pending ? '¿?' : (team?.name || 'Sin campeón');
-    plateEl.innerHTML = `<b>${_esc(plateName)}</b><small>${_esc(plateEdition)}</small>`;
+    plateEl.innerHTML = `<b>${escHtml(plateName)}</b><small>${escHtml(plateEdition)}</small>`;
   }
   if (dotsEl) {
     dotsEl.innerHTML = comp.records.map((entry, idx) => {
       const dotTeam = _PALM_PUB.teamById[entry.teamId];
       const dotEdition = [entry.season, entry.juego, entry.year].filter(Boolean).join(' · ');
       const dotLabel = `${entry.pending ? '¿? — Campeón por definir' : (dotTeam?.name || `Campeón ${idx + 1}`)}${dotEdition ? ` · ${dotEdition}` : ''}`;
-      return `<button type="button" class="sala-dot${idx === _PALM_PUB.salaChampIdx ? ' on' : ''}" data-sala-dot="${idx}" aria-label="${_escAttr(dotLabel)}" aria-pressed="${idx === _PALM_PUB.salaChampIdx ? 'true' : 'false'}"></button>`;
+      return `<button type="button" class="sala-dot${idx === _PALM_PUB.salaChampIdx ? ' on' : ''}" data-sala-dot="${idx}" aria-label="${escAttr(dotLabel)}" aria-pressed="${idx === _PALM_PUB.salaChampIdx ? 'true' : 'false'}"></button>`;
     }).join('');
     _palmRevealActiveSalaDot(dotsEl);
   }
@@ -2757,10 +2923,10 @@ function _palmPreloadRoomImages(){
   if (_PALM_PUB.roomImagesReady) return Promise.resolve();
   if (_PALM_PUB.roomImagesPromise) return _PALM_PUB.roomImagesPromise;
   _PALM_PUB.roomImagesPromise = Promise.all([
-    'assets/sin_fondo.png',
-    'assets/foco_izquierdo.png',
-    'assets/foco_derecho.png',
-    'assets/placa_dorada.png'
+    'assets/sin_fondo.webp',
+    'assets/foco_izquierdo.webp',
+    'assets/foco_derecho.webp',
+    'assets/placa_dorada.webp'
   ].map(_palmPreloadImage)).then(() => { _PALM_PUB.roomImagesReady = true; });
   return _PALM_PUB.roomImagesPromise;
 }
@@ -2834,6 +3000,13 @@ async function _palmPreloadOtherTrophies(excludeCompIdx){
   if (_palmSalaShouldUseSvg() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const targets = _PALM_PUB.compData.filter((entry, idx) => idx !== excludeCompIdx && entry.records.length);
   for (const entry of targets) {
+    // Una copa por vez y solo cuando el navegador está libre: decodificar
+    // Draco en paralelo con la animación de apertura causaba tirones en
+    // equipos modestos.
+    await new Promise(resolve => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(resolve, { timeout: 3000 });
+      else setTimeout(resolve, 600);
+    });
     const sala = document.getElementById('sala');
     if (!sala || sala.hidden) return;
     try {
@@ -2963,7 +3136,8 @@ function _palmMoveSalaChamp(delta){
   if (!comp?.records?.length) return;
   const dir = delta > 0 ? 'up' : 'down';
   _palmSwapSala(dir, () => {
-    _PALM_PUB.salaChampIdx = (_PALM_PUB.salaChampIdx + delta + comp.records.length) % comp.records.length;
+    const len = _palmCurrentSalaComp()?.records?.length || comp.records.length;
+    _PALM_PUB.salaChampIdx = (_PALM_PUB.salaChampIdx + delta + len) % len;
     _palmRenderSala();
   });
 }
@@ -3112,7 +3286,7 @@ function _palmLayoutSala(){
 
   const fg = sala.querySelector('.sala-foreground');
   if (fg) {
-    if (!fg.style.backgroundImage) fg.style.backgroundImage = "url('assets/sin_fondo.png')";
+    if (!fg.style.backgroundImage) fg.style.backgroundImage = "url('assets/sin_fondo.webp')";
     fg.style.backgroundSize = bgSize;
     fg.style.backgroundPosition = bgPos;
   }
@@ -3128,7 +3302,7 @@ function _palmLayoutSala(){
     };
     const pl = place(L);
     const pr = place(R);
-    focos.style.backgroundImage = "url('assets/foco_izquierdo.png'), url('assets/foco_derecho.png')";
+    focos.style.backgroundImage = "url('assets/foco_izquierdo.webp'), url('assets/foco_derecho.webp')";
     focos.style.backgroundRepeat = 'no-repeat, no-repeat';
     focos.style.backgroundSize = `${pl.dw}px ${pl.dh}px, ${pr.dw}px ${pr.dh}px`;
     focos.style.backgroundPosition = `${pl.x0}px ${pl.y0}px, ${pr.x0}px ${pr.y0}px`;
@@ -3169,6 +3343,7 @@ function _palmDisposeSala(){
   _palmCupCtrl().dispose();
   _palmTheme().leaveSala();
   _PALM_PUB.salaUsesSvg = null;
+  _PALM_PUB.salaRenderSig = null;
 }
 
 function _palmLoadScriptOnce(src){
@@ -3223,6 +3398,8 @@ function _palmCupCtrl(){
   let pendingH = 0;
   let loadToken = 0;
   let sessionToken = 0;
+  let perfFrames = 0; // ver watchPerf()
+  let perfTime = 0;
   // Cache de modelos GLB crudos (sin normalizar escala/centro) por URL — cada
   // uso clona desde acá. Sobrevive a dispose()/reaperturas de la sala a
   // propósito (requisito: no destruir el cache al cambiar de competición).
@@ -3307,8 +3484,13 @@ function _palmCupCtrl(){
 
   function init(nextHost){
     host = nextHost;
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    // Tope 1.5 (antes 2): en pantallas 4K/retina con zoom eso son ~44 % menos
+    // píxeles que sombrear por frame y con MSAA la diferencia no se ve en una
+    // copa que gira. renderTick() baja a 1 si el equipo igual no llega.
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+    perfFrames = 0;
+    perfTime = 0;
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -3338,8 +3520,24 @@ function _palmCupCtrl(){
     if (pendingW) _PALM_PUB.cupCtrl.resize(pendingW, pendingH);
   }
 
+  // Calidad adaptativa: tras el arranque, mide ~2 s de frames; si el promedio
+  // queda bajo ~40 fps, renderiza a densidad 1 (una sola vez por renderer).
+  function watchPerf(raw){
+    if (perfFrames < 0 || !renderer || renderer.getPixelRatio() <= 1) return;
+    perfFrames++;
+    if (perfFrames <= 30) return; // los primeros frames incluyen subida de texturas/shaders
+    perfTime += Math.min(raw, 0.25);
+    if (perfFrames < 150) return;
+    if (perfTime / (perfFrames - 30) > 1 / 40) renderer.setPixelRatio(1);
+    perfFrames = -1;
+  }
+
   function renderTick(){
-    const dt = Math.min(clock.getDelta(), 0.05);
+    const raw = clock.getDelta();
+    const dt = Math.min(raw, 0.05);
+    // Solo con la animación corriendo: con movimiento reducido renderTick se
+    // llama suelto (resize/cambio de copa) y sus deltas no son frames reales.
+    if (!reducedMotionQuery.matches) watchPerf(raw);
     if (spotL && targetLeft) spotL.color.lerp(targetLeft, Math.min(1, dt * 3.5));
     if (spotR && targetRight) spotR.color.lerp(targetRight, Math.min(1, dt * 3.5));
     if (cup && !reducedMotionQuery.matches) cup.rotation.y += dt * 0.45;
@@ -3539,16 +3737,38 @@ window.__retuneSalaCup = function(){
   return ok;
 };
 
+/* Humo de la Sala. Rendimiento (equipos modestos / pantallas de 120-144 Hz):
+   - la simulación avanza por TIEMPO (pasos fijos de 1/60 s), no por frame:
+     a 144 Hz antes corría 2.4× más rápido y quemaba 2.4× la CPU;
+   - cada bocanada se pinta con drawImage de un sprite pre-renderizado en vez
+     de crear un createRadialGradient nuevo por partícula y por frame;
+   - el canvas real es de media resolución (el humo es difuso, no se nota) y
+     la simulación sigue en coordenadas lógicas W×H vía ctx.setTransform. */
 class _PalmSmoke {
-  constructor(ctx, color){
+  constructor(ctx, color, W, H){
     this.ctx = ctx;
     this.color = color || [170, 175, 187];
     this.p = [];
     this.running = false;
     this.raf = null;
     this.t = 0;
-    this.W = ctx.canvas.width;
-    this.H = ctx.canvas.height;
+    this.lastTs = 0;
+    this.acc = 0;
+    this.W = W || ctx.canvas.width;
+    this.H = H || ctx.canvas.height;
+    this.sprite = _PalmSmoke.makeSprite(this.color);
+  }
+  static makeSprite([r, g, b]){
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const gd = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gd.addColorStop(0, `rgba(${r},${g},${b},0.95)`);
+    gd.addColorStop(0.45, `rgba(${r},${g},${b},0.4)`);
+    gd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = gd;
+    x.fillRect(0, 0, 128, 128);
+    return c;
   }
   mk(x){
     return {
@@ -3598,9 +3818,8 @@ class _PalmSmoke {
     }
   }
   draw(){
-    const [r, g, b] = this.color;
     const gA = 0.85 + 0.15 * Math.sin(this.t / 60 * 0.045 + 1);
-    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.ctx.clearRect(0, 0, this.W, this.H);
     for (const q of this.p) {
       const tin = Math.min(1, q.life / (q.max * 0.12));
       const fx = Math.min(1, q.x / 130, (this.W - q.x) / 130);
@@ -3608,14 +3827,7 @@ class _PalmSmoke {
       const a = q.a * tin * Math.max(0, Math.min(fx, fy)) * gA;
       if (a <= 0.0015) continue;
       this.ctx.globalAlpha = a;
-      const gd = this.ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r);
-      gd.addColorStop(0, `rgba(${r},${g},${b},0.95)`);
-      gd.addColorStop(0.45, `rgba(${r},${g},${b},0.4)`);
-      gd.addColorStop(1, `rgba(${r},${g},${b},0)`);
-      this.ctx.fillStyle = gd;
-      this.ctx.beginPath();
-      this.ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2);
-      this.ctx.fill();
+      this.ctx.drawImage(this.sprite, q.x - q.r, q.y - q.r, q.r * 2, q.r * 2);
     }
     this.ctx.globalAlpha = 1;
   }
@@ -3625,23 +3837,36 @@ class _PalmSmoke {
       this.advance();
     }
   }
-  loop(){
-    if (this.t % 4 === 0) this.emit();
-    this.advance();
-    this.draw();
-    if (this.running) this.raf = requestAnimationFrame(() => this.loop());
+  loop(ts){
+    if (!this.running) return;
+    // Pasos fijos de 1/60 s según el tiempo real; tope de 4 por frame para
+    // no "ponerse al día" de golpe tras volver de una pestaña en segundo plano.
+    const STEP = 1000 / 60;
+    this.acc += this.lastTs ? Math.min(ts - this.lastTs, STEP * 4) : STEP;
+    this.lastTs = ts;
+    let moved = false;
+    while (this.acc >= STEP) {
+      if (this.t % 4 === 0) this.emit();
+      this.advance();
+      this.acc -= STEP;
+      moved = true;
+    }
+    if (moved) this.draw();
+    this.raf = requestAnimationFrame(t => this.loop(t));
   }
   start(){
     if (this.running) return;
     this.running = true;
-    this.loop();
+    this.lastTs = 0;
+    this.acc = 0;
+    this.raf = requestAnimationFrame(t => this.loop(t));
   }
   stop(){
     this.running = false;
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = null;
     this.p.length = 0;
-    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.ctx.clearRect(0, 0, this.W, this.H);
   }
 }
 
@@ -3652,10 +3877,12 @@ function _palmSmokeCtrl(){
     start(canvas){
       if (!canvas || _palmSalaShouldUseSvg() || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       this.stop();
-      canvas.width = 1280;
-      canvas.height = 720;
+      // Media resolución real; la simulación sigue en 1280×720 lógicos.
+      canvas.width = 640;
+      canvas.height = 360;
       const ctx = canvas.getContext('2d');
-      this.instance = new _PalmSmoke(ctx, [170, 175, 187]);
+      ctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      this.instance = new _PalmSmoke(ctx, [170, 175, 187], 1280, 720);
       this.instance.step(1100);
       this.instance.start();
     },
@@ -3680,20 +3907,35 @@ async function renderPubPalmares(){
   const el = document.getElementById('pub-palmares-content');
   if (!el) return;
   const token = ++_PALM_PUB.renderToken;
-  await seedPalmaresIfEmpty();
-  await loadPalmaresComps();
+  // En paralelo: son lecturas independientes y cada await en serie es un
+  // viaje de ida y vuelta completo a Firestore (se nota fuera de Chile).
+  await Promise.all([seedPalmaresIfEmpty(), loadPalmaresComps()]);
   const [recs, allTeams] = await Promise.all([
     getAllPalmaresRecords(),
     dbGetAll('teams')
   ]);
   if (token !== _PALM_PUB.renderToken) return;
+  const salaPrev = _palmSalaIsOpen()
+    ? { compKey:_palmCurrentSalaComp()?.comp.key, recId:_palmCurrentSalaRecord()?.id }
+    : null;
   const teamById = {};
   allTeams.forEach(team => { teamById[team.id] = team; });
   _PALM_PUB.teamById = teamById;
   _PALM_PUB.compData = _palmBuildPublicCompData(recs, teamById);
   _PALM_PUB.compIdx = Math.max(0, Math.min(_PALM_PUB.compIdx || 0, Math.max(0, _PALM_PUB.compData.length - 1)));
+  // #sala vive dentro del shell: con la sala abierta se conserva el MISMO nodo
+  // (listeners, canvas de la copa/humo, collage) en lugar de la copia oculta
+  // que trae el innerHTML nuevo, y se le devuelve el foco que perdió al salir
+  // del DOM.
+  const openSala = salaPrev ? document.getElementById('sala') : null;
+  const salaFocus = openSala?.contains(document.activeElement) ? document.activeElement : null;
   el.innerHTML = _palmVitrineShellHTML();
+  if (openSala) {
+    el.querySelector('#sala')?.replaceWith(openSala);
+    salaFocus?.focus({ preventScroll:true });
+  }
   _palmBindPublicPalmares(el);
   _palmRenderVitrine();
   _palmEnsureVisibilityBinding();
+  _palmSyncSalaAfterRerender(salaPrev);
 }
