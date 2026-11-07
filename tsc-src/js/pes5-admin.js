@@ -55,18 +55,19 @@ window.PES5_ADMIN = (() => {
     return _cargando;
   }
 
-  // La seccion no debe hacer sonar la pagina principal (palmares, sorteo, cuadro).
-  function _silenciarAudioPublico(){
-    try { window.PALM_THEME?.stop?.(); } catch (e) {}
-    try { window.SORTEO_AUDIO?.stop?.(); } catch (e) {}
-    try { window.BRACKET_AUDIO?.pauseForBackground?.(); } catch (e) {}
-    document.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch (e) {} });
-  }
+  // Mientras la seccion esta abierta no debe sonar la pagina principal (palmares,
+  // sorteo, cuadro). Usa el corte de runtime de sounds.js: no toca la preferencia
+  // de sonido. _audioPausado marca que lo pausamos, para reanudar solo en ese caso
+  // (salir() corre tambien al pasar a publico sin haber entrado a la seccion).
+  let _audioPausado = false;
 
   async function entrar(){
     const cont = document.getElementById('pes5-admin-content');
     if (!cont) return;
-    _silenciarAudioPublico();
+    if (typeof window.pauseAllAppAudio === 'function'){
+      window.pauseAllAppAudio('pes5');
+      _audioPausado = true;
+    }
     try {
       await _cargar();
     } catch (e) {
@@ -80,6 +81,10 @@ window.PES5_ADMIN = (() => {
 
   function salir(){
     window.PES5_TOOL?.salir();
+    if (_audioPausado){
+      _audioPausado = false;
+      if (typeof window.resumeAudioOnForeground === 'function') window.resumeAudioOnForeground();
+    }
   }
 
   return { entrar: entrar, salir: salir };

@@ -1591,9 +1591,10 @@ async function guardarReglas(){
 }
 
 /* ============================================================
-   ARRANQUE
+   Sin arranque propio: initDB() y onAuthInit() ya corren en el arranque del
+   panel (ui-utils.js / auth.js). Llamarlos aca creaba una base y un segundo
+   onAuthStateChanged. La tool lee AUTH y escucha tsc:auth en montar().
    ============================================================ */
-if (typeof initDB === 'function') initDB().then(()=>{ if (typeof onAuthInit === 'function') onAuthInit(); });
 
 // Handlers de data-on* (events.js solo llama funciones globales, sin puntos).
 // Se exponen con prefijo pt para no pisar globales del panel.
