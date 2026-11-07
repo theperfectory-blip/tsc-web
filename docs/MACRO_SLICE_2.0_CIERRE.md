@@ -10,8 +10,8 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | # | Slice | Estado |
 |---|---|---|
 | 1 | Tool PES5 y editor dentro del panel admin (sin iframe) | **cerrado** (`docs/reportes/2.0-1.md`) |
-| **2** | Formación táctil en `mejoras.html` (hoy solo se mueve con flechas de teclado) | **spec abajo** |
-| 3 | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | pendiente |
+| 2 | Formación táctil en `mejoras.html` (hoy solo se mueve con flechas de teclado) | **cerrado** (`docs/reportes/2.0-2.md`) |
+| **3** | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **spec abajo** |
 | 4 | Núcleo YunaCoins (sobregiro, ledger, marca `synced`) + Plan B copiar/pegar | pendiente |
 | 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
 | 6 | PR | pendiente |
@@ -290,3 +290,170 @@ de cada punto del gate y capturas móvil/escritorio. Push a
 `feat/yunacoins-pes5` después de la auditoría del supervisor. Pendiente de
 prueba manual de Jimbo: la APK o el navegador del celular con el save real
 no hacen falta; alcanza con abrir `mejoras.html` en el teléfono y arrastrar.
+
+---
+
+## Slice 3 — Tool en dos modos: móvil/APK y PC
+
+### Por qué
+
+La sección "Tool PES5" (slice 1) está pensada para el escritorio. En el
+celular o en la APK pasan tres cosas:
+
+- **No hay File System Access.** `PES5_SAVE.tieneSoporte()` es falso, así
+  que no se puede leer ni escribir el save.
+- **Aparece el aviso largo de Brave** (`renderStatusBar`, `js/pes5-tool.js`
+  ~331), que no corresponde en un teléfono.
+- **Hay pestañas que no sirven sin save:**
+  - Plantilla y Publicar quedan en «Cargá el save».
+  - Pedidos ofrece «Aplicar y descargar save», que sin save cargado no
+    puede funcionar.
+  - Las tablas anchas desbordan a 375 px.
+
+Lo que sí sirve en el teléfono, y Luis lo necesita en el directo, es:
+
+- ver los pedidos pendientes;
+- rechazar un pedido con un motivo;
+- ver y editar las reglas de YunaCoins;
+- en el slice 4, los ajustes de YunaCoins.
+
+### Modo
+
+`ptModo()` → `'pc'` | `'movil'`. Se calcula una vez en `montar()`:
+
+- **`'pc'`** si `PES5_SAVE.tieneSoporte()`.
+- **`'movil'`** en cualquier otro caso: teléfono, APK, Firefox, Safari y
+  Brave con el flag apagado.
+
+La decisión va por capacidad, no por ancho ni por userAgent. El ancho de la
+pantalla solo cambia el layout (CSS), no el modo.
+
+El aviso de la barra de estado depende de cómo se ve la página:
+
+- **Táctil o APK** (`matchMedia('(pointer: coarse)')` o
+  `Capacitor.isNativePlatform()`, mismo chequeo que `js/boot-splash.js:53`):
+  «Modo móvil: pedidos y reglas. Para leer o escribir el save, abrí esta
+  sección en Chrome o Edge en la PC.»
+- **Escritorio sin la API:** el aviso actual de Brave/Firefox, más una línea
+  que diga que mientras tanto funciona el modo móvil.
+
+### Alcance
+
+**3.A — Pestañas por modo**
+
+- **Modo `'movil'`:** pestañas **Pedidos** (primera y por defecto) y
+  **Reglas**. Equipos, Plantilla y Publicar no se muestran.
+  - Slice 4 agrega YunaCoins a los dos modos: dejar el arreglo de pestañas
+    preparado para sumarla.
+  - `cargarSaveDesdeCarpeta` y `recuperarCarpeta` no se llaman: hoy ya los
+    protege `tieneSoporte`, solo verificarlo.
+- **Modo `'pc'`:** igual que hoy, sin cambios de comportamiento.
+- `TABS` pasa a filtrarse por `ptModo()`. `switchTab` a una pestaña que no
+  existe en el modo cae en la primera disponible.
+
+**3.B — Pedidos en el teléfono**
+
+- **En modo `'movil'`:**
+  - Ni checkbox de selección, ni «PES5 está cerrado», ni botón de aplicar.
+  - En su lugar, una nota: «Los pedidos se aplican desde la PC con el save
+    abierto».
+  - El rechazo funciona igual: misma escritura en `pedidos_pes5` y mismos
+    campos.
+- **Debajo de 640 px**, en cualquier modo, la tabla pasa a **tarjetas**.
+  Cada tarjeta muestra:
+  - equipo;
+  - jugador o «Formación»;
+  - líneas de cambio;
+  - costo o «gratis»;
+  - fecha;
+  - botón Rechazar de 44 px de alto.
+  
+  Se puede hacer con CSS sobre la misma tabla (`display:block` +
+  `data-label`) o con un render aparte. Lo elige el implementador; que no
+  duplique la lógica de los datos.
+- **`prompt()` del motivo de rechazo** (`rechazarPedido`, ~1178): pasa a
+  un modal propio de la sección con:
+  - `textarea`;
+  - Cancelar;
+  - Rechazar (deshabilitado si el motivo está vacío).
+
+  Si se cancela, no escribe nada (hoy se escribe «sin motivo» si el motivo
+  queda vacío: ahora el motivo es obligatorio). Se usa también en PC. El
+  texto va como dato al guardarse; si se muestra en pantalla, pasa por
+  `escHtml`.
+- Los `confirm()` de aplicar y escribir (solo PC) quedan como están: fuera
+  de alcance.
+
+**3.C — Layout angosto**
+
+- Sin scroll horizontal de página a 375 px. Las tablas que quedan en modo
+  `'pc'` siguen con `.pt-tbl-wrap` y scroll propio.
+- Pestañas con toque ≥ 44 px de alto y scroll horizontal propio (ya existe
+  `overflow-x:auto`).
+- Reglas: inputs a ancho completo bajo 640 px; el botón de guardar visible
+  sin scroll lateral.
+- `.pt-shell` con padding de 16 px a los lados en el teléfono (gutter de
+  AGENTS/artifact). Sin `position:sticky` en el panel lateral bajo 900 px
+  (ya colapsa a una columna).
+
+**3.D — APK**
+
+- Confirmar que la APK (Capacitor) carga la sección:
+  - `build-www.mjs` incluye `js/` y `css/` (con `pes5-admin.js` y
+    los dinámicos);
+  - la CSP de la APK (`<meta>` de `build-www`) permite cargar los
+    scripts dinámicos con `'self'`.
+- Basta con `node scripts/build-www.mjs` y revisar que `www/js/pes5-tool.js`,
+  `www/js/pes5-admin.js` y `www/css/pes5-tool.css` existen. No compilar la
+  APK ni correr `cap sync` (no stagear `android/*`).
+
+### Fuera de alcance
+
+- YunaCoins (slice 4).
+- Leer o escribir el save en el teléfono (no hay API).
+- Cambios en reglas de Firestore o CSP.
+- La formación del presidente (slice 2, cerrado).
+
+### Riesgos
+
+- **Un admin en PC con Brave** cae en modo móvil sin entender por qué. El
+  aviso de escritorio tiene que explicarlo (ver «Modo»).
+- **Choque con el bloqueo por equipo** (`pes5-bloqueo.js`): en modo móvil
+  no se abre ningún jugador, así que no debería tomarse ningún bloqueo.
+  Verificar que no quede un bloqueo tomado al entrar y salir en modo móvil.
+- **Motivo obligatorio:** cambia el comportamiento actual (antes se aceptaba
+  vacío). Es deliberado.
+
+### Verificación (gate)
+
+Escrituras **solo en el sandbox** (`tsc-emu`, 3001).
+
+1. `node --check` de los JS tocados; `audit-wiring` 0 rotos; `csp.mjs
+   --check`; `smoke-parity`.
+2. Sandbox, admin, viewport **móvil** (preset mobile) con
+   `showDirectoryPicker` ausente (en el navegador de la app ya falta; si
+   no, `delete window.showDirectoryPicker` antes de entrar a la sección):
+   - solo pestañas Pedidos y Reglas;
+   - aviso móvil corto;
+   - pedidos en tarjetas sin botón de aplicar;
+   - rechazar con el modal → el pedido pasa a `rechazado` con el motivo en
+     el emulador;
+   - motivo vacío → no deja confirmar;
+   - Reglas: editar un valor y guardar → se refleja en el emulador;
+   - sin scroll horizontal de página (`document.documentElement.scrollWidth
+     <= innerWidth`);
+   - `pes5_bloqueos` sin documentos nuevos.
+3. Viewport escritorio con la API: todo igual que en 2.0-1. Hay que poder
+   abrir las 5 pestañas, y el rechazo usa el modal nuevo.
+4. Variante `dist` (`tsc-emu-dist`): recorrido móvil corto (pedidos +
+   rechazo).
+5. `node scripts/build-www.mjs` y existencia de los 3 archivos en `www/`.
+   No commitear `www/`, si está en git.
+6. `graphify update .` + `graphify-label.py`.
+
+### Entrega
+
+Commits en la rama y reporte `docs/reportes/2.0-3.md` con capturas en el
+teléfono y en el escritorio. Push después de la auditoría. Pendiente de
+prueba manual de Jimbo/Luis: abrir la sección en la APK o en el navegador
+del teléfono y rechazar un pedido de prueba.
