@@ -1,0 +1,466 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mejoras de jugadores · TSC</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/components.css">
+<!-- Firebase (compat) — debe cargar antes de firebase-config.js / auth.js -->
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/state.js"></script>
+<script src="js/db.js"></script>
+<script src="js/events.js"></script>
+<script src="js/auth.js"></script>
+<!-- Slice D.R: reglas de costo compartidas con pes5-tool.html (modulo puro, sin DOM) -->
+<script src="js/yunacoins-rules.js"></script>
+<script src="js/pes5-plantilla.js"></script>
+<script src="js/pes5-bloqueo.js"></script>
+<style>
+:root{
+  --tier-n:#EDEFF3;   /* 0-79  normal */
+  --tier-y:#D9DE55;   /* 80-89 amarillo */
+  --tier-o:#F2953F;   /* 90-95 naranjo */
+  --tier-r:#EF4A45;   /* 96-99 rojo */
+  --chrome-hi:#E7EDF4;
+  --chrome-lo:#374253;
+  --row-a:rgba(255,255,255,0.025);
+  --row-b:rgba(255,255,255,0.06);
+  --bkt-pt:#1f7a7a;
+  --bkt-de:#20488f;
+  --bkt-me:#1c8442;
+  --bkt-dc:#9c2b2b;
+}
+/* Modo claro: la barra de titulo y el recuadro de la silueta (.ep-photo) se
+   quedan siempre oscuros a proposito (imitan la pantalla del juego), pero el
+   resto de la interfaz debe seguir el tema del sitio. */
+:root[data-theme="light"]{
+  --tier-n:#3A3F47;
+  --tier-y:#8a7a1a;
+  --tier-o:#c9691f;
+  --tier-r:#c23a35;
+  --row-a:rgba(0,0,0,0.02);
+  --row-b:rgba(0,0,0,0.045);
+}
+html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
+*{box-sizing:border-box;}
+::-webkit-scrollbar{display:none;}
+*{scrollbar-width:none;}
+
+.icn{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.icn.star.on{fill:currentColor;}
+
+/* ---------- shell ---------- */
+.ep-shell{max-width:1180px;margin:0 auto;padding:18px 14px 100px;}
+.ep-crumb{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--txt3);
+  font-family:'Barlow Condensed';font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;}
+.ep-crumb b{color:var(--gold);font-weight:700;}
+.ep-theme-btn{display:flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--brd2);
+  color:var(--txt2);border-radius:999px;padding:5px 12px;cursor:pointer;font-family:'Barlow Condensed';
+  font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;flex:none;}
+.ep-theme-btn:hover{border-color:var(--gold-b);color:var(--txt);}
+.ep-theme-btn svg{width:14px;height:14px;flex:none;}
+
+.ep-app{display:grid;grid-template-columns:250px 1fr;gap:16px;}
+@media(max-width:860px){.ep-app{grid-template-columns:1fr;}}
+
+/* ---------- roster ---------- */
+.ep-roster{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);overflow:hidden;
+  max-height:640px;display:flex;flex-direction:column;}
+.ep-roster-hd{padding:12px 14px;border-bottom:1px solid var(--brd);}
+.ep-roster-hd input{width:100%;padding:7px 10px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);color:var(--txt);font-size:13px;}
+.ep-roster-list{overflow-y:auto;padding:6px;}
+.ep-bkt-hd{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 10px;margin:6px 2px 4px;
+  border-radius:4px;font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1.5px;
+  text-transform:uppercase;color:#fff;}
+.ep-pitem{display:flex;align-items:center;gap:9px;padding:8px;border-radius:var(--r);cursor:pointer;
+  transition:background var(--dur-fast);}
+.ep-pitem:hover{background:var(--card2);}
+.ep-pitem.active{background:var(--gold-l);border:1px solid var(--gold-b);}
+.ep-pitem .av{width:30px;height:30px;border-radius:50%;background:var(--card3);display:flex;align-items:center;
+  justify-content:center;flex:none;color:var(--txt3);}
+.ep-pitem-info{min-width:0;flex:1;}
+.ep-pitem-name{font-size:13.5px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-pitem-tag{font-size:11px;color:var(--txt3);}
+.ep-pitem .lockbadge{color:var(--txt3);flex:none;}
+
+/* ---------- editor column ---------- */
+.ep-editor{display:flex;flex-direction:column;gap:14px;}
+
+.ep-titlebar{background:linear-gradient(120deg,var(--chrome-hi) 0%,#aab4c2 20%,#5c6b7d 46%,#8b98a9 64%,var(--chrome-lo) 100%);
+  border-radius:var(--rl) var(--rl) 0 0;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,0.25);flex-wrap:wrap;gap:8px;}
+.ep-titlebar h1{margin:0;font-family:'Bebas Neue';font-size:24px;letter-spacing:1.5px;color:#151b24;}
+.ep-titlebar .sub{font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;color:#2b3542;text-transform:uppercase;}
+.ep-histbtn{position:relative;display:flex;align-items:center;gap:5px;background:var(--card3);border:1px solid var(--brd2);
+  padding:6px 10px;border-radius:999px;cursor:pointer;color:var(--txt2);font-family:'Barlow Condensed';
+  font-weight:700;font-size:12px;letter-spacing:0.5px;}
+.ep-histbtn:hover{color:var(--txt);border-color:var(--gold-b);}
+.ep-histbtn .badge{background:var(--red);color:#fff;border-radius:999px;font-size:10px;padding:0 5px;font-family:'Barlow';}
+
+/* ---------- zona de yunacoins (fuera del editor, es el dato mas importante) ---------- */
+.ep-hero{display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:var(--card);border:1px solid var(--brd2);
+  border-radius:var(--rl);padding:14px 20px;margin-bottom:16px;}
+.ep-hero-main{display:flex;align-items:center;gap:10px;}
+.ep-hero-main svg{width:26px;height:26px;color:var(--gold);flex:none;}
+.ep-hero-lbl{font-family:'Barlow Condensed';font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+.ep-hero-val{font-family:'Bebas Neue';font-size:32px;color:var(--gold);letter-spacing:0.5px;line-height:1.15;}
+.ep-hero-val.small{font-size:20px;}
+.ep-hero-cap{font-family:'Barlow Condensed';font-size:15px;color:var(--txt3);margin-left:3px;}
+.ep-hero-sub{display:flex;flex-direction:column;gap:2px;padding-left:18px;border-left:1px solid var(--brd);}
+.ep-hero-actions{display:flex;gap:8px;margin-left:auto;}
+@media(max-width:640px){.ep-hero-actions{margin-left:0;width:100%;justify-content:flex-end;}}
+
+.ep-body{background:var(--card);border:1px solid var(--brd2);border-top:none;border-radius:0 0 var(--rl) var(--rl);
+  padding:16px;display:grid;grid-template-columns:200px 1fr;gap:16px;}
+@media(max-width:640px){.ep-body{grid-template-columns:1fr;}}
+
+/* player card */
+.ep-card{display:flex;flex-direction:column;gap:10px;}
+.ep-photo{aspect-ratio:3/4;border-radius:var(--r);background:linear-gradient(160deg,#22314a,#0d1420);
+  border:1px solid var(--brd2);display:flex;align-items:center;justify-content:center;color:var(--txt3);position:relative;overflow:hidden;}
+.ep-photo svg{width:56%;height:56%;}
+.ep-photo img{width:72%;height:72%;object-fit:contain;filter:brightness(0) invert(0.92);opacity:0.94;}
+.ep-name{font-family:'Bebas Neue';font-size:19px;letter-spacing:0.5px;color:var(--txt);line-height:1.05;}
+.ep-tag{font-family:'Barlow Condensed';font-size:12px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;}
+.ep-subs-badge{display:inline-block;background:var(--gold-l);border:1px solid var(--gold-b);color:var(--gold);
+  font-size:10px;letter-spacing:0.5px;padding:1px 6px;border-radius:999px;margin-left:4px;}
+.ep-real-badge{display:inline-block;background:var(--blue-l);border:1px solid rgba(59,130,246,0.35);color:var(--blue);
+  font-size:10px;letter-spacing:0.5px;padding:1px 6px;border-radius:999px;margin-left:4px;}
+.ep-info b svg{margin-left:4px;vertical-align:-2px;color:var(--txt3);}
+.ep-height-note{font-size:11px;color:var(--txt3);padding:2px 2px 0;}
+.ep-info-height{align-items:center;}
+.ep-info-height-val{display:flex;align-items:center;gap:8px;}
+.ep-info{background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:8px 10px;
+  font-size:12.5px;color:var(--txt2);display:flex;flex-direction:column;gap:4px;}
+.ep-info div{display:flex;justify-content:space-between;gap:8px;}
+.ep-info b{color:var(--txt);font-weight:600;}
+
+/* stat panel */
+.ep-panel{display:flex;flex-direction:column;min-width:0;}
+.ep-panel-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.ep-panel-title{font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--txt2);}
+.ep-pager{display:flex;align-items:center;gap:8px;}
+.ep-pgbtn{display:flex;align-items:center;gap:4px;background:var(--card3);border:1px solid var(--brd2);
+  color:var(--txt2);border-radius:999px;padding:4px 9px;cursor:pointer;font-family:'Barlow Condensed';
+  font-size:11px;letter-spacing:1px;}
+.ep-pgbtn:hover{color:var(--txt);border-color:var(--gold-b);}
+.ep-pgbtn:disabled{opacity:0.35;cursor:not-allowed;}
+.ep-pgnum{font-family:'Bebas Neue';font-size:15px;color:var(--txt);min-width:34px;text-align:center;}
+
+.ep-rows{border:1px solid var(--brd);border-radius:var(--r);overflow:hidden;max-height:420px;overflow-y:auto;
+  mask-image:linear-gradient(#000 calc(100% - 14px),transparent);}
+.ep-row{display:flex;align-items:center;gap:10px;padding:7px 10px;cursor:pointer;position:relative;}
+.ep-row:nth-child(odd){background:var(--row-a);}
+.ep-row:nth-child(even){background:var(--row-b);}
+.ep-row.sel{background:linear-gradient(90deg,rgba(59,130,246,0.28),rgba(59,130,246,0.08));}
+.ep-row.sel::before{content:'\2039';position:absolute;left:2px;color:var(--blue);font-weight:700;}
+.ep-row.pad{opacity:0.3;cursor:default;}
+.ep-row.locked{cursor:not-allowed;}
+.ep-rlabel{flex:1;min-width:0;font-size:13.5px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-rval{font-family:'Bebas Neue';font-size:16px;min-width:26px;text-align:right;}
+.ep-rbar{width:96px;height:7px;border-radius:4px;background:rgba(0,0,0,0.55);overflow:hidden;flex:none;}
+.ep-rbar i{display:block;height:100%;border-radius:4px;}
+.ep-rstep{display:flex;gap:3px;flex:none;}
+.ep-rstep button{width:20px;height:20px;border-radius:4px;background:var(--card3);border:1px solid var(--brd2);
+  color:var(--txt2);cursor:pointer;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;}
+.ep-rstep button:hover:not(:disabled){color:var(--txt);border-color:var(--gold-b);}
+.ep-rstep button:disabled{opacity:0.3;cursor:not-allowed;}
+.ep-rcost{font-size:10.5px;color:var(--gold);min-width:40px;text-align:right;flex:none;}
+.ep-rcost-row{font-family:'Barlow Condensed';font-size:11px;font-weight:700;color:var(--gold);flex:none;
+  background:var(--gold-l);border:1px solid var(--gold-b);border-radius:999px;padding:1px 6px;}
+.ep-rstar{flex:none;color:var(--txt3);display:flex;align-items:center;}
+.ep-rstar.on{color:var(--gold);}
+.ep-rfoot{display:flex;gap:5px;flex:none;}
+.ep-register-btn{width:30px;height:30px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid var(--brd2);background:var(--card3);color:var(--txt3);cursor:pointer;padding:0;}
+.ep-register-btn:hover{color:var(--gold);border-color:var(--gold-b);}
+.ep-rfoot button{padding:3px 9px;border-radius:999px;border:1px solid var(--brd2);background:var(--card3);
+  color:var(--txt2);font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.5px;cursor:pointer;}
+.ep-rfoot button.on{background:var(--gold-l);border-color:var(--gold-b);color:var(--gold);}
+
+.ep-hint{margin-top:8px;padding:9px 12px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);font-size:12.5px;color:var(--txt2);min-height:36px;display:flex;align-items:center;}
+
+/* cart footer */
+.ep-cart{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);padding:12px 16px;}
+.ep-cart-tot{display:flex;flex-direction:column;gap:2px;}
+.ep-cart-tot span{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:1px;}
+.ep-cart-tot b{font-family:'Bebas Neue';font-size:20px;color:var(--gold);}
+.ep-cart-tot b.over{color:var(--red);}
+.ep-cart-actions{display:flex;gap:8px;}
+.ep-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--r);border:1px solid var(--brd2);
+  background:var(--card3);color:var(--txt2);cursor:pointer;font-family:'Barlow Condensed';font-weight:700;
+  font-size:13px;letter-spacing:1px;text-transform:uppercase;}
+.ep-btn.primary{background:var(--gold);border-color:var(--gold);color:#151b24;}
+.ep-btn.primary:disabled{opacity:0.4;cursor:not-allowed;}
+.ep-btn:hover:not(:disabled){filter:brightness(1.08);}
+.ep-warn{color:var(--red);font-size:12px;}
+
+/* modales (confirmar / historial) */
+.ep-overlay{position:fixed;inset:0;background:rgba(4,6,10,0.72);z-index:960;display:flex;align-items:center;
+  justify-content:center;padding:16px;}
+.ep-modal{width:100%;max-width:460px;max-height:82vh;display:flex;flex-direction:column;background:var(--card);
+  border:1px solid var(--brd2);border-radius:var(--rl);overflow:hidden;}
+.ep-modal.wide{max-width:640px;}
+.ep-modal-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--brd);}
+.ep-modal-hd h2{margin:0;font-family:'Bebas Neue';font-size:19px;letter-spacing:0.5px;color:var(--txt);}
+.ep-modal-close{background:none;border:none;color:var(--txt3);font-size:20px;cursor:pointer;line-height:1;}
+.ep-modal-body{padding:14px 18px;overflow-y:auto;font-size:13.5px;color:var(--txt2);}
+.ep-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--brd);}
+.ep-diffline{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--brd);font-size:13px;}
+.ep-diffline:last-child{border-bottom:none;}
+.ep-diffline .lbl{color:var(--txt);}
+.ep-diffline .chg{color:var(--txt3);white-space:nowrap;}
+.ep-diffline .cost{color:var(--gold);font-family:'Bebas Neue';font-size:14px;min-width:56px;text-align:right;}
+.ep-modal-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--brd2);font-size:14px;color:var(--txt);}
+.ep-modal-total b{font-family:'Bebas Neue';font-size:20px;color:var(--gold);}
+.ep-audit-entry{border:1px solid var(--brd);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;}
+.ep-audit-entry-hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.ep-audit-entry-hd b{color:var(--txt);font-size:14px;}
+.ep-audit-entry-hd span{color:var(--txt3);font-size:11px;}
+.ep-audit-entry .sum{font-size:12.5px;color:var(--txt2);}
+.ep-audit-entry .cost{color:var(--gold);font-weight:600;}
+
+/* ---------- posicion exacta en la cancha ---------- */
+.ep-histbtn.formation{border-color:var(--gold-b);color:var(--gold);}
+.ep-pitch-cta-icon{display:flex;flex:none;width:22px;height:15px;border-radius:2px;overflow:hidden;
+  border:1px solid rgba(255,255,255,0.3);}
+.ep-pitch-cta-icon i{display:block;}
+.ep-pitch-cta-icon i:nth-child(1){flex:33;background:#3f6f85;}
+.ep-pitch-cta-icon i:nth-child(2){flex:40;background:#4d7d55;}
+.ep-pitch-cta-icon i:nth-child(3){flex:27;background:#6d4a3a;}
+.ep-pitch-crest{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed';font-weight:700;
+  font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
+.ep-pitch-crest svg{width:16px;height:16px;stroke:var(--gold);}
+.ep-pitch-lineup{display:inline-block;background:var(--card2);border:1px solid var(--gold-b);
+  color:var(--gold);font-family:'Bebas Neue';font-size:15px;letter-spacing:0.5px;
+  line-height:1.25;padding:0 8px;border-radius:4px;}
+.ep-pitch-field{position:relative;width:100%;aspect-ratio:2.2/1;border-radius:2px;overflow:visible;
+  border:3px solid #b9c3cf;background:#101a13;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.45);}
+/* franja de cada zona; no toca ningun borde: queda el mismo margen de ~9 px
+   contra la linea de meta, el fondo y los dos costados, como en el juego */
+.ep-pitch-zone{position:absolute;}
+/* franjas de cesped tenues, como el degradado de la pantalla original */
+.ep-pitch-field::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0 4.4%, rgba(0,0,0,0.045) 4.4% 8.8%);}
+.ep-pitch-halfline{position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.6);}
+.ep-pitch-circle{position:absolute;left:50%;top:50%;width:24%;aspect-ratio:1/1;transform:translate(-50%,-50%);
+  border:2px solid rgba(255,255,255,0.6);border-radius:50%;}
+.ep-pitch-box{position:absolute;top:20%;bottom:20%;width:13%;border:2px solid rgba(255,255,255,0.6);}
+.ep-pitch-box.left{left:0;border-left:none;}
+.ep-pitch-box.right{right:0;border-right:none;}
+.ep-pitch-goal{position:absolute;top:37%;bottom:37%;width:4.5%;border:2px solid rgba(255,255,255,0.6);}
+.ep-pitch-goal.left{left:0;border-left:none;}
+.ep-pitch-goal.right{right:0;border-right:none;}
+/* semicirculo del area grande (el "balcon" del punto penal) */
+.ep-pitch-arc{position:absolute;top:50%;width:11%;aspect-ratio:1/1;transform:translate(-50%,-50%);
+  border:2px solid rgba(255,255,255,0.6);border-radius:50%;}
+.ep-pitch-arc.left{left:13%;clip-path:inset(0 0 0 50%);}
+.ep-pitch-arc.right{left:87%;clip-path:inset(0 50% 0 0);}
+/* zona de la posicion del jugador seleccionado (mas intensa que la franja) */
+.ep-pitch-pos{position:absolute;border:1px solid rgba(255,255,255,0.45);border-radius:2px;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15);}
+.ep-pitch-dot{position:absolute;width:3.4%;aspect-ratio:1/1;border-radius:50%;background:#2f9fd0;
+  border:1px solid rgba(255,255,255,0.85);transform:translate(-50%,-50%);cursor:pointer;
+  box-shadow:0 1px 3px rgba(0,0,0,0.5);}
+.ep-pitch-dot:hover{background:#4fc3f7;}
+.ep-pitch-dot.me{background:#f07b28;border:2px solid #fff;z-index:2;
+  box-shadow:0 0 0 4px rgba(240,123,40,0.3), 0 1px 3px rgba(0,0,0,0.5);}
+.ep-pitch-dot.gk{background:#f2d24a;}
+.ep-pitch-dot.gk.me{background:#f07b28;}
+.ep-pitch-selctl{display:flex;align-items:center;gap:8px;}
+.ep-pitch-tag{position:absolute;top:-26px;left:50%;transform:translateX(-50%);white-space:nowrap;
+  background:rgba(10,14,20,0.92);border:1px solid var(--gold-b);color:var(--gold);font-family:'Bebas Neue';
+  font-size:13px;letter-spacing:0.5px;padding:2px 8px;border-radius:4px;}
+.ep-pitch-info{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;
+  padding:8px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
+.ep-pitch-info-name{font-family:'Bebas Neue';font-size:16px;color:var(--txt);display:flex;align-items:center;gap:8px;}
+.ep-pitch-info-zone{font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+.ep-pitch-posrow{display:flex;align-items:center;gap:6px;}
+.ep-pitch-possel{background:var(--card2);border:1px solid var(--gold-b);color:var(--gold);
+  font-family:'Bebas Neue';font-size:14px;letter-spacing:0.5px;padding:3px 8px;border-radius:4px;cursor:pointer;}
+.ep-pitch-possel:disabled{opacity:0.6;cursor:default;}
+.ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+
+/* ================= Slice F.M — mobile-first (<= 860px) =================
+   La pagina se usa sobre todo dentro de la APK. Objetivos tactiles >= 40px,
+   editor visible sin scrollear la lista de jugadores, boton de pedido
+   siempre a mano, textos >= 12px, sin barras de scroll visibles. */
+@media (max-width: 860px){
+  /* panel de formacion: el nombre arriba y los controles abajo, sin desbordar */
+  .ep-pitch-info{flex-wrap:wrap;}
+  .ep-pitch-info-name{flex:1 0 100%;}
+  .ep-pitch-posrow{flex:1 1 auto;justify-content:flex-start;}
+  .ep-pitch-selctl{flex:0 0 auto;}
+  /* lista de jugadores: tira horizontal compacta en vez de columna de 640px */
+  .ep-roster{max-height:none;}
+  .ep-roster-list{display:flex;flex-direction:row;align-items:stretch;gap:6px;
+    overflow-x:auto;overflow-y:hidden;padding:8px;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent);
+    mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 12px),transparent);}
+  .ep-roster-list::-webkit-scrollbar{display:none;}
+  .ep-roster-list .ep-bkt-hd{flex:0 0 auto;margin:0;padding:0 10px;display:flex;align-items:center;
+    border-radius:var(--r);font-size:12px;}
+  .ep-roster-list .ep-pitem{flex:0 0 auto;min-height:48px;max-width:168px;padding:6px 10px;
+    border:1px solid var(--brd);}
+  .ep-roster-list .ep-pitem .av{width:26px;height:26px;}
+  .ep-roster-hd input{min-height:40px;font-size:16px;} /* 16px evita el zoom automatico de iOS/Android */
+
+  /* filas de atributos: controles tactiles */
+  .ep-row{padding:6px 8px;gap:8px;min-height:48px;}
+  .ep-rbar{display:none;}
+  .ep-rstep{gap:6px;}
+  .ep-rstep button{width:40px;height:40px;font-size:20px;border-radius:8px;}
+  .ep-rfoot button{min-height:36px;padding:6px 12px;font-size:12px;}
+  .ep-register-btn{width:36px;height:36px;}
+  .ep-rcost{font-size:12px;}
+  .ep-rcost-row{font-size:12px;}
+
+  /* navegacion y botones */
+  .ep-pgbtn{min-height:40px;padding:0 14px;}
+  .ep-theme-btn{min-height:40px;padding:0 12px;}
+  .ep-crumb a{min-height:44px;}
+  .ep-hero-actions{flex-wrap:wrap;justify-content:stretch;gap:6px;}
+  .ep-hero-actions .ep-histbtn{flex:1 1 calc(50% - 6px);justify-content:center;min-height:44px;}
+  .ep-btn{min-height:44px;}
+
+  /* barra de pedido siempre visible abajo */
+  .ep-cart{position:sticky;bottom:0;z-index:50;border-radius:var(--rl) var(--rl) 0 0;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    box-shadow:0 -8px 24px rgba(0,0,0,0.35);}
+  .ep-cart-actions{flex:1;justify-content:flex-end;}
+
+  /* textos minimos */
+  .ep-pitem-tag,.ep-hero-lbl,.ep-height-note,.ep-cart-tot span,.ep-audit-entry-hd span{font-size:12px;}
+  .ep-histbtn .badge{font-size:11px;min-width:18px;text-align:center;}
+
+  /* modales a pantalla completa, sin barra de scroll visible */
+  .ep-overlay{padding:0;align-items:stretch;}
+  .ep-modal,.ep-modal.wide{max-width:none;max-height:none;height:100%;border-radius:0;border:none;}
+  .ep-modal-body{scrollbar-width:none;padding:14px 16px calc(14px + env(safe-area-inset-bottom));}
+  .ep-modal-body::-webkit-scrollbar{display:none;}
+  .ep-modal-close{min-width:44px;min-height:44px;font-size:26px;}
+}
+/* ================= Scroll aislado (movil / APK) =================
+   1) Con un modal abierto la pagina de atras no scrollea (clase ep-lock, la pone
+      _syncScrollLock en js/mejoras-page.js).
+   2) Las cajas con scroll propio no pasan el sobrante a la pagina ni disparan el
+      gesto de volver / recargar del navegador (overscroll-behavior).
+   3) En movil la lista de atributos no es una caja con scroll adentro de otra
+      pagina que tambien scrollea: queda un solo scroll. */
+html.ep-lock,html.ep-lock body{overflow:hidden;}
+.ep-overlay,.ep-modal-body,.ep-rows,.ep-roster-list{overscroll-behavior:contain;}
+@media(max-width:860px){
+  .ep-rows{max-height:none;overflow-y:visible;mask-image:none;-webkit-mask-image:none;}
+}
+/* ================= Slice Q2 — modo admin embebido (iframe de la Tool PES5) ================= */
+body.admin-embed .ep-roster{display:none;}
+body.admin-embed .ep-app{grid-template-columns:1fr;}
+body.admin-embed .ep-hero-actions{display:none;}
+body.admin-embed .ep-crumb > div{display:none !important;}
+body.admin-embed .ep-cart{position:sticky;bottom:0;z-index:50;box-shadow:0 -8px 24px rgba(0,0,0,0.35);}
+body.admin-embed .ep-admin-tag{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:0.5px;}
+body.admin-libre .ep-hero,body.admin-libre .ep-cart-tot{display:none;}
+</style>
+</head>
+<body>
+
+<div id="ep-gate" style="display:none;max-width:480px;margin:60px auto;padding:24px;text-align:center;color:var(--txt2);"></div>
+<div class="ep-shell" id="ep-shell" style="display:none;">
+  <div class="ep-crumb">
+    <a href="index.html" style="display:flex;align-items:center;gap:6px;color:inherit;text-decoration:none;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>TSC &middot; Copa Suscriptores <b>&rsaquo; Mejoras de jugadores</b></span></a>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="ep-auth-status" style="font-size:12px;"></span>
+      <button class="ep-theme-btn" id="ep-theme-btn" data-onclick="toggleTheme()"></button>
+    </div>
+  </div>
+
+  <div class="ep-hero">
+    <div class="ep-hero-main" title="Saldo total de YunaCoins del equipo">
+      <svg class="icn" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
+      <div>
+        <div class="ep-hero-lbl">YunaCoins del equipo</div>
+        <div class="ep-hero-val"><b id="ep-balance-total">0</b></div>
+      </div>
+    </div>
+    <div class="ep-hero-sub" title="Lo que todavia se puede gastar en mejoras esta temporada, sobre el tope">
+      <div class="ep-hero-lbl">Mejoras de la temporada</div>
+      <div class="ep-hero-val small"><b id="ep-balance-general">0</b><span class="ep-hero-cap">/ <span id="ep-hero-general-cap">0</span></span></div>
+    </div>
+    <div class="ep-hero-sub" title="Bono exclusivo para jugadores suscriptores: se gasta primero en ellos">
+      <div class="ep-hero-lbl">Bono suscriptores</div>
+      <div class="ep-hero-val small"><b id="ep-balance-sub">0</b></div>
+    </div>
+    <div class="ep-hero-actions">
+      <button class="ep-histbtn formation" data-onclick="openFormationModal()">
+        <span class="ep-pitch-cta-icon"><i></i><i></i><i></i></span>
+        Formacion
+      </button>
+      <button class="ep-histbtn" data-onclick="openAuditModal()">
+        <svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
+        Historial <span class="badge" id="ep-hist-badge">0</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="ep-app">
+    <aside class="ep-roster">
+      <div class="ep-roster-hd"><input id="ep-search" placeholder="Buscar jugador..." data-oninput="renderRoster()"></div>
+      <div class="ep-roster-list" id="ep-roster-list"></div>
+    </aside>
+
+    <section class="ep-editor">
+      <div class="ep-titlebar">
+        <div>
+          <h1 id="ep-title">EDITAR JUGADOR</h1>
+          <div class="sub" id="ep-subtitle">FK Tupadre</div>
+        </div>
+      </div>
+
+      <div class="ep-body">
+        <div class="ep-card" id="ep-card"></div>
+        <div class="ep-panel">
+          <div class="ep-panel-hd">
+            <div class="ep-panel-title" id="ep-page-title">Principales</div>
+            <div class="ep-pager">
+              <button class="ep-pgbtn" id="ep-prev" data-onclick="gotoPage(-1)" title="Pagina anterior" aria-label="Pagina anterior"><svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="ep-pgnum" id="ep-pgnum">1/5</div>
+              <button class="ep-pgbtn" id="ep-next" data-onclick="gotoPage(1)" title="Pagina siguiente" aria-label="Pagina siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+            </div>
+          </div>
+          <div class="ep-rows" id="ep-rows"></div>
+          <div class="ep-hint" id="ep-hint">Selecciona un atributo para ver su descripcion.</div>
+        </div>
+      </div>
+
+      <div class="ep-cart">
+        <div class="ep-cart-tot">
+          <span>Acumulado en esta sesion</span>
+          <b id="ep-cost">0</b>
+        </div>
+        <div id="ep-warn" class="ep-warn"></div>
+        <div class="ep-cart-actions">
+          <button class="ep-btn" data-onclick="discardChanges()"><svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>Descartar</button>
+          <button class="ep-btn primary" id="ep-apply" data-onclick="openApplyConfirm()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Aplicar cambios</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="ep-confirm-wrap"></div>
+<div id="ep-audit-wrap"></div>
+<div id="ep-pitch-wrap"></div>
+
+<script src="js/mejoras-page.js"></script>
+</body>
+</html>

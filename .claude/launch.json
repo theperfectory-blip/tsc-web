@@ -4,34 +4,63 @@
     {
       "name": "tsc-src",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "tsc-src"],
+      "runtimeArgs": [
+        "serve",
+        "tsc-src"
+      ],
       "port": 3000,
       "autoPort": true
     },
     {
+      "name": "tsc-2.0",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "serve",
+        "tsc-src",
+        "-l",
+        "3002"
+      ],
+      "port": 3002
+    },
+    {
       "name": "tsc-emu-backend",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/emu-start.mjs"],
+      "runtimeArgs": [
+        "scripts/emu-start.mjs"
+      ],
       "port": 8080
     },
     {
       "name": "tsc-emu",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "sandbox/site", "-l", "3001"],
+      "runtimeArgs": [
+        "serve",
+        "sandbox/site",
+        "-l",
+        "3001"
+      ],
       "port": 3001,
       "url": "http://localhost:3001"
     },
     {
       "name": "tsc-emu-dist",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["scripts/emu-dist.mjs"],
+      "runtimeArgs": [
+        "scripts/emu-dist.mjs"
+      ],
       "port": 3001,
       "url": "http://localhost:3001"
     },
     {
       "name": "hosting-dist",
       "runtimeExecutable": "firebase",
-      "runtimeArgs": ["emulators:start", "--only", "hosting", "--project", "tsc-web-yuna"],
+      "runtimeArgs": [
+        "emulators:start",
+        "--only",
+        "hosting",
+        "--project",
+        "tsc-web-yuna"
+      ],
       "port": 5050
     }
   ]
