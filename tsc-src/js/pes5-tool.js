@@ -249,6 +249,7 @@ function salir(){
   _montadoEn = null;
   window.removeEventListener('tsc:auth', _alCambiarAuth);
   if (OBSERVAR_STOP){ try { OBSERVAR_STOP(); } catch (e) {} OBSERVAR_STOP = null; }
+  if (window.MEJORAS_EDITOR) MEJORAS_EDITOR.desmontar();
   document.getElementById('pt-ed-overlay')?.remove();
   liberarBloqueoEquipo();
 }
@@ -725,10 +726,11 @@ window.addEventListener('pagehide', () => {
 });
 
 // ============================================================
-// Editor embebido: al clickear un jugador se abre mejoras.html en modo admin
-// (mejoras.html#admin) dentro de un iframe, en un modal. La pagina no escribe
-// nada por su cuenta: le devuelve el borrador a la tool (mensaje pt-aplicar) y la
-// tool lo guarda en CAMBIOS_PENDIENTES. Solo la tool escribe el save.
+// Editor de jugador: el editor de mejoras (js/mejoras-page.js) se monta en un
+// modal de esta seccion con MEJORAS_EDITOR.montar: sin iframe ni postMessage.
+// La tool le pasa los datos y recibe el borrador por onAplicar (lo guarda como
+// cambio pendiente en CAMBIOS_PENDIENTES); onCerrar cierra el modal. Solo la
+// tool escribe el save.
 // ============================================================
 async function abrirEditorJugador(id){
   const j = PLANTILLA_ACTUAL.find(p => p.id === id);
@@ -736,6 +738,7 @@ async function abrirEditorJugador(id){
   if (!(await asegurarBloqueoEquipo(equipoTSCActual()))) return;
   const previo = document.getElementById('pt-ed-overlay');
   if (previo) previo.remove();
+  MEJORAS_EDITOR.desmontar();
   JUGADOR_SELECCIONADO = id;
   const ov = document.createElement('div');
   ov.id = 'pt-ed-overlay';
@@ -745,25 +748,25 @@ async function abrirEditorJugador(id){
     <div class="pt-ed-box">
       <div class="pt-ed-hd"><span>${escHtml(j.nombre)}</span>
         <button class="pt-ed-close" data-onclick="ptCerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
-      <iframe id="pt-ed-frame" class="pt-ed-frame" title="Editor de jugador" src="../mejoras.html#admin"></iframe>
+      <div id="pt-ed-host" class="pt-ed-host"></div>
     </div>`;
-  document.body.appendChild(ov);
+  (_montadoEn || document.body).appendChild(ov);
   renderPlantillaBody();
+  MEJORAS_EDITOR.montar(document.getElementById('pt-ed-host'), _opcionesEditor(j));
 }
+
 function cerrarEditorJugador(){
+  if (window.MEJORAS_EDITOR) MEJORAS_EDITOR.desmontar();
   const ov = document.getElementById('pt-ed-overlay');
   if (ov) ov.remove();
   if (JUGADOR_SELECCIONADO != null){ JUGADOR_SELECCIONADO = null; renderPlantillaBody(); }
   if (BLOQUEO_EQUIPO != null && !Object.keys(CAMBIOS_PENDIENTES).length) liberarBloqueoEquipo();
 }
 
-// Datos que necesita el editor embebido para el jugador abierto. Si el equipo tiene
-// presidente se cobra (reglas y presupuesto reales, descontando lo ya pendiente de
-// OTROS jugadores); si no, edicion libre: reglas en cero y presupuesto enorme.
-function enviarInitEditor(){
-  const fr = document.getElementById('pt-ed-frame');
-  const j = PLANTILLA_ACTUAL ? PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO) : null;
-  if (!fr || !j) return;
+// Opciones del editor para el jugador abierto. Si el equipo tiene presidente se
+// cobra (reglas y presupuesto reales, descontando lo ya pendiente de OTROS
+// jugadores); si no, edicion libre: reglas en cero y presupuesto enorme.
+function _opcionesEditor(j){
   const team = equipoTSCActual();
   const cobra = !!(team && tienePresidente(team));
   let reglas, presupuesto;
@@ -785,8 +788,8 @@ function enviarInitEditor(){
     presupuesto = { general: 1e9, subscribers: 1e9, saldo: 0 };
   }
   const pres = cobra ? PRESIDENTES_POR_TEAM[team.id] : null;
-  fr.contentWindow.postMessage({
-    tipo: 'pt-init',
+  return {
+    modo: 'admin',
     equipo: {
       id: team ? team.id : null,
       name: team ? team.name : (CLUBES_PES5[PLANTILLA_INDICE] || 'Club'),
@@ -801,11 +804,14 @@ function enviarInitEditor(){
     jugadores: PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, PLANTILLA_INDICE),
     jugadorId: 'r' + j.id,
     pendiente: CAMBIOS_PENDIENTES[j.id] || null,
-  }, location.origin);
+    onAplicar: recibirAplicarDelEditor,
+    onCerrar: cerrarEditorJugador,
+  };
 }
 
-// El editor devolvio el borrador de un jugador: se calcula el diff contra el save
-// actual y se guarda como cambio pendiente (o se limpia si volvio al original).
+// El editor entrego el borrador de un jugador (onAplicar): se calcula el diff contra el save
+// actual y se guarda como cambio pendiente (o se limpia si volvio al original). El cierre del
+// modal lo pide el editor despues (onCerrar).
 function recibirAplicarDelEditor(m){
   const registro = PES5_PLANTILLA.registroDeId(m.jugadorId);
   const j = PLANTILLA_ACTUAL ? PLANTILLA_ACTUAL.find(p => p.id === registro) : null;
@@ -819,17 +825,8 @@ function recibirAplicarDelEditor(m){
     delete CAMBIOS_PENDIENTES[registro];
     showToast(`${j.nombre}: sin cambios pendientes.`);
   }
-  cerrarEditorJugador();
   renderWriteBar();
 }
-
-window.addEventListener('message', function onMensajeDelEditor(ev){
-  const fr = document.getElementById('pt-ed-frame');
-  if (!fr || ev.origin !== location.origin || ev.source !== fr.contentWindow) return;
-  const m = ev.data || {};
-  if (m.tipo === 'pt-listo') enviarInitEditor();
-  else if (m.tipo === 'pt-aplicar') recibirAplicarDelEditor(m);
-});
 
 // Barra de escritura del plantel abierto: estado de cobro, cambios pendientes,
 // checkbox "PES5 esta cerrado" y botones. Vive en #pl-writebar, fuera de #pl-body.

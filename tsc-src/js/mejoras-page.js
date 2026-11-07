@@ -1,5 +1,104 @@
+/* ============================================================
+   Editor de mejoras de jugadores — componente montable (slice 2.0-1.B).
+   - mejoras.html (presidente): al cargar, iniciarPagina() lo monta en #mej-host.
+   - Tool PES5 (admin, panel): MEJORAS_EDITOR.montar(contenedor, {modo:"admin", ...}).
+     Sin iframe ni postMessage: onAplicar({jugadorId, draft, costo}) y onCerrar().
+   Todo queda en una IIFE. Solo se exponen MEJORAS_EDITOR, los handlers de data-on*
+   (events.js solo llama funciones globales sin puntos) y mejToggleTheme.
+   ============================================================ */
+window.MEJORAS_EDITOR = (function(){
 'use strict';
-function _esc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* Markup del editor (antes estaba en mejoras.html). Lo inserta montar(). */
+const MEJ_MARKUP = `
+<div id="mej-root" class="ep-root">
+<div id="ep-gate" style="display:none;max-width:480px;margin:60px auto;padding:24px;text-align:center;color:var(--txt2);"></div>
+<div class="ep-shell" id="ep-shell" style="display:none;">
+  <div class="ep-crumb">
+    <a href="index.html" style="display:flex;align-items:center;gap:6px;color:inherit;text-decoration:none;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>TSC &middot; Copa Suscriptores <b>&rsaquo; Mejoras de jugadores</b></span></a>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="ep-auth-status" style="font-size:12px;"></span>
+      <button class="ep-theme-btn" id="ep-theme-btn" data-onclick="mejToggleTheme()"></button>
+    </div>
+  </div>
+
+  <div class="ep-hero">
+    <div class="ep-hero-main" title="Saldo total de YunaCoins del equipo">
+      <svg class="icn" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
+      <div>
+        <div class="ep-hero-lbl">YunaCoins del equipo</div>
+        <div class="ep-hero-val"><b id="ep-balance-total">0</b></div>
+      </div>
+    </div>
+    <div class="ep-hero-sub" title="Lo que todavia se puede gastar en mejoras esta temporada, sobre el tope">
+      <div class="ep-hero-lbl">Mejoras de la temporada</div>
+      <div class="ep-hero-val small"><b id="ep-balance-general">0</b><span class="ep-hero-cap">/ <span id="ep-hero-general-cap">0</span></span></div>
+    </div>
+    <div class="ep-hero-sub" title="Bono exclusivo para jugadores suscriptores: se gasta primero en ellos">
+      <div class="ep-hero-lbl">Bono suscriptores</div>
+      <div class="ep-hero-val small"><b id="ep-balance-sub">0</b></div>
+    </div>
+    <div class="ep-hero-actions">
+      <button class="ep-histbtn formation" data-onclick="openFormationModal()">
+        <span class="ep-pitch-cta-icon"><i></i><i></i><i></i></span>
+        Formacion
+      </button>
+      <button class="ep-histbtn" data-onclick="openAuditModal()">
+        <svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
+        Historial <span class="badge" id="ep-hist-badge">0</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="ep-app">
+    <aside class="ep-roster">
+      <div class="ep-roster-hd"><input id="ep-search" placeholder="Buscar jugador..." data-oninput="renderRoster()"></div>
+      <div class="ep-roster-list" id="ep-roster-list"></div>
+    </aside>
+
+    <section class="ep-editor">
+      <div class="ep-titlebar">
+        <div>
+          <h1 id="ep-title">EDITAR JUGADOR</h1>
+          <div class="sub" id="ep-subtitle">FK Tupadre</div>
+        </div>
+      </div>
+
+      <div class="ep-body">
+        <div class="ep-card" id="ep-card"></div>
+        <div class="ep-panel">
+          <div class="ep-panel-hd">
+            <div class="ep-panel-title" id="ep-page-title">Principales</div>
+            <div class="ep-pager">
+              <button class="ep-pgbtn" id="ep-prev" data-onclick="gotoPage(-1)" title="Pagina anterior" aria-label="Pagina anterior"><svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <div class="ep-pgnum" id="ep-pgnum">1/5</div>
+              <button class="ep-pgbtn" id="ep-next" data-onclick="gotoPage(1)" title="Pagina siguiente" aria-label="Pagina siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+            </div>
+          </div>
+          <div class="ep-rows" id="ep-rows"></div>
+          <div class="ep-hint" id="ep-hint">Selecciona un atributo para ver su descripcion.</div>
+        </div>
+      </div>
+
+      <div class="ep-cart">
+        <div class="ep-cart-tot">
+          <span>Acumulado en esta sesion</span>
+          <b id="ep-cost">0</b>
+        </div>
+        <div id="ep-warn" class="ep-warn"></div>
+        <div class="ep-cart-actions">
+          <button class="ep-btn" data-onclick="discardChanges()"><svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>Descartar</button>
+          <button class="ep-btn primary" id="ep-apply" data-onclick="openApplyConfirm()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Aplicar cambios</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="ep-confirm-wrap"></div>
+<div id="ep-audit-wrap"></div>
+<div id="ep-pitch-wrap"></div>
+</div>
+`;
 /* Cierra un modal solo si el click fue en el fondo (reemplaza onclick="if(event.target===this)..."; ver js/events.js). */
 function closeIfBackdrop(e, fn){ if(e.target===e.currentTarget) fn(); }
 function jsq(s){ return String(s).replace(/'/g,"\\'"); }
@@ -18,19 +117,14 @@ function _syncScrollLock(){
   const abierto = !!document.querySelector('.ep-overlay, .modal-overlay.open');
   document.documentElement.classList.toggle('ep-lock', abierto);
 }
-['ep-confirm-wrap', 'ep-audit-wrap', 'ep-pitch-wrap'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) new MutationObserver(_syncScrollLock).observe(el, { childList: true });
-});
 function showToast(msg){ showMiniToast(msg); }
 
 /* Sobreescribe el renderAuthUI() generico de auth.js (pensado para la topbar
    real) con uno propio para este mock: actualiza el badge de estado y
    controla el gate duro de acceso (ep-gate vs ep-shell). */
-/* Slice Q2: modo admin embebido. La Tool PES5 abre esta misma pagina dentro de un iframe
-   (mejoras.html#admin), le pasa los datos por postMessage y recibe el borrador de vuelta.
-   En este modo la pagina NO escribe nada en Firestore. */
-const ADMIN_EMBED = location.hash === '#admin' && window.parent !== window;
+/* Slice Q2: modo admin. La Tool PES5 monta el editor con sus datos (sin iframe ni
+   postMessage) y recibe el borrador por onAplicar. En este modo NO escribe en Firestore. */
+let ADMIN_EMBED = false; // true solo dentro de montar(contenedor, {modo:'admin'}) (Tool PES5)
 let ADMIN_PENDIENTE = null; // cambios ya guardados en la tool para el jugador abierto (formato de la tool)
 let EQUIPO_TSC = null; // doc de tsc-src/js/teams.js para AUTH.teamId, con .pes5Club
 let _gateTeamId = undefined; // evita refetch repetido del mismo equipo
@@ -41,8 +135,8 @@ async function renderAuthUI(){
   const el = document.getElementById('ep-auth-status');
   if (el){
     if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" data-onclick="openAuthModal()">Iniciar sesion</button>`;
-    else if (!AUTH.teamId) el.textContent = `${_esc(AUTH.profile?.displayName||AUTH.user.email)} · sin equipo asignado`;
-    else el.innerHTML = `${_esc(AUTH.profile?.displayName||AUTH.user.email)} <button class="ep-theme-btn" data-onclick="authSignOut()">Salir</button>`;
+    else if (!AUTH.teamId) el.textContent = `${escHtml(AUTH.profile?.displayName||AUTH.user.email)} · sin equipo asignado`;
+    else el.innerHTML = `${escHtml(AUTH.profile?.displayName||AUTH.user.email)} <button class="ep-theme-btn" data-onclick="authSignOut()">Salir</button>`;
   }
 
   if (AUTH.user){
@@ -76,7 +170,7 @@ async function renderAuthUI(){
   }
   if (!EQUIPO_TSC || EQUIPO_TSC.pes5ClubIdx == null){
     gate.style.display = ''; shell.style.display = 'none';
-    gate.innerHTML = `<p>Tu equipo (<b>${_esc(EQUIPO_TSC?.name||'')}</b>) todavía no tiene un club de PES5 vinculado. Esperá a que Luis lo asigne.</p>`;
+    gate.innerHTML = `<p>Tu equipo (<b>${escHtml(EQUIPO_TSC?.name||'')}</b>) todavía no tiene un club de PES5 vinculado. Esperá a que Luis lo asigne.</p>`;
     return;
   }
   if (!PLAYERS.length || _gatePlantillaClub !== EQUIPO_TSC.pes5ClubIdx){
@@ -85,7 +179,7 @@ async function renderAuthUI(){
     if (!hayPlantilla){
       PLAYERS = []; PLAYER_BY_ID = {}; _gatePlantillaClub = undefined;
       gate.style.display = ''; shell.style.display = 'none';
-      gate.innerHTML = `<p>Tu equipo (<b>${_esc(EQUIPO_TSC.name)}</b> · ${_esc(EQUIPO_TSC.pes5Club)}) todavía no fue publicado por Luis. Esperá a que corra la tool.</p>`;
+      gate.innerHTML = `<p>Tu equipo (<b>${escHtml(EQUIPO_TSC.name)}</b> · ${escHtml(EQUIPO_TSC.pes5Club)}) todavía no fue publicado por Luis. Esperá a que corra la tool.</p>`;
       return;
     }
     _gatePlantillaClub = EQUIPO_TSC.pes5ClubIdx;
@@ -718,8 +812,8 @@ function renderRoster(){
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" data-onclick="selectPlayer('${p.id}')">
       <div class="av">${userSvg}</div>
       <div class="ep-pitem-info">
-        <div class="ep-pitem-name">${_esc(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</div>
-        <div class="ep-pitem-tag">#${_esc(p.dorsal)} &middot; ${_esc(p.tag)}</div>
+        <div class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</div>
+        <div class="ep-pitem-tag">#${escHtml(p.dorsal)} &middot; ${escHtml(p.tag)}</div>
       </div>
     </div>`;
   }
@@ -769,18 +863,18 @@ function renderCard(){
     : `<div><span>Edad</span><b>${p.age}</b></div>`;
   const posRegistrada = d.primaryPos || p.primaryPos;
   const posLabel = POS_BY_KEY[posRegistrada]?.l || posRegistrada;
-  const sideRow = d.side !== undefined ? `<div><span>Banda</span><b>${_esc(SIDE_LABEL[d.side]||'—')}</b></div>` : '';
+  const sideRow = d.side !== undefined ? `<div><span>Banda</span><b>${escHtml(SIDE_LABEL[d.side]||'—')}</b></div>` : '';
   document.getElementById('ep-card').innerHTML = `
     <div class="ep-photo"><img src="${photo}" alt=""></div>
     <div>
-      <div class="ep-name">${_esc(p.name)}</div>
-      <div class="ep-tag">#${_esc(p.dorsal)} &middot; ${_esc(posLabel)}</div>
+      <div class="ep-name">${escHtml(p.name)}</div>
+      <div class="ep-tag">#${escHtml(p.dorsal)} &middot; ${escHtml(posLabel)}</div>
     </div>
     <div class="ep-info">
       <div class="ep-info-height"><span>Altura</span>${heightRow}</div>
       ${ageRow}
-      <div><span>Nacionalidad</span><b>${_esc(p.country)}</b></div>
-      <div><span>Pie</span><b>${_esc(FOOT_LABEL[d.favfoot] || p.foot)}</b></div>
+      <div><span>Nacionalidad</span><b>${escHtml(p.country)}</b></div>
+      <div><span>Pie</span><b>${escHtml(FOOT_LABEL[d.favfoot] || p.foot)}</b></div>
       ${sideRow}
     </div>
     ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
@@ -895,13 +989,13 @@ function openApplyConfirm(){
   <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
     <div class="ep-modal">
       <div class="ep-modal-hd">
-        <h2>Confirmar mejoras — ${_esc(p.name)}</h2>
+        <h2>Confirmar mejoras — ${escHtml(p.name)}</h2>
         <button class="ep-modal-close" data-onclick="closeApplyConfirm()">&times;</button>
       </div>
       <div class="ep-modal-body">
         ${lines.map(l=>`<div class="ep-diffline">
-          <div class="lbl">${_esc(l.label)}</div>
-          <div class="chg">${_esc(l.from)} &rarr; ${_esc(l.to)}</div>
+          <div class="lbl">${escHtml(l.label)}</div>
+          <div class="chg">${escHtml(l.from)} &rarr; ${escHtml(l.to)}</div>
           <div class="cost">${l.cost>0? '+'+l.cost.toLocaleString('es-CL') : 'gratis'}</div>
         </div>`).join('')}
         <div class="ep-modal-total">
@@ -1072,19 +1166,19 @@ async function openAuditModal(){
   const fecha = v => { const t = ms(v); return t ? new Date(t).toLocaleString('es-CL') : ''; };
   const filasPedidos = pedidos.length ? pedidos.map(p => `
     <div class="ep-audit-entry">
-      <div class="ep-audit-entry-hd"><b>${_esc(p.playerName || '')}</b><span>${_esc(fecha(p.creadoEn))}</span></div>
-      <div class="sum">${(p.lines || []).map(l => `${_esc(l.label)} ${_esc(l.from)}&rarr;${_esc(l.to)}`).join(', ')}</div>
+      <div class="ep-audit-entry-hd"><b>${escHtml(p.playerName || '')}</b><span>${escHtml(fecha(p.creadoEn))}</span></div>
+      <div class="sum">${(p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)}&rarr;${escHtml(l.to)}`).join(', ')}</div>
       <div class="sum" style="margin-top:4px;">
-        <span class="badge">${_esc(ESTADO[p.estado] || p.estado || '')}</span>
+        <span class="badge">${escHtml(ESTADO[p.estado] || p.estado || '')}</span>
         &middot; ${Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0)).toLocaleString('es-CL')} YunaCoins
-        ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${_esc(p.motivo)}` : ''}
-        ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" data-onclick="cancelarPedidoDesdeHistorial('${_esc(p._id)}')">Cancelar pedido</button>` : ''}
+        ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${escHtml(p.motivo)}` : ''}
+        ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" data-onclick="cancelarPedidoDesdeHistorial('${escHtml(p._id)}')">Cancelar pedido</button>` : ''}
       </div>
     </div>`).join('') : '<div class="sum">Todavía no mandaste pedidos.</div>';
   const filasMov = movimientos.length ? movimientos.map(m => `
     <div class="ep-diffline">
-      <div class="lbl">${_esc((m.pes5 && m.pes5.playerName) || '')} &middot; ${_esc(m.note || '')}</div>
-      <div class="chg">${_esc(m.date ? new Date(m.date).toLocaleString('es-CL') : '')}</div>
+      <div class="lbl">${escHtml((m.pes5 && m.pes5.playerName) || '')} &middot; ${escHtml(m.note || '')}</div>
+      <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleString('es-CL') : '')}</div>
       <div class="cost">-${Number(m.amount || 0).toLocaleString('es-CL')}</div>
     </div>`).join('') : '<div class="sum">Sin cobros de mejoras esta temporada.</div>';
   wrap.innerHTML = `
@@ -1165,8 +1259,8 @@ function openFormationModal(){
       <div class="ep-modal-body">
         <div class="ep-pitch-crest">
           <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
-          ${_esc(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineacion
-          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineacion segun las lineas en la cancha">${_esc(_nombreFormacionDraft(FORM.draft))}</span>
+          ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineacion
+          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineacion segun las lineas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
         </div>
         <div class="ep-pitch-field" id="ep-pitch-field">
           ${franjas}
@@ -1223,7 +1317,7 @@ function renderFormationModal(){
     const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
     return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''}"
       style="left:${xPct}%;top:${yPct}%;"
-      data-onclick="event.stopPropagation();selectFormationPlayer(${i})" title="${_esc(pl.name)}">
+      data-onclick="event.stopPropagation();selectFormationPlayer(${i})" title="${escHtml(pl.name)}">
       ${isSel?`<span class="ep-pitch-tag">${label}</span>`:''}
     </div>`;
   }).join('');
@@ -1253,7 +1347,7 @@ function renderFormationModal(){
   const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
   const keeper = isKeeperSlot(slot);
   document.getElementById('ep-form-name').innerHTML =
-    `${_esc(pl.name)} <span style="color:var(--txt3);font-size:12px;">#${_esc(pl.dorsal)}</span>
+    `${escHtml(pl.name)} <span style="color:var(--txt3);font-size:12px;">#${escHtml(pl.dorsal)}</span>
      <span class="ep-subs-badge">${label}</span>`;
   document.getElementById('ep-form-zone').textContent = keeper
     ? 'Arquero (posicion fija)'
@@ -1267,7 +1361,7 @@ function renderFormationModal(){
   if (sel){
     const opciones = opcionesPosicion(slot);
     sel.innerHTML = opciones.map(o =>
-      `<option value="${_esc(o.pos)}"${o.pos === label ? ' selected' : ''}${o.disponible ? '' : ' disabled'}>${_esc(o.pos)}${o.disponible ? '' : ' (ocupada)'}</option>`
+      `<option value="${escHtml(o.pos)}"${o.pos === label ? ' selected' : ''}${o.disponible ? '' : ' disabled'}>${escHtml(o.pos)}${o.disponible ? '' : ' (ocupada)'}</option>`
     ).join('');
     sel.disabled = keeper;
   }
@@ -1609,7 +1703,7 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
   const incDisabled = locked || value>=max || !affordNext;
   const costBadge = costSoFar>0 ? `<div class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</div>` : '';
   return `<div class="ep-row ${APP.hint===desc?'sel':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
-    <div class="ep-rlabel">${_esc(label)}</div>
+    <div class="ep-rlabel">${escHtml(label)}</div>
     ${costBadge}
     <div class="ep-rval" style="color:${color};">${value}</div>
     <div class="ep-rbar"><i style="width:${pct}%;background:${color};"></i></div>
@@ -1666,7 +1760,7 @@ function renderRows(){
       const afford = idx>=2 || canAfford(RULES.injuryCost);
       const cost = idx>baseIdx ? (idx-baseIdx)*RULES.injuryCost : 0;
       return `<div class="ep-row ${APP.hint===s.d?'sel':''}" data-onclick="setHint('${jsq(s.d)}')">
-        <div class="ep-rlabel">${_esc(s.l)}</div>
+        <div class="ep-rlabel">${escHtml(s.l)}</div>
         ${cost>0?`<div class="ep-rcost-row">+${cost.toLocaleString('es-CL')}</div>`:''}
         <div class="ep-rval" style="color:var(--tier-n);">${v}</div>
         <div class="ep-rbar"></div>
@@ -1683,7 +1777,7 @@ function renderRows(){
     const boughtBefore = p.abilities[a.k];
     const canToggle = boughtBefore || on || canAfford(RULES.abilityCost);
     return `<div class="ep-row ${APP.hint===a.d?'sel':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="setHint('${jsq(a.d)}')">
-      <div class="ep-rlabel">${_esc(a.l)}</div>
+      <div class="ep-rlabel">${escHtml(a.l)}</div>
       <div class="ep-rcost">${on&&!boughtBefore?'+'+RULES.abilityCost:''}</div>
       <div class="ep-rstar ${on?'on':''}" data-onclick="event.stopPropagation();toggleAbility('${a.k}')">${starSvg(on)}</div>
     </div>`;
@@ -1705,7 +1799,7 @@ function renderRows(){
         ? `<span style="color:var(--gold);font-size:11px;">(natural)</span>`
         : '';
       return `<div class="ep-row" data-onclick="setHint('${jsq(hint)}')">
-        <div class="ep-rlabel">${_esc(pos.l)} ${labelBadge}</div>
+        <div class="ep-rlabel">${escHtml(pos.l)} ${labelBadge}</div>
         <div style="display:flex;gap:5px;align-items:center;">
           ${circleBtn}
           <div class="ep-rstar ${on?'on':''}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</div>
@@ -1768,10 +1862,10 @@ function renderAdminBar(){
   if(!crumb || !crumb.firstElementChild) return;
   const e = EQUIPO_TSC;
   const estado = e.cobra
-    ? `Se cobra a ${_esc(e.name)} · saldo ${Number(e.yunacoin||0).toLocaleString('es-CL')}`
+    ? `Se cobra a ${escHtml(e.name)} · saldo ${Number(e.yunacoin||0).toLocaleString('es-CL')}`
     : 'Sin presidente · edición libre, sin cobro';
   const titulo = document.createElement('span');
-  titulo.innerHTML = `Editando <b>&rsaquo; ${_esc(e.name)}</b> &middot; ${_esc(e.pes5Club||'')}`;
+  titulo.innerHTML = `Editando <b>&rsaquo; ${escHtml(e.name)}</b> &middot; ${escHtml(e.pes5Club||'')}`;
   crumb.firstElementChild.replaceWith(titulo);
   let tag = crumb.querySelector('.ep-admin-tag');
   if(!tag){ tag = document.createElement('span'); tag.className = 'ep-admin-tag'; crumb.appendChild(tag); }
@@ -1790,8 +1884,8 @@ function iniciarModoAdmin(m){
   APP.hint = 'Selecciona un atributo para ver su descripcion.';
   ADMIN_PENDIENTE = m.pendiente || null;
   loadDraft();
-  document.body.classList.add('admin-embed');
-  if(!m.equipo.cobra) document.body.classList.add('admin-libre');
+  _raiz().classList.add('admin-embed');
+  if(!m.equipo.cobra) _raiz().classList.add('admin-libre');
   document.getElementById('ep-gate').style.display = 'none';
   document.getElementById('ep-shell').style.display = '';
   const ap = document.getElementById('ep-apply');
@@ -1800,23 +1894,14 @@ function iniciarModoAdmin(m){
   renderAll();
 }
 
-function onMensajeDeLaTool(ev){
-  if(!ADMIN_EMBED || ev.origin !== location.origin || ev.source !== window.parent) return;
-  const m = ev.data;
-  if(!m || m.tipo !== 'pt-init') return;
-  iniciarModoAdmin(m);
-}
-
-// "Aplicar" en modo admin: no escribe nada, le devuelve el borrador a la tool.
+// "Aplicar" en modo admin: no escribe nada. Le entrega el borrador a quien monto el editor
+// (onAplicar) y despues le pide cerrarse (onCerrar). Antes iba por postMessage a la tool.
 function commitChangesAdmin(){
   const p = currentPlayer();
   closeApplyConfirm();
-  window.parent.postMessage({
-    tipo: 'pt-aplicar',
-    jugadorId: p.id,
-    draft: { stats: APP.draft.stats, sec: APP.draft.sec, abilities: APP.draft.abilities, positions: APP.draft.positions, primaryPos: APP.draft.primaryPos, side: APP.draft.side, height: APP.draft.height, favfoot: APP.draft.favfoot, age: APP.draft.age },
-    costo: pendingCost(),
-  }, location.origin);
+  const draft = { stats: APP.draft.stats, sec: APP.draft.sec, abilities: APP.draft.abilities, positions: APP.draft.positions, primaryPos: APP.draft.primaryPos, side: APP.draft.side, height: APP.draft.height, favfoot: APP.draft.favfoot, age: APP.draft.age };
+  if (typeof _opciones.onAplicar === 'function') _opciones.onAplicar({ jugadorId: p.id, draft: draft, costo: pendingCost() });
+  if (typeof _opciones.onCerrar === 'function') _opciones.onCerrar();
 }
 
 /* ================= Slice Q4: bloqueo por equipo (un solo editor a la vez) ================= */
@@ -1863,7 +1948,7 @@ function mostrarBloqueoActivo(d){
   const hora = d && d.desde ? new Date(d.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
   shell.style.display = 'none';
   gate.style.display = '';
-  gate.innerHTML = `<p><b>${_esc((d && d.nombre) || 'El admin')}</b> está editando tu equipo en este momento${hora ? ` (desde las ${_esc(hora)})` : ''}.</p>
+  gate.innerHTML = `<p><b>${escHtml((d && d.nombre) || 'El admin')}</b> está editando tu equipo en este momento${hora ? ` (desde las ${escHtml(hora)})` : ''}.</p>
     <p>Vas a poder mejorar tus jugadores cuando termine y publique los cambios. Esta pantalla se actualiza sola.</p>`;
   if (!_bloqSondeo){
     _bloqSondeo = setInterval(async () => {
@@ -1878,13 +1963,110 @@ function mostrarBloqueoActivo(d){
   }
 }
 
-/* no hay dataset local que renderizar al arrancar — renderAuthUI() hace
 
+/* ================= API del componente (slice 2.0-1.B) ================= */
 
-   cargarPlantillaReal() + loadDraft() + renderAll() una vez que el gate
-   (sesion + equipo + club PES5 + plantilla publicada) esta completo. */
-if (typeof initDB === 'function') initDB().then(()=>{ if (typeof onAuthInit === 'function') onAuthInit(); });
-if (ADMIN_EMBED){
-  window.addEventListener('message', onMensajeDeLaTool);
-  window.parent.postMessage({ tipo: 'pt-listo' }, location.origin);
+let _montado = null;      // contenedor donde esta montado el editor (null = no montado)
+let _opciones = {};       // opciones de montar(): onAplicar / onCerrar (modo admin)
+let _observers = [];      // MutationObserver de los contenedores de los modales
+
+function _raiz(){ return document.getElementById('mej-root'); }
+
+function _observarWraps(){
+  _observers.forEach(o => o.disconnect());
+  _observers = [];
+  ['ep-confirm-wrap', 'ep-audit-wrap', 'ep-pitch-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el){
+      const o = new MutationObserver(_syncScrollLock);
+      o.observe(el, { childList: true });
+      _observers.push(o);
+    }
+  });
 }
+
+function _alCambiarAuthPresidente(){ renderAuthUI(); }
+
+/* Monta el editor dentro de `contenedor`. opciones.modo: "presidente" (default, mejoras.html)
+   o "admin" (Tool PES5): {equipo, reglas, presupuesto, jugadores, jugadorId, pendiente,
+   onAplicar({jugadorId, draft, costo}), onCerrar()}. En admin no escribe en Firestore. */
+function montar(contenedor, opciones){
+  if (!contenedor) return;
+  desmontar();
+  opciones = opciones || {};
+  _opciones = opciones;
+  ADMIN_EMBED = opciones.modo === 'admin';
+  contenedor.innerHTML = MEJ_MARKUP;
+  _montado = contenedor;
+  _observarWraps();
+  if (ADMIN_EMBED){
+    iniciarModoAdmin(opciones);
+  } else {
+    window.addEventListener('tsc:auth', _alCambiarAuthPresidente);
+  }
+}
+
+/* Saca el editor del DOM y suelta lo que engancha afuera (eventos, latidos, observers). */
+function desmontar(){
+  window.removeEventListener('tsc:auth', _alCambiarAuthPresidente);
+  _observers.forEach(o => o.disconnect());
+  _observers = [];
+  if (_bloqSondeo){ clearInterval(_bloqSondeo); _bloqSondeo = null; }
+  if (_bloqLatido){ clearInterval(_bloqLatido); _bloqLatido = null; }
+  if (_bloqObs){ try { _bloqObs(); } catch (e) {} _bloqObs = null; }
+  document.documentElement.classList.remove('ep-lock');
+  if (_montado){ _montado.innerHTML = ''; _montado = null; }
+  _opciones = {};
+  ADMIN_EMBED = false;
+}
+
+/* mejoras.html: monta el editor en #mej-host y arranca la base y la sesion (lo que antes
+   hacia el final del script). En el panel no existe #mej-host y no hace nada. */
+function iniciarPagina(){
+  const host = document.getElementById('mej-host');
+  if (!host) return;
+  montar(host, { modo: 'presidente' });
+  // mejoras.html no carga ui-utils.js: el editor pone sus openModal/closeModal/showToast
+  // para que auth.js (login) los encuentre. Si ya existen (panel), no se tocan.
+  if (typeof window.openModal !== 'function') window.openModal = openModal;
+  if (typeof window.closeModal !== 'function') window.closeModal = closeModal;
+  if (typeof window.showToast !== 'function') window.showToast = showToast;
+  if (typeof initDB === 'function') initDB().then(() => { if (typeof onAuthInit === 'function') onAuthInit(); });
+}
+
+// Handlers de data-on* (events.js solo llama funciones globales, sin puntos).
+window.adjustAge = adjustAge;
+window.adjustHeight = adjustHeight;
+window.adjustInjury = adjustInjury;
+window.adjustMain = adjustMain;
+window.adjustSec = adjustSec;
+window.cancelarPedidoDesdeHistorial = cancelarPedidoDesdeHistorial;
+window.closeApplyConfirm = closeApplyConfirm;
+window.closeAuditModal = closeAuditModal;
+window.closeFormationModal = closeFormationModal;
+window.closeIfBackdrop = closeIfBackdrop;
+window.commitChanges = commitChanges;
+window.confirmFormation = confirmFormation;
+window.cycleFormationPlayer = cycleFormationPlayer;
+window.discardChanges = discardChanges;
+window.gotoPage = gotoPage;
+window.openApplyConfirm = openApplyConfirm;
+window.openAuditModal = openAuditModal;
+window.openFormationModal = openFormationModal;
+window.renderRoster = renderRoster;
+window.resetFormationDraft = resetFormationDraft;
+window.selectFormationPlayer = selectFormationPlayer;
+window.selectPlayer = selectPlayer;
+window.setFavFoot = setFavFoot;
+window.setFormationPos = setFormationPos;
+window.setHint = setHint;
+window.setPrimaryPos = setPrimaryPos;
+window.setSide = setSide;
+window.toggleAbility = toggleAbility;
+window.togglePosition = togglePosition;
+window.mejToggleTheme = toggleTheme;
+
+iniciarPagina();
+
+return { montar: montar, desmontar: desmontar };
+})();
