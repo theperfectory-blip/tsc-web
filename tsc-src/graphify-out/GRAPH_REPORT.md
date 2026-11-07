@@ -257,11 +257,11 @@ Nodes (4): rcp(), rc(), ch(), en()
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `dbGetAll()` connect `Capa de datos` to `Palmares (Sala de Trofeos 3D)`, `mejoras-page.js`, `Historial y H2H`, `pes5-tool.js`, `Calendario`, `Sorteo en vivo`, `Navegacion`, `Bracket`, `Equipos`, `Generador de fechas`, `Usuarios (admin)`?**
-  _High betweenness centrality (0.201) - this node is a cross-community bridge._
-- **Why does `showToast()` connect `Capa de datos` to `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `pes5-tool.js`, `Calendario`, `Sorteo en vivo`, `Perfil del presidente`, `Navegacion`, `Push y Ajustes y arranque`, `Sonido`, `Bracket`, `Tablas de posiciones`, `Generador de fechas`, `Usuarios (admin)`?**
-  _High betweenness centrality (0.168) - this node is a cross-community bridge._
+  _High betweenness centrality (0.170) - this node is a cross-community bridge._
 - **Why does `escHtml()` connect `Historial y H2H` to `Capa de datos`, `Palmares (Sala de Trofeos 3D)`, `mejoras-page.js`, `pes5-tool.js`, `Calendario`, `Sorteo en vivo`, `Perfil del presidente`, `Navegacion`, `Push y Ajustes y arranque`, `Bracket`, `Equipos`, `Tablas de posiciones`, `Usuarios (admin)`?**
-  _High betweenness centrality (0.148) - this node is a cross-community bridge._
+  _High betweenness centrality (0.166) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Capa de datos` to `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `pes5-tool.js`, `Calendario`, `Sorteo en vivo`, `Perfil del presidente`, `Navegacion`, `Push y Ajustes y arranque`, `Sonido`, `Bracket`, `Tablas de posiciones`, `Generador de fechas`, `Usuarios (admin)`?**
+  _High betweenness centrality (0.140) - this node is a cross-community bridge._
 - **Are the 140 inferred relationships involving `dbGetAll()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
   _`dbGetAll()` has 140 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 106 inferred relationships involving `showToast()` (e.g. with `authForgotPassword()` and `authSignOut()`) actually correct?**

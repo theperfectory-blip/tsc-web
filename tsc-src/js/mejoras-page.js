@@ -1324,7 +1324,7 @@ function openFormationModal(){
             <svg class="icn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
         </div>
         <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Arrastrá un punto para moverlo · flechas para el ajuste fino.' : 'Flechas &uarr;&darr;&larr;&rarr; para mover · clic en un punto para cambiar de jugador · o arrastrá con el mouse.'}</span>
+          <span>${toqueFino ? 'Arrastrá un punto para moverlo · flechas para el ajuste fino.' : 'Clic en un punto para elegirlo · flechas (en pantalla o del teclado) para moverlo.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1344,10 +1344,12 @@ function closeFormationModal(){
   document.getElementById('ep-pitch-wrap').innerHTML='';
 }
 
-/* Arrastre sobre la cancha (slice 2.0-2): con el dedo o con el mouse. Un solo
-   listener en el campo, no uno por punto: renderFormationModal reemplaza los
-   puntos en cada render. El campo captura el puntero, asi el arrastre sigue
-   aunque el punto se redibuje o el dedo salga de la cancha. */
+/* Arrastre sobre la cancha (slice 2.0-2): solo con dedo o lapiz; con mouse el
+   clic solo elige el punto (decision de Jimbo: en PC se mueve con la cruz o el
+   teclado). Se decide por pointerType, no por matchMedia. Un solo listener en el
+   campo, no uno por punto: renderFormationModal reemplaza los puntos en cada
+   render. El campo captura el puntero, asi el arrastre sigue aunque el punto se
+   redibuje o el dedo salga de la cancha. */
 const FORM_RADIO_TOQUE = 22; // px: el punto se ve de ~12 px; la zona de toque es ~44 px
 
 function _centroPunto(campo, slot){
@@ -1373,6 +1375,12 @@ function _formPointerDown(e){
   if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
   const slot = FORM.draft[mejor];
   const c = _centroPunto(campo, slot);
+  selectFormationPlayer(mejor);
+  // Captura en todos los tipos de puntero: si se suelta fuera de la cancha, el clic
+  // se entrega al campo y no al overlay (que cerraria el modal al soltar sobre el fondo).
+  try { campo.setPointerCapture(e.pointerId); } catch (err) {}
+  // Con mouse solo se selecciona: no se arrastra (ver el bloque de arriba).
+  if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
   FORM_DRAG = {
     id: e.pointerId, idx: mejor, activo: false,
     celda: { x: slot.x, y: slot.y },
@@ -1381,8 +1389,6 @@ function _formPointerDown(e){
     inicioX: e.clientX, inicioY: e.clientY,
     motivo: null,
   };
-  selectFormationPlayer(mejor);
-  try { campo.setPointerCapture(e.pointerId); } catch (err) {}
 }
 function _formPointerMove(e){
   const d = FORM_DRAG;
