@@ -44,6 +44,10 @@ let PLANO = null;          // bytes descifrados del save actualmente cargado (en
 let SAVE_META = null;      // {nombre,tamaño,lastModified}
 let OBSERVAR_STOP = null;
 let TAB = 'equipos';
+// 3.A: modo de la tool, fijado en montar(). 'pc' si hay File System Access; 'movil' en el resto.
+let _modo = 'pc';
+// 3.B: pedido que tiene abierto el modal de rechazo (null = ningun modal).
+let RECHAZO_ID = null;
 let PLANTILLA_ACTUAL = null;    // array de leerJugadorCompleto(...) del equipo elegido
 let PLANTILLA_INDICE = null;    // indice de club PES5 elegido en la pestaña Plantilla
 let JUGADOR_SELECCIONADO = null; // id de registro seleccionado en el panel lateral
@@ -236,9 +240,21 @@ function _alCambiarAuth(){
   render();
 }
 
+/* 3.A — modo de la tool. 'pc' si PES5_SAVE.tieneSoporte() (puede leer y escribir el
+   save); 'movil' en cualquier otro caso: telefono, APK, Firefox, Safari y Brave con el
+   flag apagado. Se decide por capacidad, no por ancho ni por userAgent. El ancho solo
+   cambia el layout (CSS). Se fija una vez por montaje. */
+function ptModo(){ return _modo; }
+// Pestañas de cada modo. Slice 4 suma YunaCoins a los dos modos.
+const TABS_MOVIL = ['pedidos', 'reglas'];
+function tabsDelModo(){
+  return _modo === 'movil' ? TABS.filter(t => TABS_MOVIL.includes(t.id)) : TABS;
+}
+
 function montar(contenedor){
   if (!contenedor) return;
   _montadoEn = contenedor;
+  _modo = PES5_SAVE.tieneSoporte() ? 'pc' : 'movil';
   if (!contenedor.querySelector('#pt-app')) contenedor.innerHTML = SHELL_HTML;
   window.removeEventListener('tsc:auth', _alCambiarAuth);
   window.addEventListener('tsc:auth', _alCambiarAuth);
@@ -247,6 +263,8 @@ function montar(contenedor){
 
 function salir(){
   _montadoEn = null;
+  document.getElementById('pt-rech-ov')?.remove();
+  RECHAZO_ID = null;
   window.removeEventListener('tsc:auth', _alCambiarAuth);
   if (OBSERVAR_STOP){ try { OBSERVAR_STOP(); } catch (e) {} OBSERVAR_STOP = null; }
   if (window.MEJORAS_EDITOR) MEJORAS_EDITOR.desmontar();
@@ -323,6 +341,15 @@ async function cargarEquiposYPresidentes(){
 /* ============================================================
    BARRA DE ESTADO DEL SAVE
    ============================================================ */
+/* Mismo chequeo que js/boot-splash.js: APK (Capacitor) o puntero tactil. Solo cambia el
+   texto del aviso de la barra de estado; el modo lo decide PES5_SAVE.tieneSoporte(). */
+function _esTactilOApk(){
+  try {
+    if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) return true;
+  } catch (e) { /* sin Capacitor */ }
+  return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+}
+
 function renderStatusBar(){
   const el = document.getElementById('pt-statusbar');
   const tieneSoporte = PES5_SAVE.tieneSoporte();
@@ -336,9 +363,18 @@ function renderStatusBar(){
     // No hay selector de archivo: un archivo elegido asi es de solo lectura
     // y no permite escribir el save ni dejar backup, asi que ofrecerlo
     // terminaba en un error al aplicar (o en una descarga suelta).
+    // 3.A: en el telefono o la APK el aviso largo no corresponde: solo se dice que modo es.
+    if (_esTactilOApk()){
+      el.innerHTML = `
+        <div class="pt-statusbar">
+          <div class="pt-status-item"><span class="pt-dot off"></span> Modo móvil: pedidos y reglas. Para leer o escribir el save, abrí esta sección en Chrome o Edge en la PC.</div>
+        </div>`;
+      return;
+    }
     el.innerHTML = `
       <div class="pt-statusbar">
         <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no da acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usás <b>Brave</b>, suele venir desactivado: activalo en <code>brave://flags/#file-system-access-api</code> (Enabled), reiniciá el navegador y volvé a entrar. Sin eso no se puede leer ni escribir el save.</div>
+        <div class="pt-status-item" style="font-size:12px;">Mientras tanto funciona el modo móvil: pedidos y reglas.</div>
       </div>`;
     return;
   }
@@ -461,11 +497,14 @@ const TABS = [
   { id: 'reglas', label: 'Reglas', icon: ICN.wallet },
 ];
 function renderTabs(){
-  document.getElementById('pt-tabs-bar').innerHTML = TABS.map(t =>
+  document.getElementById('pt-tabs-bar').innerHTML = tabsDelModo().map(t =>
     `<button class="pt-tab${TAB===t.id?' active':''}" data-onclick="ptSwitchTab('${t.id}')">${t.icon}${escHtml(t.label)}</button>`
   ).join('');
 }
 function switchTab(id){
+  // una pestaña que no existe en este modo cae en la primera disponible
+  const visibles = tabsDelModo();
+  if (!visibles.some(t => t.id === id)) id = visibles[0].id;
   TAB = id;
   renderTabs();
   if (id === 'equipos') renderEquiposTab();
@@ -1139,6 +1178,7 @@ async function renderPedidosTab(){
     cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>No hay pedidos pendientes.</div></div>`;
     return;
   }
+  const movil = ptModo() === 'movil';
   const filas = PEDIDOS_PENDIENTES.map(p => {
     const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
     const esFormacion = p.tipo === 'formacion';
@@ -1151,41 +1191,91 @@ async function renderPedidosTab(){
     const jugador = esFormacion
       ? '<i>Formación</i>'
       : `${escHtml(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
+    // En PC la casilla elige que pedidos aplicar. En el telefono no se aplica nada (3.B).
+    const celdaSel = movil ? '' : `<td data-label="Aplicar"><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>`;
     return `<tr>
-      <td><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>
-      <td>${escHtml(p.teamName || String(p.teamId))}</td>
-      <td>${jugador}</td>
-      <td style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${aplicable ? '' : '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>'}</td>
-      <td style="text-align:right;">${esFormacion ? 'gratis' : Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
-      <td style="font-size:12px;">${escHtml(fecha)}</td>
-      <td><button class="btn btn-sm" data-onclick="ptRechazarPedido('${escHtml(p._id)}')">Rechazar</button></td>
+      ${celdaSel}
+      <td data-label="Equipo">${escHtml(p.teamName || String(p.teamId))}</td>
+      <td data-label="Jugador">${jugador}</td>
+      <td data-label="Cambios" style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${!movil && !aplicable ? '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : ''}</td>
+      <td data-label="Costo" style="text-align:right;">${esFormacion ? 'gratis' : Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
+      <td data-label="Enviado" style="font-size:12px;">${escHtml(fecha)}</td>
+      <td class="pt-td-accion"><button class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarPedido('${escHtml(p._id)}')">Rechazar</button></td>
     </tr>`;
   }).join('');
-  cont.innerHTML = `
-    <div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
-    ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Cargá el save para poder aplicar.</div>`}
-    <div class="pt-tbl-wrap"><table class="pt-tbl"><thead><tr>
-      <th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>
-    </tr></thead><tbody>${filas}</tbody></table></div>
+  const cabecera = movil
+    ? '<th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>'
+    : '<th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>';
+  const intro = movil
+    ? `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes.</div>
+       <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
+    : `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
+       ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Cargá el save para poder aplicar.</div>`}`;
+  const aplicar = movil ? '' : `
     <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
       <input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado
     </label>
-    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>
+    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>`;
+  cont.innerHTML = `
+    ${intro}
+    <div class="pt-tbl-wrap"><table class="pt-tbl pt-tbl-pedidos"><thead><tr>${cabecera}</tr></thead><tbody>${filas}</tbody></table></div>
+    ${aplicar}
     <div class="pt-log" id="ped-log"></div>`;
 }
 
-async function rechazarPedido(id){
-  const motivo = prompt('Motivo del rechazo (lo ve el presidente):');
-  if (motivo === null) return;
+/* 3.B — rechazo con motivo obligatorio. Modal propio de la seccion (no prompt()), igual
+   en PC y en el telefono. Cancelar no escribe nada; Rechazar exige un motivo no vacio. */
+function rechazarPedido(id){
+  const p = PEDIDOS_PENDIENTES.find(x => x._id === id);
+  if (!p){ showToast('No se encontró el pedido. Recargá la lista.', 'error'); return; }
+  cerrarRechazo();
+  RECHAZO_ID = id;
+  const equipo = p.teamName || String(p.teamId);
+  const detalle = p.tipo === 'formacion' ? 'Formación' : (p.playerName || '');
+  const ov = document.createElement('div');
+  ov.id = 'pt-rech-ov';
+  ov.className = 'pt-rech-ov';
+  ov.innerHTML = `
+    <div class="pt-rech-box" role="dialog" aria-modal="true" aria-labelledby="pt-rech-tit">
+      <div class="pt-rech-hd"><h3 id="pt-rech-tit">Rechazar pedido</h3>
+        <button class="pt-side-close" data-onclick="ptCerrarRechazo()" title="Cerrar" aria-label="Cerrar">${ICN.x}</button></div>
+      <div class="pt-rech-sub">${escHtml(equipo)}${detalle ? ' · ' + escHtml(detalle) : ''}</div>
+      <label class="pt-rech-lbl" for="pt-rech-motivo">Motivo (lo ve el presidente)</label>
+      <textarea id="pt-rech-motivo" class="pt-rech-motivo" rows="4" data-oninput="ptRechazoMotivoInput(this)"></textarea>
+      <div class="pt-rech-foot">
+        <button class="btn btn-sm" data-onclick="ptCerrarRechazo()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" id="pt-rech-ok" disabled data-onclick="ptConfirmarRechazo()">Rechazar</button>
+      </div>
+    </div>`;
+  (_montadoEn || document.body).appendChild(ov);
+  setTimeout(() => document.getElementById('pt-rech-motivo')?.focus(), 0);
+}
+function cerrarRechazo(){
+  document.getElementById('pt-rech-ov')?.remove();
+  RECHAZO_ID = null;
+}
+function rechazoMotivoInput(el){
+  const ok = document.getElementById('pt-rech-ok');
+  if (ok) ok.disabled = !el.value.trim();
+}
+async function confirmarRechazo(){
+  const id = RECHAZO_ID;
+  const motivo = ((document.getElementById('pt-rech-motivo') || {}).value || '').trim();
+  if (!id || !motivo) return; // motivo obligatorio: sin texto no se escribe nada
+  const ok = document.getElementById('pt-rech-ok');
+  if (ok) ok.disabled = true;
   try {
     await firebase.firestore().collection('pedidos_pes5').doc(id).update({
-      estado: 'rechazado', motivo: motivo.trim() || 'sin motivo', rechazadoEn: new Date().toISOString(), rechazadoPor: AUTH.user.email,
+      estado: 'rechazado', motivo: motivo, rechazadoEn: new Date().toISOString(), rechazadoPor: AUTH.user.email,
     });
     showToast('Pedido rechazado.');
   } catch (e) {
     console.error('[pes5-tool] rechazar', e);
     showToast('No se pudo rechazar: ' + (e.message || e), 'error');
+    if (ok) ok.disabled = false;
+    return;
   }
+  cerrarRechazo();
   renderPedidosTab();
 }
 
@@ -1543,7 +1633,7 @@ function renderReglasTab(){
 
       <div id="rg-errores"></div>
 
-      <div style="display:flex;gap:8px;margin-top:16px;">
+      <div class="pt-acciones">
         <button class="btn btn-primary btn-sm" data-onclick="ptGuardarReglas()">${ICN.save} Guardar</button>
         <button class="btn btn-sm" data-onclick="ptRestaurarReglasDefault()">Restaurar valores por defecto</button>
       </div>
@@ -1613,6 +1703,9 @@ window.ptPublicarPlantillaDeEquipo = publicarPlantillaDeEquipo;
 window.ptPublicarPlantillas = publicarPlantillas;
 window.ptRecargarSaveClick = recargarSaveClick;
 window.ptRechazarPedido = rechazarPedido;
+window.ptCerrarRechazo = cerrarRechazo;
+window.ptConfirmarRechazo = confirmarRechazo;
+window.ptRechazoMotivoInput = rechazoMotivoInput;
 window.ptReconectarCarpetaClick = reconectarCarpetaClick;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
