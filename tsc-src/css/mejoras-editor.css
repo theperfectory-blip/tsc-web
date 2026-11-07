@@ -228,6 +228,21 @@
   box-shadow:0 0 0 4px rgba(240,123,40,0.3), 0 1px 3px rgba(0,0,0,0.5);}
 .ep-root .ep-pitch-dot.gk{background:#f2d24a;}
 .ep-root .ep-pitch-dot.gk.me{background:#f07b28;}
+.ep-root .ep-pitch-dot.dragging{transform:translate(-50%,-50%) scale(1.4);z-index:4;cursor:grabbing;}
+/* Arrastre (2.0-2): la cancha no hace scroll ni zoom con el dedo ni selecciona texto */
+.ep-root .ep-pitch-field{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+/* Ajuste fino sin teclado (2.0-2): cruz de 4 botones, toque >= 44 px */
+.ep-root .ep-pitch-nudge{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);
+  gap:4px;justify-content:center;margin:12px auto 0;}
+.ep-root .ep-nudge{display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
+  background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--gold);}
+.ep-root .ep-nudge:hover{border-color:var(--gold-b);}
+.ep-root .ep-nudge svg{width:20px;height:20px;}
+.ep-root .ep-nudge.up{grid-column:2;grid-row:1;}
+.ep-root .ep-nudge.left{grid-column:1;grid-row:2;}
+.ep-root .ep-nudge.right{grid-column:3;grid-row:2;}
+.ep-root .ep-nudge.down{grid-column:2;grid-row:3;}
+.ep-root .ep-nudge-c{grid-column:2;grid-row:2;align-self:center;justify-self:center;width:8px;height:8px;border-radius:50%;background:var(--brd2);}
 .ep-root .ep-pitch-selctl{display:flex;align-items:center;gap:8px;}
 .ep-root .ep-pitch-tag{position:absolute;top:-26px;left:50%;transform:translateX(-50%);white-space:nowrap;
   background:rgba(10,14,20,0.92);border:1px solid var(--gold-b);color:var(--gold);font-family:'Bebas Neue';

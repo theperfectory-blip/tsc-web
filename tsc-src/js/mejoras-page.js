@@ -426,6 +426,23 @@ function isKeeperSlot(slot){ return PLAYER_BY_ID[slot.id]?.primaryPos === 'GK'; 
 const PITCH_PAD_X = 1.7, PITCH_PAD_Y = 3.8;
 function pitchColPct(c){ return PITCH_PAD_X + pitchFrac(c)*(100-2*PITCH_PAD_X); }
 function pitchRowPct(r){ return PITCH_PAD_Y + (r-1)/(PITCH_ROWS-1)*(100-2*PITCH_PAD_Y); }
+/* Inversa de la grilla: punto de la pantalla -> celda (x, y) mas cercana. Usa
+   el area util del campo (sin el borde de 3 px, clientLeft/clientTop) y las
+   mismas constantes que pitchColPct / pitchRowPct: la celda que devuelve es la
+   que se dibuja en ese punto. null si no hay campo en pantalla. */
+function pitchCeldaDesdePunto(clientX, clientY){
+  const campo = document.getElementById('ep-pitch-field');
+  if (!campo || !campo.clientWidth || !campo.clientHeight) return null;
+  const r = campo.getBoundingClientRect();
+  const xPct = (clientX - r.left - campo.clientLeft) / campo.clientWidth * 100;
+  const yPct = (clientY - r.top - campo.clientTop) / campo.clientHeight * 100;
+  const fx = Math.max(0, Math.min(1, (xPct - PITCH_PAD_X) / (100 - 2*PITCH_PAD_X)));
+  const fy = Math.max(0, Math.min(1, (yPct - PITCH_PAD_Y) / (100 - 2*PITCH_PAD_Y)));
+  return {
+    x: Math.round(2 + fx * (PITCH_COLS - 2)),
+    y: Math.round(1 + fy * (PITCH_ROWS - 1)),
+  };
+}
 /* Borde de cada franja en el CENTRO de su primera/ultima columna, no en el
    medio paso: entre la 15 y la 16 (y entre la 34 y la 35) queda un hueco sin
    pintar de un paso, que separa las zonas como en el juego. Cada franja cede
@@ -1225,7 +1242,9 @@ function clearAuditLog(){
    No comparte estado con el editor de jugadores: tiene su propio borrador y
    se guarda solo al Confirmar. */
 
-const FORM = { draft:null, sel:0 };
+const FORM = { draft:null, sel:0, motivo:null };
+let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
+let _formRaf = 0;     // frame pendiente del render durante el arrastre
 
 function openFormationModal(){
   if (PLAYERS.length < FORMATION_COORDS.length){
@@ -1239,6 +1258,10 @@ function openFormationModal(){
   // con la primera opcion valida de cada bloque (asi las reglas tienen datos).
   completarPosiciones();
   FORM.sel = 0;
+  FORM.motivo = null;
+  FORM_DRAG = null;
+  // En pantalla tactil la ayuda habla de arrastrar; con mouse, de las flechas.
+  const toqueFino = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const wrap = document.getElementById('ep-pitch-wrap');
   // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
   // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
@@ -1289,8 +1312,19 @@ function openFormationModal(){
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
+        <div class="ep-pitch-nudge" role="group" aria-label="Ajuste fino de la posicion">
+          <button class="ep-nudge up" data-onclick="moveFormationDot(0,-1)" title="Subir" aria-label="Subir">
+            <svg class="icn" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
+          <button class="ep-nudge left" data-onclick="moveFormationDot(-1,0)" title="Atrás" aria-label="Atrás">
+            <svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <span class="ep-nudge-c" aria-hidden="true"></span>
+          <button class="ep-nudge right" data-onclick="moveFormationDot(1,0)" title="Adelante" aria-label="Adelante">
+            <svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          <button class="ep-nudge down" data-onclick="moveFormationDot(0,1)" title="Bajar" aria-label="Bajar">
+            <svg class="icn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
         <div class="ep-pitch-hint">
-          <span>Flechas &uarr;&darr;&larr;&rarr; para mover &middot; clic en un punto para cambiar de jugador.</span>
+          <span>${toqueFino ? 'Arrastrá un punto para moverlo · flechas para el ajuste fino.' : 'Flechas &uarr;&darr;&larr;&rarr; para mover · clic en un punto para cambiar de jugador · o arrastrá con el mouse.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1303,8 +1337,87 @@ function openFormationModal(){
     </div>
   </div>`;
   renderFormationModal();
+  _engancharArrastreCampo();
 }
-function closeFormationModal(){ document.getElementById('ep-pitch-wrap').innerHTML=''; }
+function closeFormationModal(){
+  FORM_DRAG = null;
+  document.getElementById('ep-pitch-wrap').innerHTML='';
+}
+
+/* Arrastre sobre la cancha (slice 2.0-2): con el dedo o con el mouse. Un solo
+   listener en el campo, no uno por punto: renderFormationModal reemplaza los
+   puntos en cada render. El campo captura el puntero, asi el arrastre sigue
+   aunque el punto se redibuje o el dedo salga de la cancha. */
+const FORM_RADIO_TOQUE = 22; // px: el punto se ve de ~12 px; la zona de toque es ~44 px
+
+function _centroPunto(campo, slot){
+  const r = campo.getBoundingClientRect();
+  return {
+    x: r.left + campo.clientLeft + pitchColPct(slot.x) / 100 * campo.clientWidth,
+    y: r.top + campo.clientTop + pitchRowPct(slot.y) / 100 * campo.clientHeight,
+  };
+}
+function _formProgramarRender(){
+  if (_formRaf) return;
+  _formRaf = requestAnimationFrame(() => { _formRaf = 0; renderFormationModal(); });
+}
+function _formPointerDown(e){
+  if (e.button !== 0 || FORM_DRAG) return;
+  const campo = e.currentTarget;
+  let mejor = -1, mejorDist = Infinity;
+  FORM.draft.forEach((slot, i) => {
+    const c = _centroPunto(campo, slot);
+    const d = Math.hypot(c.x - e.clientX, c.y - e.clientY);
+    if (d < mejorDist){ mejorDist = d; mejor = i; }
+  });
+  if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
+  const slot = FORM.draft[mejor];
+  const c = _centroPunto(campo, slot);
+  FORM_DRAG = {
+    id: e.pointerId, idx: mejor, activo: false,
+    celda: { x: slot.x, y: slot.y },
+    // el punto no salta al dedo: se mueve con el desfasaje con que se lo agarro
+    offX: c.x - e.clientX, offY: c.y - e.clientY,
+    inicioX: e.clientX, inicioY: e.clientY,
+    motivo: null,
+  };
+  selectFormationPlayer(mejor);
+  try { campo.setPointerCapture(e.pointerId); } catch (err) {}
+}
+function _formPointerMove(e){
+  const d = FORM_DRAG;
+  if (!d || e.pointerId !== d.id) return;
+  if (!d.activo){
+    if (Math.hypot(e.clientX - d.inicioX, e.clientY - d.inicioY) < 4) return; // temblor, no es arrastre
+    d.activo = true;
+    _formProgramarRender();
+  }
+  const celda = pitchCeldaDesdePunto(e.clientX + d.offX, e.clientY + d.offY);
+  if (!celda || (celda.x === d.celda.x && celda.y === d.celda.y)) return;
+  d.celda = celda;
+  FORM.sel = d.idx;
+  // Si el destino no vale, el punto queda en la ultima celda valida; el motivo
+  // del primer rechazo se muestra una sola vez, al soltar.
+  if (!moveFormationDotTo(celda.x, celda.y, { silencioso: true }) && !d.motivo) d.motivo = FORM.motivo;
+  _formProgramarRender();
+}
+function _formPointerFin(e){
+  const d = FORM_DRAG;
+  if (!d || e.pointerId !== d.id) return;
+  FORM_DRAG = null;
+  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) {}
+  if (_formRaf){ cancelAnimationFrame(_formRaf); _formRaf = 0; }
+  renderFormationModal();
+  if (e.type === 'pointerup' && d.motivo) showMiniToast(d.motivo);
+}
+function _engancharArrastreCampo(){
+  const campo = document.getElementById('ep-pitch-field');
+  if (!campo) return;
+  campo.addEventListener('pointerdown', _formPointerDown);
+  campo.addEventListener('pointermove', _formPointerMove);
+  campo.addEventListener('pointerup', _formPointerFin);
+  campo.addEventListener('pointercancel', _formPointerFin);
+}
 
 function renderFormationModal(){
   const wrap = document.getElementById('ep-pitch-wrap');
@@ -1315,9 +1428,9 @@ function renderFormationModal(){
     const yPct = pitchRowPct(slot.y);
     const isSel = i===FORM.sel;
     const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
-    return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''}"
-      style="left:${xPct}%;top:${yPct}%;"
-      data-onclick="event.stopPropagation();selectFormationPlayer(${i})" title="${escHtml(pl.name)}">
+    const arrastrando = FORM_DRAG && FORM_DRAG.activo && FORM_DRAG.idx === i && !isKeeperSlot(slot);
+    return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''} ${arrastrando?'dragging':''}"
+      style="left:${xPct}%;top:${yPct}%;" title="${escHtml(pl.name)}">
       ${isSel?`<span class="ep-pitch-tag">${label}</span>`:''}
     </div>`;
   }).join('');
@@ -1459,32 +1572,45 @@ function cycleFormationPlayer(delta){
   FORM.sel = (FORM.sel + delta + FORM.draft.length) % FORM.draft.length;
   renderFormationModal();
 }
-function moveFormationDot(dx,dy){
+/* Mueve el jugador seleccionado a la celda (x, y) como un solo cambio. Devuelve
+   true si quedo ahi. Si no, deja el jugador donde estaba, guarda el motivo en
+   FORM.motivo y muestra el toast (salvo {silencioso:true}, que usa el arrastre:
+   ese muestra un solo toast al soltar). No renderiza: lo hace quien llama. */
+function moveFormationDotTo(x, y, opciones){
+  const silencioso = !!(opciones && opciones.silencioso);
   const slot = FORM.draft[FORM.sel];
-  if(isKeeperSlot(slot)){ showMiniToast('El arquero no se mueve de su posicion.'); return; }
+  const fallo = (msg) => {
+    FORM.motivo = msg;
+    if (!silencioso) showMiniToast(msg);
+    return false;
+  };
+  if (isKeeperSlot(slot)) return fallo('El arquero no se mueve de su posicion.');
   // Columna 2 = ultima linea: ahi esta tambien el arquero. La columna 1 es
   // margen contra la linea de meta (el juego no deja bajar mas).
   const antes = { x: slot.x, y: slot.y, pos: slot.pos };
   const lineasAntes = contarLineas(FORM.draft);
-  slot.x = Math.min(PITCH_COLS, Math.max(2, slot.x+dx));
-  slot.y = Math.min(PITCH_ROWS, Math.max(1, slot.y+dy));
+  const nx = Math.min(PITCH_COLS, Math.max(2, Math.round(x)));
+  const ny = Math.min(PITCH_ROWS, Math.max(1, Math.round(y)));
+  slot.x = nx; slot.y = ny;
   if (!ajustarPosicionAlMover(slot)){
-    slot.x = antes.x; slot.y = antes.y;
-    const zona = pitchThird(slot.x + dx);
-    const linea = { def:'La defensa', mid:'El mediocampo', att:'El ataque' }[zona] || 'Esa linea';
-    showMiniToast(`${linea} ya tiene el maximo de jugadores.`);
-    renderFormationModal();
-    return;
+    slot.x = antes.x; slot.y = antes.y; slot.pos = antes.pos;
+    const linea = { def:'La defensa', mid:'El mediocampo', att:'El ataque' }[pitchThird(nx)] || 'Esa linea';
+    return fallo(`${linea} ya tiene el maximo de jugadores.`);
   }
   const baja = lineaBajoMinimo(lineasAntes, contarLineas(FORM.draft));
   if (baja){
     slot.x = antes.x; slot.y = antes.y; slot.pos = antes.pos;
     const linea = { def:'La defensa', mid:'El mediocampo', att:'La delantera' }[baja];
     const min = PITCH_LINEA_MIN[baja];
-    showMiniToast(`${linea} necesita al menos ${min} jugador${min > 1 ? 'es' : ''}.`);
-    renderFormationModal();
-    return;
+    return fallo(`${linea} necesita al menos ${min} jugador${min > 1 ? 'es' : ''}.`);
   }
+  FORM.motivo = null;
+  return true;
+}
+/* Ajuste de una celda: la cruz de 2.C y las flechas del teclado. */
+function moveFormationDot(dx,dy){
+  const slot = FORM.draft[FORM.sel];
+  moveFormationDotTo(slot.x + dx, slot.y + dy);
   renderFormationModal();
 }
 function resetFormationDraft(){
@@ -2050,6 +2176,7 @@ window.confirmFormation = confirmFormation;
 window.cycleFormationPlayer = cycleFormationPlayer;
 window.discardChanges = discardChanges;
 window.gotoPage = gotoPage;
+window.moveFormationDot = moveFormationDot;
 window.openApplyConfirm = openApplyConfirm;
 window.openAuditModal = openAuditModal;
 window.openFormationModal = openFormationModal;
