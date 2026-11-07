@@ -240,10 +240,17 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .ep-pitch-crest{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed';font-weight:700;
   font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
 .ep-pitch-crest svg{width:16px;height:16px;stroke:var(--gold);}
-.ep-pitch-field{position:relative;width:100%;aspect-ratio:2.2/1;border-radius:2px;overflow:hidden;
-  border:3px solid #b9c3cf;box-shadow:0 0 0 1px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.45);}
+.ep-pitch-lineup{display:inline-block;background:var(--card2);border:1px solid var(--gold-b);
+  color:var(--gold);font-family:'Bebas Neue';font-size:15px;letter-spacing:0.5px;
+  line-height:1.25;padding:0 8px;border-radius:4px;}
+.ep-pitch-field{position:relative;width:100%;aspect-ratio:2.2/1;border-radius:2px;overflow:visible;
+  border:3px solid #b9c3cf;background:#101a13;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.45);}
+/* franja de cada zona; no toca ningun borde: queda el mismo margen de ~9 px
+   contra la linea de meta, el fondo y los dos costados, como en el juego */
+.ep-pitch-zone{position:absolute;}
 /* franjas de cesped tenues, como el degradado de la pantalla original */
-.ep-pitch-field::after{content:'';position:absolute;inset:0;pointer-events:none;
+.ep-pitch-field::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
   background:repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0 4.4%, rgba(0,0,0,0.045) 4.4% 8.8%);}
 .ep-pitch-halfline{position:absolute;left:50%;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.6);}
 .ep-pitch-circle{position:absolute;left:50%;top:50%;width:24%;aspect-ratio:1/1;transform:translate(-50%,-50%);
@@ -254,8 +261,14 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 .ep-pitch-goal{position:absolute;top:37%;bottom:37%;width:4.5%;border:2px solid rgba(255,255,255,0.6);}
 .ep-pitch-goal.left{left:0;border-left:none;}
 .ep-pitch-goal.right{right:0;border-right:none;}
-/* limite entre cuadros de color (defensa | mediocampo | ataque) */
-.ep-pitch-zline{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,0.5);}
+/* semicirculo del area grande (el "balcon" del punto penal) */
+.ep-pitch-arc{position:absolute;top:50%;width:11%;aspect-ratio:1/1;transform:translate(-50%,-50%);
+  border:2px solid rgba(255,255,255,0.6);border-radius:50%;}
+.ep-pitch-arc.left{left:13%;clip-path:inset(0 0 0 50%);}
+.ep-pitch-arc.right{left:87%;clip-path:inset(0 50% 0 0);}
+/* zona de la posicion del jugador seleccionado (mas intensa que la franja) */
+.ep-pitch-pos{position:absolute;border:1px solid rgba(255,255,255,0.45);border-radius:2px;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15);}
 .ep-pitch-dot{position:absolute;width:3.4%;aspect-ratio:1/1;border-radius:50%;background:#2f9fd0;
   border:1px solid rgba(255,255,255,0.85);transform:translate(-50%,-50%);cursor:pointer;
   box-shadow:0 1px 3px rgba(0,0,0,0.5);}
@@ -272,6 +285,10 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
   padding:8px 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
 .ep-pitch-info-name{font-family:'Bebas Neue';font-size:16px;color:var(--txt);display:flex;align-items:center;gap:8px;}
 .ep-pitch-info-zone{font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+.ep-pitch-posrow{display:flex;align-items:center;gap:6px;}
+.ep-pitch-possel{background:var(--card2);border:1px solid var(--gold-b);color:var(--gold);
+  font-family:'Bebas Neue';font-size:14px;letter-spacing:0.5px;padding:3px 8px;border-radius:4px;cursor:pointer;}
+.ep-pitch-possel:disabled{opacity:0.6;cursor:default;}
 .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 
 /* ================= Slice F.M — mobile-first (<= 860px) =================
@@ -279,6 +296,11 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
    editor visible sin scrollear la lista de jugadores, boton de pedido
    siempre a mano, textos >= 12px, sin barras de scroll visibles. */
 @media (max-width: 860px){
+  /* panel de formacion: el nombre arriba y los controles abajo, sin desbordar */
+  .ep-pitch-info{flex-wrap:wrap;}
+  .ep-pitch-info-name{flex:1 0 100%;}
+  .ep-pitch-posrow{flex:1 1 auto;justify-content:flex-start;}
+  .ep-pitch-selctl{flex:0 0 auto;}
   /* lista de jugadores: tira horizontal compacta en vez de columna de 640px */
   .ep-roster{max-height:none;}
   .ep-roster-list{display:flex;flex-direction:row;align-items:stretch;gap:6px;
@@ -410,9 +432,9 @@ body.admin-libre .ep-hero,body.admin-libre .ep-cart-tot{display:none;}
           <div class="ep-panel-hd">
             <div class="ep-panel-title" id="ep-page-title">Principales</div>
             <div class="ep-pager">
-              <button class="ep-pgbtn" id="ep-prev" data-onclick="gotoPage(-1)"><svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>L1</button>
+              <button class="ep-pgbtn" id="ep-prev" data-onclick="gotoPage(-1)" title="Pagina anterior" aria-label="Pagina anterior"><svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
               <div class="ep-pgnum" id="ep-pgnum">1/5</div>
-              <button class="ep-pgbtn" id="ep-next" data-onclick="gotoPage(1)">R1<svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+              <button class="ep-pgbtn" id="ep-next" data-onclick="gotoPage(1)" title="Pagina siguiente" aria-label="Pagina siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
             </div>
           </div>
           <div class="ep-rows" id="ep-rows"></div>

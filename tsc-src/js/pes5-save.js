@@ -57,11 +57,19 @@ const PES5_SAVE = (() => {
 
   // ---------- elegir / recuperar carpeta ----------
   async function elegirCarpeta() {
-    if (!tieneSoporte()) throw new Error('este navegador no soporta File System Access API — usar fallbackDesdeInput()');
+    if (!tieneSoporte()) throw new Error('este navegador no soporta File System Access API — usar Chrome o Edge (en Brave, activar brave://flags/#file-system-access-api)');
     let handle;
     try {
-      handle = await window.showDirectoryPicker({ id: 'pes5-save', mode: 'readwrite' });
+      // showDirectoryPicker puede quedarse pendiente para siempre (pasa en el
+      // navegador de la app y en algunas builds de Brave): sin este tope el
+      // boton queda mudo y el admin no sabe que paso. 60 s es de sobra para
+      // elegir la carpeta; si no responde, se avisa y se puede reintentar.
+      handle = await Promise.race([
+        window.showDirectoryPicker({ id: 'pes5-save', mode: 'readwrite' }),
+        new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error('timeout'), { code: 'picker-timeout' })), 60000)),
+      ]);
     } catch (e) {
+      if (e && e.code === 'picker-timeout') return { ok: false, nombre: null, motivo: 'timeout' };
       return { ok: false, nombre: null }; // el usuario cancelo el picker
     }
     CARPETA = handle;
@@ -217,12 +225,7 @@ const PES5_SAVE = (() => {
     return function stop() { activo = false; clearInterval(id); };
   }
 
-  // ---------- fallback sin File System Access API ----------
-  async function fallbackDesdeInput(file) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    return { bytes, nombre: file.name, tamaño: file.size, lastModified: file.lastModified };
-  }
-
+  // ---------- descarga (unico destino posible sin permiso de escritura) ----------
   function descargar(bytes, nombre = SAVE_FILENAME) {
     const blob = new Blob([bytes], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
@@ -237,7 +240,7 @@ const PES5_SAVE = (() => {
   return {
     tieneSoporte, elegirCarpeta, recuperarCarpeta,
     leer, escribir, observar, asegurarEscritura,
-    fallbackDesdeInput, descargar,
+    descargar,
     get carpetaActual() { return CARPETA ? CARPETA.name : null; },
   };
 })();

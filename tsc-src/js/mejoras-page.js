@@ -232,38 +232,113 @@ const POS_MAP = {PT:'GK',CT:'CB',CLT:'WB',CCD:'DMF',CCO:'AMF',MP:'SMF',MC:'CMF',
    color pasa a tener la posicion de ese cuadro.
    La tabla de etiquetas por celda es una aproximacion (no tenemos el algoritmo
    exacto del juego), con las abreviaturas que ya usa la plantilla. */
-const PITCH_COLS = 45;
+const PITCH_COLS = 47;
 const PITCH_ROWS = 47;
-/* colores apagados, muestreados de la captura del juego (no son saturados) */
+/* Colores apagados, muestreados de la captura del juego (no son saturados).
+   Cada franja se define por columnas: la 15 es defensa y la 16 medio, la 34
+   es medio y la 35 delantera. El borde entre franjas cae justo en el medio
+   de esas dos columnas, asi el pintado coincide exacto con la grilla. */
 const PITCH_ZONES = [
-  {key:'def', from:1,  to:15, label:'Defensa',    color:'#3f6f85'},
-  {key:'mid', from:16, to:33, label:'Mediocampo', color:'#4d7d55'},
-  {key:'att', from:34, to:45, label:'Ataque',     color:'#6d4a3a'},
+  {key:'def', from:2,  to:15, label:'Defensa',    color:'#3f6f85'},
+  {key:'mid', from:16, to:34, label:'Mediocampo', color:'#4d7d55'},
+  {key:'att', from:35, to:47, label:'Ataque',     color:'#6d4a3a'},
 ];
 const PITCH_ZONE_BY_KEY = Object.fromEntries(PITCH_ZONES.map(z=>[z.key,z]));
-const PITCH_LABELS = {
-  def:{near:{top:'CLT',mid:'LIB',bot:'CLT'}, far:{top:'CLT',mid:'CT', bot:'CLT'}},
-  mid:{near:{top:'CLT',mid:'CCD',bot:'CLT'}, far:{top:'CLT',mid:'CCO',bot:'CLT'}},
-  att:{near:{top:'EX', mid:'MP', bot:'EX'},  far:{top:'EX', mid:'DC', bot:'EX'}},
+/* Rectangulos de cada posicion en la grilla (profundidad d, lateral l).
+   Datos del juego: pasos laterales por posicion y, cuando la posicion no
+   ocupa toda su franja, los pasos de profundidad.
+     CT 23 lat · DI/DD 15 · CDR/CIZ 15 · CCO 23x12 · MP 23x12 · CC 35x12
+     SD 8x35 · EI/ED 15 · DC 23
+   Las que no tienen profundidad abarcan toda su franja (azul, verde o roja).
+   Lateral: fila 1 = banda izquierda, fila 47 = banda derecha. */
+const PITCH_POS_ZONAS = {
+  // azul · defensa (columnas 2..15)
+  DI:  { d:[2,15],  l:[1,16]  },   // 15 laterales, lado izquierdo
+  DD:  { d:[2,15],  l:[32,47] },   // 15 laterales, lado derecho
+  CT:  { d:[2,15],  l:[12,35] },   // 23 laterales, centro
+  // verde · mediocampo (columnas 16..34)
+  CIZ: { d:[16,34], l:[1,16]  },   // 15, izquierda
+  CDR: { d:[16,34], l:[32,47] },   // 15, derecha
+  CCD: { d:[16,28], l:[12,35] },   // 12 de profundidad, atras
+  CC:  { d:[19,31], l:[6,41]  },   // 12 de profundidad, 35 laterales
+  MP:  { d:[22,34], l:[12,35] },   // 12 de profundidad, dentro del verde
+  // rojo · ataque (columnas 35..47)
+  EI:  { d:[35,47], l:[1,16]  },   // 15, izquierda
+  ED:  { d:[35,47], l:[32,47] },   // 15, derecha
+  DC:  { d:[35,47], l:[12,35] },   // 23, centro
+  SD:  { d:[35,43], l:[6,41] },   // 8 de profundidad, 35 laterales centrado (5 y 6 de margen)
 };
+/* Posiciones que ofrece el juego segun el bloque donde cae el jugador.
+   Aprobado con el usuario: las de banda solo de su lado, y las centrales
+   pueden repetirse. LIB no se usa (el juego no la reconoce desde aca). */
+const PITCH_POS_POR_BLOQUE = {
+  def:{ izq:['DI','CT'],            centro:['CT'],            der:['DD','CT'] },
+  mid:{ izq:['CIZ','CC','CCD','MP'], centro:['CCD','CC','MP'], der:['CDR','CC','CCD','MP'] },
+  att:{ izq:['EI','SD','DC'],       centro:['SD','DC'],       der:['ED','SD','DC'] },
+};
+// posiciones de banda: solo puede haber una de cada una en la formacion
+const PITCH_POS_BANDA = new Set(['DI','DD','CIZ','CDR','EI','ED']);
+/* Reglas del juego: no se puede amontonar gente en una linea.
+   5 defensas (CT+DI+DD), 6 medios, 5 delanteros; y como maximo 5 de un
+   mismo puesto central. */
+const PITCH_POS_LINEA = {
+  CT:'def', DI:'def', DD:'def',
+  CIZ:'mid', CDR:'mid', CCD:'mid', CC:'mid', MP:'mid',
+  EI:'att', ED:'att', SD:'att', DC:'att',
+};
+const PITCH_LINEA_MAX = { def:5, mid:6, att:5 };
+/* Minimos por linea: el juego no deja vaciar una zona. */
+const PITCH_LINEA_MIN = { def:2, mid:2, att:1 };
+const PITCH_POS_MAX = { CT:5, CCD:5, CC:5, MP:5, SD:5, DC:5 };
+function pitchLado(y){ return y <= 18 ? 'izq' : (y >= 30 ? 'der' : 'centro'); }
+function posicionesEnBloque(x,y){
+  const zona = pitchThird(x);
+  return (PITCH_POS_POR_BLOQUE[zona] || PITCH_POS_POR_BLOQUE.mid)[pitchLado(y)];
+}
+const PITCH_POS_COLOR = { def:'rgba(111,179,209,0.55)', mid:'rgba(127,196,138,0.55)', att:'rgba(201,138,94,0.60)' };
+/* Devuelve la posicion del jugador segun el rectangulo que lo contiene; si
+   cae en varios (las zonas se solapan), gana el de centro mas cercano. */
+function posicionEn(x,y){
+  let mejor = null, mejorDist = Infinity;
+  for (const code of Object.keys(PITCH_POS_ZONAS)){
+    const z = PITCH_POS_ZONAS[code];
+    if (x < z.d[0] || x > z.d[1] || y < z.l[0] || y > z.l[1]) continue;
+    const dx = x - (z.d[0]+z.d[1])/2, dy = y - (z.l[0]+z.l[1])/2;
+    const dist = dx*dx + dy*dy;
+    if (dist < mejorDist){ mejorDist = dist; mejor = code; }
+  }
+  return mejor;
+}
+/* Profundidad util: la columna 2 es la ultima linea (donde estan el arquero
+   y los centrales) y la 47 el delantero mas adelantado. La columna 1 y la 2
+   son la MISMA linea en pantalla, como en el juego (el save guarda 1 para el
+   arquero y 2 para el defensor, pero se dibujan alineados). */
+function pitchFrac(x){ return Math.max(0, Math.min(1, (Math.max(2,x)-2)/(PITCH_COLS-2))); }
 function pitchThird(x){
-  const z = PITCH_ZONES.find(z=>x>=z.from && x<=z.to);
-  return (z || PITCH_ZONES[PITCH_ZONES.length-1]).key;
+  for (const z of PITCH_ZONES) if (x <= z.to) return z.key;
+  return 'att';
 }
-function pitchDepthBand(x,third){
-  const z = PITCH_ZONE_BY_KEY[third];
-  return x <= (z.from+z.to)/2 ? 'near' : 'far';
-}
-function pitchSide(y){ if(y<=15) return 'top'; if(y<=31) return 'mid'; return 'bot'; }
 function pitchLabelFor(x,y,playerId){
   /* el arquero es arquero en cualquier parte del area: no cambia de posicion */
   if(playerId && PLAYER_BY_ID[playerId] && PLAYER_BY_ID[playerId].primaryPos==='GK') return 'PT';
-  const third = pitchThird(x);
-  return PITCH_LABELS[third][pitchDepthBand(x,third)][pitchSide(y)];
+  return posicionEn(x,y) || 'CC';
 }
 function isKeeperSlot(slot){ return PLAYER_BY_ID[slot.id]?.primaryPos === 'GK'; }
-/* porcentaje de ancho donde termina cada cuadro — para pintar el degradado */
-function pitchZoneStopPct(zone){ return zone.to/PITCH_COLS*100; }
+/* Grilla 47x47 -> porcentaje dentro del cesped. El margen es medio circulo
+   en las dos direcciones: el punto en el tope queda entero dentro de la
+   cancha (tangente al borde) y, en profundidad, medio afuera de la franja
+   de color. En horizontal 1,7% del ancho y en vertical 3,8% del alto dan el
+   mismo margen en pixeles (el campo es 2,2:1). */
+const PITCH_PAD_X = 1.7, PITCH_PAD_Y = 3.8;
+function pitchColPct(c){ return PITCH_PAD_X + pitchFrac(c)*(100-2*PITCH_PAD_X); }
+function pitchRowPct(r){ return PITCH_PAD_Y + (r-1)/(PITCH_ROWS-1)*(100-2*PITCH_PAD_Y); }
+/* Borde de cada franja en el CENTRO de su primera/ultima columna, no en el
+   medio paso: entre la 15 y la 16 (y entre la 34 y la 35) queda un hueco sin
+   pintar de un paso, que separa las zonas como en el juego. Cada franja cede
+   la mitad de ese hueco. */
+function pitchZoneEdges(zone){
+  return { left: pitchColPct(zone.from), right: pitchColPct(zone.to) };
+}
 
 /* Formacion titular 4-1-2-3 compacto (contexto_copa_subs1.md): solo las
    11 coordenadas del dibujo. La primera es la del arquero.
@@ -272,14 +347,41 @@ function pitchZoneStopPct(zone){ return zone.to/PITCH_COLS*100; }
    FK Tupadre ('michelo', 'kewell'...) y con cualquier plantilla publicada
    el modal se rompia (PLAYER_BY_ID[id] undefined). */
 const FORMATION_COORDS = [
-  {x:3,  y:24},
+  {x:2,  y:24},
   {x:10, y:40}, {x:9,  y:29}, {x:9,  y:19}, {x:10, y:8},
   {x:17, y:24},
   {x:25, y:31}, {x:25, y:17},
   {x:37, y:39}, {x:41, y:24}, {x:37, y:9},
 ];
-const FORMATION_NAME = '4-1-2-3 compacto';
+let FORMATION_NAME = '4-1-2-3 compacto';
+let FORMACION_PUBLICADA = null; // formacion leida del save y publicada por la Tool (opcion B)
 function _formationKey(){ return 'tsc_ep_formation_' + (EQUIPO_TSC?.id ?? AUTH?.teamId ?? 'x'); }
+
+/* Lateral del save: 6..99 (2 unidades por casilla) -> fila 1..47 de la grilla. */
+function _filaLateral(lat){
+  return Math.max(1, Math.min(47, Math.round(1 + (lat - 6) * 46 / 93)));
+}
+/* Formato publicado por la Tool: { nombre, slots:[{slot,jugador,prof,lat}] }.
+   El arquero (slot 0) no guarda lateral y se dibuja al centro, con SU propia
+   profundidad: en el save es 1 (la linea de meta), un paso por detras de la
+   ultima linea defensiva. Antes se copiaba la profundidad del defensor mas
+   atrasado y el arquero quedaba pegado a la defensa, que no es como se ve
+   en el juego. */
+function formacionDesdePublicada(f){
+  const slots = (f && Array.isArray(f.slots) ? f.slots : []).filter(s => s && s.slot >= 0 && s.slot <= 10);
+  if (slots.length !== FORMATION_COORDS.length) return null;
+  return slots.slice().sort((a, b) => a.slot - b.slot).map(s => ({
+    id: 'r' + s.jugador,
+    // El arquero se dibuja en la MISMA columna que el defensor mas atrasado:
+    // en el save guarda 1 y los de campo no bajan de 2, pero el juego los
+    // pinta sobre la misma linea (verificado en captura de PES5). Por eso el
+    // minimo visual es 2 y el arquero se limita a el.
+    x: s.slot === 0 ? Math.max(2, Math.min(47, Math.round(s.prof) || 1))
+                    : Math.max(2, Math.min(47, Math.round(s.prof) || 2)),
+    y: s.slot === 0 ? 24 : _filaLateral(s.lat),
+    pos: s.posNombre || null,
+  }));
+}
 
 /* Los 11 titulares del archivo (slot 0-10, la seccion "Titulares" de la
    lista; si faltan se completa con los siguientes por slot). El arquero,
@@ -293,6 +395,11 @@ function formacionPorDefecto(){
 /* La guardada solo vale si sus 11 ids siguen existiendo en el plantel
    actual (Luis pudo republicar o cambiar el club vinculado). */
 function formacionVigente(){
+  // Opcion B: la verdad es la formacion del save, publicada por la Tool.
+  if (FORMACION_PUBLICADA){
+    const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
+    if (pub && pub.every(s => s && PLAYER_BY_ID[s.id])) return pub;
+  }
   try{
     const saved = JSON.parse(localStorage.getItem(_formationKey())||'null');
     if (Array.isArray(saved) && saved.length === FORMATION_COORDS.length
@@ -544,6 +651,7 @@ async function cargarPlantillaReal(teamId, pes5ClubActual){
   const equipo = snap.data();
   PLAYERS = (equipo.jugadores || []).map(j => jugadorDesdePlantillaReal(j, equipo));
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p=>[p.id,p]));
+  FORMACION_PUBLICADA = equipo.formacion || null;
   return PLAYERS.length > 0;
 }
 
@@ -1031,13 +1139,22 @@ function openFormationModal(){
     return;
   }
   FORMATION = formacionVigente();
+  FORMATION_NAME = (FORMACION_PUBLICADA && FORMACION_PUBLICADA.nombre) || FORMATION_NAME;
   FORM.draft = JSON.parse(JSON.stringify(FORMATION));
+  // Si la formacion publicada es vieja y no trae posiciones, se completan
+  // con la primera opcion valida de cada bloque (asi las reglas tienen datos).
+  completarPosiciones();
   FORM.sel = 0;
   const wrap = document.getElementById('ep-pitch-wrap');
-  const gradient = `linear-gradient(90deg, ${PITCH_ZONES.map((z,i)=>{
-    const start = i===0 ? 0 : pitchZoneStopPct(PITCH_ZONES[i-1]);
-    return `${z.color} ${start}% ${pitchZoneStopPct(z)}%`;
-  }).join(', ')})`;
+  // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
+  // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
+  const franjas = PITCH_ZONES.map(z => {
+    const e = pitchZoneEdges(z);
+    // 3,8% arriba y abajo: la franja tampoco toca los costados de la cancha,
+    // igual que en profundidad. El margen es el mismo (~9 px).
+    return `<div class="ep-pitch-zone" style="left:${e.left}%;width:${e.right-e.left}%;top:${PITCH_PAD_Y}%;height:${100-2*PITCH_PAD_Y}%;background:${z.color};"></div>`;
+  }).join('');
+  // Las zonas ya no llevan linea blanca: las separa el hueco sin pintar.
   wrap.innerHTML = `
   <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeFormationModal)">
     <div class="ep-modal wide">
@@ -1048,31 +1165,38 @@ function openFormationModal(){
       <div class="ep-modal-body">
         <div class="ep-pitch-crest">
           <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
-          ${_esc(EQUIPO_TSC?.name || 'Tu equipo')} &middot; ${FORMATION_NAME}
+          ${_esc(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineacion
+          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineacion segun las lineas en la cancha">${_esc(_nombreFormacionDraft(FORM.draft))}</span>
         </div>
-        <div class="ep-pitch-field" id="ep-pitch-field" style="background:${gradient};">
+        <div class="ep-pitch-field" id="ep-pitch-field">
+          ${franjas}
           <div class="ep-pitch-halfline"></div>
           <div class="ep-pitch-circle"></div>
           <div class="ep-pitch-box left"></div>
           <div class="ep-pitch-box right"></div>
+          <div class="ep-pitch-arc left"></div>
+          <div class="ep-pitch-arc right"></div>
           <div class="ep-pitch-goal left"></div>
           <div class="ep-pitch-goal right"></div>
-          ${PITCH_ZONES.slice(0,-1).map(z=>
-            `<div class="ep-pitch-zline" style="left:${pitchZoneStopPct(z)}%;"></div>`).join('')}
+          <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
           <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
         </div>
         <div class="ep-pitch-info">
           <div class="ep-pitch-info-name" id="ep-form-name"></div>
+          <div class="ep-pitch-posrow">
+            <span class="ep-pitch-info-zone">Posicion</span>
+            <select id="ep-form-pos" class="ep-pitch-possel" data-onchange="setFormationPos(this.value)"></select>
+          </div>
           <div class="ep-pitch-selctl">
-            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(-1)">
-              <svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>L1</button>
+            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(-1)" title="Jugador anterior" aria-label="Jugador anterior">
+              <svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
             <span class="ep-pitch-info-zone" id="ep-form-zone"></span>
-            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(1)">R1
+            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(1)" title="Jugador siguiente" aria-label="Jugador siguiente">
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
         <div class="ep-pitch-hint">
-          <span>Flechas &uarr;&darr;&larr;&rarr; para mover &middot; L1/R1 (o clic en un punto) para cambiar de jugador.</span>
+          <span>Flechas &uarr;&darr;&larr;&rarr; para mover &middot; clic en un punto para cambiar de jugador.</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1093,10 +1217,10 @@ function renderFormationModal(){
   if(!wrap.innerHTML) return;
   const dots = FORM.draft.map((slot,i)=>{
     const pl = PLAYER_BY_ID[slot.id];
-    const xPct = (slot.x-1)/(PITCH_COLS-1)*100;
-    const yPct = (slot.y-1)/(PITCH_ROWS-1)*100;
+    const xPct = pitchColPct(slot.x);
+    const yPct = pitchRowPct(slot.y);
     const isSel = i===FORM.sel;
-    const label = pitchLabelFor(slot.x, slot.y, slot.id);
+    const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
     return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''}"
       style="left:${xPct}%;top:${yPct}%;"
       data-onclick="event.stopPropagation();selectFormationPlayer(${i})" title="${_esc(pl.name)}">
@@ -1105,9 +1229,28 @@ function renderFormationModal(){
   }).join('');
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
+  // Alineacion en vivo (defensas-mediocampistas-delanteros segun las franjas).
+  const lineupEl = document.getElementById('ep-form-lineup');
+  if (lineupEl) lineupEl.textContent = _nombreFormacionDraft(FORM.draft);
+
+  // Zona de la posicion del jugador seleccionado, pintada mas intensa.
+  const selSlot = FORM.draft[FORM.sel];
+  const selCode = selSlot.pos || pitchLabelFor(selSlot.x, selSlot.y, selSlot.id);
+  const zonaPos = PITCH_POS_ZONAS[selCode];
+  const posCont = document.getElementById('ep-pitch-pos');
+  if (posCont){
+    if (zonaPos){
+      const l = pitchColPct(zonaPos.d[0]), r = pitchColPct(zonaPos.d[1]);
+      const t = pitchRowPct(zonaPos.l[0]), b = pitchRowPct(zonaPos.l[1]);
+      posCont.innerHTML = `<div class="ep-pitch-pos" style="left:${l}%;top:${t}%;width:${r-l}%;height:${b-t}%;background:${PITCH_POS_COLOR[pitchThird((zonaPos.d[0]+zonaPos.d[1])/2)]};"></div>`;
+    } else {
+      posCont.innerHTML = ''; // arquero: no tiene zona de posicion
+    }
+  }
+
   const slot = FORM.draft[FORM.sel];
   const pl = PLAYER_BY_ID[slot.id];
-  const label = pitchLabelFor(slot.x, slot.y, slot.id);
+  const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
   const keeper = isKeeperSlot(slot);
   document.getElementById('ep-form-name').innerHTML =
     `${_esc(pl.name)} <span style="color:var(--txt3);font-size:12px;">#${_esc(pl.dorsal)}</span>
@@ -1117,6 +1260,105 @@ function renderFormationModal(){
     : PITCH_ZONE_BY_KEY[pitchThird(slot.x)].label;
   document.getElementById('ep-form-coords').textContent =
     `Columna ${slot.x}/${PITCH_COLS} · Fila ${slot.y}/${PITCH_ROWS}`;
+  // selector de posicion: solo las que corresponden al bloque donde cae,
+  // mas la que ya tiene (aunque haya quedado fuera de zona), sin repetir
+  // las de banda.
+  const sel = document.getElementById('ep-form-pos');
+  if (sel){
+    const opciones = opcionesPosicion(slot);
+    sel.innerHTML = opciones.map(o =>
+      `<option value="${_esc(o.pos)}"${o.pos === label ? ' selected' : ''}${o.disponible ? '' : ' disabled'}>${_esc(o.pos)}${o.disponible ? '' : ' (ocupada)'}</option>`
+    ).join('');
+    sel.disabled = keeper;
+  }
+}
+function opcionesPosicion(slot){
+  if (isKeeperSlot(slot) || FORM.draft.indexOf(slot) === 0) return [{ pos:'PT', disponible:true }];
+  const base = posicionesEnBloque(slot.x, slot.y);
+  const out = base.map(p => ({ pos: p, disponible: puedeAsignar(p, slot) }));
+  // la posicion actual se mantiene aunque haya quedado fuera de zona
+  if (slot.pos && !base.includes(slot.pos)) out.unshift({ pos: slot.pos, disponible: true });
+  return out;
+}
+/* ¿Se puede asignar esta posicion a este jugador sin romper las reglas? */
+function puedeAsignar(pos, slot){
+  const linea = PITCH_POS_LINEA[pos];
+  if (!linea) return false;
+  const otros = FORM.draft.filter(s => s !== slot);
+  if (otros.filter(s => s.pos && PITCH_POS_LINEA[s.pos] === linea).length >= PITCH_LINEA_MAX[linea]) return false;
+  const maxPos = PITCH_POS_MAX[pos];
+  if (maxPos && otros.filter(s => s.pos === pos).length >= maxPos) return false;
+  if (PITCH_POS_BANDA.has(pos) && otros.some(s => s.pos === pos)) return false;
+  return true;
+}
+/* Cuenta cuantos jugadores hay en cada linea segun su posicion declarada. */
+function contarLineas(draft){
+  const cuenta = { def:0, mid:0, att:0 };
+  for (const s of draft || []) if (s && s.pos && PITCH_POS_LINEA[s.pos]) cuenta[PITCH_POS_LINEA[s.pos]]++;
+  return cuenta;
+}
+const PITCH_LINEA_NOMBRE = { def:'defensas', mid:'mediocampistas', att:'delanteros' };
+/* Linea que quedo por debajo del minimo y que ademas empeoro con el cambio
+   (asi una formacion vieja ya invalida se puede ir corrigiendo).
+   Recibe los conteos de antes y despues. */
+function lineaBajoMinimo(ca, cd){
+  for (const l of Object.keys(PITCH_LINEA_MIN)){
+    if (cd[l] < PITCH_LINEA_MIN[l] && cd[l] < ca[l]) return l;
+  }
+  return null;
+}
+/* Valida la formacion completa. Devuelve el motivo del rechazo o null. */
+function validarFormacion(draft){
+  const cuenta = {};
+  const porLinea = { def:0, mid:0, att:0 };
+  for (const s of draft || []){
+    if (!s || !s.pos) continue;
+    cuenta[s.pos] = (cuenta[s.pos] || 0) + 1;
+    if (PITCH_POS_LINEA[s.pos]) porLinea[PITCH_POS_LINEA[s.pos]]++;
+  }
+  for (const pos of PITCH_POS_BANDA) if ((cuenta[pos] || 0) > 1) return `no puede haber dos ${pos} en la formacion`;
+  for (const [pos, max] of Object.entries(PITCH_POS_MAX)) if ((cuenta[pos] || 0) > max) return `maximo ${max} ${pos}`;
+  for (const [l, max] of Object.entries(PITCH_LINEA_MAX)) if (porLinea[l] > max) return `maximo ${max} ${PITCH_LINEA_NOMBRE[l]}`;
+  for (const [l, min] of Object.entries(PITCH_LINEA_MIN)) if (porLinea[l] < min) return `minimo ${min} ${PITCH_LINEA_NOMBRE[l]}`;
+  return null;
+}
+/* Completa las posiciones que falten (formaciones publicadas viejas) con la
+   primera opcion valida de cada bloque, respetando los topes. */
+function completarPosiciones(){
+  FORM.draft.forEach((s, i) => {
+    if (s.pos) return;
+    if (i === 0 || isKeeperSlot(s)){ s.pos = 'PT'; return; }
+    const opciones = posicionesEnBloque(s.x, s.y);
+    s.pos = opciones.find(p => puedeAsignar(p, s)) || opciones[0] || null;
+  });
+}
+/* Al mover, si la posicion actual ya no pertenece al bloque nuevo (o no se
+   puede por los topes), se pasa sola a la primera opcion valida. Dentro del
+   bloque se mantiene, como en el juego. */
+function ajustarPosicionAlMover(slot){
+  if (!slot || isKeeperSlot(slot) || slot.pos === 'PT') return true;
+  const opciones = posicionesEnBloque(slot.x, slot.y);
+  if (slot.pos && opciones.includes(slot.pos) && puedeAsignar(slot.pos, slot)) return true;
+  const libre = opciones.find(p => puedeAsignar(p, slot));
+  if (libre){ slot.pos = libre; return true; }
+  return false; // la linea de destino ya esta llena
+}
+function setFormationPos(valor){
+  const slot = FORM.draft[FORM.sel];
+  if (!slot || !valor) return;
+  const antes = contarLineas(FORM.draft);
+  const anterior = slot.pos;
+  slot.pos = valor;
+  const baja = lineaBajoMinimo(antes, contarLineas(FORM.draft));
+  if (baja){
+    slot.pos = anterior;
+    const etiqueta = { def:'La defensa', mid:'El mediocampo', att:'La delantera' }[baja];
+    const min = PITCH_LINEA_MIN[baja];
+    showMiniToast(`${etiqueta} necesita al menos ${min} jugador${min > 1 ? 'es' : ''}.`);
+    renderFormationModal();
+    return;
+  }
+  renderFormationModal();
 }
 function selectFormationPlayer(i){ FORM.sel = i; renderFormationModal(); }
 function cycleFormationPlayer(delta){
@@ -1126,20 +1368,85 @@ function cycleFormationPlayer(delta){
 function moveFormationDot(dx,dy){
   const slot = FORM.draft[FORM.sel];
   if(isKeeperSlot(slot)){ showMiniToast('El arquero no se mueve de su posicion.'); return; }
-  slot.x = Math.min(PITCH_COLS, Math.max(1, slot.x+dx));
+  // Columna 2 = ultima linea: ahi esta tambien el arquero. La columna 1 es
+  // margen contra la linea de meta (el juego no deja bajar mas).
+  const antes = { x: slot.x, y: slot.y, pos: slot.pos };
+  const lineasAntes = contarLineas(FORM.draft);
+  slot.x = Math.min(PITCH_COLS, Math.max(2, slot.x+dx));
   slot.y = Math.min(PITCH_ROWS, Math.max(1, slot.y+dy));
+  if (!ajustarPosicionAlMover(slot)){
+    slot.x = antes.x; slot.y = antes.y;
+    const zona = pitchThird(slot.x + dx);
+    const linea = { def:'La defensa', mid:'El mediocampo', att:'El ataque' }[zona] || 'Esa linea';
+    showMiniToast(`${linea} ya tiene el maximo de jugadores.`);
+    renderFormationModal();
+    return;
+  }
+  const baja = lineaBajoMinimo(lineasAntes, contarLineas(FORM.draft));
+  if (baja){
+    slot.x = antes.x; slot.y = antes.y; slot.pos = antes.pos;
+    const linea = { def:'La defensa', mid:'El mediocampo', att:'La delantera' }[baja];
+    const min = PITCH_LINEA_MIN[baja];
+    showMiniToast(`${linea} necesita al menos ${min} jugador${min > 1 ? 'es' : ''}.`);
+    renderFormationModal();
+    return;
+  }
   renderFormationModal();
 }
 function resetFormationDraft(){
-  FORM.draft = formacionPorDefecto();
+  FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
+  completarPosiciones();
   renderFormationModal();
-  showMiniToast('Formacion restablecida a 4-1-2-3 compacto.');
+  showMiniToast('Formacion restablecida a la del save.');
 }
-function confirmFormation(){
+/* Nombre 4-4-2 derivado del borrador (mismas franjas que la cancha:
+   defensa hasta la columna 15, medio 16-34, ataque 35-47). */
+function _nombreFormacionDraft(draft){
+  const cuenta = { def:0, mid:0, att:0 };
+  for (const s of (draft || []).slice(1)){
+    if (s && Number.isFinite(s.x)) cuenta[pitchThird(s.x)]++;
+  }
+  return `${cuenta.def}-${cuenta.mid}-${cuenta.att}`;
+}
+/* Opcion B: el presidente manda la formacion como pedido y la Tool la
+   escribe en el save. No cuesta YunaCoins. */
+async function confirmFormation(){
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
-  try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
-  closeFormationModal();
-  showMiniToast('Formacion confirmada y guardada.');
+  const error = validarFormacion(FORMATION);
+  if (error){ showMiniToast('Formacion invalida: ' + error + '.'); return; }
+  const nombre = _nombreFormacionDraft(FORMATION);
+  const slots = FORMATION.map((s, i) => ({
+    slot: i,
+    jugador: PES5_PLANTILLA.registroDeId(s.id),
+    // El arquero siempre se guarda en 1 (linea de meta), aunque en pantalla
+    // se dibuje en la columna 2 junto al defensor mas atrasado; el resto no
+    // baja de 2, que es el minimo de los jugadores de campo en el save.
+    prof: i === 0 ? 1 : Math.max(2, Math.min(47, Math.round(s.x))),
+    lat: i === 0 ? null : Math.max(6, Math.min(99, Math.round(6 + (s.y - 1) * 93 / 46))),
+    posNombre: s.pos || null,
+  }));
+  try {
+    await firebase.firestore().collection('pedidos_pes5').add({
+      uid: AUTH.user.uid,
+      teamId: String(AUTH.teamId),
+      teamName: EQUIPO_TSC?.name || null,
+      pes5Club: EQUIPO_TSC?.pes5Club || null,
+      tipo: 'formacion',
+      pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
+      formacion: { nombre, slots },
+      lines: [{ label: 'Formación', from: FORMATION_NAME, to: nombre }],
+      totalCost: 0,
+      estado: 'pendiente',
+      creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
+    FORMATION_NAME = nombre;
+    closeFormationModal();
+    showMiniToast('Formacion enviada. La Tool la aplica al save.');
+  } catch(e) {
+    console.warn('[editor] pedido de formacion', e);
+    showMiniToast('No se pudo enviar la formacion: ' + (e?.message || e));
+  }
 }
 document.addEventListener('keydown', function(e){
   const wrap = document.getElementById('ep-pitch-wrap');

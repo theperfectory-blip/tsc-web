@@ -226,6 +226,109 @@ const PES5_EDITOR = (() => {
     darDeAltaJugador(bytes, indiceEquipoDestino, idJugador);
   }
 
+  // ---------- formacion (bloque 5, registro de equipos editados) ----------
+  // Cada equipo editado tiene un registro en el bloque 5 que empieza con su
+  // codigo corto (3 letras, ej. BIR) seguido de la lista 00 01 02 ... 1F.
+  // La formacion arranca 100 bytes despues del codigo:
+  //   +12 .. +22  11 bytes = profundidad (defensa<->ataque), slots 0..10, 1..47
+  //   +23 .. +32  10 bytes = lateral, slots 1..10 (el arquero va fijo al centro), 6..99
+  // Verificado 2026-11-06 con cuatro cambios aislados in-game (Cunningham,
+  // Upson, Melchiot, Jarosik, Heskey) contra el save real.
+  const FORM_BUSCAR_DESDE = 657712, FORM_BUSCAR_HASTA = 803591; // bloque 5
+  const FORM_REL_DEPTH = 12, FORM_REL_LATERAL = 23, FORM_OFF_REGISTRO = 100;
+  //   +33 .. +43  11 bytes = posicion declarada de cada slot (codigo interno
+  //   del juego), independiente de la ubicacion en la cancha.
+  // Verificado 2026-11-06: escribiendo 12 a mano el juego muestra CCD, y la
+  // lista del juego coincide con estos codigos en los 11 titulares.
+  // El juego re-canoniza algunos al guardar (CCD 12->14, DC 36<->40), por eso
+  // se aceptan variantes al leer.
+  const FORM_REL_POS = 33;
+  const POS_CODIGO = {
+    PT: 0, CT: 7, DI: 8, DD: 9, CCD: 12, CC: 19, CIZ: 22, CDR: 23,
+    MP: 26, EI: 29, ED: 30, SD: 35, DC: 36,
+  };
+  const POS_POR_CODIGO = {
+    0: 'PT', 1: 'CT', 7: 'CT', 8: 'DI', 9: 'DD',
+    12: 'CCD', 14: 'CCD', 19: 'CC', 22: 'CIZ', 23: 'CDR',
+    26: 'MP', 29: 'EI', 30: 'ED', 35: 'SD', 36: 'DC', 40: 'DC',
+  };
+  function nomPosicion(codigo) { return POS_POR_CODIGO[codigo] || null; }
+  function codPosicion(nombre) { return POS_CODIGO[nombre] != null ? POS_CODIGO[nombre] : null; }
+
+  function codigoCortoEquipo(bytes, indiceEquipo) {
+    const off = TEAM_BASE + indiceEquipo * TEAM_STRIDE + 0x49;
+    let fin = off;
+    while (fin < off + 8 && bytes[fin] !== 0) fin++;
+    return new TextDecoder('ascii').decode(bytes.slice(off, fin)).trim();
+  }
+  // El registro usa el codigo de 3 letras del nombre (Chelsea = CHE) que a
+  // veces no coincide con el codigo corto del bloque 6 (CLS). Se prueban los
+  // dos: el del bloque 6 y las 3 primeras letras del nombre.
+  function _codigosEquipo(bytes, indiceEquipo) {
+    const out = [];
+    const c = codigoCortoEquipo(bytes, indiceEquipo);
+    if (c) out.push(c.toUpperCase());
+    const n = nombreEquipo(bytes, indiceEquipo).toUpperCase().replace(/[^A-Z]/g, '');
+    if (n.length >= 3) out.push(n.slice(0, 3));
+    return out.filter((v, i) => v && out.indexOf(v) === i);
+  }
+  function _buscarRegistroFormacion(bytes, codigos) {
+    for (let i = FORM_BUSCAR_DESDE; i + 40 <= FORM_BUSCAR_HASTA; i++) {
+      for (const cod of codigos) {
+        const seq = i + cod.length + 1;
+        if (seq + 32 > FORM_BUSCAR_HASTA) continue;
+        let ok = bytes[i + cod.length] === 0;
+        for (let j = 0; ok && j < cod.length; j++) if (bytes[i + j] !== cod.charCodeAt(j)) ok = false;
+        for (let k = 0; ok && k < 32; k++) if (bytes[seq + k] !== k) ok = false;
+        if (ok) return i;
+      }
+    }
+    return -1;
+  }
+  function leerFormacionEquipo(bytes, indiceEquipo) {
+    const codigos = _codigosEquipo(bytes, indiceEquipo);
+    const rec = _buscarRegistroFormacion(bytes, codigos);
+    if (rec < 0) return null;
+    const base = rec + FORM_OFF_REGISTRO;
+    const ids = leerPlantillaEquipo(bytes, indiceEquipo);
+    const slots = [];
+    for (let s = 0; s < 11; s++) {
+      const posCodigo = bytes[base + FORM_REL_POS + s];
+      slots.push({
+        slot: s,
+        jugador: ids[s] != null ? ids[s] : null,
+        prof: bytes[base + FORM_REL_DEPTH + s],
+        lat: s === 0 ? null : bytes[base + FORM_REL_LATERAL + (s - 1)],
+        pos: posCodigo,
+        posNombre: nomPosicion(posCodigo),
+      });
+    }
+    return { codigo: codigos[0] || null, offset: rec, nombre: nombreFormacion(slots), slots };
+  }
+  function escribirFormacionEquipo(bytes, indiceEquipo, slots) {
+    const codigos = _codigosEquipo(bytes, indiceEquipo);
+    const rec = _buscarRegistroFormacion(bytes, codigos);
+    if (rec < 0) throw new Error('no hay registro de formacion para el club ' + indiceEquipo);
+    const base = rec + FORM_OFF_REGISTRO;
+    for (const s of slots || []) {
+      if (!s || !Number.isInteger(s.slot) || s.slot < 0 || s.slot > 10) continue;
+      if (Number.isFinite(s.prof)) bytes[base + FORM_REL_DEPTH + s.slot] = Math.max(1, Math.min(47, s.prof | 0));
+      if (s.slot > 0 && Number.isFinite(s.lat)) bytes[base + FORM_REL_LATERAL + (s.slot - 1)] = Math.max(6, Math.min(99, s.lat | 0));
+      const codigoPos = Number.isFinite(s.pos) ? s.pos : codPosicion(s.posNombre);
+      if (codigoPos != null) bytes[base + FORM_REL_POS + s.slot] = codigoPos & 0xFF;
+    }
+    return rec;
+  }
+  // 4-4-2 / 4-3-3 / etc. contando los 10 jugadores de campo por franja de
+  // profundidad (mismas franjas que la grilla: defensa 1-15, medio 16-34, ataque 35-47).
+  function nombreFormacion(slots) {
+    const campo = (slots || []).filter(s => s && s.slot > 0);
+    const def = campo.filter(s => s.prof <= 15).length;
+    const med = campo.filter(s => s.prof >= 16 && s.prof <= 34).length;
+    const att = campo.filter(s => s.prof >= 35).length;
+    return `${def}-${med}-${att}`;
+  }
+
   // ---------- nombre de camiseta (+0x20, ascii, 16 bytes) ----------
   function nombreCamisetaDeRegistro(bytes, registro) {
     const off = BASE + registro * STRIDE + 0x20;
@@ -495,6 +598,8 @@ const PES5_EDITOR = (() => {
     leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
+    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion,
+    POS_CODIGO, POS_POR_CODIGO, nomPosicion, codPosicion,
     leerJugadorCompleto, escribirJugadorCompleto,
     leerPlantillaCompleta, equiposDelJugador,
   };

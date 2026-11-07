@@ -306,13 +306,13 @@ function renderStatusBar(){
     // fabrica la File System Access API (typeof window.showDirectoryPicker
     // === 'undefined' aun en contexto seguro). La deteccion sigue siendo
     // SIEMPRE tieneSoporte() — nunca userAgent — esto solo aclara el aviso.
+    // No hay selector de archivo: un archivo elegido asi es de solo lectura
+    // y no permite escribir el save ni dejar backup, asi que ofrecerlo
+    // terminaba en un error al aplicar (o en una descarga suelta).
     el.innerHTML = `
       <div class="pt-statusbar">
-        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no soporta acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usás <b>Brave</b>, suele venir desactivado: activalo en <code>brave://flags/#file-system-access-api</code> (Enabled) y reiniciá el navegador, o usá Chrome/Edge para esta tool. Mientras tanto podés seguir con el archivo de abajo: "Escribir al save" va a <b>descargar</b> el save editado.</div>
-        <div class="pt-status-item pt-fallback-input">${ICN.upload} <input type="file" id="fallback-input" style="font-size:12px;"></div>
+        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no da acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usás <b>Brave</b>, suele venir desactivado: activalo en <code>brave://flags/#file-system-access-api</code> (Enabled), reiniciá el navegador y volvé a entrar. Sin eso no se puede leer ni escribir el save.</div>
       </div>`;
-    const fi = document.getElementById('fallback-input');
-    if (fi) fi.addEventListener('change', onFallbackInput);
     return;
   }
 
@@ -320,6 +320,7 @@ function renderStatusBar(){
     el.innerHTML = `
       <div class="pt-statusbar">
         <div class="pt-status-item"><span class="pt-dot off"></span> Sin carpeta elegida — sugerido: <code>Documents\\KONAMI\\Pro Evolution Soccer 5\\save\\folder1</code></div>
+        <div class="pt-status-item" style="font-size:12px;">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abrí esto en <b>Chrome o Edge</b>.</div>
         <div class="pt-status-actions">
           <button class="btn btn-sm btn-primary" data-onclick="elegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
         </div>
@@ -344,7 +345,10 @@ function renderStatusBar(){
 async function elegirCarpetaClick(){
   try {
     const r = await PES5_SAVE.elegirCarpeta();
-    if (!r.ok) return; // el admin cancelo el picker
+    if (!r.ok){
+      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Probá en Chrome o Edge.');
+      return; // el admin cancelo el picker (o no se abrio)
+    }
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
     showToast('Carpeta elegida: ' + r.nombre);
@@ -365,18 +369,6 @@ async function recargarSaveClick(){
   if (TAB === 'equipos') renderEquiposTab();
   showToast('Save recargado');
 }
-async function onFallbackInput(ev){
-  const file = ev.target.files[0];
-  if (!file) return;
-  const leido = await PES5_SAVE.fallbackDesdeInput(file);
-  SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
-  PLANO = PES5_CRYPT.descifrar(leido.bytes);
-  recalcularClubesDelSave();
-  await migrarPes5ClubIdx();
-  if (TAB === 'equipos') renderEquiposTab();
-  showToast('Archivo cargado: ' + leido.nombre);
-}
-
 async function cargarSaveDesdeCarpeta(){
   const leido = await PES5_SAVE.leer();
   SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
@@ -1059,9 +1051,11 @@ async function escribirAlSave(){
     log('cifrando...');
     const cifrado = PES5_CRYPT.cifrar(copia);
 
-    if (!PES5_SAVE.tieneSoporte()){
-      // C2.3, punto 6a: modo fallback — no hay acceso directo a la carpeta,
-      // asi que "escribir" es generar una descarga del archivo reescrito.
+    if (!PES5_SAVE.tieneSoporte() || !PES5_SAVE.carpetaActual){
+      // Salvavidas: sin handle de carpeta no se puede escribir. Ya no hay
+      // selector de archivo (un archivo elegido asi es de solo lectura), pero
+      // si el navegador perdio la API o la carpeta quedo revocada, se
+      // descarga el save reescrito en vez de dejar al admin sin salida.
       // El original en la carpeta del juego queda intacto y sirve de backup.
       log('generando descarga (sin acceso directo a la carpeta)...');
       PES5_SAVE.descargar(cifrado, 'KONAMI-WIN32PES5OPT');
@@ -1124,14 +1118,22 @@ async function renderPedidosTab(){
   }
   const filas = PEDIDOS_PENDIENTES.map(p => {
     const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
-    const lineas = (p.lines || []).map(l => `${_esc(l.label)} ${_esc(l.from)} → ${_esc(l.to)}`).join('<br>');
-    const aplicable = !!(p.cambios && p.registro != null);
+    const esFormacion = p.tipo === 'formacion';
+    const lineas = esFormacion
+      ? `Formación ${_esc((p.formacion && p.formacion.nombre) || '')}`
+      : (p.lines || []).map(l => `${_esc(l.label)} ${_esc(l.from)} → ${_esc(l.to)}`).join('<br>');
+    const aplicable = esFormacion
+      ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
+      : !!(p.cambios && p.registro != null);
+    const jugador = esFormacion
+      ? '<i>Formación</i>'
+      : `${_esc(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
     return `<tr>
       <td><input type="checkbox" class="ped-sel" value="${_esc(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>
       <td>${_esc(p.teamName || String(p.teamId))}</td>
-      <td>${_esc(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}</td>
+      <td>${jugador}</td>
       <td style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${aplicable ? '' : '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>'}</td>
-      <td style="text-align:right;">${Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
+      <td style="text-align:right;">${esFormacion ? 'gratis' : Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
       <td style="font-size:12px;">${_esc(fecha)}</td>
       <td><button class="btn btn-sm" data-onclick="rechazarPedido('${_esc(p._id)}')">Rechazar</button></td>
     </tr>`;
@@ -1187,6 +1189,53 @@ async function aplicarPedidosSeleccionados(){
     const restantes = _restantesTemporada();
     let usadoGeneral = 0, usadoSub = 0, usadoTotal = 0;
     for (const p of porEquipo[teamId]){
+      if (p.tipo === 'formacion'){
+        if (!p.formacion || !Array.isArray(p.formacion.slots)){ rechazados.push({ pedido: p, motivo: 'sin datos de formación' }); continue; }
+        if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
+        const roster = PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx);
+        const idsOk = p.formacion.slots.every(s => s && s.slot >= 0 && s.slot <= 10 && roster[s.slot] === s.jugador);
+        if (!idsOk){ rechazados.push({ pedido: p, motivo: 'el plantel cambió; el presidente debe pedir la formación de nuevo' }); continue; }
+        // reglas del juego: una sola posición por banda, topes y mínimos por línea
+        const LINEA = { CT:'def', DI:'def', DD:'def', CIZ:'mid', CDR:'mid', CCD:'mid', CC:'mid', MP:'mid', EI:'att', ED:'att', SD:'att', DC:'att' };
+        const CAP_LINEA = { def:5, mid:6, att:5 };
+        const MIN_LINEA = { def:2, mid:2, att:1 };
+        const NOMBRE_LINEA = { def:'la defensa', mid:'el mediocampo', att:'el ataque' };
+        const CAP_POS = { CT:5, CCD:5, CC:5, MP:5, SD:5, DC:5 };
+        const slotsForm = p.formacion.slots || [];
+        const conPos = slotsForm.filter(s => s && s.posNombre).length;
+        const banda = [];
+        const porLinea = { def:0, mid:0, att:0 };
+        const cuenta = {};
+        for (const s of slotsForm){
+          const x = s && s.posNombre;
+          if (!x) continue;
+          if (['DI','DD','CIZ','CDR','EI','ED'].includes(x)) banda.push(x);
+          cuenta[x] = (cuenta[x] || 0) + 1;
+          if (LINEA[x]) porLinea[LINEA[x]]++;
+        }
+        // las reglas por posición solo se pueden validar si vienen las 11
+        if (conPos === 11){
+          const rep = banda.find((x, i) => banda.indexOf(x) !== i);
+          if (rep){ rechazados.push({ pedido: p, motivo: 'posiciones repetidas: ' + rep }); continue; }
+          const topePos = Object.entries(CAP_POS).find(([x, n]) => (cuenta[x] || 0) > n);
+          if (topePos){ rechazados.push({ pedido: p, motivo: 'demasiados ' + topePos[0] }); continue; }
+          const topeLinea = Object.entries(CAP_LINEA).find(([l, n]) => porLinea[l] > n);
+          if (topeLinea){ rechazados.push({ pedido: p, motivo: 'demasiados jugadores en ' + NOMBRE_LINEA[topeLinea[0]] }); continue; }
+          const faltaLinea = Object.entries(MIN_LINEA).find(([l, n]) => porLinea[l] < n);
+          if (faltaLinea){ rechazados.push({ pedido: p, motivo: 'faltan jugadores en ' + NOMBRE_LINEA[faltaLinea[0]] }); continue; }
+        }
+        try {
+          PES5_EDITOR.escribirFormacionEquipo(copia, team.pes5ClubIdx, p.formacion.slots);
+        } catch (e) {
+          rechazados.push({ pedido: p, motivo: 'no se pudo escribir la formación: ' + (e.message || e) }); continue;
+        }
+        aplicados.push({ pedido: p, team, info: {
+          total: 0, fromGeneral: 0, fromSub: 0, formacion: true,
+          lineas: [{ label: 'Formación', from: '—', to: p.formacion.nombre || '' }],
+        } });
+        log(`${team.name}: formación ${p.formacion.nombre || ''} aplicada (gratis)`, 'ok');
+        continue;
+      }
       if (!p.cambios || p.registro == null){ rechazados.push({ pedido: p, motivo: 'pedido viejo sin datos aplicables' }); continue; }
       if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
       if (!PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx).includes(p.registro)){ rechazados.push({ pedido: p, motivo: 'el jugador ya no está en el plantel' }); continue; }
@@ -1215,13 +1264,18 @@ async function aplicarPedidosSeleccionados(){
     try {
       log('cifrando...');
       const cifrado = PES5_CRYPT.cifrar(copia);
-      if (!PES5_SAVE.tieneSoporte()){
+      // Sin handle de carpeta con permiso de escritura (navegador sin la API,
+      // carpeta revocada o permiso denegado) se descarga el save editado en
+      // vez de abortar. Mismo criterio que escribirAlSave().
+      const puedeEscribir = PES5_SAVE.tieneSoporte() && !!PES5_SAVE.carpetaActual
+        && (await PES5_SAVE.asegurarEscritura());
+      if (!puedeEscribir){
         PES5_SAVE.descargar(cifrado, 'KONAMI-WIN32PES5OPT');
-        backup = '(descarga manual)';
-        log('save editado descargado: copialo a la carpeta del juego', 'ok');
+        backup = '(descarga manual — no se tocó el archivo de la carpeta)';
+        log('sin acceso directo a la carpeta: save editado descargado — copialo a mano al juego', 'ok');
+        showToast('Save editado descargado — copialo a mano a la carpeta del juego.');
       } else {
         log('pidiendo permiso...');
-        if (!(await PES5_SAVE.asegurarEscritura())) throw new Error('permiso de escritura no concedido');
         const res = await PES5_SAVE.escribir(cifrado);
         backup = res.backup;
         log('save escrito. backup: ' + res.backup, 'ok');
@@ -1247,12 +1301,16 @@ async function aplicarPedidosSeleccionados(){
       reparto.porJugador[a.pedido._id] = a.info;
     });
     await _refrescarGastoTemporadaEquipo(team, true);
-    try {
-      const saldo = await cobrarMejorasEquipo(team, reparto, 'mejora PES5 (pedido)');
-      log(`${team.name}: cobrado ${reparto.totalCosto.toLocaleString('es-CL')}, saldo ${saldo.toLocaleString('es-CL')}`, 'ok');
-    } catch (e) {
-      console.error('[pes5-tool] cobro pedidos', e);
-      log(`ERROR cobrando a ${team.name} (el save SÍ se escribió): ${e.message || e}`, 'err');
+    if (reparto.totalCosto > 0){
+      try {
+        const saldo = await cobrarMejorasEquipo(team, reparto, 'mejora PES5 (pedido)');
+        log(`${team.name}: cobrado ${reparto.totalCosto.toLocaleString('es-CL')}, saldo ${saldo.toLocaleString('es-CL')}`, 'ok');
+      } catch (e) {
+        console.error('[pes5-tool] cobro pedidos', e);
+        log(`ERROR cobrando a ${team.name} (el save SÍ se escribió): ${e.message || e}`, 'err');
+      }
+    } else {
+      log(`${team.name}: sin cobro (pedido sin costo)`, 'ok');
     }
     for (const a of lista){
       try {
@@ -1271,9 +1329,16 @@ async function aplicarPedidosSeleccionados(){
       log(`${r.pedido.teamName || r.pedido.teamId} · ${r.pedido.playerName || ''}: rechazado (${r.motivo})`, 'err');
     } catch (e) { log(`ERROR marcando rechazo ${r.pedido._id}: ${e.message || e}`, 'err'); }
   }
+  // Los pedidos de formación se publican solos para que el presidente vea
+  // enseguida lo que quedó escrito en el save.
+  const equiposFormacion = [...new Set(aplicados.filter(a => a.info.formacion).map(a => a.team.id))];
+  if (equiposFormacion.length){
+    log('publicando la formación aplicada...');
+    await publicarPlantillas(equiposFormacion);
+  }
   GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
   showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
-  if (aplicados.length) log('Recordá publicar las plantillas para que los presidentes vean los cambios (pestaña Publicar).');
+  if (aplicados.some(a => !a.info.formacion)) log('Recordá publicar las plantillas para que los presidentes vean los cambios (pestaña Publicar).');
   setTimeout(renderPedidosTab, 1500);
 }
 
@@ -1364,12 +1429,13 @@ async function publicarPlantillas(ids){
     const saveHash = await _hashPlano();
     for (const t of equipos){
       const jugadores = PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, t.pes5ClubIdx);
+      const formacion = PES5_EDITOR.leerFormacionEquipo(PLANO, t.pes5ClubIdx);
       await firebase.firestore().collection('pes5_plantillas').doc(String(t.id)).set({
         teamId: t.id, teamName: t.name, pes5ClubIdx: t.pes5ClubIdx, pes5Club: CLUBES_PES5[t.pes5ClubIdx] || null,
-        jugadores, saveHash, publicadoPor: AUTH.user.email,
+        jugadores, formacion, saveHash, publicadoPor: AUTH.user.email,
         publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),
       });
-      linea(`${t.name}: ${jugadores.length} jugadores publicados`, 'ok');
+      linea(`${t.name}: ${jugadores.length} jugadores publicados${formacion ? ` · formación ${formacion.nombre}` : ''}`, 'ok');
     }
     showToast(`Publicado: ${equipos.length} equipo(s).`);
     if (BLOQUEO_EQUIPO != null && equipos.some(t => t.id === BLOQUEO_EQUIPO) && !Object.keys(CAMBIOS_PENDIENTES).length) await liberarBloqueoEquipo();
