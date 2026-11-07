@@ -141,6 +141,8 @@ function setMode(mode){
   _syncAdminSidebarToggle();
   // Al salir de admin, cerrar el centro de partido en vivo (es solo-gestión).
   if(!isAdmin){ const _lm=document.getElementById('live-match-wrap'); if(_lm) _lm.innerHTML=''; }
+  // Al salir de admin, dejar la Tool PES5 (para su observador y libera el bloqueo del equipo).
+  if(!isAdmin) window.PES5_ADMIN?.salir?.();
 
   // Admin sidebar
   document.getElementById('sidebar').classList.toggle('open',isAdmin);
@@ -220,7 +222,7 @@ function goPublicPage(page, navEl){
    existe dejaba el panel en blanco, sin ninguna página activa. */
 const _ADMIN_PAGES = ['dashboard','equipos-admin','usuarios-admin','competiciones-admin','fases-admin',
   'partidos-admin','sorteo-admin','coins-admin','temporadas-admin','datos-admin','historial-admin',
-  'historial-tabla-admin','palmares-admin','calendario-admin'];
+  'historial-tabla-admin','palmares-admin','calendario-admin','pes5-admin'];
 function isAdminPage(page){ return _ADMIN_PAGES.includes(page); }
 
 function goAdminPage(page, navEl){
@@ -233,6 +235,8 @@ function goAdminPage(page, navEl){
     setMode('admin');
     return;
   }
+  // Dejar la Tool PES5 al cambiar de seccion admin (ver pes5-admin.js).
+  if(STATE.adminPage === 'pes5-admin' && page !== 'pes5-admin') window.PES5_ADMIN?.salir?.();
   if(typeof liveStop==='function') liveStop();   // sin tiempo real en modo admin
   if(typeof liveRadarStop==='function') liveRadarStop();
   STATE.adminPage = page;
@@ -506,6 +510,7 @@ async function _renderAdminPage(page){
     case 'historial-tabla-admin': await renderAdmHistoryStandings();   break;
     case 'palmares-admin':        await renderAdmPalmares();           break;
     case 'calendario-admin':      await renderAdmCalendar(); await renderAdmCalendarLabels(); break;
+    case 'pes5-admin':            await window.PES5_ADMIN?.entrar(); break;   // js/pes5-admin.js (carga bajo demanda)
   }
 }
 

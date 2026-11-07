@@ -1,4 +1,14 @@
 /* ============================================================
+   TOOL PES5 — seccion "Tool PES5" del panel admin (slice 2.0-1).
+   Antes era la pagina suelta prototipo_yunas/pes5-tool.html (que queda solo
+   como referencia). Ahora la carga bajo demanda js/pes5-admin.js, despues de
+   css/pes5-tool.css y de los modulos pes5-*.js. No va en index.html.
+   Todo queda en una IIFE: solo se expone window.PES5_TOOL, con montar, salir
+   y los handlers que usan los data-on*. No pisa globales del panel.
+   ============================================================ */
+(function(){
+'use strict';
+/* ============================================================
    ICONOS (SVG inline estilo Lucide — nunca emojis, ver CLAUDE.md)
    ============================================================ */
 const ICN = {
@@ -19,32 +29,7 @@ const ICN = {
   alert: '<svg class="icn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
 };
 
-function _esc(v){
-  return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function openModal(id){ document.getElementById(id)?.classList.add('open'); }
-function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
 
-// Slice C2.3, punto 5: showToast era un stub (solo console.log) — ningun
-// aviso de exito ni de error se mostraba jamas en pantalla, causa
-// confirmada del silencio al escribir. Reemplazado por un toast real
-// (mismo estilo que showMiniToast de mejoras.html).
-let _ptToastTimer = null;
-function showToast(msg){
-  console.log('[toast]', msg);
-  let el = document.getElementById('pt-toast');
-  if (!el){
-    el = document.createElement('div');
-    el.id = 'pt-toast';
-    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--card3);'+
-      'border:1px solid var(--gold-b);color:var(--txt);padding:9px 18px;border-radius:999px;font-size:13px;z-index:970;max-width:min(90vw,480px);text-align:center;';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.style.opacity = '1';
-  clearTimeout(_ptToastTimer);
-  _ptToastTimer = setTimeout(()=>{ el.style.transition = 'opacity .4s'; el.style.opacity = '0'; }, 1600);
-}
 
 /* ============================================================
    ESTADO
@@ -223,20 +208,55 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
 }
 
 /* ============================================================
-   AUTH / GATE
+   MONTAJE EN EL PANEL ADMIN
+   montar(contenedor): inyecta el esqueleto de la tool (una sola vez) y la
+   renderiza segun la sesion. salir(): para el observador del save, saca el
+   editor y libera el bloqueo del equipo. nav.js (via js/pes5-admin.js) llama
+   a salir() al dejar la seccion (cambio de pagina admin o modo publico).
+   La sesion la maneja el panel: el evento tsc:auth (auth.js) re-renderiza.
    ============================================================ */
-function renderAuthUI(){
-  const el = document.getElementById('ep-auth-status');
-  if (el){
-    if (!AUTH.user) el.innerHTML = `<button class="btn btn-sm" data-onclick="openAuthModal()">Iniciar sesión</button>`;
-    else el.innerHTML = `<span style="font-size:12px;color:var(--txt2);margin-right:8px;">${_esc(AUTH.profile?.displayName||AUTH.user.email)}</span><button class="btn btn-sm" data-onclick="authSignOut()">Salir</button>`;
-  }
+const SHELL_HTML = `
+<div class="pt-shell">
+  <div class="pt-sub">Lee y edita el save de PES5 directo desde la carpeta del juego — equipos, plantillas, pedidos y publicación en un solo lugar.</div>
+  <div id="pt-gate"></div>
+  <div id="pt-app" style="display:none;">
+    <div id="pt-statusbar"></div>
+    <div class="pt-tabs" id="pt-tabs-bar"></div>
+    <div id="pt-tabcontent"></div>
+  </div>
+</div>`;
+
+let _montadoEn = null;   // contenedor donde vive el esqueleto (null = seccion no activa)
+let _iniciado = false;   // carga inicial (claves, reglas, equipos, save) hecha una sola vez
+
+function _alCambiarAuth(){
+  if (!_montadoEn) return;
+  // sin sesion de admin no puede quedar un bloqueo de equipo a nombre de nadie
+  if (!(AUTH.user && AUTH.role === 'admin')) liberarBloqueoEquipo();
   render();
 }
 
+function montar(contenedor){
+  if (!contenedor) return;
+  _montadoEn = contenedor;
+  if (!contenedor.querySelector('#pt-app')) contenedor.innerHTML = SHELL_HTML;
+  window.removeEventListener('tsc:auth', _alCambiarAuth);
+  window.addEventListener('tsc:auth', _alCambiarAuth);
+  render();
+}
+
+function salir(){
+  _montadoEn = null;
+  window.removeEventListener('tsc:auth', _alCambiarAuth);
+  if (OBSERVAR_STOP){ try { OBSERVAR_STOP(); } catch (e) {} OBSERVAR_STOP = null; }
+  document.getElementById('pt-ed-overlay')?.remove();
+  liberarBloqueoEquipo();
+}
+
 function render(){
-  const gate = document.getElementById('gate');
-  const app = document.getElementById('app');
+  const gate = document.getElementById('pt-gate');
+  const app = document.getElementById('pt-app');
+  if (!gate || !app) return;
   if (!AUTH.user){
     gate.innerHTML = `<div class="gate">${ICN.lock}<div>Iniciá sesión como admin para usar la Tool PES5.</div></div>`;
     app.style.display = 'none';
@@ -249,18 +269,24 @@ function render(){
   }
   gate.innerHTML = '';
   app.style.display = '';
-  if (!window.__PT_INICIADO__){
-    window.__PT_INICIADO__ = true;
+  if (!_iniciado){
+    _iniciado = true;
     initApp();
+    return;
   }
+  // volver a entrar a la seccion: re-render, no recarga
+  if (PLANO && !OBSERVAR_STOP) iniciarObservador();
+  renderTabs();
+  renderStatusBar();
+  switchTab(TAB);
 }
 
 /* ============================================================
-   ARRANQUE
+   ARRANQUE (una vez por carga de la pagina)
    ============================================================ */
 async function initApp(){
-  await PES5_CRYPT.cargarClaves('../js/pes5/');
-  await PES5_EDITOR.cargarMapa('../js/pes5/');
+  await PES5_CRYPT.cargarClaves('js/pes5/');
+  await PES5_EDITOR.cargarMapa('js/pes5/');
   YC_RULES = await cargarReglasFirestore();
   // Slice C1.2: pes5-teams.json / cargarNombresEquipos ya NO se usan para poblar
   // selectores en esta tool — los 138 clubes salen siempre del save cargado.
@@ -297,7 +323,7 @@ async function cargarEquiposYPresidentes(){
    BARRA DE ESTADO DEL SAVE
    ============================================================ */
 function renderStatusBar(){
-  const el = document.getElementById('statusbar');
+  const el = document.getElementById('pt-statusbar');
   const tieneSoporte = PES5_SAVE.tieneSoporte();
   const carpeta = PES5_SAVE.carpetaActual;
 
@@ -322,7 +348,7 @@ function renderStatusBar(){
         <div class="pt-status-item"><span class="pt-dot off"></span> Sin carpeta elegida — sugerido: <code>Documents\\KONAMI\\Pro Evolution Soccer 5\\save\\folder1</code></div>
         <div class="pt-status-item" style="font-size:12px;">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abrí esto en <b>Chrome o Edge</b>.</div>
         <div class="pt-status-actions">
-          <button class="btn btn-sm btn-primary" data-onclick="elegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
+          <button class="btn btn-sm btn-primary" data-onclick="ptElegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
         </div>
       </div>`;
     return;
@@ -332,12 +358,12 @@ function renderStatusBar(){
   const fecha = meta ? new Date(meta.lastModified).toLocaleString('es-AR') : '—';
   el.innerHTML = `
     <div class="pt-statusbar">
-      <div class="pt-status-item">${ICN.folder} <b>${_esc(carpeta)}</b></div>
+      <div class="pt-status-item">${ICN.folder} <b>${escHtml(carpeta)}</b></div>
       <div class="pt-status-sep"></div>
-      <div class="pt-status-item">${ICN.file} ${meta ? `<b>${_esc(meta.nombre)}</b> · ${meta.tamaño.toLocaleString('es-AR')} b · ${_esc(fecha)}` : 'sin leer todavía'}</div>
+      <div class="pt-status-item">${ICN.file} ${meta ? `<b>${escHtml(meta.nombre)}</b> · ${meta.tamaño.toLocaleString('es-AR')} b · ${escHtml(fecha)}` : 'sin leer todavía'}</div>
       <div class="pt-status-actions">
-        <button class="btn btn-sm" data-onclick="reconectarCarpetaClick()">${ICN.link} Reconectar</button>
-        <button class="btn btn-sm" data-onclick="recargarSaveClick()">${ICN.refresh} Recargar</button>
+        <button class="btn btn-sm" data-onclick="ptReconectarCarpetaClick()">${ICN.link} Reconectar</button>
+        <button class="btn btn-sm" data-onclick="ptRecargarSaveClick()">${ICN.refresh} Recargar</button>
       </div>
     </div>`;
 }
@@ -346,21 +372,21 @@ async function elegirCarpetaClick(){
   try {
     const r = await PES5_SAVE.elegirCarpeta();
     if (!r.ok){
-      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Probá en Chrome o Edge.');
+      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Probá en Chrome o Edge.', 'error');
       return; // el admin cancelo el picker (o no se abrio)
     }
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
     showToast('Carpeta elegida: ' + r.nombre);
-  } catch(e) { showToast('Error: ' + (e.message||e)); }
+  } catch(e) { showToast('Error: ' + (e.message||e), 'error'); }
 }
 async function reconectarCarpetaClick(){
   try {
     const r = await PES5_SAVE.recuperarCarpeta();
-    if (!r || !r.ok){ showToast('No se pudo reconectar — elegí la carpeta de nuevo.'); return; }
+    if (!r || !r.ok){ showToast('No se pudo reconectar — elegí la carpeta de nuevo.', 'error'); return; }
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
-  } catch(e) { showToast('Error: ' + (e.message||e)); }
+  } catch(e) { showToast('Error: ' + (e.message||e), 'error'); }
 }
 async function recargarSaveClick(){
   await cargarSaveDesdeCarpeta();
@@ -434,8 +460,8 @@ const TABS = [
   { id: 'reglas', label: 'Reglas', icon: ICN.wallet },
 ];
 function renderTabs(){
-  document.getElementById('tabs').innerHTML = TABS.map(t =>
-    `<button class="pt-tab${TAB===t.id?' active':''}" data-onclick="switchTab('${t.id}')">${t.icon}${_esc(t.label)}</button>`
+  document.getElementById('pt-tabs-bar').innerHTML = TABS.map(t =>
+    `<button class="pt-tab${TAB===t.id?' active':''}" data-onclick="ptSwitchTab('${t.id}')">${t.icon}${escHtml(t.label)}</button>`
   ).join('');
 }
 function switchTab(id){
@@ -452,12 +478,12 @@ function switchTab(id){
    PESTAÑA 1 · EQUIPOS
    ============================================================ */
 function renderEquiposTab(){
-  const cont = document.getElementById('tabcontent');
+  const cont = document.getElementById('pt-tabcontent');
   // Slice C1.2: los clubes solo existen si hay save cargado (nunca lista fija).
   const hayClubes = !!(PLANO && CLUBES_PES5.length);
   const opciones = hayClubes
     ? ['<option value="">— sin asignar —</option>']
-        .concat(CLUBES_PES5.map((n, i) => `<option value="${i}">${_esc(n)}</option>`)).join('')
+        .concat(CLUBES_PES5.map((n, i) => `<option value="${i}">${escHtml(n)}</option>`)).join('')
     : '';
 
   // Slice C1.1: solo equipos activos (status !== 'INACTIVO'; si falta el campo, cuenta como activo).
@@ -472,17 +498,17 @@ function renderEquiposTab(){
     const roto = VINCULOS_ROTOS.has(t.id);
     const valorSel = t.pes5ClubIdx != null ? String(t.pes5ClubIdx) : '';
     const selectorHtml = hayClubes
-      ? `<select data-onchange="vincularEquipo(${t.id}, this.value)">${opciones.replace(
+      ? `<select data-onchange="ptVincularEquipo(${t.id}, this.value)">${opciones.replace(
           `value="${valorSel}"`, `value="${valorSel}" selected`
         )}</select>`
       : `<select disabled><option>Cargá el save para ver los clubes</option></select>${
-          t.pes5Club ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px;">vinculado: ${_esc(t.pes5Club)}</div>` : ''
+          t.pes5Club ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px;">vinculado: ${escHtml(t.pes5Club)}</div>` : ''
         }`;
     return `
-      <tr data-nombre="${_esc((t.name||'').toLowerCase())}">
-        <td>${t.logo ? `<img class="pt-escudo" src="${_esc(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
-        <td>${_esc(t.name)}</td>
-        <td>${pres ? _esc(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
+      <tr data-nombre="${escHtml((t.name||'').toLowerCase())}">
+        <td>${t.logo ? `<img class="pt-escudo" src="${escHtml(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
+        <td>${escHtml(t.name)}</td>
+        <td>${pres ? escHtml(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
         <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revinculá</span>` : ''}</td>
         <td class="pt-cupo${cupoLleno?' full':''}">${cupo}</td>
       </tr>`;
@@ -527,7 +553,7 @@ async function vincularEquipo(teamId, idxStr){
    PESTAÑA 2 · PLANTILLA
    ============================================================ */
 function renderPlantillaTab(){
-  const cont = document.getElementById('tabcontent');
+  const cont = document.getElementById('pt-tabcontent');
   // Slice C1.2: sin save cargado, la pestaña Plantilla no lista nada.
   if (!PLANO || !CLUBES_PES5.length){
     cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elegí la carpeta del save (o subí el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
@@ -536,12 +562,12 @@ function renderPlantillaTab(){
   // Slice C1.1 + C1.3: "Equipos TSC vinculados" = solo equipos activos con
   // pes5ClubIdx resuelto (la fuente del vinculo es el indice, no el nombre).
   const vinculados = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
-  const optVinc = vinculados.map(t => `<option value="${t.pes5ClubIdx}">${_esc(t.name)} (${_esc(CLUBES_PES5[t.pes5ClubIdx] ?? t.pes5Club ?? '')})</option>`).join('');
-  const optTodos = CLUBES_PES5.map((n, i) => `<option value="${i}">${_esc(n)}</option>`).join('');
+  const optVinc = vinculados.map(t => `<option value="${t.pes5ClubIdx}">${escHtml(t.name)} (${escHtml(CLUBES_PES5[t.pes5ClubIdx] ?? t.pes5Club ?? '')})</option>`).join('');
+  const optTodos = CLUBES_PES5.map((n, i) => `<option value="${i}">${escHtml(n)}</option>`).join('');
 
   cont.innerHTML = `
     <div class="pt-team-select-row">
-      <select id="pl-team-select" data-onchange="onTeamSelectPorIndice(this.value)">
+      <select id="pl-team-select" data-onchange="ptOnTeamSelectPorIndice(this.value)">
         <option value="">— elegir club —</option>
         <optgroup label="Equipos TSC vinculados">${optVinc}</optgroup>
         <optgroup label="Todos los clubes PES5">${optTodos}</optgroup>
@@ -611,16 +637,16 @@ function renderPlantillaBody(){
   if (!el) return;
   const filas = PLANTILLA_ACTUAL.map((j, slot) => {
     const otros = PES5_EDITOR.equiposDelJugador(PLANO, j.id).filter(i => i !== PLANTILLA_INDICE);
-    const badge = otros.length ? `<span class="badge badge-warn pt-alsoin" title="tambien en otro roster">${ICN.alert} tambien en: ${otros.map(i=>_esc(PES5_EDITOR.nombreEquipo(PLANO,i))).join(', ')}</span>` : '';
+    const badge = otros.length ? `<span class="badge badge-warn pt-alsoin" title="tambien en otro roster">${ICN.alert} tambien en: ${otros.map(i=>escHtml(PES5_EDITOR.nombreEquipo(PLANO,i))).join(', ')}</span>` : '';
     const marcaCambio = _tieneAlgunCambio(j.id) ? ' <span class="badge badge-gold" style="margin-left:6px;">editado</span>' : '';
-    const celda = (campo, valor, original) => `<td class="pt-stat-cell${valor !== original ? ' pt-cell-changed' : ''}" data-campo="${_esc(campo)}">${valor}</td>`;
+    const celda = (campo, valor, original) => `<td class="pt-stat-cell${valor !== original ? ' pt-cell-changed' : ''}" data-campo="${escHtml(campo)}">${valor}</td>`;
     const cols = COLS_ATTR.map(c => celda(c, _valorActual(j, 'atributos', c), j.atributos[c])).join('');
     const pieV = _valorActual(j, 'simple', 'pieDominante');
     return `
-      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" data-jugador="${j.id}" data-onclick="abrirEditorJugador(${j.id})">
+      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" data-jugador="${j.id}" data-onclick="ptAbrirEditorJugador(${j.id})">
         <td>${slot+1}</td>
-        <td>${_esc(j.nombre)}${badge}<span data-marca-editado>${marcaCambio}</span></td>
-        <td>${_esc(j.posicionRegistrada||'—')}</td>
+        <td>${escHtml(j.nombre)}${badge}<span data-marca-editado>${marcaCambio}</span></td>
+        <td>${escHtml(j.posicionRegistrada||'—')}</td>
         ${celda('altura', _valorActual(j, 'simple', 'altura'), j.altura)}
         ${celda('edad', _valorActual(j, 'simple', 'edad'), j.edad)}
         <td class="pt-stat-cell${pieV !== j.pieDominante ? ' pt-cell-changed' : ''}" data-campo="pieDominante">${pieV==='izq'?'Izq.':'Der.'}</td>
@@ -633,7 +659,7 @@ function renderPlantillaBody(){
       <table class="tbl pt-plantilla-table">
         <thead><tr>
           <th>#</th><th>Nombre</th><th>Pos.</th><th>Alt.</th><th>Edad</th><th>Pie</th>
-          ${COLS_ATTR.map(c=>`<th>${_esc(c)}</th>`).join('')}
+          ${COLS_ATTR.map(c=>`<th>${escHtml(c)}</th>`).join('')}
         </tr></thead>
         <tbody>${filas || `<tr><td colspan="${6+COLS_ATTR.length}" style="text-align:center;color:var(--txt3);padding:20px;">Plantel vacío.</td></tr>`}</tbody>
       </table>
@@ -691,7 +717,7 @@ async function _publicarEquipoTrasEscritura(team){
     return;
   }
   const ok = await publicarPlantillas([team.id]);   // libera el bloqueo si publica bien y no quedan pendientes
-  if (!ok) showToast(`No se pudo publicar la plantilla de ${team.name}. El bloqueo sigue activo: publicala desde la pestaña Publicar.`);
+  if (!ok) showToast(`No se pudo publicar la plantilla de ${team.name}. El bloqueo sigue activo: publicala desde la pestaña Publicar.`, 'error');
 }
 
 window.addEventListener('pagehide', () => {
@@ -717,8 +743,8 @@ async function abrirEditorJugador(id){
   ov.onclick = (e) => { if (e.target === ov) cerrarEditorJugador(); };
   ov.innerHTML = `
     <div class="pt-ed-box">
-      <div class="pt-ed-hd"><span>${_esc(j.nombre)}</span>
-        <button class="pt-ed-close" data-onclick="cerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
+      <div class="pt-ed-hd"><span>${escHtml(j.nombre)}</span>
+        <button class="pt-ed-close" data-onclick="ptCerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
       <iframe id="pt-ed-frame" class="pt-ed-frame" title="Editor de jugador" src="../mejoras.html#admin"></iframe>
     </div>`;
   document.body.appendChild(ov);
@@ -820,13 +846,13 @@ function renderWriteBar(){
   if (!equipoTSC){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
   } else if (!presidente){
-    cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${_esc(equipoTSC.name)} · sin presidente · edición libre</span>`;
+    cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${escHtml(equipoTSC.name)} · sin presidente · edición libre</span>`;
   } else {
     const reparto = repartoPendienteEquipo();
     const restantes = _restantesTemporada();
     const saldo = equipoTSC.yunacoin || 0;
     const ev = YUNACOINS_RULES.evaluarPago(saldo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
-    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${_esc(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-AR')}</span>
+    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${escHtml(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-AR')}</span>
       <span class="pt-cobro-txt">Total a cobrar: ${reparto.totalCosto.toLocaleString('es-AR')} · tope gral. restante ${restantes.general.toLocaleString('es-AR')} · bono restante ${restantes.subscribers.toLocaleString('es-AR')}</span>
       ${ev.excedeSaldo ? `<span class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente: faltan ${(reparto.totalCosto - saldo).toLocaleString('es-AR')}</span>` : ''}
       ${(!ev.excedeSaldo && ev.excedeTopeGeneral) ? `<span class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada</span>` : ''}`;
@@ -837,8 +863,8 @@ function renderWriteBar(){
       ${BLOQUEO_EQUIPO != null ? `<span class="pt-cobro-txt">${ICN.lock} Bloqueo activo: el presidente no puede usar Mejoras hasta que escribas y publiques.</span>` : ''}
       <span class="pt-changes-count">${total} jugador(es) con cambios</span>
       <label><input type="checkbox" id="pes5-cerrado" ${cerrado ? 'checked' : ''}> PES5 está cerrado</label>
-      <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled data-onclick="confirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
-      <button class="btn btn-sm" ${total ? '' : 'disabled'} data-onclick="descartarTodo()">Descartar cambios</button>
+      <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled data-onclick="ptConfirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
+      <button class="btn btn-sm" ${total ? '' : 'disabled'} data-onclick="ptDescartarTodo()">Descartar cambios</button>
     </div>`;
   document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
   actualizarBotonEscritura();
@@ -912,8 +938,8 @@ function _mostrarErrorEscritura(e){
   const el = document.getElementById('pl-error-panel');
   if (!el) return;
   const carpeta = PES5_SAVE.carpetaActual || '(sin carpeta elegida — modo archivo/descarga)';
-  el.innerHTML = `${ICN.alert}<div class="pt-panel-msg-body"><b>Error al escribir al save</b><br>${_esc(e && e.name || 'Error')}: ${_esc(e && e.message || String(e))}<br>Carpeta activa: ${_esc(carpeta)}</div>
-    <button class="pt-panel-msg-close" data-onclick="_ocultarErrorEscritura()" title="Cerrar">${ICN.x}</button>`;
+  el.innerHTML = `${ICN.alert}<div class="pt-panel-msg-body"><b>Error al escribir al save</b><br>${escHtml(e && e.name || 'Error')}: ${escHtml(e && e.message || String(e))}<br>Carpeta activa: ${escHtml(carpeta)}</div>
+    <button class="pt-panel-msg-close" data-onclick="ptOcultarErrorEscritura()" title="Cerrar">${ICN.x}</button>`;
   el.style.display = 'flex';
 }
 function _ocultarExitoEscritura(){
@@ -925,8 +951,8 @@ function _mostrarExitoEscritura({ backup, bytes }){
   if (!el) return;
   const carpeta = PES5_SAVE.carpetaActual;
   const rutaBackup = carpeta ? `${carpeta}/backups-tsc/${backup}` : backup;
-  el.innerHTML = `${ICN.save}<div class="pt-panel-msg-body"><b>Save escrito correctamente</b><br>Backup: ${_esc(rutaBackup)}<br>Tamaño escrito: ${bytes.toLocaleString('es-AR')} b</div>
-    <button class="pt-panel-msg-close" data-onclick="_ocultarExitoEscritura()" title="Cerrar">${ICN.x}</button>`;
+  el.innerHTML = `${ICN.save}<div class="pt-panel-msg-body"><b>Save escrito correctamente</b><br>Backup: ${escHtml(rutaBackup)}<br>Tamaño escrito: ${bytes.toLocaleString('es-AR')} b</div>
+    <button class="pt-panel-msg-close" data-onclick="ptOcultarExitoEscritura()" title="Cerrar">${ICN.x}</button>`;
   el.style.display = 'flex';
 }
 
@@ -1037,7 +1063,7 @@ async function escribirAlSave(){
       // Luis cobre a mano y no quede la mejora gratis sin que se note.
       log('ERROR AL COBRAR (el save SI se escribio): ' + (eCobro.message||eCobro), 'err');
       console.error('[pes5-tool] cobrarMejorasEquipo:', eCobro);
-      showToast(`Save escrito pero el cobro a ${equipoCobro.name} FALLO — cobralo a mano (ver log).`);
+      showToast(`Save escrito pero el cobro a ${equipoCobro.name} FALLO — cobralo a mano (ver log).`, 'error');
     }
   }
 
@@ -1091,7 +1117,7 @@ async function escribirAlSave(){
   } catch(e) {
     log('ERROR: ' + (e.message||e), 'err');
     console.error('[pes5-tool] escribirAlSave:', e);
-    showToast('Error al escribir: ' + (e.message||e));
+    showToast('Error al escribir: ' + (e.message||e), 'error');
     _mostrarErrorEscritura(e);
   }
 }
@@ -1101,14 +1127,14 @@ async function escribirAlSave(){
    ============================================================ */
 let PEDIDOS_PENDIENTES = [];
 async function renderPedidosTab(){
-  const cont = document.getElementById('tabcontent');
+  const cont = document.getElementById('pt-tabcontent');
   cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>Cargando pedidos…</div></div>`;
   try {
     const q = await firebase.firestore().collection('pedidos_pes5').where('estado', '==', 'pendiente').get();
     PEDIDOS_PENDIENTES = q.docs.map(d => Object.assign({ _id: d.id }, d.data()));
   } catch (e) {
     console.error('[pes5-tool] leer pedidos', e);
-    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>No se pudieron leer los pedidos: ${_esc(e.message || String(e))}</div></div>`;
+    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>No se pudieron leer los pedidos: ${escHtml(e.message || String(e))}</div></div>`;
     return;
   }
   PEDIDOS_PENDIENTES.sort((a, b) => String(a.teamName || '').localeCompare(String(b.teamName || '')));
@@ -1120,22 +1146,22 @@ async function renderPedidosTab(){
     const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
     const esFormacion = p.tipo === 'formacion';
     const lineas = esFormacion
-      ? `Formación ${_esc((p.formacion && p.formacion.nombre) || '')}`
-      : (p.lines || []).map(l => `${_esc(l.label)} ${_esc(l.from)} → ${_esc(l.to)}`).join('<br>');
+      ? `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`
+      : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
     const aplicable = esFormacion
       ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
       : !!(p.cambios && p.registro != null);
     const jugador = esFormacion
       ? '<i>Formación</i>'
-      : `${_esc(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
+      : `${escHtml(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
     return `<tr>
-      <td><input type="checkbox" class="ped-sel" value="${_esc(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>
-      <td>${_esc(p.teamName || String(p.teamId))}</td>
+      <td><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>
+      <td>${escHtml(p.teamName || String(p.teamId))}</td>
       <td>${jugador}</td>
       <td style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${aplicable ? '' : '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>'}</td>
       <td style="text-align:right;">${esFormacion ? 'gratis' : Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
-      <td style="font-size:12px;">${_esc(fecha)}</td>
-      <td><button class="btn btn-sm" data-onclick="rechazarPedido('${_esc(p._id)}')">Rechazar</button></td>
+      <td style="font-size:12px;">${escHtml(fecha)}</td>
+      <td><button class="btn btn-sm" data-onclick="ptRechazarPedido('${escHtml(p._id)}')">Rechazar</button></td>
     </tr>`;
   }).join('');
   cont.innerHTML = `
@@ -1145,9 +1171,9 @@ async function renderPedidosTab(){
       <th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>
     </tr></thead><tbody>${filas}</tbody></table></div>
     <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
-      <input type="checkbox" id="ped-cerrado" data-onchange="habilitarAplicarPedidos(this)"> PES5 está cerrado
+      <input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado
     </label>
-    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="aplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>
+    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>
     <div class="pt-log" id="ped-log"></div>`;
 }
 
@@ -1161,7 +1187,7 @@ async function rechazarPedido(id){
     showToast('Pedido rechazado.');
   } catch (e) {
     console.error('[pes5-tool] rechazar', e);
-    showToast('No se pudo rechazar: ' + (e.message || e));
+    showToast('No se pudo rechazar: ' + (e.message || e), 'error');
   }
   renderPedidosTab();
 }
@@ -1170,10 +1196,10 @@ async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
   if (logEl) logEl.innerHTML = '';
-  if (!PLANO){ showToast('Cargá el save primero.'); return; }
+  if (!PLANO){ showToast('Cargá el save primero.', 'error'); return; }
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
-  if (!pedidos.length){ showToast('No hay pedidos seleccionados.'); return; }
+  if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
 
   // 1) evaluar y aplicar sobre una copia, equipo por equipo
@@ -1284,7 +1310,7 @@ async function aplicarPedidosSeleccionados(){
     } catch (e) {
       console.error('[pes5-tool] escribir save de pedidos', e);
       log('ERROR al escribir el save, no se cobró ni se marcó nada: ' + (e.message || e), 'err');
-      showToast('Error al escribir el save: ' + (e.message || e));
+      showToast('Error al escribir el save: ' + (e.message || e), 'error');
       return;
     }
   }
@@ -1346,7 +1372,7 @@ async function aplicarPedidosSeleccionados(){
    PESTAÑA 4 · PUBLICAR (esqueleto — slice D)
    ============================================================ */
 function renderPublicarTab(){
-  const cont = document.getElementById('tabcontent');
+  const cont = document.getElementById('pt-tabcontent');
   if (!PLANO) {
     cont.innerHTML = `<div class="pt-empty">${ICN.upload}<div>Cargá el save para publicar plantillas.</div></div>`;
     return;
@@ -1357,11 +1383,11 @@ function renderPublicarTab(){
     const cantJugadores = PES5_EDITOR.leerPlantillaEquipo(PLANO, t.pes5ClubIdx).length;
     return `
       <tr>
-        <td style="padding:10px;">${_esc(t.name)}</td>
-        <td style="padding:10px;font-size:12.5px;color:var(--txt3);">${_esc(clubNombre)}</td>
+        <td style="padding:10px;">${escHtml(t.name)}</td>
+        <td style="padding:10px;font-size:12.5px;color:var(--txt3);">${escHtml(clubNombre)}</td>
         <td style="padding:10px;text-align:center;font-size:12.5px;">${cantJugadores}</td>
         <td style="padding:10px;font-size:12.5px;"><span id="pub-estado-${t.id}">…</span></td>
-        <td style="padding:10px;text-align:right;"><button class="btn btn-sm" data-onclick="publicarPlantillaDeEquipo(${t.id})">${ICN.upload} Publicar</button></td>
+        <td style="padding:10px;text-align:right;"><button class="btn btn-sm" data-onclick="ptPublicarPlantillaDeEquipo(${t.id})">${ICN.upload} Publicar</button></td>
       </tr>
     `;
   }).join('');
@@ -1369,7 +1395,7 @@ function renderPublicarTab(){
     <div style="max-width:900px;">
       <h2 class="pt-h1">Publicar plantillas</h2>
       <div class="pt-sub">Copia la plantilla actual del save a la web para que cada presidente la vea en su editor.</div>
-      <button class="btn btn-primary btn-sm" id="btn-publicar-todos" data-onclick="publicarPlantillas()">${ICN.upload} Publicar todos (${objetivo.length})</button>
+      <button class="btn btn-primary btn-sm" id="btn-publicar-todos" data-onclick="ptPublicarPlantillas()">${ICN.upload} Publicar todos (${objetivo.length})</button>
       <table style="width:100%;margin-top:14px;border-collapse:collapse;font-size:13px;">
         <thead>
           <tr style="border-bottom:1px solid var(--brd);color:var(--txt3);">
@@ -1406,7 +1432,7 @@ async function cargarEstadoPublicacion(equipos){
       const d = snap.data();
       const cuando = d.publicadoEn && d.publicadoEn.toDate ? d.publicadoEn.toDate().toLocaleString('es-CL') : 'fecha desconocida';
       const vieja = d.saveHash !== hashActual || d.pes5ClubIdx !== t.pes5ClubIdx;
-      el.innerHTML = `${_esc(cuando)}${vieja ? ' <span class="badge badge-warn">desactualizada</span>' : ' <span class="badge badge-green">al día</span>'}`;
+      el.innerHTML = `${escHtml(cuando)}${vieja ? ' <span class="badge badge-warn">desactualizada</span>' : ' <span class="badge badge-green">al día</span>'}`;
     } catch (e) {
       el.textContent = 'error al leer';
       console.error('[pes5-tool] estado publicacion', t.id, e);
@@ -1420,9 +1446,9 @@ function publicarPlantillaDeEquipo(id){ return publicarPlantillas([id]); }
 async function publicarPlantillas(ids){
   const log = document.getElementById('pub-log');
   const linea = (msg, cls) => { if (!log) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; log.appendChild(d); };
-  if (!PLANO){ showToast('Cargá el save primero.'); return; }
+  if (!PLANO){ showToast('Cargá el save primero.', 'error'); return; }
   const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null && (!ids || ids.includes(t.id)));
-  if (!equipos.length){ showToast('No hay equipos para publicar.'); return; }
+  if (!equipos.length){ showToast('No hay equipos para publicar.', 'error'); return; }
   const btn = document.getElementById('btn-publicar-todos'); if (btn) btn.disabled = true;
   if (log) log.innerHTML = '';
   try {
@@ -1443,7 +1469,7 @@ async function publicarPlantillas(ids){
   } catch (e) {
     console.error('[pes5-tool] publicar', e);
     linea('ERROR: ' + (e.message || e), 'err');
-    showToast('Error al publicar: ' + (e.message || e));
+    showToast('Error al publicar: ' + (e.message || e), 'error');
     return false;
   } finally {
     if (btn) btn.disabled = false;
@@ -1455,7 +1481,7 @@ async function publicarPlantillas(ids){
    PESTAÑA 5 · REGLAS (Slice R)
    ============================================================ */
 function renderReglasTab(){
-  const cont = document.getElementById('tabcontent');
+  const cont = document.getElementById('pt-tabcontent');
   const r = YC_RULES;
   cont.innerHTML = `
     <div style="max-width:600px;">
@@ -1464,7 +1490,7 @@ function renderReglasTab(){
 
       ${YC_RULES_META ? `
         <div style="font-size:12px;color:var(--txt3);margin-bottom:14px;">
-          Última actualización: ${new Date(YC_RULES_META.actualizadoEn).toLocaleString('es-CL')} por ${_esc(YC_RULES_META.actualizadoPor)}
+          Última actualización: ${new Date(YC_RULES_META.actualizadoEn).toLocaleString('es-CL')} por ${escHtml(YC_RULES_META.actualizadoPor)}
         </div>
       ` : `
         <div style="font-size:12px;color:var(--txt3);margin-bottom:14px;">
@@ -1521,8 +1547,8 @@ function renderReglasTab(){
       <div id="rg-errores"></div>
 
       <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-primary btn-sm" data-onclick="guardarReglas()">${ICN.save} Guardar</button>
-        <button class="btn btn-sm" data-onclick="restaurarReglasDefault()">Restaurar valores por defecto</button>
+        <button class="btn btn-primary btn-sm" data-onclick="ptGuardarReglas()">${ICN.save} Guardar</button>
+        <button class="btn btn-sm" data-onclick="ptRestaurarReglasDefault()">Restaurar valores por defecto</button>
       </div>
     </div>
   `;
@@ -1550,7 +1576,7 @@ async function guardarReglas(){
   const errores = YUNACOINS_RULES.validarReglas(r);
   const box = document.getElementById('rg-errores');
   if (errores.length){
-    box.innerHTML = errores.map(e => `<div style="color:var(--red,#f87171);font-size:12px;">${_esc(e)}</div>`).join('');
+    box.innerHTML = errores.map(e => `<div style="color:var(--red,#f87171);font-size:12px;">${escHtml(e)}</div>`).join('');
     return;
   }
   box.innerHTML = '';
@@ -1563,7 +1589,7 @@ async function guardarReglas(){
     renderReglasTab();
   } catch (e) {
     console.error('[pes5-tool] error guardando reglas', e);
-    box.innerHTML = `<div style="color:var(--red,#f87171);font-size:12px;">No se pudo guardar: ${_esc(e.message || String(e))}</div>`;
+    box.innerHTML = `<div style="color:var(--red,#f87171);font-size:12px;">No se pudo guardar: ${escHtml(e.message || String(e))}</div>`;
   }
 }
 
@@ -1571,3 +1597,28 @@ async function guardarReglas(){
    ARRANQUE
    ============================================================ */
 if (typeof initDB === 'function') initDB().then(()=>{ if (typeof onAuthInit === 'function') onAuthInit(); });
+
+// Handlers de data-on* (events.js solo llama funciones globales, sin puntos).
+// Se exponen con prefijo pt para no pisar globales del panel.
+window.ptOcultarErrorEscritura = _ocultarErrorEscritura;
+window.ptOcultarExitoEscritura = _ocultarExitoEscritura;
+window.ptAbrirEditorJugador = abrirEditorJugador;
+window.ptAplicarPedidosSeleccionados = aplicarPedidosSeleccionados;
+window.ptCerrarEditorJugador = cerrarEditorJugador;
+window.ptConfirmarEscribirAlSave = confirmarEscribirAlSave;
+window.ptDescartarTodo = descartarTodo;
+window.ptElegirCarpetaClick = elegirCarpetaClick;
+window.ptGuardarReglas = guardarReglas;
+window.ptHabilitarAplicarPedidos = habilitarAplicarPedidos;
+window.ptOnTeamSelectPorIndice = onTeamSelectPorIndice;
+window.ptPublicarPlantillaDeEquipo = publicarPlantillaDeEquipo;
+window.ptPublicarPlantillas = publicarPlantillas;
+window.ptRecargarSaveClick = recargarSaveClick;
+window.ptRechazarPedido = rechazarPedido;
+window.ptReconectarCarpetaClick = reconectarCarpetaClick;
+window.ptRestaurarReglasDefault = restaurarReglasDefault;
+window.ptSwitchTab = switchTab;
+window.ptVincularEquipo = vincularEquipo;
+// Ciclo de vida: lo llaman js/pes5-admin.js (entrar/salir de la seccion).
+window.PES5_TOOL = { montar: montar, salir: salir };
+})();
