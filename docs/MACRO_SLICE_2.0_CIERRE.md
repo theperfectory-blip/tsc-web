@@ -180,7 +180,14 @@ se puede elegir el jugador tocando el punto, pero **no se puede mover**. Además
   `pitchColPct`/`pitchRowPct` (con `PITCH_PAD_X/Y`; columna mínima 2,
   ver `pitchFrac`). Redondear a la celda más cercana.
 
-**2.B — Arrastre con el dedo (y con el mouse)**
+**2.B — Arrastre con el dedo (solo táctil)**
+
+- **Decisión de Jimbo:** en PC no se arrastra con el mouse, para mayor
+  fidelidad. El arrastre solo corre si `event.pointerType` es `'touch'` o
+  `'pen'`. Con `'mouse'` el `pointerdown` solo **selecciona** el punto más
+  cercano y el movimiento es con la cruz (2.C) o las flechas del teclado.
+  Se decide por `pointerType` y no por `matchMedia`, así una notebook con
+  pantalla táctil arrastra con el dedo y no con el mouse.
 
 - Pointer Events sobre `#ep-pitch-field` (un solo listener en el campo,
   no en cada punto: `renderFormationModal` reemplaza el `innerHTML` de
@@ -223,8 +230,9 @@ se puede elegir el jugador tocando el punto, pero **no se puede mover**. Además
   toque ≥ 40 px.
 - El texto de ayuda (`.ep-pitch-hint`) cambia según el dispositivo:
   con `matchMedia('(pointer: coarse)')` → «Arrastrá un punto para
-  moverlo · flechas para el ajuste fino»; si no, el texto actual más
-  «o arrastrá con el mouse».
+  moverlo · flechas para el ajuste fino»; si no → «Clic en un punto para
+  elegirlo · flechas (en pantalla o del teclado) para moverlo».
+- La cruz se muestra siempre (en PC es el control principal).
 - Las flechas del teclado y Tab siguen funcionando igual.
 
 ### Fuera de alcance
@@ -263,6 +271,8 @@ Escrituras **solo en el sandbox** (`tsc-emu`, 3001).
    - arrastrar dejando una línea bajo el mínimo: rechazo con el toast de mínimo;
    - tocar sin mover: solo selecciona;
    - tocar el arquero y arrastrar: no se mueve;
+   - escritorio con mouse: arrastrar un punto **no** lo mueve (solo lo
+     selecciona); la cruz y las flechas del teclado lo mueven de a 1 celda;
    - cruz de ajuste fino: mueve 1 celda; la página no hace scroll durante el
      arrastre; soltar fuera de la cancha no cierra el modal;
    - «Confirmar» → pedido `formacion` en el emulador con las mismas
