@@ -431,7 +431,7 @@ html.ep-lock body{overflow:hidden;}
 @media (pointer: fine){
 .ep-root .ep-pitch-nudge{display:grid;}
 }
-.ep-root .ep-pitch-field.vertical{height:var(--campo-h, 420px);width:calc(var(--campo-h, 420px) * 10 / 17);max-width:100%;margin:0 auto;flex:none;}
+.ep-root .ep-pitch-field.vertical{height:var(--campo-h, 420px);width:calc(var(--campo-h, 420px) / 1.5);max-width:100%;margin:0 auto;flex:none;}
 .ep-root .ep-pitch-field.vertical::after{background:repeating-linear-gradient(180deg, rgba(255,255,255,0.045) 0 4.4%, rgba(0,0,0,0.045) 4.4% 8.8%);}
 .ep-root .ep-pitch-field.vertical .ep-pitch-halfline{left:0;right:0;top:50%;bottom:auto;width:auto;height:2px;}
 .ep-root .ep-pitch-field.vertical .ep-pitch-box{top:auto;bottom:auto;left:20%;right:20%;width:auto;height:13%;border:2px solid rgba(255,255,255,0.6);}
@@ -463,3 +463,9 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-chip{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--card3);border:1px solid var(--brd2);color:var(--txt);white-space:nowrap;}
 .ep-root .ep-chip.nat{background:var(--gold-l);border-color:var(--gold-b);color:var(--gold);}
 .ep-root .ep-chip-mas{color:var(--txt3);}
+/* datos del jugador en 2 filas (nombre y posicion; luego el selector de jugador): el campo gana alto */
+.ep-root .ep-modal.ep-form-vert .ep-pitch-info{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;margin:0;padding:8px 10px;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-info-name{grid-column:1;grid-row:1;min-width:0;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-posrow{grid-column:2;grid-row:1;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-selctl{grid-column:1 / -1;grid-row:2;justify-content:space-between;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-field.vertical{margin:0 auto;}
