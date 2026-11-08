@@ -355,6 +355,179 @@
     return validarReglas(candidato).length ? base : candidato;
   }
 
+  /* ================= Slice 4 · nucleo YunaCoins + Plan B =================
+     Funciones PURAS (sin DOM ni Firestore). Las usan coins.js, pes5-tool.js y la
+     pestana YunaCoins. Ver docs/MACRO_SLICE_2.0_CIERRE.md (Slice 4) y
+     tsc-src/prototipo_yunas/MACRO_SLICE_STREAMLABS.md §1.
+
+     Convencion de signos (4.C): neto = Σ(sub) − Σ(add) de los movimientos
+     `pendiente` de la temporada: lo que la web gasto de mas (positivo) o agrego
+     (negativo) y Streamlabs todavia no refleja. saldo nuevo = pegado − neto. */
+  const LOYALTY_FRESCURA_HORAS = 12;   // 4.D: mas de esto → el cobro se bloquea
+
+  // 4.A: marca inicial de un movimiento que mueve saldo.
+  function marcaStreamlabsInicial(team) {
+    const mapeado = !!(team && String(team.streamlabsUser || '').trim());
+    return { estado: mapeado ? 'pendiente' : 'sin_mapeo', lote: null, en: null };
+  }
+  // Movimientos viejos (sin el campo) cuentan como sincronizados: nunca como pendientes.
+  function estadoStreamlabs(mov) {
+    return (mov && mov.streamlabs && mov.streamlabs.estado) || 'sincronizado';
+  }
+  // 4.A: neto pendiente de una lista de movimientos, solo de la temporada indicada.
+  function netoPendiente(movimientos, temporada) {
+    let neto = 0;
+    for (const m of movimientos || []) {
+      if (!m || estadoStreamlabs(m) !== 'pendiente') continue;
+      if (temporada != null && m.season !== temporada) continue;
+      const monto = Number(m.amount) || 0;
+      if (m.mode === 'sub') neto += monto;
+      else if (m.mode === 'add') neto -= monto;
+    }
+    return neto;
+  }
+  // Equipos (ids) que tienen algun movimiento pendiente de la temporada.
+  function equiposConPendientes(movimientos, temporada) {
+    const ids = new Set();
+    for (const m of movimientos || []) {
+      if (!m || estadoStreamlabs(m) !== 'pendiente') continue;
+      if (temporada != null && m.season !== temporada) continue;
+      ids.add(String(m.teamId));
+    }
+    return ids;
+  }
+
+  function normUsuario(s) { return String(s || '').trim().replace(/^@+/, '').toLowerCase(); }
+
+  // 4.C: parser tolerante de lo que se copia de Streamlabs → Loyalty → Users.
+  // Acepta tab o espacio entre usuario y puntos, `@` opcional, miles con . , o espacio.
+  // Las lineas que no son un usuario con puntos (encabezados, rangos, botones) se ignoran y se cuentan.
+  const RE_PUNTOS = /^(?:\d{1,3}(?:[.,\u00a0 ]\d{3})+|\d+)$/;
+  const RE_RUIDO = /^(?:\d+\s*[-–]\s*\d+|mostrar|p[aá]gina|rango|total|usuario|users?|puntos|points|siguiente|anterior|ver|buscar)\b/i;
+  function parsearListaLoyalty(texto) {
+    const porUsuario = new Map();   // normalizado -> { nombre, puntos: [..] }
+    let ignoradas = 0, lineas = 0;
+    for (const crudo of String(texto || '').split(/\r?\n/)) {
+      const linea = crudo.trim();
+      if (!linea) continue;
+      lineas++;
+      let usuario = null, puntosRaw = null;
+      if (linea.includes('\t')) {
+        const i = linea.lastIndexOf('\t');
+        usuario = linea.slice(0, i).trim();
+        puntosRaw = linea.slice(i + 1).trim();
+      } else {
+        const m = linea.match(/^(.*?)\s+(\d{1,3}(?:[.,\u00a0 ]\d{3})+|\d+)$/);
+        if (m) { usuario = m[1].trim(); puntosRaw = m[2]; }
+      }
+      const norm = normUsuario(usuario);
+      if (!usuario || !puntosRaw || !RE_PUNTOS.test(puntosRaw.trim()) || !/[\p{L}\p{N}]/u.test(norm) || RE_RUIDO.test(usuario)) {
+        ignoradas++;
+        continue;
+      }
+      const puntos = parseInt(puntosRaw.replace(/\D/g, ''), 10);
+      if (!Number.isSafeInteger(puntos)) { ignoradas++; continue; }
+      if (!porUsuario.has(norm)) porUsuario.set(norm, { nombre: usuario.replace(/^@+/, ''), puntos: [] });
+      porUsuario.get(norm).puntos.push(puntos);
+    }
+    const filas = [], ambiguos = [];
+    let duplicados = 0;
+    for (const [norm, v] of porUsuario) {
+      if (v.puntos.length > 1) {
+        duplicados += v.puntos.length - 1;
+        if (new Set(v.puntos).size > 1) { ambiguos.push(norm); continue; }   // mismo usuario, puntos distintos: no se usa
+      }
+      filas.push({ usuario: norm, nombre: v.nombre, puntos: v.puntos[0] });
+    }
+    return { filas, ignoradas, duplicados, ambiguos, lineas };
+  }
+
+  /* 4.C vista previa: NO escribe nada.
+     equipos: [{teamId, teamName, streamlabsUser, saldoWeb, neto}] (solo los que tienen mapeo).
+     parseo: resultado de parsearListaLoyalty. */
+  function vistaPrevia(equipos, parseo) {
+    const mapa = new Map((parseo && parseo.filas || []).map(f => [f.usuario, f.puntos]));
+    const mapeados = new Set();
+    const filas = (equipos || []).map(e => {
+      const u = normUsuario(e.streamlabsUser);
+      mapeados.add(u);
+      const pegado = mapa.has(u) ? mapa.get(u) : null;
+      const neto = Number(e.neto) || 0;
+      const saldoWeb = Number(e.saldoWeb) || 0;
+      const saldoNuevo = pegado == null ? null : pegado - neto;
+      return {
+        teamId: e.teamId, teamName: e.teamName, usuario: u,
+        encontrado: pegado != null, pegado, neto, saldoWeb, saldoNuevo,
+        diferencia: saldoNuevo == null ? null : saldoNuevo - saldoWeb,
+      };
+    });
+    return {
+      filas,
+      noEncontrados: filas.filter(f => !f.encontrado).map(f => f.usuario),
+      usuariosSinEquipo: [...mapa.keys()].filter(u => !mapeados.has(u)).length,
+    };
+  }
+
+  // Lista corta para Streamlabs: solo equipos encontrados con neto distinto de 0.
+  function ajustesStreamlabs(filas) {
+    return (filas || []).filter(f => f.encontrado && f.neto !== 0)
+      .map(f => ({ teamId: f.teamId, teamName: f.teamName, usuario: f.usuario, objetivo: f.saldoNuevo }));
+  }
+
+  // 4.C «Preparar»: la foto que se guarda antes de que Luis edite Streamlabs.
+  function construirFoto(filas, lote, en) {
+    const equipos = {};
+    for (const f of filas || []) {
+      if (!f.encontrado) continue;
+      equipos[String(f.teamId)] = { usuario: f.usuario, pegado: f.pegado, neto: f.neto, objetivo: f.saldoNuevo };
+    }
+    return { lote: lote, en: en, equipos: equipos };
+  }
+
+  /* 4.C.7 «Aplicar» y su guardia contra el doble descuento. foto = la guardada;
+     pegadoNuevo = Map usuario -> puntos de un pegado nuevo hecho con la foto abierta,
+     o null si «Aplicar» usa la foto tal cual.
+     - sin pegado nuevo: aplicar el objetivo de la foto.
+     - pegado nuevo == objetivo: ya ajustado en Streamlabs. Saldo = pegado, sin restar otra vez.
+     - pegado nuevo == pegado de la foto: todavia no se edito. Se aplica el objetivo.
+     - cualquier otro valor: conflicto, el equipo queda fuera hasta que Luis lo revise. */
+  function resolverAplicar(foto, pegadoNuevo) {
+    const out = {};
+    for (const [teamId, e] of Object.entries((foto && foto.equipos) || {})) {
+      if (!pegadoNuevo) { out[teamId] = { accion: 'aplicar', saldo: e.objetivo }; continue; }
+      const p2 = pegadoNuevo.get(normUsuario(e.usuario));
+      if (p2 == null) out[teamId] = { accion: 'sin_usuario' };
+      else if (p2 === e.objetivo) out[teamId] = { accion: 'ya_ajustado', saldo: p2 };
+      else if (p2 === e.pegado) out[teamId] = { accion: 'aplicar', saldo: e.objetivo };
+      else out[teamId] = { accion: 'conflicto', pegadoNuevo: p2 };
+    }
+    return out;
+  }
+
+  /* 4.B cobro sin sobregiro: devuelve el saldo nuevo, o lanza si no alcanza.
+     No escribe nada: quien llama escribe solo si esto no lanzo. */
+  function cobroSinSobregiro(saldo, total) {
+    const s = Number(saldo) || 0;
+    const t = Number(total) || 0;
+    if (t < 0) throw new Error('cobro negativo: ' + t);
+    if (s - t < 0) throw new Error('sobregiro: el saldo es ' + s + ' y el cobro ' + t);
+    return s - t;
+  }
+
+  // 4.D: horas desde una sincronizacion ISO. null si nunca hubo.
+  function horasDesde(enIso, ahora) {
+    if (!enIso) return null;
+    const t = Date.parse(enIso);
+    if (isNaN(t)) return null;
+    const ahoraMs = ahora instanceof Date ? ahora.getTime() : (ahora != null ? Date.parse(ahora) : Date.now());
+    return (ahoraMs - t) / 3600000;
+  }
+  // 4.D: la lista esta vencida si nunca se sincronizo o si pasaron mas de LOYALTY_FRESCURA_HORAS.
+  function listaVencida(enIso, ahora) {
+    const h = horasDesde(enIso, ahora);
+    return h == null || h > LOYALTY_FRESCURA_HORAS;
+  }
+
   return {
     DEFAULT_RULES: DEFAULT_RULES,
     BAND_MAX: BAND_MAX,
@@ -375,5 +548,19 @@
     puedePagar: puedePagar,
     validarReglas: validarReglas,
     normalizarReglas: normalizarReglas,
+    LOYALTY_FRESCURA_HORAS: LOYALTY_FRESCURA_HORAS,
+    marcaStreamlabsInicial: marcaStreamlabsInicial,
+    estadoStreamlabs: estadoStreamlabs,
+    netoPendiente: netoPendiente,
+    equiposConPendientes: equiposConPendientes,
+    normUsuario: normUsuario,
+    parsearListaLoyalty: parsearListaLoyalty,
+    vistaPrevia: vistaPrevia,
+    ajustesStreamlabs: ajustesStreamlabs,
+    construirFoto: construirFoto,
+    resolverAplicar: resolverAplicar,
+    cobroSinSobregiro: cobroSinSobregiro,
+    horasDesde: horasDesde,
+    listaVencida: listaVencida,
   };
 });
