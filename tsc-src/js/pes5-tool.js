@@ -531,24 +531,11 @@ function renderEquiposTab(){
 
   // Slice C1.1: solo equipos activos (status !== 'INACTIVO'; si falta el campo, cuenta como activo).
   const equiposActivos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO');
-  // Club repetido (2.0-4): indice de club -> equipos activos que lo tienen vinculado.
-  const duenosDeClub = new Map();
-  equiposActivos.forEach(t => {
-    if (t.pes5ClubIdx == null) return;
-    if (!duenosDeClub.has(t.pes5ClubIdx)) duenosDeClub.set(t.pes5ClubIdx, []);
-    duenosDeClub.get(t.pes5ClubIdx).push(t);
-  });
-  // Opciones del selector de UN equipo: un club de OTRO equipo activo sale deshabilitado con su
-  // dueño, «Arsenal (Malvinas Jr)»; el club propio del equipo sigue elegible.
-  const opcionesDe = (t) => {
-    const valorSel = t.pes5ClubIdx != null ? String(t.pes5ClubIdx) : '';
-    return ['<option value="">— sin asignar —</option>'].concat(CLUBES_PES5.map((n, i) => {
-      const otros = (duenosDeClub.get(i) || []).filter(o => o.id !== t.id);
-      const ocupado = otros.length > 0 && String(i) !== valorSel;
-      const etiqueta = ocupado ? `${n} (${otros[0].name})` : n;
-      return `<option value="${i}"${String(i) === valorSel ? ' selected' : ''}${ocupado ? ' disabled' : ''}>${escHtml(etiqueta)}</option>`;
-    })).join('');
-  };
+  // Club repetido (2.0-4): la logica es pura y vive en js/pes5-clubes.js (tests en tools/).
+  // Un club de otro equipo activo sale deshabilitado con su dueño, «Arsenal (Malvinas Jr)».
+  const opcionesDe = (t) => PES5_CLUBES.opcionesClub(CLUBES_PES5, EQUIPOS_TSC, t).map(o =>
+    `<option value="${o.value}"${o.selected ? ' selected' : ''}${o.disabled ? ' disabled' : ''}>${escHtml(o.label)}</option>`
+  ).join('');
 
   const filas = equiposActivos.map(t => {
     const pres = PRESIDENTES_POR_TEAM[t.id];
@@ -557,7 +544,7 @@ function renderEquiposTab(){
       : '—/32';
     const cupoLleno = cupo === '32/32';
     const roto = VINCULOS_ROTOS.has(t.id);
-    const repetido = t.pes5ClubIdx != null ? (duenosDeClub.get(t.pes5ClubIdx) || []).find(o => o.id !== t.id) : null;
+    const repetido = PES5_CLUBES.repetidoDe(t, EQUIPOS_TSC);
     const selectorHtml = hayClubes
       ? `<select data-onchange="ptVincularEquipo(${t.id}, this.value)">${opcionesDe(t)}</select>`
       : `<select disabled><option>Cargá el save para ver los clubes</option></select>${
@@ -601,7 +588,7 @@ async function vincularEquipo(teamId, idxStr){
   // escribir se relee la base (no la cache); si otro equipo activo ya lo tiene, no se escribe.
   if (idx != null){
     const frescos = await dbGetAll('teams');
-    const otro = frescos.find(t => t.id !== teamId && t.status !== 'INACTIVO' && t.pes5ClubIdx != null && Number(t.pes5ClubIdx) === idx);
+    const otro = PES5_CLUBES.otroEquipoConClub(frescos, idx, teamId);
     if (otro){
       showToast(`${CLUBES_PES5[idx]} ya lo tiene ${otro.name}. Elegí otro club.`, 'error');
       renderEquiposTab();

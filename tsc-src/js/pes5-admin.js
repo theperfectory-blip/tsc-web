@@ -20,6 +20,7 @@ window.PES5_ADMIN = (() => {
     'js/pes5-bloqueo.js',
     'js/pes5-yunacoins.js',   // pestana YunaCoins (slice 2.0-4), antes de pes5-tool.js
     'js/mejoras-page.js',   // editor de mejoras (MEJORAS_EDITOR), se monta en el modal del jugador
+    'js/pes5-clubes.js',      // club PES5 repetido (2.0-4): logica pura, antes de pes5-tool.js
     'js/pes5-tool.js',
   ];
   let _cargando = null;   // promesa de la carga; si falla se reintenta al volver a entrar
