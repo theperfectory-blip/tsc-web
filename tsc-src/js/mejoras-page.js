@@ -1632,7 +1632,7 @@ function renderFormationModal(){
   const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
   const keeper = isKeeperSlot(slot);
   document.getElementById('ep-form-name').innerHTML =
-    `${escHtml(pl.name)} <span style="color:var(--txt3);font-size:12px;">#${escHtml(pl.dorsal)}</span>
+    `${escHtml(pl.name)} ${pl.dorsal && pl.dorsal !== '?' ? `<span style="color:var(--txt3);font-size:12px;">#${escHtml(pl.dorsal)}</span>` : ''}
      <span class="ep-subs-badge">${label}</span>`;
   document.getElementById('ep-form-zone').textContent = keeper
     ? 'Arquero (posicion fija)'
