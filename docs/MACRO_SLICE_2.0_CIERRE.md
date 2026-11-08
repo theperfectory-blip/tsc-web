@@ -16,7 +16,7 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 3c | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **cerrado** (`docs/reportes/2.0-3c.md`) |
 | 3d | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | **cerrado** (`docs/reportes/2.0-3d.md`, probado en teléfono real) |
 | **4** | Núcleo YunaCoins (sobregiro, ledger, marca de sincronizado) + Plan B copiar/pegar | **spec abajo** |
-| 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
+| **5** | Limpieza de `prototipo_yunas/`, reglas cerradas y desplegadas, versión 2.0.0 y APK | **spec abajo** |
 | 6 | PR | pendiente |
 
 Fuera de la 2.0 (propuesto para 2.1): Slice G (nivelación, espera a Luis) y
@@ -1086,3 +1086,112 @@ previa y de los ajustes. Push después de la auditoría.
 **Antes del uso real:** prueba guiada con Luis y la cuenta
 `@TheRationalUser` de Jimbo, nunca un presidente (decisión del macro de
 Streamlabs). La coordina el supervisor.
+
+---
+
+## Slice 5 — Limpieza, reglas, versión 2.0.0 y APK
+
+### Por qué
+
+Son los puntos que faltan del checklist «2.0 lista» de `WORKFLOW_2.0.md` §5,
+salvo el PR (que es el slice 6).
+
+### Alcance
+
+**5.A — Sacar `prototipo_yunas/` de `tsc-src/`**
+
+AGENTS.md dice: «Nada que no se cargue en runtime vive dentro de
+`tsc-src/`». Usar `git mv` para conservar el historial.
+
+| Qué | Destino |
+|---|---|
+| `*.md` (macros, slices, `STREAMLABS_YUNACOINS.md`, `LOOP_CIERRE_2.0.md`) y `pes5/README.md` | `docs/2.0/investigacion/` |
+| `pes4-map.json`, `pes5/key-256.bin`, `pes5/tools/OptionFile.java`, `1-4.webp` (si algún md las referencia; si no, borrar) | `docs/2.0/investigacion/` |
+| Scripts de node: `tools/*.js` (memcard, extract, write-attrs, diff-cards, list-saves) y `pes5/tools/*.js` (crypt, snapshot, write-*, xor-diff) | `tools/pes5/` |
+| Tests `pes5/tools/test-*.js` | `tools/` (junto a `test-yunacoins-core.js`), con los `require` corregidos a `tsc-src/js/...` |
+| **Borrar** (HTML duplicado del editor y de la tool, ya portados): `pes5-tool.html`, `prototype-editor-jugador.html`, `prototype-editor-jugador.OLD-26jul.html`, `pes5/admin-pes5.html`, `pes5/admin-tool-luis.html`, `pes5/admin-vincular-equipos.html`, `pes5/test-browser-crypto.html` | — |
+
+Además:
+- Quitar `'prototipo_yunas'` de `scripts/build-exclude.mjs`.
+- Actualizar los enlaces a esos archivos: este documento, `WORKFLOW_2.0.md`,
+  `CLAUDE.md`/`AGENTS.md` y los reportes 2.0-*. Buscarlos con `grep -rn
+  prototipo_yunas`. Lo de `graphify-out` se regenera solo.
+- Script `npm test` (o `npm run test:pes5`) en el `package.json` de la raíz
+  que corra todos los tests de `tools/` con `node --test`. Los que dependen
+  de un save local (`test-pes5-plantilla`, `test-posiciones-banda`) se saltan
+  con un aviso si no lo encuentran; no fallan.
+- `key-256.bin` es la clave XOR pública del formato de PES5, la misma que ya
+  sirve `js/pes5/pes5-keys.json`. No es una credencial; se conserva como
+  investigación. Anotarlo en el reporte.
+
+**5.B — Reglas de Firestore de la 2.0: allowlist y tests**
+
+Las 4 colecciones nuevas (`pedidos_pes5`, `pes5_bloqueos`, `pes5_config`,
+`pes5_plantillas`) son nuevas en esta rama, así que se pueden ajustar. Las
+existentes **no se tocan**.
+
+- `pedidos_pes5` create: agregar `request.resource.data.keys().hasOnly([...])`
+  con los campos que escriben `mejoras-page.js` (pedido de mejoras y pedido
+  de formación: sacarlos del código) y límites de tamaño razonables (`lines`
+  lista ≤ 40, `formacion.slots` ≤ 11, strings ≤ 100). Regla del proyecto:
+  allowlist, nunca blocklist.
+- `pes5_bloqueos` create/update del presidente: `hasOnly` con los campos que
+  escribe `pes5-bloqueo.js`.
+- **Tests** en `functions/test/rules-suite.js` (o un `rules-pes5.js` nuevo
+  sumado a `npm run test:rules`) con los roles anónimo, presidente propio,
+  presidente ajeno y admin, para cada colección:
+  - el presidente crea un pedido de su equipo, pero no de otro, ni con
+    estado distinto de `pendiente`, ni con un campo extra;
+  - cancela el suyo pendiente, pero no el aplicado;
+  - no lee pedidos ajenos;
+  - lee solo su plantilla;
+  - no escribe `pes5_config`;
+  - el bloqueo propio sí, el ajeno no.
+- `npm run test:rules` en verde, incluida la suite que ya existía.
+- **Despliegue:** lo hace el supervisor con el OK de Jimbo (`firebase
+  deploy --only firestore:rules`). El implementador deja todo listo y lo
+  verifica con `node scripts/rules-drift.mjs` después del deploy.
+
+**5.C — Versión 2.0.0**
+
+- `android/app/build.gradle`: `versionCode 21`, `versionName "2.0.0"`.
+  Mirar antes el último `versionCode` de `main` (hoy 20, la APK 1.7.0).
+- Si la web muestra la versión en algún lado (ajustes, updater o
+  `manifest`), sumarla también.
+
+**5.D — APK de prueba**
+
+- Seguir `docs/android-build.md`: `npm run sync:android` y build
+  **release** firmada con el keystore local. El `%TEMP%` corto está en la
+  nota de 8d0fbcf.
+- No commitear `android/` salvo `build.gradle`. No subir el APK a GitHub
+  Releases: eso es el slice 6.
+- La instala el supervisor en el teléfono de Jimbo por USB (`adb install
+  -r`, misma firma que la 1.7.0) y la prueba:
+  - arranque y splash;
+  - Mejoras (plantilla, editor, formación vertical);
+  - Tool PES5 en modo móvil (pedidos, rechazo, YunaCoins).
+
+### Fuera de alcance
+
+- El PR, el release y el merge final: slice 6.
+- Plan A de Streamlabs: 2.1.
+
+### Verificación (gate)
+
+1. `npm run build` / `build-web` y `build-www` sin `prototipo_yunas`;
+   `smoke-parity`, `audit-wiring` y `csp --check` en verde.
+2. Ningún archivo de `tsc-src/` referencia algo que se movió (grep), y la
+   sección Tool PES5 sigue cargando en el sandbox.
+3. `npm test` (tests de `tools/`) en verde.
+4. `npm run test:rules` en verde, con las suites nuevas.
+5. Presidente en el sandbox: crear un pedido de mejoras y uno de formación
+   sigue funcionando con la allowlist nueva. **Es lo más fácil de romper:**
+   si la allowlist deja afuera un campo, el pedido falla.
+6. graphify.
+
+### Entrega
+
+Commits separados (5.A, 5.B, 5.C, 5.D) y `docs/reportes/2.0-5.md`. Push
+después de la auditoría. Después: deploy de reglas (supervisor + OK de Jimbo)
+e instalación de la APK en el teléfono (supervisor).
