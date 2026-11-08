@@ -234,3 +234,17 @@ test('4.F techo: techoPresupuesto deja el saldo real; con saldo alto manda el to
   assert.equal(R.bonoSuscriptor(pool, true), 75000);            // general 50000 + bono 25000
   assert.equal(R.bonoSuscriptor(pool, false), 50000);
 });
+
+// ---------- transporte de Loyalty (4.G) ----------
+
+test('4.G transporte: sin campo, valor desconocido o manual = manual (Plan B)', () => {
+  assert.equal(R.transporteDe(undefined), 'manual');
+  assert.equal(R.transporteDe({}), 'manual');
+  assert.equal(R.transporteDe({ transporte: 'otra-cosa' }), 'manual');
+  assert.equal(R.transporteDe({ transporte: 'manual' }), 'manual');
+});
+
+test('4.G transporte: api solo con el valor exacto api; los valores validos son manual y api', () => {
+  assert.equal(R.transporteDe({ transporte: 'api' }), 'api');
+  assert.deepEqual(R.TRANSPORTES, ['manual', 'api']);
+});

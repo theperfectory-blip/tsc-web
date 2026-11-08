@@ -27,6 +27,8 @@
 .yc-btn .icn{width:16px;height:16px;}
 .yc-chk{display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;color:var(--txt);}
 .yc-chk input{width:20px;height:20px;flex:none;}
+.yc-chk small{color:var(--txt2);font-size:12px;}
+.yc-chk.yc-off{opacity:0.6;}
 .yc-lista{display:flex;flex-direction:column;gap:8px;}
 .yc-fila{border:1px solid var(--brd);border-radius:var(--r);padding:10px;background:var(--card2);display:flex;flex-direction:column;gap:8px;}
 .yc-fila.sin{opacity:0.6;}

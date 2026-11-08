@@ -50,6 +50,9 @@
        cambia: todo se paga con los YunaCoins del equipo (`evaluarPago` exige
        saldo >= total) y el neto pendiente usa el `amount` completo del
        movimiento, bono incluido (`netoPendiente`).
+     - 4.G (Plan B apagable): `transporte` en settings/yunacoinsSync. 'manual' es
+       el default (copiar y pegar, la unica implementacion en la 2.0); 'api' es el
+       Plan A (2.1). Sin campo o con otro valor, manual. `transporteDe(value)`.
    ============================================================ */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -532,6 +535,13 @@
     return s - t;
   }
 
+  /* 4.G: transporte de los saldos de Loyalty. 'manual' = Plan B (copiar y pegar);
+     'api' = Plan A (API de Streamlabs, 2.1). Sin campo o con otro valor: manual. */
+  const TRANSPORTES = ['manual', 'api'];
+  function transporteDe(value) {
+    return value && value.transporte === 'api' ? 'api' : 'manual';
+  }
+
   // 4.D: horas desde una sincronizacion ISO. null si nunca hubo.
   function horasDesde(enIso, ahora) {
     if (!enIso) return null;
@@ -580,5 +590,7 @@
     cobroSinSobregiro: cobroSinSobregiro,
     horasDesde: horasDesde,
     listaVencida: listaVencida,
+    TRANSPORTES: TRANSPORTES,
+    transporteDe: transporteDe,
   };
 });

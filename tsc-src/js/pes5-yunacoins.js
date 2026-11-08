@@ -40,6 +40,14 @@ window.PES5_YUNACOINS = (() => {
   async function guardarSync(row, value){
     await dbPut('settings', { ...(row || {}), key: SYNC_KEY, value: value });
   }
+  /* 4.G · transporte aislado. El Plan B (manual: copiar y pegar) es la unica implementacion en la
+     2.0. El Plan A (API de Streamlabs, 2.1) enchufa en estas dos funciones sin tocar el nucleo
+     (calcular, la pestaña y las guardias de 4.D). */
+  // De donde sale `pegado`. Manual: lo que Luis pego. Api: en la 2.1 aca va la lectura de la API.
+  async function obtenerSaldosLoyalty(texto, transporte){
+    if (transporte === 'api') return null;
+    return texto && texto.trim() ? R().parsearListaLoyalty(texto) : null;
+  }
 
   // Lee todo lo que la vista necesita. No escribe nada.
   async function calcular(){
@@ -62,10 +70,12 @@ window.PES5_YUNACOINS = (() => {
       saldoWeb: Number(t.yunacoin) || 0,
       neto: R().netoPendiente(porEquipo.get(String(t.id)) || [], temporada),
     }));
-    const parseo = ui.texto.trim() ? R().parsearListaLoyalty(ui.texto) : null;
+    const value = (sync && sync.value) || {};
+    const transporte = R().transporteDe(value);
+    const parseo = await obtenerSaldosLoyalty(ui.texto, transporte);
     const vista = parseo ? R().vistaPrevia(equipos, parseo) : null;
     return {
-      sync: sync, value: (sync && sync.value) || {}, equipos: equipos, sinMapeo: sinMapeo,
+      sync: sync, value: value, transporte: transporte, equipos: equipos, sinMapeo: sinMapeo,
       parseo: parseo, vista: vista, pendientes: R().equiposConPendientes(movs, temporada).size,
     };
   }
@@ -88,6 +98,23 @@ window.PES5_YUNACOINS = (() => {
       </section>`;
   }
 
+  function renderTransporte(c){
+    const api = c.transporte === 'api';
+    return `
+      <section class="yc-card">
+        <h3 class="yc-h3">Transporte</h3>
+        <p class="yc-ayuda">Cómo llegan los saldos de Loyalty. Solo el admin lo cambia.</p>
+        <label class="yc-chk"><input type="radio" name="yc-transporte" value="manual" ${api ? '' : 'checked'} data-onchange="ycTransporte(this)"> Manual: copiar y pegar la lista (Plan B)</label>
+        <label class="yc-chk yc-off"><input type="radio" name="yc-transporte" value="api" ${api ? 'checked' : ''} disabled> Automática con la API de Streamlabs <small>Disponible cuando se conecte la API de Streamlabs (2.1)</small></label>
+      </section>`;
+  }
+  function renderApi(){
+    return `
+      <section class="yc-card">
+        <h3 class="yc-h3">Sincronización automática con Streamlabs</h3>
+        <p class="yc-ayuda">El transporte automático lee y escribe con la API de Streamlabs, así que el flujo manual (pegar, preparar y aplicar) queda oculto mientras esté activo.</p>
+      </section>`;
+  }
   function renderPegar(){
     return `
       <section class="yc-card">
@@ -183,13 +210,11 @@ window.PES5_YUNACOINS = (() => {
       ctr.innerHTML = `
         <div class="yc-root">
           <h2 class="pt-h1">YunaCoins</h2>
-          <div class="pt-sub">Sincronización con Streamlabs Loyalty (copiar y pegar).</div>
+          <div class="pt-sub">${c.transporte === 'api' ? 'Sincronización automática con Streamlabs.' : 'Sincronización con Streamlabs Loyalty (copiar y pegar).'}</div>
           ${ui.msg ? `<div class="yc-msg ${ui.msgTipo}">${esc(ui.msg)}</div>` : ''}
           ${renderEstado(c)}
-          ${renderPegar()}
-          ${renderVista(c)}
-          ${renderAjustes(c)}
-          ${renderPreparar(c)}
+          ${renderTransporte(c)}
+          ${c.transporte === 'api' ? renderApi() : renderPegar() + renderVista(c) + renderAjustes(c) + renderPreparar(c)}
         </div>`;
     } catch (e){
       console.error('[yunacoins]', e);
@@ -198,7 +223,9 @@ window.PES5_YUNACOINS = (() => {
   }
 
   // ---- acciones de la pestana ----
+  function bloqueoApi(){ msg('El transporte automático está activo: el flujo manual está oculto.', 'warn'); return refrescar(); }
   async function vistaPrevia(){
+    if ((await calcular()).transporte === 'api') return bloqueoApi();
     ui.texto = (document.getElementById('yc-texto') || {}).value || '';
     if (!ui.texto.trim()){ msg('Pegá la lista de Loyalty antes de la vista previa.', 'err'); return refrescar(); }
     msg('', '');
@@ -208,6 +235,7 @@ window.PES5_YUNACOINS = (() => {
   async function preparar(){
     ui.texto = (document.getElementById('yc-texto') || {}).value || '';
     const c = await calcular();
+    if (c.transporte === 'api') return bloqueoApi();
     if (!c.vista){ msg('Pegá la lista de Loyalty primero.', 'err'); return refrescar(); }
     const encontrados = c.vista.filas.filter(f => f.encontrado);
     if (!encontrados.length){ msg('Ningún equipo con mapeo aparece en la lista pegada: no hay nada que preparar.', 'err'); return refrescar(); }
@@ -231,6 +259,7 @@ window.PES5_YUNACOINS = (() => {
   async function aplicar(){
     ui.texto = (document.getElementById('yc-texto') || {}).value || '';
     const c = await calcular();
+    if (c.transporte === 'api') return bloqueoApi();
     const foto = c.value.preparado;
     if (!foto){ msg('No hay ajustes preparados. Primero «Preparar ajustes».', 'err'); return refrescar(); }
     const pegadoNuevo = c.parseo && c.parseo.filas.length
@@ -241,10 +270,12 @@ window.PES5_YUNACOINS = (() => {
     const txt = `Se escriben ${cuenta.aplicar + cuenta.ya_ajustado} saldo(s). ` +
       (cuenta.ya_ajustado ? `${cuenta.ya_ajustado} ya estaban ajustados en Streamlabs (no se resta otra vez). ` : '') +
       (cuenta.conflicto + cuenta.sin_usuario ? `${cuenta.conflicto + cuenta.sin_usuario} quedan fuera (conflicto o usuario no encontrado).` : '');
-    showConfirm('¿Aplicar los saldos?', txt, () => ejecutar(plan, foto, c));
+    showConfirm('¿Aplicar los saldos?', txt, () => aplicarAjustesLoyalty(plan, foto, c));
   }
 
-  async function ejecutar(plan, foto, c){
+  /* Escritura de los ajustes (manual: despues de que Luis edito Streamlabs). La 2.1 la reemplaza
+     por la API. Conserva el resto del registro de sincronizacion (transporte incluido). */
+  async function aplicarAjustesLoyalty(plan, foto, c){
     const lote = foto.lote;
     const en = new Date().toISOString();
     const por = emailActual();
@@ -276,7 +307,7 @@ window.PES5_YUNACOINS = (() => {
       aplicados.push({ teamId: teamId, teamName: team.name, saldoAntes: saldoAntes, saldoNuevo: saldoNuevo, pendientes: pend.length });
     }
     await guardarSync(c.sync, {
-      en: en, por: por, lote: lote, equipos: aplicados.length,
+      ...c.value, en: en, por: por, lote: lote, equipos: aplicados.length,
       noEncontrados: c.vista ? c.vista.noEncontrados : [],
       excluidos: excluidos,
       preparado: null,
@@ -340,6 +371,20 @@ window.PES5_YUNACOINS = (() => {
   window.ycChk = (el) => { ui.chk = !!el.checked; return refrescar(); };
   // Lo que se escribe en el textarea se guarda al instante: refrescar() repinta la pestaña y no debe perderlo.
   window.ycTexto = (el) => { ui.texto = el.value; };
+  // 4.G: cambiar el transporte pide confirmacion. El radio vuelve al valor guardado hasta confirmar.
+  window.ycTransporte = (el) => {
+    const nuevo = el.value === 'api' ? 'api' : 'manual';
+    const nombre = nuevo === 'api' ? 'automático (API)' : 'manual (Plan B)';
+    showConfirm(`¿Cambiar el transporte a ${nombre}?`,
+      nuevo === 'api' ? 'La pestaña oculta el flujo manual (pegar, preparar y aplicar).' : 'La pestaña vuelve a mostrar el flujo manual (pegar, preparar y aplicar).',
+      async () => {
+        const c = await calcular();
+        await guardarSync(c.sync, { ...c.value, transporte: nuevo });
+        msg('Transporte: ' + nombre + '.', 'ok');
+        await refrescar();
+      });
+    return refrescar();
+  };
   window.ycCopiar = (i) => {
     const a = ui.ajustes[i];
     if (!a) return;
