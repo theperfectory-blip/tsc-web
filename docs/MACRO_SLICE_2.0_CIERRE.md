@@ -12,9 +12,9 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 1 | Tool PES5 y editor dentro del panel admin (sin iframe) | **cerrado** (`docs/reportes/2.0-1.md`) |
 | 2 | Formación táctil en `mejoras.html` (hoy solo se mueve con flechas de teclado) | **cerrado** (`docs/reportes/2.0-2.md`) |
 | 3 | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **cerrado** (`docs/reportes/2.0-3.md`) |
-| **3b** | Splash colgado al recargar en una sección admin | **spec abajo** |
-| **3c** | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **spec abajo** |
-| 3d | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | pendiente, después de 3c |
+| 3b | Splash colgado al recargar en una sección admin | **cerrado** (`docs/reportes/2.0-3b.md`, hotfix en main) |
+| 3c | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **cerrado** (`docs/reportes/2.0-3c.md`) |
+| **3d** | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | **spec abajo** |
 | 4 | Núcleo YunaCoins (sobregiro, ledger, marca `synced`) + Plan B copiar/pegar | pendiente |
 | 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
 | 6 | PR | pendiente |
@@ -714,3 +714,143 @@ Escrituras **solo en el sandbox** (3001).
 Commits en la rama y `docs/reportes/2.0-3c.md`. Push después de la
 auditoría. La prueba en el teléfono real la hace el supervisor por USB, como
 en 2.0-2.
+
+---
+
+## Slice 3d — Formación vertical en el teléfono
+
+### Por qué
+
+En el teléfono la cancha horizontal mide unos 343 × 156 px: cada fila de la
+grilla de 47 queda de unos 3 px y el arrastre es impreciso. Con la cancha de
+pie se usa el alto de la pantalla. Jimbo pidió además:
+
+- **Sacar la cruz en táctil:** la gente toca y arrastra el jugador por
+  instinto.
+- **Usar ese espacio para el jugador seleccionado:**
+  - una ficha básica;
+  - si el alto alcanza, un resumen.
+
+Propuesta aprobada: **https://claude.ai/artifact/9jnGWwL24mY6BGjNnN4fWE**,
+pantalla 4 (`project/Formacion.dc.html`).
+
+### Alcance
+
+**3d.A — Orientación**
+
+- **Cancha vertical** cuando el ancho del viewport es menor a 860 px
+  (teléfono o APK en vertical), con:
+  - el arco propio abajo;
+  - el ataque arriba;
+  - la banda izquierda a la izquierda.
+
+  En escritorio sigue horizontal, como hoy.
+- **Una sola variable de orientación.** `pitchColPct` / `pitchRowPct` /
+  `pitchZoneEdges` / `pitchCeldaDesdePunto` la leen y devuelven `left`/`top`
+  según el modo.
+  - **Vertical:**
+    - profundidad x (2..47) → vertical (2 abajo);
+    - lateral y (1..47) → horizontal.
+  - **Misma grilla de 47×47 y mismos márgenes**, rotados.
+  - **No cambia** lo que se guarda (`prof`/`lat` del pedido) **ni las
+    reglas.**
+- **Franjas y líneas de la cancha** (área, círculo, arcos) con variante
+  vertical en CSS (`.ep-pitch-field.vertical`).
+- **Si la orientación cambia con el modal abierto** (rotar el teléfono o
+  cambiar el ancho), se vuelve a dibujar sin perder el borrador.
+- **Teclado** (en escritorio queda horizontal; vale si alguien lo usa en
+  vertical con teclado): las flechas siguen la pantalla, ↑ = adelante en
+  vertical.
+
+**3d.B — Controles**
+
+- **Cruz de ajuste fino:** visible solo con puntero fino (`(pointer: fine)`,
+  PC). Oculta en táctil.
+- **El arrastre táctil (2.0-2) no cambia:**
+  - captura en el campo;
+  - punto más cercano en un radio de 22 px;
+  - un solo toast por arrastre;
+  - en vertical solo cambia el eje de la inversa.
+
+**3d.C — Ficha y resumen del jugador seleccionado** (debajo de nombre y
+posición)
+
+- **Ficha básica:** 4 casillas, Edad, Altura, Pie, Banda (mismo estilo que
+  la ficha del editor del 3c).
+- **Resumen con 4 pestañas chicas:**
+  - **Mejores:** las 4 estadísticas más altas de escala 1–99. Fuera las de
+    escala chica (Regularidad, Estabilidad, Frec./Prec. pie malo) y Res.
+    lesión.
+  - **Peores:** las 4 más bajas, con el mismo filtro.
+  - **Habilidades:** las habilidades especiales activas, como chips en
+    hasta 2 líneas; si no entran, «+N».
+  - **Posiciones:** las posiciones que puede jugar, con la natural
+    marcada.
+  
+  Todo sale de los datos del jugador que ya están cargados (`PLAYERS`),
+  **sin lecturas nuevas**.
+- **Valores en Bebas** con el color de nivel PES5 del 3c.
+- **Responsivo al alto real** (pedido de Jimbo):
+  - La cancha toma el alto disponible, con `dvh` o medición, dentro de un
+    mínimo y un máximo. La relación de aspecto tiene que dejar las celdas
+    más grandes que en horizontal.
+  - Con un `ResizeObserver` en el cuerpo del modal: el **resumen** se
+    muestra solo si queda alto suficiente (referencia: unos 150 px libres);
+    si no, solo la **ficha**; si tampoco entra, nada.
+  - Sin scroll dentro del modal en un teléfono de 729 px de alto útil
+    (el de Jimbo): ahí se espera ficha sin resumen.
+  - El pie (Restablecer y Enviar · gratis) siempre visible.
+- **Al cambiar de jugador seleccionado** (toque o arrastre), la ficha y el
+  resumen se actualizan.
+
+**3d.D — Dos arreglos chicos** (commits propios)
+
+1. **Marca de suscriptor en la ficha del editor:** el 3c la sacó al quitar
+   la línea repetida. Volver a ponerla, como badge junto al nombre, igual
+   que en la lista (`ep-subs-badge` / `ep-real-badge`).
+2. **Sandbox sin caer a otro puerto:** `npx serve` cambia de puerto si el
+   3001 está ocupado, y en otro puerto la página **no** entra en modo
+   emulador y lee producción. Hay que agregar `--no-port-switching`:
+   - en la config `tsc-emu` de `.claude/launch.json`;
+   - en `scripts/emu-dist.mjs`.
+
+   Mejor que falle a que lea producción.
+
+### Fuera de alcance
+
+- Reglas de formación, formato del pedido y la Tool.
+- La formación en escritorio: sigue horizontal, con cruz y teclado.
+
+### Riesgos
+
+- **Inversa mal rotada** → el pedido guarda una celda distinta a la que se
+  ve. El gate compara el texto «Columna x · Fila y» con el pedido creado,
+  como en 2.0-2.
+- **Rotación con un arrastre en curso:** cancelar el arrastre y redibujar.
+
+### Verificación (gate)
+
+Sandbox (3001), presidente:
+
+1. Estático: `node --check`, `audit-wiring` 0 rotos, `csp --check`,
+   `smoke-parity`.
+2. Viewport 375×812 y 384×729 (emulación táctil):
+   - cancha vertical;
+   - sin cruz;
+   - arrastre en los dos ejes;
+   - línea llena y mínimos con un toast;
+   - ficha visible, y resumen solo en 812;
+   - sin scroll horizontal;
+   - pie visible.
+3. Escritorio 1280: horizontal, con cruz y teclado, como antes.
+4. Rotar (cambiar el viewport a 812×375 con el modal abierto): redibuja y el
+   borrador se conserva.
+5. «Enviar · gratis» → pedido `formacion` con `prof/lat` iguales a la
+   cancha (11 slots).
+6. Variante `dist`, recorrido corto.
+7. graphify.
+
+### Entrega
+
+Commits en la rama y `docs/reportes/2.0-3d.md`. Push después de la
+auditoría. La prueba en el teléfono real la hace el supervisor por USB.
