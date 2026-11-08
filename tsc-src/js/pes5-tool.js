@@ -1094,7 +1094,7 @@ async function escribirAlSave(){
   const repartoCobro = debeCobrar ? repartoPendienteEquipo() : null;
   // Slice 2.0-4 (4.D): con cobro, la lista de Loyalty tiene que ser reciente (12 h)
   if (debeCobrar && repartoCobro && repartoCobro.totalCosto > 0 && window.PES5_YUNACOINS){
-    if (!(await window.PES5_YUNACOINS.guardiaCobro(log))){ log('Escritura cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
+    if (!(await window.PES5_YUNACOINS.guardiaCobro(log, repartoCobro.totalCosto))){ log('Escritura cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
   }
   async function _aplicarCobroSiCorresponde(){
     if (!debeCobrar || !repartoCobro || repartoCobro.totalCosto <= 0) return;
@@ -1290,6 +1290,22 @@ async function confirmarRechazo(){
   renderPedidosTab();
 }
 
+/* Slice 2.0-4 (4.D): costo estimado de los pedidos que van a cobrar, antes del confirm. Usa las
+   mismas comprobaciones basicas que aplicarPedidosSeleccionados (equipo, club y jugador en el
+   plantel); la formacion es gratis. Es una cota: un pedido que luego se rechace por saldo o tope
+   ya estaba contado, nunca queda sin contar. */
+function _costoEstimadoPedidos(pedidos){
+  let total = 0;
+  for (const p of pedidos){
+    if (p.tipo === 'formacion' || !p.cambios || p.registro == null) continue;
+    const team = EQUIPOS_TSC.find(t => String(t.id) === String(p.teamId));
+    if (!team || team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx) continue;
+    if (!PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx).includes(p.registro)) continue;
+    const j = PES5_EDITOR.leerJugadorCompleto(PLANO, p.registro);
+    total += YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES).total;
+  }
+  return total;
+}
 async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
@@ -1298,8 +1314,8 @@ async function aplicarPedidosSeleccionados(){
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
-  // Slice 2.0-4 (4.D): aplicar cobra; con la lista de Loyalty vencida se pide confirmacion explicita
-  if (window.PES5_YUNACOINS && !(await window.PES5_YUNACOINS.guardiaCobro(log))){ log('Aplicacion cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
+  // Slice 2.0-4 (4.D): si aplicar cobra algo, con la lista de Loyalty vencida se pide confirmacion explicita
+  if (window.PES5_YUNACOINS && !(await window.PES5_YUNACOINS.guardiaCobro(log, _costoEstimadoPedidos(pedidos)))){ log('Aplicacion cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
 
   // 1) evaluar y aplicar sobre una copia, equipo por equipo

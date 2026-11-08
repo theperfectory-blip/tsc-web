@@ -535,6 +535,13 @@
     return s - t;
   }
 
+  /* 4.D: decide si un cobro pide confirmacion por lista de Loyalty vencida. Un cobro de costo 0
+     (p. ej. una formacion, que es gratis) nunca se bloquea: no descuenta nada del saldo. */
+  function debeBloquearPorFrescura(enIso, ahora, costo) {
+    if (!(Number(costo) > 0)) return false;
+    return listaVencida(enIso, ahora);
+  }
+
   /* 4.G: transporte de los saldos de Loyalty. 'manual' = Plan B (copiar y pegar);
      'api' = Plan A (API de Streamlabs, 2.1). Sin campo o con otro valor: manual. */
   const TRANSPORTES = ['manual', 'api'];
@@ -590,6 +597,7 @@
     cobroSinSobregiro: cobroSinSobregiro,
     horasDesde: horasDesde,
     listaVencida: listaVencida,
+    debeBloquearPorFrescura: debeBloquearPorFrescura,
     TRANSPORTES: TRANSPORTES,
     transporteDe: transporteDe,
   };

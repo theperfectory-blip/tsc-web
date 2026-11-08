@@ -248,3 +248,19 @@ test('4.G transporte: api solo con el valor exacto api; los valores validos son 
   assert.equal(R.transporteDe({ transporte: 'api' }), 'api');
   assert.deepEqual(R.TRANSPORTES, ['manual', 'api']);
 });
+
+// ---------- decision de la guardia de 4.D (solo cobro > 0) ----------
+
+test('4.D guardia: costo 0 nunca se bloquea (formacion gratis), aunque la lista este vencida o nunca sincronizada', () => {
+  assert.equal(R.debeBloquearPorFrescura(hace(13), T0, 0), false);
+  assert.equal(R.debeBloquearPorFrescura(null, T0, 0), false);
+  assert.equal(R.debeBloquearPorFrescura(hace(13), T0, undefined), false);
+  assert.equal(R.debeBloquearPorFrescura(hace(13), T0, -5), false);
+});
+
+test('4.D guardia: con costo > 0 bloquea solo si la lista esta vencida o nunca se sincronizo', () => {
+  assert.equal(R.debeBloquearPorFrescura(hace(3), T0, 500), false);
+  assert.equal(R.debeBloquearPorFrescura(hace(13), T0, 500), true);
+  assert.equal(R.debeBloquearPorFrescura(null, T0, 500), true);
+  assert.equal(R.debeBloquearPorFrescura(hace(13), T0, 1), true);
+});

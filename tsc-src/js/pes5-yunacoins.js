@@ -347,11 +347,12 @@ window.PES5_YUNACOINS = (() => {
     });
   }
 
-  // Devuelve true si el cobro puede seguir. Si la lista esta vencida, pregunta; «Ir a YunaCoins» devuelve false.
-  async function guardiaCobro(log){
+  // Devuelve true si el cobro puede seguir. Solo pregunta si el costo es > 0 y la lista esta vencida;
+  // «Ir a YunaCoins» devuelve false.
+  async function guardiaCobro(log, costo){
     const sync = await leerSync();
     const en = sync && sync.value && sync.value.en;
-    if (!R().listaVencida(en, ahora())) return true;
+    if (!R().debeBloquearPorFrescura(en, ahora(), costo)) return true;
     const h = R().horasDesde(en, ahora());
     const d = await modalCobroVencido(h);
     if (d.accion === 'ir'){
