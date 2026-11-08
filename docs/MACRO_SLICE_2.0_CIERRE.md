@@ -15,7 +15,7 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 3b | Splash colgado al recargar en una sección admin | **cerrado** (`docs/reportes/2.0-3b.md`, hotfix en main) |
 | 3c | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **cerrado** (`docs/reportes/2.0-3c.md`) |
 | 3d | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | **cerrado** (`docs/reportes/2.0-3d.md`, probado en teléfono real) |
-| **4** | Núcleo YunaCoins (sobregiro, ledger, marca de sincronizado) + Plan B copiar/pegar | **spec abajo** |
+| 4 | Núcleo YunaCoins (sobregiro, ledger, marca de sincronizado) + Plan B copiar/pegar | **cerrado** (`docs/reportes/2.0-4.md`) |
 | **5** | Limpieza de `prototipo_yunas/`, reglas cerradas y desplegadas, versión 2.0.0 y APK | **spec abajo** |
 | 6 | PR | pendiente |
 
@@ -1171,6 +1171,16 @@ existentes **no se tocan**.
   - arranque y splash;
   - Mejoras (plantilla, editor, formación vertical);
   - Tool PES5 en modo móvil (pedidos, rechazo, YunaCoins).
+
+**5.E — Plantilla desactualizada por equipo**
+
+Hoy el aviso de «plantillas desactualizadas» compara el `saveHash` del save completo, así que cualquier cambio en otro equipo las marca todas. Cambio:
+
+- Cada plantilla guarda `teamHash` en `pes5_plantillas`: SHA-256 del JSON canónico de lo que se publica de ese equipo (plantilla y formación, con las claves ordenadas).
+- Una plantilla está desactualizada si `teamHash` o `pes5ClubIdx` no coinciden con lo que hay ahora en el save.
+- Las publicaciones viejas que no tienen `teamHash` cuentan como desactualizadas una sola vez.
+- `saveHash` se conserva, solo como dato informativo.
+- Test en node: un cambio en otro equipo no marca como desactualizado a este.
 
 ### Fuera de alcance
 
