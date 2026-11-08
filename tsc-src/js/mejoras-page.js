@@ -102,6 +102,7 @@ const MEJ_MARKUP = `
 <div id="ep-confirm-wrap"></div>
 <div id="ep-audit-wrap"></div>
 <div id="ep-pitch-wrap"></div>
+<div id="ep-alt-wrap"></div>
 </div>
 `;
 /* Cierra un modal solo si el click fue en el fondo (reemplaza onclick="if(event.target===this)..."; ver js/events.js). */
@@ -969,14 +970,16 @@ function renderCard(){
   const lockSvg = '<svg class="icn" viewBox="0 0 24 24" style="width:12px;height:12px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
   const heightVal = p.heightFixed ? p.height : d.height;
   // Presentacion (2.0-3c): las cuatro casillas. La altura se edita desde su casilla con el mismo control.
+  // Altura (2.0-3e): la casilla es un boton con el valor y un lapiz. El ajuste (adjustHeight) va en la hoja chica.
+  const altCambio = !p.heightFixed && d.height !== p.height;
   const heightCtl = p.heightFixed
     ? `<b>${heightVal} cm ${lockSvg}</b>`
-    : `<div class="ep-casilla-ctl"><b>${heightVal} cm</b><div class="ep-rstep">
-        <button data-onclick="adjustHeight(-1)">&minus;</button>
-        <button data-onclick="adjustHeight(1)">+</button>
-      </div></div>`;
+    : `<button type="button" class="ep-casilla-btn" data-onclick="mejAbrirAltura()" aria-label="Altura ${heightVal} cm. Editar">
+        <b class="${altCambio ? 'chg' : ''}">${heightVal} cm</b>${altCambio ? `<s class="ep-casilla-old">${p.height}</s>` : ''}
+        <svg class="icn ep-casilla-pencil" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+      </button>`;
   const ageCtl = ADMIN_EMBED
-    ? `<div class="ep-casilla-ctl"><b>${d.age}</b><div class="ep-rstep">
+    ? `<div class="ep-casilla-ctl ep-casilla-ctl-row"><b>${d.age}</b><div class="ep-rstep">
         <button data-onclick="adjustAge(-1)">&minus;</button>
         <button data-onclick="adjustAge(1)">+</button>
       </div></div>`
@@ -1081,6 +1084,7 @@ function renderCart(){
 
 function discardChanges(){
   loadDraft();
+  renderCard();   // la ficha (casilla de altura) vuelve al jugador
   renderRows();
   renderCart();
   showMiniToast('Cambios descartados');
@@ -1970,6 +1974,114 @@ document.addEventListener('keydown', function(e){
 
 /* ================= adjust (con tope EN VIVO de YunaCoins disponibles) ================= */
 
+/* ================= Altura en hoja chica (2.0-3e) =================
+   La casilla Altura abre esta hoja. El ajuste es el mismo adjustHeight de siempre (cupo de
+   Categoria 2 incluido): aca solo cambia donde se toca. Mantener + o - repite el paso. */
+const ALT_PAUSA_MS = 450;   // antes de empezar a repetir
+const ALT_REPITE_MS = 90;   // intervalo de la repeticion
+let _altTimer = 0, _altRepetido = false;
+function _altParar(){ clearTimeout(_altTimer); _altTimer = 0; }
+/* Texto del tope: el mismo criterio que adjustHeight (tramo destino con cupo de HEIGHT_CAPS). */
+function _altCupoTexto(p){
+  if (ADMIN_EMBED) return 'Modo admin: sin tope de cupo de Categoría 2.';
+  const cur = APP.draft.height;
+  const curB = heightBracket(cur);
+  if (curB){
+    const n = heightBracketCount(curB, p.id) + 1;   // este jugador tambien ocupa el tramo
+    return `Tramo ${HEIGHT_BRACKET_LABEL[curB]}: ${n} de ${HEIGHT_CAPS[curB]} jugadores.`;
+  }
+  for (let h = cur + 1; h <= 205; h++){
+    const nxt = heightBracket(h);
+    if (!nxt) continue;
+    const libres = HEIGHT_CAPS[nxt] - heightBracketCount(nxt, p.id);
+    return libres > 0
+      ? `Subir a ${HEIGHT_BRACKET_LABEL[nxt]}: ${libres} ${libres === 1 ? 'lugar libre' : 'lugares libres'}.`
+      : `Subir a ${HEIGHT_BRACKET_LABEL[nxt]}: cupo lleno.`;
+  }
+  return 'Esta altura no tiene tope de cupo.';
+}
+function _altRefrescar(){
+  const p = currentPlayer();
+  const num = document.getElementById('ep-alt-num');
+  if (!p || !num) return;
+  const cur = APP.draft.height;
+  const cambio = cur !== p.height;
+  num.textContent = cur;
+  num.classList.toggle('chg', cambio);
+  const old = document.getElementById('ep-alt-old');
+  if (old) old.textContent = cambio ? String(p.height) : '';
+  document.getElementById('ep-alt-menos').disabled = cur <= 148;
+  document.getElementById('ep-alt-mas').disabled = cur >= 205;
+  document.getElementById('ep-alt-cupo').textContent = _altCupoTexto(p);
+}
+/* Un paso con adjustHeight. Devuelve true si la altura cambio (si no, hubo tope o cupo). */
+function _altPaso(delta){
+  const antes = APP.draft.height;
+  adjustHeight(delta);
+  _altRefrescar();
+  return APP.draft.height !== antes;
+}
+function _altEnlazar(){
+  const enlazar = (id, delta) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || btn.disabled) return;
+      _altRepetido = false;
+      _altParar();
+      _altTimer = setTimeout(function repetir(){
+        if (!_altPaso(delta)){ _altParar(); return; }   // tope o cupo: se corta la repeticion
+        _altRepetido = true;
+        _altTimer = setTimeout(repetir, ALT_REPITE_MS);
+      }, ALT_PAUSA_MS);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => btn.addEventListener(t, _altParar));
+    btn.addEventListener('click', () => {
+      if (_altRepetido){ _altRepetido = false; return; }   // el press largo ya sumo
+      _altPaso(delta);
+    });
+  };
+  enlazar('ep-alt-menos', -1);
+  enlazar('ep-alt-mas', 1);
+}
+function _altTecla(e){ if (e.key === 'Escape') mejCerrarAltura(); }
+function mejAbrirAltura(){
+  const p = currentPlayer();
+  const wrap = document.getElementById('ep-alt-wrap');
+  if (!p || !wrap || p.heightFixed) return;
+  wrap.innerHTML = `
+  <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,mejCerrarAltura)">
+    <section class="ep-sheet" role="dialog" aria-modal="true" aria-labelledby="ep-alt-tit">
+      <div class="ep-grab" aria-hidden="true"></div>
+      <div class="ep-sheet-hd">
+        <h2 id="ep-alt-tit">Altura · gratis</h2>
+        <span>Sin costo en YunaCoins. Sujeta al cupo de Categoría 2.</span>
+      </div>
+      <div class="ep-alt-step">
+        <button type="button" class="ep-alt-btn" id="ep-alt-menos" aria-label="Bajar altura">&minus;</button>
+        <div class="ep-alt-val"><b id="ep-alt-num" aria-live="polite"></b><span>cm</span><s id="ep-alt-old" class="ep-alt-old"></s></div>
+        <button type="button" class="ep-alt-btn" id="ep-alt-mas" aria-label="Subir altura">+</button>
+      </div>
+      <div class="ep-alt-cupo" id="ep-alt-cupo"></div>
+      <div class="ep-sheet-act ep-alt-act">
+        <button type="button" class="ep-btn primary ep-alt-listo" data-onclick="mejCerrarAltura()">Listo</button>
+      </div>
+    </section>
+  </div>`;
+  _altEnlazar();
+  _altRefrescar();
+  document.addEventListener('keydown', _altTecla);
+  const listo = wrap.querySelector('.ep-alt-listo');
+  if (listo) listo.focus();
+}
+function mejCerrarAltura(){
+  _altParar();
+  _altRepetido = false;
+  document.removeEventListener('keydown', _altTecla);
+  const wrap = document.getElementById('ep-alt-wrap');
+  if (wrap) wrap.innerHTML = '';
+}
+
 /* altura: gratis (sin costo en YunaCoins), pero sujeta al cupo de Categoria 2.
    Bloquea solo cuando el cambio HACE ENTRAR al jugador a un tramo que ya esta
    lleno entre el resto del plantel — moverse dentro del mismo tramo, o a uno
@@ -2490,6 +2602,8 @@ function iniciarPagina(){
 // Handlers de data-on* (events.js solo llama funciones globales, sin puntos).
 window.adjustAge = adjustAge;
 window.adjustHeight = adjustHeight;
+window.mejAbrirAltura = mejAbrirAltura;
+window.mejCerrarAltura = mejCerrarAltura;
 window.adjustInjury = adjustInjury;
 window.adjustMain = adjustMain;
 window.adjustSec = adjustSec;

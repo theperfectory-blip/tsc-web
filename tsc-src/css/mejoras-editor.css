@@ -467,3 +467,22 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-posrow{grid-column:2;grid-row:1;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-selctl{grid-column:1 / -1;grid-row:2;justify-content:space-between;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-field.vertical{margin:0 auto;}
+
+/* ---- 2.0-3e: las 4 casillas de la ficha con la misma altura; Altura abre la hoja chica ---- */
+.ep-root .ep-casillas .ep-casilla{height:68px;min-width:0;position:relative;}
+.ep-root .ep-casilla-btn{flex:1;min-height:0;width:100%;margin:0;padding:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;color:inherit;font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.ep-root .ep-casilla-btn b{font-family:'Bebas Neue';font-weight:400;font-size:22px;line-height:1.1;color:var(--txt);white-space:nowrap;}
+.ep-root .ep-casilla-btn b.chg{color:var(--gold);}
+.ep-root .ep-casilla-old{font-family:'Barlow';font-size:11px;color:var(--txt3);text-decoration:line-through;margin-left:4px;}
+.ep-root .ep-casilla-pencil{position:absolute;right:8px;top:8px;width:13px;height:13px;color:var(--txt3);}
+.ep-root .ep-casilla-ctl-row{flex-direction:row;align-items:center;justify-content:space-between;width:100%;}
+.ep-root .ep-alt-step{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:12px;align-items:center;}
+.ep-root .ep-alt-btn{height:48px;width:48px;border-radius:12px;background:var(--card2);border:1px solid var(--brd2);color:var(--txt);font-family:'Barlow Condensed';font-weight:700;font-size:28px;line-height:1;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+.ep-root .ep-alt-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.ep-root .ep-alt-val{display:flex;align-items:baseline;justify-content:center;gap:6px;min-width:0;}
+.ep-root .ep-alt-val b{font-family:'Bebas Neue';font-weight:400;font-size:60px;line-height:1;color:var(--txt);}
+.ep-root .ep-alt-val b.chg{color:var(--gold);}
+.ep-root .ep-alt-val > span{font-family:'Barlow Condensed';font-weight:700;font-size:18px;color:var(--gold-lo);}
+.ep-root .ep-alt-old{font-family:'Barlow';font-size:12px;color:var(--txt3);text-decoration:line-through;}
+.ep-root .ep-alt-cupo{font-size:13px;color:var(--txt2);text-align:center;line-height:1.35;}
+.ep-root .ep-alt-act{grid-template-columns:1fr;}
