@@ -181,17 +181,36 @@
     return j;
   }
 
+  /* JSON canonico: claves ordenadas, sin undefined. Mismo contenido, mismo texto, siempre. */
+  function canonicoJSON(v) {
+    if (Array.isArray(v)) return '[' + v.map(x => canonicoJSON(x === undefined ? null : x)).join(',') + ']';
+    if (v !== null && typeof v === 'object') {
+      return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort()
+        .map(k => JSON.stringify(k) + ':' + canonicoJSON(v[k])).join(',') + '}';
+    }
+    return JSON.stringify(v === undefined ? null : v);
+  }
+  /* Lo que se publica de UN equipo (jugadores + formacion). Solo depende de los registros de ESE
+     club: el teamHash cambia cuando cambia este equipo, no cuando cambia otro. */
+  function contenidoDelEquipo(jugadores, formacion) {
+    return canonicoJSON({ jugadores: jugadores || [], formacion: formacion == null ? null : formacion });
+  }
   /* Plantilla publicada (pes5_plantillas/{teamId}) frente al save abierto. Desactualizada =
-     el save cambio desde la publicacion (saveHash distinto) o el club vinculado cambio
-     (pes5ClubIdx distinto). Misma regla que cargarEstadoPublicacion en js/pes5-tool.js. */
-  function plantillaDesactualizada(publicada, equipo, hashActual) {
-    return publicada.saveHash !== hashActual || publicada.pes5ClubIdx !== equipo.pes5ClubIdx;
+     el contenido del equipo cambio (teamHash distinto), o el club vinculado cambio (pes5ClubIdx
+     distinto), o la publicacion es vieja y no trae teamHash (cuenta una sola vez: al volver a
+     publicar la plantilla queda al dia). saveHash queda como dato informativo. */
+  function plantillaDesactualizada(publicada, equipo, teamHashActual) {
+    return !publicada.teamHash
+      || publicada.teamHash !== teamHashActual
+      || publicada.pes5ClubIdx !== equipo.pes5ClubIdx;
   }
   /* equipos: los vinculados y activos (los filtra quien llama). publicadas: { [teamId]: doc }.
-     Un equipo sin plantilla publicada no sale aca: es «Nunca», no «desactualizada». */
-  function desactualizadas(equipos, publicadas, hashActual) {
+     hashes: { [teamId]: teamHash del save actual }. Un equipo sin plantilla publicada no sale aca:
+     es «Nunca», no «desactualizada». */
+  function desactualizadas(equipos, publicadas, hashes) {
     return (equipos || [])
-      .filter(t => publicadas && publicadas[t.id] && plantillaDesactualizada(publicadas[t.id], t, hashActual))
+      .filter(t => publicadas && publicadas[t.id]
+        && plantillaDesactualizada(publicadas[t.id], t, (hashes || {})[t.id]))
       .map(t => ({ teamId: t.id, teamName: t.name }));
   }
   /* Suscriptor de un jugador publicado: el flag, o el nombre con $ (la misma regla de
@@ -213,6 +232,8 @@
     registroDeId: registroDeId,
     cambiosDesdeEditor: cambiosDesdeEditor,
     aplicarCambiosAlJugador: aplicarCambiosAlJugador,
+    canonicoJSON: canonicoJSON,
+    contenidoDelEquipo: contenidoDelEquipo,
     plantillaDesactualizada: plantillaDesactualizada,
     desactualizadas: desactualizadas,
     esSuscriptorPublicado: esSuscriptorPublicado,

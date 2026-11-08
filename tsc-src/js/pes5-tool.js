@@ -427,11 +427,12 @@ async function revisarPlantillasDesactualizadas(){
     const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
     try {
       if (equipos.length){
-        const hashActual = await _hashPlano();
         const publicadas = {};
         const snap = await firebase.firestore().collection('pes5_plantillas').get();
         snap.forEach(d => { publicadas[d.id] = d.data(); });
-        PLANTILLAS_DESACTUALIZADAS = PES5_PLANTILLA.desactualizadas(equipos, publicadas, hashActual);
+        const hashes = {};
+        for (const t of equipos){ if (publicadas[t.id]) hashes[t.id] = await _teamHashDe(t); }
+        PLANTILLAS_DESACTUALIZADAS = PES5_PLANTILLA.desactualizadas(equipos, publicadas, hashes);
       }
     } catch (e){
       console.error('[pes5-tool] plantillas desactualizadas', e);
@@ -1586,8 +1587,21 @@ async function _hashPlano(){
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+/* Contenido publicable de UN equipo y su teamHash (SHA-256 del JSON canonico de ese equipo).
+   Cambiar un jugador de otro equipo no cambia el teamHash de este (5.E). */
+async function _contenidoEquipo(t){
+  const jugadores = PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, t.pes5ClubIdx);
+  const formacion = PES5_EDITOR.leerFormacionEquipo(PLANO, t.pes5ClubIdx);
+  const teamHash = await _sha256Texto(PES5_PLANTILLA.contenidoDelEquipo(jugadores, formacion));
+  return { jugadores, formacion, teamHash };
+}
+async function _teamHashDe(t){ return (await _contenidoEquipo(t)).teamHash; }
+async function _sha256Texto(texto){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function cargarEstadoPublicacion(equipos){
-  const hashActual = await _hashPlano();
   for (const t of equipos){
     const el = document.getElementById('pub-estado-' + t.id);
     if (!el) continue;
@@ -1596,7 +1610,7 @@ async function cargarEstadoPublicacion(equipos){
       if (!snap.exists){ el.textContent = 'Nunca'; continue; }
       const d = snap.data();
       const cuando = d.publicadoEn && d.publicadoEn.toDate ? d.publicadoEn.toDate().toLocaleString('es-CL') : 'fecha desconocida';
-      const vieja = PES5_PLANTILLA.plantillaDesactualizada(d, t, hashActual);
+      const vieja = PES5_PLANTILLA.plantillaDesactualizada(d, t, await _teamHashDe(t));
       el.innerHTML = `${escHtml(cuando)}${vieja ? ' <span class="badge badge-warn">desactualizada</span>' : ' <span class="badge badge-green">al día</span>'}`;
     } catch (e) {
       el.textContent = 'error al leer';
@@ -1619,11 +1633,10 @@ async function publicarPlantillas(ids){
   try {
     const saveHash = await _hashPlano();
     for (const t of equipos){
-      const jugadores = PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, t.pes5ClubIdx);
-      const formacion = PES5_EDITOR.leerFormacionEquipo(PLANO, t.pes5ClubIdx);
+      const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
       await firebase.firestore().collection('pes5_plantillas').doc(String(t.id)).set({
         teamId: t.id, teamName: t.name, pes5ClubIdx: t.pes5ClubIdx, pes5Club: CLUBES_PES5[t.pes5ClubIdx] || null,
-        jugadores, formacion, saveHash, publicadoPor: AUTH.user.email,
+        jugadores, formacion, saveHash, teamHash, publicadoPor: AUTH.user.email,
         publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),
       });
       linea(`${t.name}: ${jugadores.length} jugadores publicados${formacion ? ` · formación ${formacion.nombre}` : ''}`, 'ok');
