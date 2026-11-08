@@ -11,7 +11,8 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 |---|---|---|
 | 1 | Tool PES5 y editor dentro del panel admin (sin iframe) | **cerrado** (`docs/reportes/2.0-1.md`) |
 | 2 | Formación táctil en `mejoras.html` (hoy solo se mueve con flechas de teclado) | **cerrado** (`docs/reportes/2.0-2.md`) |
-| **3** | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **spec abajo** |
+| 3 | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **cerrado** (`docs/reportes/2.0-3.md`) |
+| **3b** | Splash colgado al recargar en una sección admin | **spec abajo** |
 | 4 | Núcleo YunaCoins (sobregiro, ledger, marca `synced`) + Plan B copiar/pegar | pendiente |
 | 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
 | 6 | PR | pendiente |
@@ -457,3 +458,86 @@ Commits en la rama y reporte `docs/reportes/2.0-3.md` con capturas en el
 teléfono y en el escritorio. Push después de la auditoría. Pendiente de
 prueba manual de Jimbo/Luis: abrir la sección en la APK o en el navegador
 del teléfono y rechazar un pedido de prueba.
+
+---
+
+## Slice 3b — Splash colgado al recargar dentro del panel admin
+
+### Por qué
+
+Lo vio Sonnet en 2.0-1 y 2.0-3: un admin recarga la página estando en
+cualquier sección admin y el splash no se va nunca. Queda en «Esto está
+tardando más de lo normal…» (`js/boot-splash.js:80`) y después en «Problema
+al cargar…». La salida es borrar `tsc_admin_page` y `tsc_mode` de
+`localStorage`. `boot-splash.js` es igual en `main`, así que **muy
+probablemente pasa también en producción**. Un admin que recarga queda
+trabado.
+
+### Hipótesis (a confirmar, no a asumir)
+
+El splash espera cinco pasos (`READY_KEYS`, `boot-splash.js:10`). Uno de
+ellos es `publicMounted`, que solo se marca con el evento
+`tsc:public-section-mounted` (`nav.js` ~406, en
+`ensurePublicSectionMounted`). Al recargar en modo admin pasa esto:
+
+1. El arranque llama a `setMode('public')` (`ui-utils.js` ~860) y empieza a
+   montar la sección pública.
+2. Llega `tsc:auth` con rol admin y corre `setMode('admin')` (~883).
+3. Ese cambio hace `_publicFocusToken++` y `goAdminPage`
+   (`nav.js` ~176).
+4. Si el montaje público se corta, o no termina antes de ese paso,
+   `publicMounted` nunca se marca y el splash no se va.
+
+### Alcance
+
+1. **Reproducir y confirmar la causa.**
+   - Sandbox (3001), admin, sección cualquiera (p. ej. Equipos y Tool
+     PES5), recargar.
+   - Con el splash colgado, leer `window.TSC_BOOT_READY`: qué clave falta.
+   - Revisar por qué no llega `tsc:public-section-mounted` (token,
+     `ensurePublicSectionMounted` cortado, `renderPublicPage` que espera
+     algo que en modo admin no llega).
+   - Reproducir también en `main` sobre su sandbox, o razonarlo con el
+     código de `main`, para saber si es de producción.
+   - Si la causa resulta otra, corregir la hipótesis en el reporte.
+2. **Arreglo mínimo.** El splash tiene que irse cuando la **primera vista**
+   quedó lista, pública o admin. Opción sugerida:
+   - `goAdminPage`/`renderAdminPage` marca el paso con
+     `markBootStep('publicMounted')` (o renombrarlo a `viewMounted`, en
+     `boot-splash.js` y en sus usos) después de renderizar la primera página
+     admin.
+   - Sin tocar la lógica de restaurar el modo.
+   - No sumar un timeout que oculte el splash a ciegas: tapa errores
+     reales.
+   - Si la causa es otra, el arreglo apunta a esa causa.
+3. **Que no haya regresión.** En modo público el splash se va como antes. La
+   APK mantiene los dos `requestAnimationFrame`. El `aria-hidden` / modo
+   offline (`ui-utils.js` ~793–813) se mantiene igual.
+
+### Hotfix a main
+
+Si se confirma que pasa en producción, **no** se arregla en `main` desde acá.
+Se anota en el reporte para que Jimbo decida un hotfix según
+`WORKFLOW_2.0.md` (hotfixes). El arreglo de esta rama tiene que poder
+llevarse a `main` como un commit chico y separado: no mezclarlo con otros
+cambios.
+
+### Verificación (gate)
+
+1. `node --check`, `audit-wiring` 0 rotos, `csp --check` y `smoke-parity`.
+2. Sandbox `tsc-src` y `dist` (`tsc-emu-dist`). Recargar en estas
+   situaciones; en todas el splash tiene que irse en menos de 3 s, en
+   escritorio y en móvil:
+   - modo admin, en Equipos, Tool PES5, Partidos y una sección más;
+   - modo público, en dos secciones;
+   - sin sesión;
+   - sesión de presidente.
+3. `TSC_BOOT_READY` completo después de cada recarga; ningún `_failed`
+   nuevo.
+4. `graphify update .` + `graphify-label.py`.
+
+### Entrega
+
+Commit **único** del arreglo (más el reporte aparte) y reporte en
+`docs/reportes/2.0-3b.md`: causa confirmada con evidencia, si afecta
+producción, y el diff exacto para un posible hotfix.
