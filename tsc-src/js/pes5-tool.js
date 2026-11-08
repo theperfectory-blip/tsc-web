@@ -1369,6 +1369,20 @@ function _costoEstimadoPedidos(pedidos){
   }
   return total;
 }
+/* 2.0-6.H: plantilla publicada de un equipo (lo que vio el presidente al pedir). */
+async function _leerPublicadaDeEquipo(teamId){
+  const snap = await firebase.firestore().collection('pes5_plantillas').doc(String(teamId)).get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  return { data: data, ms: PES5_PLANTILLA.msDeFecha(data.publicadoEn) };
+}
+function _motivoSinVistaPublicada(pub, pedido){
+  if (!pub) return 'no hay plantilla publicada para este equipo';
+  return PES5_PLANTILLA.vistaDelPedido(pub.ms, PES5_PLANTILLA.msDeFecha(pedido.creadoEn));
+}
+function _motivoCambioFormacion(c){
+  return 'la formación del save cambió desde la publicada que vio el presidente: slot ' + c.slot + ', ' + c.campo + ' era ' + c.era + ', ahora ' + c.ahora + ' (plantilla desactualizada)';
+}
 async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
@@ -1382,6 +1396,14 @@ async function aplicarPedidosSeleccionados(){
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
 
   // 1) evaluar y aplicar sobre una copia, equipo por equipo
+  // 2.0-6.H: cada pedido se evalúa contra la plantilla publicada que vio el presidente.
+  const publicadas = {};
+  try {
+    for (const teamId of [...new Set(pedidos.map(p => String(p.teamId)))]) publicadas[teamId] = await _leerPublicadaDeEquipo(teamId);
+  } catch (e) {
+    log('ERROR leyendo las plantillas publicadas: ' + (e.message || e) + ' (no se escribió nada)', 'err');
+    return;
+  }
   const copia = Uint8Array.from(PLANO);
   const aplicados = [];   // {pedido, team, info}
   const rechazados = [];  // {pedido, motivo}
@@ -1397,6 +1419,15 @@ async function aplicarPedidosSeleccionados(){
       if (p.tipo === 'formacion'){
         if (!p.formacion || !Array.isArray(p.formacion.slots)){ rechazados.push({ pedido: p, motivo: 'sin datos de formación' }); continue; }
         if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
+        const pub = publicadas[String(teamId)];
+        const motivoVistaF = _motivoSinVistaPublicada(pub, p);
+        if (motivoVistaF){ rechazados.push({ pedido: p, motivo: motivoVistaF }); continue; }
+        if (!pub.data.formacion || !Array.isArray(pub.data.formacion.slots)){ rechazados.push({ pedido: p, motivo: 'no hay formación publicada para comparar' }); continue; }
+        const formSave = PES5_EDITOR.leerFormacionEquipo(copia, team.pes5ClubIdx);
+        const cambioF = formSave
+          ? PES5_PLANTILLA.formacionContraPublicada(pub.data.formacion.slots, formSave.slots)
+          : { slot: '—', campo: 'formación', era: 'publicada', ahora: 'no existe en el save' };
+        if (cambioF){ rechazados.push({ pedido: p, motivo: _motivoCambioFormacion(cambioF) }); continue; }
         const roster = PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx);
         const idsOk = p.formacion.slots.every(s => s && s.slot >= 0 && s.slot <= 10 && roster[s.slot] === s.jugador);
         if (!idsOk){ rechazados.push({ pedido: p, motivo: 'el plantel cambió; el presidente debe pedir la formación de nuevo' }); continue; }
@@ -1444,8 +1475,19 @@ async function aplicarPedidosSeleccionados(){
       if (!p.cambios || p.registro == null){ rechazados.push({ pedido: p, motivo: 'pedido viejo sin datos aplicables' }); continue; }
       if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
       if (!PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx).includes(p.registro)){ rechazados.push({ pedido: p, motivo: 'el jugador ya no está en el plantel' }); continue; }
+      // 2.0-6.H: el pedido tiene que estar armado sobre la publicación vigente y el save debe seguir igual en esos campos.
+      const pubM = publicadas[String(teamId)];
+      const motivoVistaM = _motivoSinVistaPublicada(pubM, p);
+      if (motivoVistaM){ rechazados.push({ pedido: p, motivo: motivoVistaM }); continue; }
+      const jPub = (pubM.data.jugadores || []).find(x => x && x.id === 'r' + p.registro);
+      if (!jPub){ rechazados.push({ pedido: p, motivo: 'el jugador no está en la plantilla publicada' }); continue; }
+      const jSave = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, p.registro, 0);
+      const cambioM = PES5_PLANTILLA.cambiosContraSave(jPub, jSave, p.cambios);
+      if (cambioM){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioM.campo + ' era ' + cambioM.era + ', ahora ' + cambioM.ahora }); continue; }
       const j = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
       const { total, lineas } = YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES);
+      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total);
+      if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
       const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
       if (!pago.ok){ rechazados.push({ pedido: p, motivo: pago.excedeSaldo ? 'saldo insuficiente' : 'se superó el tope de temporada' }); continue; }

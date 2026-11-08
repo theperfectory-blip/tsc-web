@@ -340,6 +340,31 @@
     return { total: total, lineas: lineas };
   }
 
+  /* Defensa de costo de una mejora (2.0-6.H). `jugadorActual` es el jugador del save AHORA
+     (leerJugadorCompleto) y `total` el costo calculado con costoCambios. Devuelve el motivo
+     de rechazo o null. Nunca baja un atributo ni una habilidad, y un pedido que toca
+     atributos, escala u habilidades no puede costar 0. Lesiones, altura, pie, posiciones
+     y banda no entran aca: su costo ya lo dice costoCambios. */
+  function motivoRechazoMejora(jugadorActual, cambios, total) {
+    const c = cambios || {};
+    const j = jugadorActual || {};
+    const atr = c.atributos || {}, esc = c.escala8 || {}, hab = c.habilidades || {};
+    for (const campo of Object.keys(atr)) {
+      const de = (j.atributos || {})[campo], a = atr[campo];
+      if (typeof de === 'number' && typeof a === 'number' && a < de) return campo + ' bajaría de ' + de + ' a ' + a;
+    }
+    for (const campo of Object.keys(esc)) {
+      const de = (j.escala8 || {})[campo], a = esc[campo];
+      if (typeof de === 'number' && typeof a === 'number' && a < de) return campo + ' bajaría de ' + de + ' a ' + a;
+    }
+    for (const campo of Object.keys(hab)) {
+      if (!!(j.habilidades || {})[campo] && !hab[campo]) return 'la habilidad ' + campo + ' se quitaría';
+    }
+    const tocaStats = Object.keys(atr).length + Object.keys(esc).length + Object.keys(hab).length > 0;
+    if (tocaStats && !(total > 0)) return 'cambio sin costo: el pedido no sube ningún atributo ni habilidad pagada';
+    return null;
+  }
+
   function puedePagar(saldo, total) {
     return (saldo || 0) >= total;
   }
@@ -580,6 +605,7 @@
     topesRestantes: topesRestantes,
     evaluarPago: evaluarPago,
     costoCambios: costoCambios,
+    motivoRechazoMejora: motivoRechazoMejora,
     puedePagar: puedePagar,
     validarReglas: validarReglas,
     normalizarReglas: normalizarReglas,

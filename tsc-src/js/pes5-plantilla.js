@@ -219,7 +219,77 @@
     return !!raw.subscriber || String(raw.name || '').startsWith('$');
   }
 
+  /* ---- Pedidos armados sobre una plantilla (slice 2.0-6.H) ----
+     `cambios` de un pedido son valores ABSOLUTOS calculados contra la plantilla publicada
+     que vio el presidente. Si el save cambio despues, aplicarlo deshace trabajo pagado.
+     Para saber que vio el presidente: la publicacion vigente al crear el pedido. Si la
+     plantilla se publico despues del pedido, esa vista no se puede reconstruir: se rechaza. */
+  // Milisegundos de un Timestamp de Firestore, un Date, un ISO o un numero. null si no hay.
+  function msDeFecha(v) {
+    if (v == null) return null;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.toDate === 'function') return v.toDate().getTime();
+    const t = typeof v === 'string' ? Date.parse(v) : (typeof v === 'number' ? v : NaN);
+    return Number.isFinite(t) ? t : null;
+  }
+  // null si el pedido se armo sobre la publicacion vigente; si no, el motivo.
+  function vistaDelPedido(publicadoMs, creadoMs) {
+    if (publicadoMs == null) return 'no hay plantilla publicada para este equipo';
+    if (creadoMs == null) return 'el pedido no tiene fecha de creación';
+    if (publicadoMs > creadoMs) return 'la plantilla se publicó después de este pedido: el presidente pidió sobre una versión anterior (tiene que pedir de nuevo)';
+    return null;
+  }
+  // Compara lo que el pedido toca (cambios) con el jugador del save ahora. Ambos en forma de editor.
+  // null si el save sigue igual a lo publicado en esos campos; si no, { campo, era, ahora }.
+  function cambiosContraSave(publicadoJugador, saveJugador, cambios) {
+    const dif = cambiosDesdeEditor(publicadoJugador, saveJugador);   // save vs publicado
+    const era = cambiosDesdeEditor(saveJugador, publicadoJugador);   // publicado (lo que vio el presidente)
+    const c = cambios || {};
+    for (const grupo of Object.keys(c)) {
+      const val = c[grupo];
+      if (val && typeof val === 'object' && !Array.isArray(val)) {
+        for (const campo of Object.keys(val)) {
+          if (dif[grupo] && Object.prototype.hasOwnProperty.call(dif[grupo], campo)) {
+            return { campo: campo, era: era[grupo] ? era[grupo][campo] : undefined, ahora: dif[grupo][campo] };
+          }
+        }
+      } else if (Object.prototype.hasOwnProperty.call(dif, grupo)) {
+        return { campo: grupo, era: era[grupo], ahora: dif[grupo] };
+      }
+    }
+    return null;
+  }
+  // Formacion del save contra la publicada (slots 0-10). null si son iguales; si no, el primer cambio.
+  function formacionContraPublicada(publicadaSlots, saveSlots) {
+    const porSlot = (arr) => {
+      const m = {};
+      (arr || []).forEach(s => { if (s && Number.isInteger(s.slot)) m[s.slot] = s; });
+      return m;
+    };
+    const pub = porSlot(publicadaSlots), ahora = porSlot(saveSlots);
+    for (let k = 0; k <= 10; k++) {
+      const a = pub[k] || {}, b = ahora[k] || {};
+      for (const campo of ['jugador', 'prof', 'lat', 'posNombre']) {
+        const va = a[campo] === undefined ? null : a[campo];
+        const vb = b[campo] === undefined ? null : b[campo];
+        if (va !== vb) return { slot: k, campo: campo, era: va, ahora: vb };
+      }
+    }
+    return null;
+  }
+  // true si algun pedido aplicado es posterior a la publicacion (Luis aplico lo que aun no publico).
+  function aplicadosDespuesDePublicar(aplicados, publicadoMs) {
+    const lista = aplicados || [];
+    if (publicadoMs == null) return lista.length > 0;
+    return lista.some(p => { const t = msDeFecha(p.aplicadoEn); return t != null && t > publicadoMs; });
+  }
+
   return {
+    msDeFecha: msDeFecha,
+    vistaDelPedido: vistaDelPedido,
+    cambiosContraSave: cambiosContraSave,
+    formacionContraPublicada: formacionContraPublicada,
+    aplicadosDespuesDePublicar: aplicadosDespuesDePublicar,
     STAT_MAP: STAT_MAP,
     SEC_MAP: SEC_MAP,
     ABILITY_MAP: ABILITY_MAP,

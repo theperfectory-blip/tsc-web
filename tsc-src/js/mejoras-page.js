@@ -606,6 +606,21 @@ async function recalcularPresupuestoReal(){
     subscribers: Math.max(0, rest.subscribers - pendS),
   };
   APP.saldo = Math.max(0, wallet - pendTotal); // saldo total del equipo menos lo ya reservado en pedidos pendientes
+  APP.bloqueoPorAplicado = await _hayAplicadoSinPublicar();
+}
+
+/* 2.0-6.H: true si Luis aplico pedidos de este equipo despues de la ultima publicacion de su plantilla.
+   Mientras tanto el presidente no manda pedidos (se armarian sobre una vista vieja). */
+async function _hayAplicadoSinPublicar(){
+  if (ADMIN_EMBED || !AUTH.teamId || !AUTH.user) return false;
+  try {
+    const pub = await firebase.firestore().collection('pes5_plantillas').doc(String(AUTH.teamId)).get();
+    if (!pub.exists) return false;
+    const q = await firebase.firestore().collection('pedidos_pes5')
+      .where('uid', '==', AUTH.user.uid).where('estado', '==', 'aplicado').get();
+    const aplicados = q.docs.map(d => d.data()).filter(p => String(p.teamId) === String(AUTH.teamId));
+    return PES5_PLANTILLA.aplicadosDespuesDePublicar(aplicados, PES5_PLANTILLA.msDeFecha(pub.data().publicadoEn));
+  } catch (e) { console.warn('[editor] no se pudo revisar la publicacion', e); return false; }
 }
 
 const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
@@ -815,6 +830,7 @@ const APP = {
   // los pedidos pendientes propios, que se llenan con la lectura que ya existe (sin lecturas nuevas).
   squadTab: 'titular',
   pendientes: [],
+  bloqueoPorAplicado: false,   // 2.0-6.H: Luis aplico cambios que aun no publico
   // Slice D.R punto 5a: el wallet real es SIEMPRE teams.yunacoin, nunca
   // hardcodeado. Aca EQUIPO_TSC todavia no cargo (arranca en null antes de
   // loguearse) — se recalcula con el valor real apenas carga, ver
@@ -1033,7 +1049,14 @@ function renderPending(){
   if (globo) globo.textContent = pend.length;
   const box = document.getElementById('ep-pend');
   if (!box) return;
-  if (!pend.length || ADMIN_EMBED){ box.hidden = true; box.innerHTML = ''; return; }
+  const bloqueo = !ADMIN_EMBED && !!APP.bloqueoPorAplicado;
+  const avisoBloqueo = 'Luis aplicó cambios que todavía no publicó. Esperá a que publique para pedir más.';
+  if (ADMIN_EMBED || (!pend.length && !bloqueo)){ box.hidden = true; box.innerHTML = ''; return; }
+  if (!pend.length){
+    box.hidden = false;
+    box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${avisoBloqueo}</span>`;
+    return;
+  }
   const x = pend[0];
   const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
   const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
@@ -1043,7 +1066,7 @@ function renderPending(){
     ? `Formación ${escHtml(nombreForm)} espera que Luis la aplique.`
     : `${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.`;
   box.hidden = false;
-  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${frase}${mas} Podés cancelarlo desde Pedidos mientras siga pendiente.</span>`;
+  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${bloqueo ? avisoBloqueo + ' ' : ''}${frase}${mas} Podés cancelarlo desde Pedidos mientras siga pendiente.</span>`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
@@ -1084,7 +1107,7 @@ function renderCart(){
   document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL') + ' YC' : '';
   renderHero();
   const applyBtn = document.getElementById('ep-apply');
-  applyBtn.disabled = pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
+  applyBtn.disabled = (pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)) || (!ADMIN_EMBED && !!APP.bloqueoPorAplicado);
   document.getElementById('ep-warn').textContent = '';
 }
 
@@ -1185,6 +1208,7 @@ function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHT
 
 async function commitChanges(){
   if (ADMIN_EMBED) return commitChangesAdmin();
+  if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: esperá a que publique para pedir más.'); return; }
   const p = currentPlayer();
   const lines = pendingChangeLines();
   const cost = pendingCost();
