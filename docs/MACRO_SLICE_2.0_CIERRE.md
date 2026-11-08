@@ -14,8 +14,8 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 3 | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **cerrado** (`docs/reportes/2.0-3.md`) |
 | 3b | Splash colgado al recargar en una sección admin | **cerrado** (`docs/reportes/2.0-3b.md`, hotfix en main) |
 | 3c | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **cerrado** (`docs/reportes/2.0-3c.md`) |
-| **3d** | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | **spec abajo** |
-| 4 | Núcleo YunaCoins (sobregiro, ledger, marca `synced`) + Plan B copiar/pegar | pendiente |
+| 3d | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | **cerrado** (`docs/reportes/2.0-3d.md`, probado en teléfono real) |
+| **4** | Núcleo YunaCoins (sobregiro, ledger, marca de sincronizado) + Plan B copiar/pegar | **spec abajo** |
 | 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
 | 6 | PR | pendiente |
 
@@ -854,3 +854,219 @@ Sandbox (3001), presidente:
 
 Commits en la rama y `docs/reportes/2.0-3d.md`. Push después de la
 auditoría. La prueba en el teléfono real la hace el supervisor por USB.
+
+---
+
+## Slice 4 — Núcleo YunaCoins + Plan B (copiar y pegar con Loyalty)
+
+### Por qué
+
+Las decisiones están cerradas en `tsc-src/prototipo_yunas/MACRO_SLICE_STREAMLABS.md`
+§1 (léelo entero antes de empezar, en especial §1, §2 y §6):
+
+- una sola moneda;
+- el descuento se aplica al aprobar;
+- Streamlabs nunca suma;
+- el mapeo está en el equipo;
+- la marca de sincronizado es la fuente de verdad.
+
+El Plan A (API) depende de la prueba A.0, que sigue abierta, y queda para la
+2.1. Este slice construye **el núcleo que sirve a los dos planes**, con el
+**transporte del Plan B**: Luis copia la lista de Loyalty y la pega en la
+tool, y la tool le dice qué pocos usuarios tiene que editar a mano en
+Streamlabs.
+
+Estado actual que importa:
+
+- `teams.streamlabsUser` **ya existe**: lo carga el admin en
+  `js/teams.js:245/415` y no está en la allowlist del presidente
+  (`firestore.rules` ~106). El slice B del macro de Streamlabs ya está hecho.
+- `cobrarMejorasEquipo` (`js/pes5-tool.js` ~185) **todavía clampea en
+  silencio** con `Math.max(0, current - info.total)`.
+- `coins.js` (movimientos manuales y masivos del admin) escribe en `coins`
+  sin ninguna marca.
+
+### Alcance
+
+**4.A — Marca de sincronizado en el ledger**
+
+- Campo nuevo en cada documento de `coins` que **mueve** saldo:
+
+  ```js
+  streamlabs: { estado: 'pendiente' | 'sincronizado' | 'sin_mapeo', lote: <id|null>, en: <ISO|null> }
+  ```
+
+- **Lo escriben:**
+  - `cobrarMejorasEquipo`: los cobros de la tool;
+  - `saveCoinsTransaction`: movimientos manuales;
+  - `saveBulkCoins`: masivos.
+- **Valor inicial:** `pendiente` si el equipo tiene `streamlabsUser`;
+  `sin_mapeo` si no.
+- **Los movimientos viejos sin el campo cuentan como ya sincronizados.**
+  Nunca se suman como pendientes; si no, el primer pegado restaría toda la
+  historia.
+- **Neto pendiente de un equipo** = Σ(`add`) − Σ(`sub`) de sus movimientos
+  `pendiente`, solo de la temporada abierta. Es lo que Streamlabs todavía
+  no sabe.
+- Función pura `netoPendiente(movimientos)` en `js/yunacoins-rules.js`, con
+  test en node.
+
+**4.B — Sin sobregiro silencioso**
+
+- `cobrarMejorasEquipo`: si `current - info.total < 0`, **lanza** sin
+  escribir nada de ese equipo. Hoy clampea a 0.
+  - La validación previa (`evaluarPago`) ya debería impedirlo; esto es la
+    red de seguridad.
+  - El error se ve en el log de la tool y el pedido queda `pendiente`.
+- `saveBulkCoins` en modo restar mantiene su recorte a 0, que es explícito y
+  se muestra en la confirmación. No cambiarlo.
+
+**4.C — Pestaña «YunaCoins» en la tool** (los dos modos: PC y móvil/APK)
+
+1. **Estado:**
+   - fecha y autor de la última sincronización (`settings/yunacoinsSync`);
+   - antigüedad («hace 3 h»);
+   - cantidad de equipos con pendientes.
+2. **Pegar la lista de Loyalty:**
+   - un `<textarea>` donde Luis pega lo que copia de Streamlabs → Loyalty →
+     Users;
+   - parser tolerante: tabs o espacios, `@` opcional, miles con `.`/`,`/
+     espacio y líneas de ruido (encabezados, rangos, botones), que se
+     ignoran y se cuentan;
+   - función pura `parsearListaLoyalty(texto)` → `[{usuario, puntos}]` en
+     `yunacoins-rules.js`, con tests en node. Fixtures **inventados en el
+     test**, nunca datos reales de usuarios commiteados.
+3. **Vista previa** (no escribe nada), con una fila por equipo con mapeo:
+   - equipo y `@usuario`;
+   - Loyalty pegado;
+   - neto pendiente;
+   - **saldo nuevo = pegado − neto pendiente**;
+   - saldo web actual;
+   - diferencia.
+   
+   Más tres avisos ruidosos:
+   - equipos activos **sin mapeo**;
+   - usuarios del mapeo **que no aparecen** en lo pegado;
+   - usuarios de la lista que no son de ningún equipo (solo cuenta, no
+     detalla).
+   
+   El match es por `streamlabsUser` sin distinguir mayúsculas y sin `@`.
+4. **Ajustes para Streamlabs:**
+   - lista corta, solo equipos con neto pendiente ≠ 0: «Poné a @X en
+     N».
+   - es lo que Luis edita a mano con el lápiz del panel;
+   - botón copiar por fila.
+5. **Aplicar** (paso 2 de 4.C.7, después de que Luis confirma con una
+   casilla «Ya cargué los ajustes en Streamlabs»):
+   - `teams.yunacoin = saldo nuevo` para cada equipo encontrado;
+   - todos sus movimientos `pendiente` pasan a `sincronizado` con el mismo
+     `lote` y `en`;
+   - si el saldo cambió, se escribe un movimiento `coins` de auditoría:
+     `mode: 'sync'`, `before`/`after`, `reason: 'Loyalty'`, marcado
+     `sincronizado`;
+   - `settings/yunacoinsSync` se actualiza: `{en, por, lote, equipos,
+     noEncontrados}`;
+   - todo en lotes con `dbWriteBatch`, respetando `DB_BATCH_MAX`, partido
+     por equipo para que un corte deje equipos enteros hechos o sin hacer.
+6. **Reanudable e idempotente:**
+   - si se corta a la mitad, volver a pegar y aplicar termina lo que falta;
+   - un equipo ya aplicado tiene neto pendiente 0 y su saldo = pegado.
+7. **Guardia contra el doble descuento** (determinista, sin heurística).
+   El riesgo: si la lista se copió **después** de editar en Streamlabs,
+   restar los pendientes otra vez es un doble cobro. El flujo tiene dos
+   pasos con una foto guardada:
+   - **«Preparar ajustes»** guarda en `settings/yunacoinsSync.preparado`
+     la foto `{lote, en, equipos: {teamId: {usuario, pegado, neto,
+     objetivo}}}`, con `objetivo = pegado − neto`. Todavía no toca
+     saldos ni marcas.
+   - Luis edita en Streamlabs los usuarios de la lista de ajustes.
+   - **«Aplicar»** usa **la foto guardada**, no un pegado nuevo.
+     Escribe los saldos, marca los movimientos y borra `preparado`.
+   - Si con un `preparado` abierto se pega una lista nueva, para cada
+     equipo de la foto con `pegado_nuevo == objetivo` se toma como **ya
+     ajustado**: no se resta el neto otra vez y se usa `pegado_nuevo` como
+     saldo. Si no coincide y tampoco es igual al `pegado` de la foto, se
+     marca como conflicto y se excluye hasta que Luis lo revise.
+   - En la UI: «Copiá la lista **antes** de editar en Streamlabs».
+
+**4.D — Validación con lista fresca al aprobar**
+
+Es la mitigación del sobregiro del Plan B (§6 del macro de Streamlabs).
+- En «Aplicar seleccionados» y en «Escribir al save» con cobro, si
+  la última sincronización tiene **más de 12 h**:
+  - **bloquear**, con el aviso «El saldo es de hace N h. Pegá la lista de
+    Loyalty antes de cobrar»;
+  - botón que lleva a la pestaña YunaCoins.
+- Escape explícito: casilla «Cobrar igual con saldo viejo (puede haber
+  sobregiro)», que queda registrada en el log.
+- Las 12 h van como constante en `yunacoins-rules.js`.
+
+**4.E — Fin de temporada**
+
+`coins` se archiva por temporada (D8). Antes de **finalizar** una temporada
+(`seasons.js`), si algún equipo tiene movimientos `pendiente`, avisar y pedir
+confirmación: «Sincronizá con Loyalty antes de cerrar la temporada».
+
+### Reglas de Firestore
+
+No deberían hacer falta cambios:
+
+- `coins`: escritura admin, sin allowlist de campos;
+- `teams.yunacoin`: admin;
+- `settings`: admin.
+
+Si alguna escritura falla por reglas, **parar y avisar**. Según
+`WORKFLOW_2.0.md` §6, en esta rama solo se agregan reglas.
+
+### Fuera de alcance
+
+- Plan A (API, OAuth, Cloud Function): 2.1.
+- Automatizar clics en el panel de Streamlabs (prohibido, §6).
+- Que el presidente vea pendientes: su saldo sigue siendo `teams.yunacoin`.
+
+### Riesgos
+
+- **Doble descuento** por el orden copiar/editar: ver 4.C.7.
+- **Mapeo mal cargado:** ruidoso, nunca silencioso.
+- **Datos personales:** la lista pegada tiene usuarios de YouTube.
+  - No se guarda entera en Firestore; solo los usuarios de equipos y sus
+    puntos dentro del movimiento `sync`.
+  - No se loguea en consola.
+
+### Verificación (gate)
+
+Todo en el **sandbox** (3001). Nada contra producción.
+
+1. **Tests en node:** `parsearListaLoyalty` (al menos 8 casos: formatos de
+   miles, `@`, ruido, vacío, duplicados) y `netoPendiente` (legacy sin campo,
+   add/sub, otra temporada).
+2. **Gate estático:** `node --check`, `audit-wiring`, `csp --check`,
+   `smoke-parity`.
+3. **Sandbox, admin, 2-3 equipos con `streamlabsUser` de prueba:**
+   - cobro por pedido → movimiento `pendiente`;
+   - pegar una lista sintética → vista previa correcta;
+   - ajustes listados;
+   - aplicar → saldos, marcas `sincronizado`, movimiento `sync` y
+     `settings`;
+   - re-aplicar la misma lista → sin cambios;
+   - **doble descuento:** preparar, simular la edición en Streamlabs (lista
+     nueva con el objetivo) y pegar esa lista → el equipo sale «ya
+     ajustado», sin restar dos veces; con otro valor, sale conflicto;
+   - equipo sin mapeo y usuario no encontrado → avisos.
+4. **Sobregiro:** forzar `current < total` → lanza, no escribe y el pedido
+   sigue pendiente.
+5. **Lista vieja (más de 12 h, simulada):** aplicar pedidos queda bloqueado;
+   con la casilla, pasa y queda en el log.
+6. **Móvil (375 px, sin API de carpetas):** la pestaña YunaCoins funciona
+   entera.
+7. **Variante `dist`:** recorrido corto.
+8. graphify.
+
+### Entrega
+
+Commits en la rama y `docs/reportes/2.0-4.md`, con capturas de la vista
+previa y de los ajustes. Push después de la auditoría.
+
+**Antes del uso real:** prueba guiada con Luis y la cuenta
+`@TheRationalUser` de Jimbo, nunca un presidente (decisión del macro de
+Streamlabs). La coordina el supervisor.
