@@ -1001,6 +1001,10 @@ Es la mitigación del sobregiro del Plan B (§6 del macro de Streamlabs).
   sobregiro)», que queda registrada en el log.
 - Las 12 h van como constante en `yunacoins-rules.js`.
 
+**4.F — Bono de suscriptores (decisión de Jimbo, 2026-11-08)**
+
+El bono es un **tope extra, no plata extra**. Un suscriptor gasta primero contra el bono y después contra el tope general, pero **todo se paga con los YunaCoins del equipo**: el cobro y `evaluarPago` ya hacen eso y no cambian. Por lo mismo, la parte del bono también se descuenta de Loyalty. Hay que corregir el techo que se muestra: `min(saldo, topeGeneralRestante + bonoRestante)` para un suscriptor y `min(saldo, topeGeneralRestante)` para el resto. Test: saldo 1.000, suscriptor, costo 3.000 → el pedido se rechaza por saldo y el techo es 1.000.
+
 **4.E — Fin de temporada**
 
 `coins` se archiva por temporada (D8). Antes de **finalizar** una temporada
