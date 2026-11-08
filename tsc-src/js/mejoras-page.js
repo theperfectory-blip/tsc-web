@@ -1027,7 +1027,10 @@ function renderPager(){
 function renderPending(){
   const pend = (APP.pendientes||[]).filter(x => x.estado === 'pendiente');
   const sub = document.getElementById('ep-pedidos-sub');
-  if (sub) sub.textContent = pend.length ? pend.length + (pend.length === 1 ? ' en revisión' : ' en revisión') : 'Sin pendientes';
+  if (sub) sub.textContent = pend.length ? pend.length + ' en revisión' : 'Sin pendientes';
+  // globito: la misma cuenta que el texto (mejoras y formaciones pendientes)
+  const globo = document.getElementById('ep-hist-badge');
+  if (globo) globo.textContent = pend.length;
   const box = document.getElementById('ep-pend');
   if (!box) return;
   if (!pend.length || ADMIN_EMBED){ box.hidden = true; box.innerHTML = ''; return; }
@@ -1326,6 +1329,9 @@ async function openAuditModal(){
   try {
     const q = await firebase.firestore().collection('pedidos_pes5').where('uid', '==', AUTH.user.uid).get();
     pedidos = q.docs.map(d => Object.assign({ _id: d.id }, d.data()));
+    // la lista del historial es la misma fuente que el aviso y el globito
+    APP.pendientes = pedidos.filter(p => p.estado === 'pendiente');
+    renderPending();
   } catch (e) { console.warn('[mejoras] pedidos', e); }
   try {
     movimientos = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId)
@@ -1960,6 +1966,9 @@ async function confirmFormation(){
     });
     try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
     FORMATION_NAME = nombre;
+    // presentacion: la formacion recien enviada ya cuenta como pendiente (aviso y globito)
+    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre }, lines: [{ label: 'Formación', from: '', to: nombre }], estado: 'pendiente' });
+    renderPending();
     closeFormationModal();
     showMiniToast('Formacion enviada. La Tool la aplica al save.');
   } catch(e) {

@@ -137,6 +137,11 @@
 #page-pes5-admin .pt-rech-motivo{width:100%;min-height:96px;resize:vertical;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-family:inherit;font-size:14px;padding:8px 10px;}
 #page-pes5-admin .pt-rech-foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
 #page-pes5-admin .pt-rech-foot .btn:disabled{opacity:0.5;cursor:not-allowed;}
+/* 6.G: botones de escritura deshabilitados (p. ej. "Aplicar seleccionados" con PES5 cerrado).
+   Sin hover: el .btn-primary:hover del global les subia la opacidad. */
+#page-pes5-admin .btn:disabled,
+#page-pes5-admin .btn:disabled:hover{opacity:0.45;cursor:not-allowed;}
+#page-pes5-admin .btn:disabled:not(.btn-primary):hover{border-color:var(--brd2);background:transparent;}
 #page-pes5-admin .pt-acciones{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
 
 /* 3.B — pedidos en tarjetas bajo 640 px (en los dos modos). La tabla sigue siendo la

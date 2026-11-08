@@ -1265,8 +1265,8 @@ async function renderPedidosTab(){
     </tr>`;
   }).join('');
   const cabecera = movil
-    ? '<th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>'
-    : '<th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th>Costo estimado</th><th>Enviado</th><th></th>';
+    ? '<th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th style="text-align:right;">Costo estimado</th><th>Enviado</th><th></th>'
+    : '<th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th style="text-align:right;">Costo estimado</th><th>Enviado</th><th></th>';
   const intro = movil
     ? `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes.</div>
        <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
@@ -1279,7 +1279,7 @@ async function renderPedidosTab(){
     <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>`;
   cont.innerHTML = `
     ${intro}
-    <div class="pt-tbl-wrap"><table class="pt-tbl pt-tbl-pedidos"><thead><tr>${cabecera}</tr></thead><tbody>${filas}</tbody></table></div>
+    <div class="pt-tbl-wrap"><table class="tbl pt-tbl-pedidos"><thead><tr>${cabecera}</tr></thead><tbody>${filas}</tbody></table></div>
     ${aplicar}
     <div class="pt-log" id="ped-log"></div>`;
 }
