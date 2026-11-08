@@ -1677,7 +1677,14 @@ async function publicarPlantillas(ids){
     const saveHash = await _hashPlano();
     for (const t of equipos){
       const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
-      await firebase.firestore().collection('pes5_plantillas').doc(String(t.id)).set({
+      // 2.0-6.H2: sin cambios no se reescribe (publicadoEn queda igual).
+      const refPlantilla = firebase.firestore().collection('pes5_plantillas').doc(String(t.id));
+      const previa = await refPlantilla.get();
+      if (!PES5_PLANTILLA.debeReescribirPublicacion(previa.exists ? previa.data() : null, teamHash, t.pes5ClubIdx)){
+        linea(`${t.name}: sin cambios, ya estaba publicada`, 'ok');
+        continue;
+      }
+      await refPlantilla.set({
         teamId: t.id, teamName: t.name, pes5ClubIdx: t.pes5ClubIdx, pes5Club: CLUBES_PES5[t.pes5ClubIdx] || null,
         jugadores, formacion, saveHash, teamHash, publicadoPor: AUTH.user.email,
         publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),

@@ -155,3 +155,27 @@ test('aplicadosDespuesDePublicar: hay aplicados posteriores a la publicación ->
   assert.equal(P.aplicadosDespuesDePublicar([], pub), false);
   assert.equal(P.aplicadosDespuesDePublicar([{ aplicadoEn: '2026-11-08T09:00:00.000Z' }], null), true, 'sin publicacion y con aplicados: bloquea');
 });
+
+// 2.0-6.H2: republicar sin cambios no invalida pedidos pendientes.
+test('debeReescribirPublicacion: sin doc previo, o con otro teamHash u otro club -> reescribir', () => {
+  assert.equal(P.debeReescribirPublicacion(null, 'h1', 1), true, 'primera publicacion');
+  assert.equal(P.debeReescribirPublicacion({ teamHash: 'h0', pes5ClubIdx: 1 }, 'h1', 1), true, 'cambió el contenido');
+  assert.equal(P.debeReescribirPublicacion({ teamHash: 'h1', pes5ClubIdx: 2 }, 'h1', 1), true, 'cambió el club');
+});
+
+test('republicar sin cambios no reescribe: el pedido pendiente sigue válido (publicadoEn no cambia)', () => {
+  // La plantilla se publicó a las 10:00 y el presidente pidió a las 10:05.
+  const previa = { teamHash: 'h1', pes5ClubIdx: 1, publicadoMs: Date.parse('2026-11-08T10:00:00Z') };
+  const creadoMs = Date.parse('2026-11-08T10:05:00Z');
+  // "PUBLICAR TODOS" a las 10:10 con el mismo contenido: no se reescribe, publicadoEn queda en 10:00.
+  assert.equal(P.debeReescribirPublicacion(previa, 'h1', 1), false);
+  assert.equal(P.vistaDelPedido(previa.publicadoMs, creadoMs), null, 'el pedido sigue armado sobre la vista vigente');
+});
+
+test('republicar con cambios sí reescribe: el pedido queda invalidado (el mismo campo cambió)', () => {
+  const previa = { teamHash: 'h1', pes5ClubIdx: 1, publicadoMs: Date.parse('2026-11-08T10:00:00Z') };
+  const creadoMs = Date.parse('2026-11-08T10:05:00Z');
+  assert.equal(P.debeReescribirPublicacion(previa, 'h2', 1), true);
+  // La reescritura pone publicadoEn a las 10:10, posterior al pedido.
+  assert.match(P.vistaDelPedido(Date.parse('2026-11-08T10:10:00Z'), creadoMs), /publicó después/);
+});

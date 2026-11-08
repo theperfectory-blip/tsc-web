@@ -284,7 +284,15 @@
     return lista.some(p => { const t = msDeFecha(p.aplicadoEn); return t != null && t > publicadoMs; });
   }
 
+  /* Republicar (2.0-6.H2): si el doc ya guarda el mismo contenido (teamHash) y club, no se
+     reescribe; asi publicadoEn no cambia y los pedidos armados sobre esa vista siguen validos. */
+  function debeReescribirPublicacion(previa, teamHash, pes5ClubIdx) {
+    if (!previa) return true;
+    return !(previa.teamHash === teamHash && previa.pes5ClubIdx === pes5ClubIdx);
+  }
+
   return {
+    debeReescribirPublicacion: debeReescribirPublicacion,
     msDeFecha: msDeFecha,
     vistaDelPedido: vistaDelPedido,
     cambiosContraSave: cambiosContraSave,
