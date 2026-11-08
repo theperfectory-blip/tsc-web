@@ -15,7 +15,7 @@ window.PES5_ADMIN = (() => {
     'js/pes5-crypt.js',
     'js/pes5-editor.js',
     'js/pes5-save.js',
-    'js/yunacoins-rules.js',
+    // yunacoins-rules.js ya va en index.html (antes de coins.js): no se vuelve a cargar aca.
     'js/pes5-plantilla.js',
     'js/pes5-bloqueo.js',
     'js/pes5-yunacoins.js',   // pestana YunaCoins (slice 2.0-4), antes de pes5-tool.js
