@@ -13,6 +13,8 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 2 | Formación táctil en `mejoras.html` (hoy solo se mueve con flechas de teclado) | **cerrado** (`docs/reportes/2.0-2.md`) |
 | 3 | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **cerrado** (`docs/reportes/2.0-3.md`) |
 | **3b** | Splash colgado al recargar en una sección admin | **spec abajo** |
+| **3c** | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **spec abajo** |
+| 3d | Formación vertical en el teléfono (cancha de pie) | pendiente, después de 3c |
 | 4 | Núcleo YunaCoins (sobregiro, ledger, marca `synced`) + Plan B copiar/pegar | pendiente |
 | 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
 | 6 | PR | pendiente |
@@ -541,3 +543,174 @@ cambios.
 Commit **único** del arreglo (más el reporte aparte) y reporte en
 `docs/reportes/2.0-3b.md`: causa confirmada con evidencia, si afecta
 producción, y el diff exacto para un posible hotfix.
+
+---
+
+## Slice 3c — Rediseño de Mejoras (presidente)
+
+### Por qué
+
+`mejoras.html` funciona, pero en el teléfono la UI es pobre y la estética no
+acompaña a la web. Problemas concretos:
+
+- la ruta de la cabecera se corta en dos líneas;
+- la plantilla es una tira horizontal de chips con un bloque rojo
+  «TITULARES»;
+- la cabecera «EDITAR JUGADOR» tiene un fondo metálico ajeno a la web;
+- 17 atributos van en una sola lista;
+- el bloque fijo «Acumulado» tapa la lista y la descripción vive en una caja
+  aparte.
+
+Jimbo aprobó la propuesta de Claude Design:
+**https://claude.ai/artifact/9jnGWwL24mY6BGjNnN4fWE**. Las pantallas 1, 2, 3
+y 5 son el objetivo de este slice; la 4 (formación vertical) es el slice 3d.
+Es privada: el implementador la abre con la herramienta Artifact
+(`action: "read"`) para ver los valores exactos (colores, tamaños, textos).
+
+### Regla de oro
+
+**Solo presentación.** Se tocan el markup (`MEJ_MARKUP` y los render de
+`js/mejoras-page.js`) y el CSS (`css/mejoras-editor.css`). Además:
+
+- no cambian cálculos de costo, topes, reglas, pedidos, bloqueo ni
+  formación;
+- se conservan los `id` que lee la lógica (`ep-balance-*`, `ep-rows`,
+  `ep-cost`, `ep-apply`, `ep-search`, `ep-roster-list`, `ep-hist-badge`, …);
+  si uno cambia de lugar, sigue existiendo;
+- handlers con `data-on*`; escape con `escHtml`; íconos SVG Lucide sin
+  emojis;
+- tokens de `css/variables.css` (`--gold`, `--card`, `--brd`…), no hex
+  sueltos, salvo los colores de nivel PES5.
+
+El editor también se monta en la Tool del admin (`ADMIN_EMBED`, clase
+`.ep-root.admin-embed`): la vista admin tiene que seguir funcionando y
+verse coherente.
+
+### Alcance (pantalla por pantalla de la propuesta)
+
+**1 · Plantilla**
+
+- **Cabecera de una línea:** volver a la web, escudo o iniciales del
+  equipo, nombre en Bebas con «Mejoras de jugadores» de subtítulo, y botón
+  de cuenta (sesión, tema, salir). Reemplaza `.ep-crumb`.
+- **Tarjeta de saldo:**
+  - saldo grande en dorado;
+  - barra de progreso del tope de temporada (usado / tope; mismos datos que
+    `ep-balance-general` / `ep-hero-general-cap`);
+  - bono de suscriptores en una franja verde aparte.
+- **Dos accesos grandes:**
+  - **Formación**: muestra la alineación actual y «gratis»;
+  - **Pedidos**: es el Historial actual (`openAuditModal`), con su contador
+    `ep-hist-badge`. Solo cambia la etiqueta; el modal es el mismo.
+- **Aviso de pedido pendiente** (si hay uno): «<jugador> · <cambios> espera
+  que Luis lo aplique».
+  - Usa los datos que ya carga el historial, sin lecturas nuevas a
+    Firestore.
+  - Si exige una lectura nueva, se omite y se anota en el reporte.
+- **Plantilla vertical** en lugar de los chips:
+  - buscador;
+  - selector segmentado Titulares / Suplentes / Reserva, con conteo;
+  - filas de 60 px: badge de posición con el color de su línea
+    (arquero / defensa / medio / ataque), nombre, rol y una marca «Pedido»
+    si el jugador tiene uno pendiente.
+
+**2 · Editar jugador**
+
+- **Teléfono (< 860 px):** plantilla y editor son dos vistas.
+  - Tocar un jugador abre el editor; «volver» regresa a la plantilla
+    conservando la pestaña y el scroll.
+  - El encabezado del editor muestra «Titular 3 de 11» y flechas de
+    jugador anterior/siguiente.
+- **Escritorio:** dos columnas (pantalla 5).
+- **Ficha:**
+  - badge de posición grande y nombre en Bebas;
+  - 4 casillas: Edad, Altura, Pie, Banda;
+  - la altura (gratis) se edita desde su casilla con el control que ya
+    existe: se reubica, no se reescribe.
+- **Paginador como el del juego** (pedido explícito de Jimbo): flecha,
+  «PRINCIPALES 1/4», flecha y 4 marcas de página.
+  - Es el `ep-pager` actual restilizado, con botones de 44 px.
+  - **No** usar pestañas.
+- **Página Principales:** los 17 atributos se agrupan con subtítulos (Rol,
+  Físico, Balón y pase, Disparo; el mapeo está en la propuesta). Las otras
+  páginas van sin grupos.
+- **Fila de atributo:**
+  - nombre;
+  - valor en Bebas con el color de nivel PES5: 95+ rojo, 90+ naranja, 80+
+    amarillo, 75+ verde, el resto claro (si ya hay una escala, usar esa);
+  - barra fina con el valor;
+  - botones − / + de 44 px.
+- **Fila cambiada:**
+  - resaltada en dorado, con el valor anterior tachado;
+  - debajo, la descripción (hoy en `ep-hint`) y el costo de ese cambio.
+  - `ep-hint` desaparece como caja aparte, pero su texto sigue disponible
+    para el atributo seleccionado.
+- **Barra inferior fija** (reemplaza `.ep-cart`):
+  - «N cambios · queda X YC», total en dorado, descartar (ícono) y
+    «Revisar» (abre `openApplyConfirm`);
+  - `padding-bottom` en el contenido para que no tape la última fila, más
+    `env(safe-area-inset-bottom)`;
+  - `ep-warn` se ve encima de la barra cuando hay aviso.
+
+**3 · Revisar y enviar**
+
+- `openApplyConfirm`: panel que sube desde abajo en el teléfono y modal
+  centrado en escritorio.
+- Contenido: cada cambio (jugador, atributo de → a, costo), saldo antes →
+  después, tope de temporada y bono usado. Son los mismos datos que hoy.
+- Botones: «Seguir editando» y «Enviar a Luis».
+- Texto: «Se cobra cuando Luis lo aplica en el juego. Mientras esté
+  pendiente lo podés cancelar.»
+
+**5 · Escritorio (≥ 860 px)**
+
+- Columna izquierda de 340–380 px: saldo, accesos, segmentado y lista.
+- Columna derecha: ficha con paginador, grupos de atributos en 2 columnas y
+  barra de cambios al pie del editor.
+
+**Modales existentes** (historial/pedidos, formación actual): solo adoptan
+los tokens y radios nuevos. La formación vertical va en el slice 3d.
+
+### Fuera de alcance
+
+- La formación vertical (3d).
+- Lógica de costos, reglas o pedidos.
+- La Tool del admin, más allá de no romper `admin-embed`.
+- Tema claro: si hoy existe (`mejToggleTheme`), conservarlo con los tokens
+  claros de `variables.css`, sin rediseñarlo.
+
+### Riesgos
+
+- **Clases que la lógica busca con `querySelector`:** antes de cambiar una
+  clase, `grep` de sus usos.
+- **`admin-embed`:** el editor dentro del modal de la tool tiene otro
+  ancho. Verificarlo en el panel admin.
+- **Scroll aislado** de `f163bd2` (sin traspaso al fondo en móvil/APK): la
+  vista de dos pantallas no debe romperlo.
+
+### Verificación (gate)
+
+Escrituras **solo en el sandbox** (3001).
+
+1. `node --check`, `audit-wiring` 0 rotos, `csp --check`, `smoke-parity`.
+2. Presidente en el sandbox, a 375 px y a 1280 px:
+   - recorrido completo: plantilla → jugador → subir 2 puntos → revisar →
+     enviar;
+   - el pedido llega al emulador igual que antes: comparar sus campos con
+     un pedido creado antes del slice;
+   - cancelar el pendiente;
+   - paginador de 1/4 a 4/4;
+   - altura, buscador y segmentado;
+   - sin scroll horizontal;
+   - la barra inferior no tapa la última fila.
+3. Admin en la Tool PES5: abrir un jugador en el editor embebido, editar y
+   aplicar → vuelve como cambio pendiente.
+4. Variante `dist`: recorrido corto.
+5. Reporte con capturas de teléfono y escritorio al lado de la propuesta.
+6. graphify.
+
+### Entrega
+
+Commits en la rama y `docs/reportes/2.0-3c.md`. Push después de la
+auditoría. La prueba en el teléfono real la hace el supervisor por USB, como
+en 2.0-2.
