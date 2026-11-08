@@ -556,6 +556,14 @@ async function refreshSorteoTabVisibility(){
       if(typeof syncRedesignTopnav==='function') syncRedesignTopnav('panel');
     }
   }
+  // Slice 3b (segunda causa del splash colgado): al arrancar en público con Sorteo como
+  // sección guardada, el foco de arranque puede correr mientras la sección sigue oculta
+  // (hidden hasta esta comprobación), sale sin montar y nadie lo reintenta. Acá ya está
+  // visible: se reintenta el foco una vez. Si el foco ya se resolvió, no hace nada.
+  if(show && STATE.mode==='public' && STATE.publicPage==='sorteo' && _publicFocusedPage!=='sorteo'
+     && document.getElementById('main')?.classList.contains('public-scroll')){
+    focusPublicSection('sorteo');
+  }
   return show;
 }
 
