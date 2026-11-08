@@ -7,7 +7,10 @@
    atributo data-boot lo saca de su patrón) y mantiene su lugar.
    ============================================================ */
 (function(){
-  var READY_KEYS = ['dom','publicMounted','fonts','logoImg','yunaImg'];
+  // viewMounted: la primera vista quedó montada, pública o admin. La marca el primer
+  // montaje público (tsc:public-section-mounted) o el primer render de una sección admin
+  // (renderAdminPage en nav.js). Al recargar en modo admin el montaje público se cancela.
+  var READY_KEYS = ['dom','viewMounted','fonts','logoImg','yunaImg'];
   var state = { _failed: [] };
   var readyResolve;
   var readyPromise = new Promise(function(res){ readyResolve = res; });
@@ -23,13 +26,13 @@
     checkReady();
   };
   window.waitBootAssets = function(){ return readyPromise; };
-  window.TSC_BOOT_READY = state; // debug: window.TSC_BOOT_READY.publicMounted, ._failed, etc.
+  window.TSC_BOOT_READY = state; // debug: window.TSC_BOOT_READY.viewMounted, ._failed, etc.
 
   if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ markBootStep('dom'); });
   } else { markBootStep('dom'); }
 
-  document.addEventListener('tsc:public-section-mounted', function(){ markBootStep('publicMounted'); }, { once:true });
+  document.addEventListener('tsc:public-section-mounted', function(){ markBootStep('viewMounted'); }, { once:true });
 
   if(document.fonts && document.fonts.ready){
     document.fonts.ready.then(function(){ markBootStep('fonts'); }, function(){ markBootStep('fonts', true); });

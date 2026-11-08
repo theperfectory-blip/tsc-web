@@ -493,6 +493,10 @@ async function renderAdminPage(page){
     console.error('[admin] render de '+page+':', e);
     showToast('No se pudo cargar la sección: '+dbErrorMsg(e),'error');
   }
+  // Slice 3b: en modo admin la primera vista es esta sección. El montaje público
+  // arrancado por el boot se cancela al entrar a admin, así que nunca marca la vista.
+  // Se marca también si el render falló: el error ya se muestra y el splash no tapa la app.
+  window.markBootStep?.('viewMounted');
 }
 async function _renderAdminPage(page){
   switch(page){
