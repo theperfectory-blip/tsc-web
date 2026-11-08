@@ -65,12 +65,14 @@ async function main() {
   assert(codigoRaro === 0, `el codigo de la O nunca es 1 ni >=13 (${codigoRaro})`);
   assert(bandaTres === 0, `la banda nunca vale 3 (${bandaTres})`);
 
-  // ---------- 2) Stranzl (registro 2), verificado en el juego el 20/09 ----------
-  const idS = E.buscarJugadorPorNombre(plano, 'Stranzl');
-  assert(idS === 2, `Stranzl es el registro 2 (${idS})`);
-  const ms = E.posicionesMarcadas(plano, 2);
-  assert(ms.length === 4 && ['Central', 'Carrilero', 'Lateral', 'Volante'].every(x => ms.includes(x)), 'Stranzl: marcadas = Central, Carrilero, Lateral, Volante');
-  assert(E.posicionRegistrada(plano, 2) === 'Carrilero', 'Stranzl: O en Carrilero');
+  // ---------- 2) jugador de prueba armado en memoria (registro 2) ----------
+  // No se asume lo que tiene el save: la copia recibe las posiciones que el test necesita.
+  const ID = 2;
+  const S = ['Central', 'Carrilero', 'Lateral', 'Volante'];
+  const preparar = (c) => { E.escribirJugadorCompleto(c, ID, { posiciones: S, posicionRegistrada: 'Carrilero' }); return c; };
+  { const c = preparar(copiar());
+    assert(E.posicionesMarcadas(c, ID).sort().join() === S.slice().sort().join(), 'jugador de prueba: marcadas = Central, Carrilero, Lateral, Volante');
+    assert(E.posicionRegistrada(c, ID) === 'Carrilero', 'jugador de prueba: O en Carrilero'); }
 
   // ---------- 3) las 6 combinaciones pie x banda, en copias ----------
   // crudo esperado: mismo lado que el pie = 0, lado contrario = 1, ambas = 2
@@ -101,54 +103,57 @@ async function main() {
   assert(/banda/.test(lanza(() => E.escribirJugadorCompleto(copiar(), 2, { banda: 'ambos' })) || ''), 'banda invalida lanza error');
 
   // ---------- 4) posiciones y O, en copias ----------
-  // Se usa Vastic (12 marcadas) y Stranzl (4 marcadas). La O actual de Vastic la movio el usuario: no se asierta.
-  const idV = E.buscarJugadorPorNombre(plano, 'Vastic');
-  assert(E.posicionesMarcadas(plano, idV).length === 12, 'Vastic tiene las 12 posiciones marcadas');
+  // Jugador de prueba en memoria: 12 posiciones marcadas (ver arriba). No depende del contenido del save.
+  const idV = ID;
+  const base = copiar(); E.escribirJugadorCompleto(base, idV, { posiciones: TODAS });
+  assert(E.posicionesMarcadas(base, idV).length === 12, 'jugador de prueba en memoria: 12 posiciones marcadas');
 
-  // mover la O por las 12 posiciones de Vastic: codigo exacto y solo cambian los bits 428-431
+  // mover la O por las 12 posiciones del jugador de prueba: codigo exacto y solo cambian los bits 428-431
   for (const nombre of TODAS) {
-    const c = copiar();
+    const c = Uint8Array.from(base);
     E.escribirJugadorCompleto(c, idV, { posicionRegistrada: nombre });
-    assert(E.posicionRegistrada(c, idV) === nombre, `Vastic: O -> ${nombre}`);
-    assert(campo(c, idV, 428, 4) === CODIGOS[nombre], `Vastic: O -> ${nombre}, codigo ${CODIGOS[nombre]}`);
+    assert(E.posicionRegistrada(c, idV) === nombre, `jugador de prueba: O -> ${nombre}`);
+    assert(campo(c, idV, 428, 4) === CODIGOS[nombre], `jugador de prueba: O -> ${nombre}, codigo ${CODIGOS[nombre]}`);
     let difMalos = 0;
-    for (let x = 0; x < STRIDE * 8; x++) if (bit(c, idV, x) !== bit(plano, idV, x) && !(x >= 428 && x <= 431) && !(x >= 0x32 * 8 && x < 0x33 * 8)) difMalos++;
+    for (let x = 0; x < STRIDE * 8; x++) if (bit(c, idV, x) !== bit(base, idV, x) && !(x >= 428 && x <= 431) && !(x >= 0x32 * 8 && x < 0x33 * 8)) difMalos++;
     assert(difMalos === 0, `Vastic: O -> ${nombre}, no cambia ningun otro bit (salvo el contador)`);
   }
 
-  const idFuera = 2; // Stranzl, marcadas: Central, Carrilero, Lateral, Volante
+  const idFuera = ID;
+  const copiarFuera = () => preparar(copiar());
+  const baseFuera = copiarFuera(); // en memoria: Central, Carrilero, Lateral, Volante (O en Carrilero)
   // O a una posicion NO marcada: error (regla del juego, confirmada el 20/09)
-  assert(!!lanza(() => E.escribirJugadorCompleto(copiar(), idFuera, { posicionRegistrada: 'Portero' })), 'mover la O a una posicion sin estrella lanza error');
+  assert(!!lanza(() => E.escribirJugadorCompleto(copiarFuera(), idFuera, { posicionRegistrada: 'Portero' })), 'mover la O a una posicion sin estrella lanza error');
   // conjunto vacio, nombre invalido, O fuera del conjunto final
-  assert(!!lanza(() => E.escribirJugadorCompleto(copiar(), idFuera, { posiciones: [] })), 'posiciones vacio lanza error');
-  assert(!!lanza(() => E.escribirJugadorCompleto(copiar(), idFuera, { posiciones: ['Central', 'Inventada'] })), 'posicion inexistente lanza error');
-  assert(!!lanza(() => E.escribirJugadorCompleto(copiar(), idFuera, { posiciones: ['Central', 'Lateral'], posicionRegistrada: 'Volante' })), 'O fuera del conjunto final lanza error');
+  assert(!!lanza(() => E.escribirJugadorCompleto(copiarFuera(), idFuera, { posiciones: [] })), 'posiciones vacio lanza error');
+  assert(!!lanza(() => E.escribirJugadorCompleto(copiarFuera(), idFuera, { posiciones: ['Central', 'Inventada'] })), 'posicion inexistente lanza error');
+  assert(!!lanza(() => E.escribirJugadorCompleto(copiarFuera(), idFuera, { posiciones: ['Central', 'Lateral'], posicionRegistrada: 'Volante' })), 'O fuera del conjunto final lanza error');
   // quitar la registrada sin dar nueva O: error
-  assert(!!lanza(() => E.escribirJugadorCompleto(copiar(), idFuera, { posiciones: ['Central', 'Lateral', 'Volante'] })), 'quitar la posicion registrada sin nueva O lanza error');
+  assert(!!lanza(() => E.escribirJugadorCompleto(copiarFuera(), idFuera, { posiciones: ['Central', 'Lateral', 'Volante'] })), 'quitar la posicion registrada sin nueva O lanza error');
   // quitarla dando nueva O: ok
-  { const c = copiar();
+  { const c = copiarFuera();
     const esc = E.escribirJugadorCompleto(c, idFuera, { posiciones: ['Central', 'Lateral', 'Volante'], posicionRegistrada: 'Lateral' });
     assert(E.posicionesMarcadas(c, idFuera).sort().join() === ['Central', 'Lateral', 'Volante'].sort().join(), 'quitar Carrilero dando nueva O: marcadas correctas');
     assert(E.posicionRegistrada(c, idFuera) === 'Lateral' && campo(c, idFuera, 428, 4) === 6, 'quitar Carrilero dando nueva O: O = Lateral (codigo 6)');
     assert(esc.filter(x => x === 'posiciones').length === 1, `"posiciones" se registra una sola vez (${esc.join(',')})`); }
   // agregar una posicion sin tocar la O
-  { const c = copiar();
+  { const c = copiarFuera();
     E.escribirJugadorCompleto(c, idFuera, { posiciones: ['Central', 'Carrilero', 'Lateral', 'Volante', 'Portero'] });
     assert(E.posicionesMarcadas(c, idFuera).includes('Portero') && E.posicionRegistrada(c, idFuera) === 'Carrilero', 'agregar Portero: queda marcada y la O sigue en Carrilero');
     // ahora la O se puede mover a la recien marcada
     E.escribirJugadorCompleto(c, idFuera, { posicionRegistrada: 'Portero' });
     assert(E.posicionRegistrada(c, idFuera) === 'Portero' && campo(c, idFuera, 428, 4) === 0, 'la O puede ir a una posicion recien marcada (Portero, codigo 0)'); }
   // dejar las 12
-  { const c = copiar();
+  { const c = copiarFuera();
     E.escribirJugadorCompleto(c, idFuera, { posiciones: TODAS });
     assert(E.posicionesMarcadas(c, idFuera).length === 12, 'dejar las 12 posiciones marcadas funciona'); }
   // el bit 427 y todo lo ajeno al registro quedan intactos tras una escritura grande
-  { const c = copiar();
+  { const c = copiarFuera();
     E.escribirJugadorCompleto(c, idFuera, { posiciones: TODAS, posicionRegistrada: 'Portero', pieDominante: 'izq', banda: 'ambas' });
-    assert(bit(c, idFuera, 427) === bit(plano, idFuera, 427), 'el bit 427 no cambia');
+    assert(bit(c, idFuera, 427) === bit(baseFuera, idFuera, 427), 'el bit 427 no cambia');
     let fuera = 0;
     const ini = BASE + idFuera * STRIDE, fin = ini + STRIDE;
-    for (let i = 0; i < c.length; i++) if ((i < ini || i >= fin) && c[i] !== plano[i]) fuera++;
+    for (let i = 0; i < c.length; i++) if ((i < ini || i >= fin) && c[i] !== baseFuera[i]) fuera++;
     assert(fuera === 0, `ningun byte fuera del registro cambia (${fuera})`);
     // dentro del registro: solo bit 416 (pie), 428-431, 446..541 zona posiciones, 542-543 y el contador
     const permitido = x => x === 416 || (x >= 428 && x <= 431) || x === 542 || x === 543 || (x >= 0x32 * 8 && x < 0x33 * 8) ||
@@ -157,7 +162,7 @@ async function main() {
     const mapa = JSON.parse(fs.readFileSync(path.join(PES5_JSON_DIR, 'pes5-map.json'), 'utf8'));
     const bitsPosiciones = new Set(Object.entries(mapa.posiciones).filter(([k]) => !k.startsWith('_')).map(([, v]) => v.bit));
     let raros = 0;
-    for (let x = 0; x < STRIDE * 8; x++) if (bit(c, idFuera, x) !== bit(plano, idFuera, x) && !permitido(x) && !bitsPosiciones.has(x)) raros++;
+    for (let x = 0; x < STRIDE * 8; x++) if (bit(c, idFuera, x) !== bit(baseFuera, idFuera, x) && !permitido(x) && !bitsPosiciones.has(x)) raros++;
     assert(raros === 0, `dentro del registro solo cambian pie, O, banda, posiciones y contador (${raros} bits ajenos)`);
   }
 

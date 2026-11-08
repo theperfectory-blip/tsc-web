@@ -47,13 +47,20 @@ async function main() {
   console.log('Save real (SOLO LECTURA): ' + SAVE_REAL);
   const bytes = descifrar(fs.readFileSync(SAVE_REAL));
 
-  // ---------- 1) buscar Bolton y leer plantilla ----------
-  const iBolton = PES5_EDITOR.buscarEquipoPorNombre(bytes, 'Bolton Wanderers');
-  assert(iBolton >= 0, `Bolton Wanderers encontrado (indice ${iBolton})`);
+  // ---------- 1) invariantes sobre TODAS las plantillas del save ----------
+  // No se exige contenido fijo (el usuario edita el save): solo reglas que valen siempre.
+  const N_CLUBES = 138;
+  const plantillas = [];
+  for (let i = 0; i < N_CLUBES; i++) plantillas.push(P.plantillaParaEditor(PES5_EDITOR, bytes, i));
+  const conJugadores = plantillas.map((p, i) => [i, p]).filter(([, p]) => p.length > 0);
+  assert(conJugadores.length > 0, `hay clubes con plantilla (${conJugadores.length} de ${N_CLUBES})`);
+  assert(plantillas.every(p => p.length <= 32), 'ninguna plantilla pasa de 32 jugadores');
 
-  if (iBolton >= 0) {
-    const pl = P.plantillaParaEditor(PES5_EDITOR, bytes, iBolton);
-    assert(pl.length === 17, `plantilla de Bolton tiene 17 jugadores (obtenido: ${pl.length})`);
+  // Referencia para el resto: el primer club con jugadores (no depende de un club en particular).
+  const plRef = conJugadores.length ? conJugadores[0][1] : [];
+  if (plRef.length > 0) {
+    const pl = plRef;
+    assert(pl.length >= 1 && pl.length <= 32, `la plantilla de referencia tiene entre 1 y 32 jugadores (${pl.length})`);
 
     // ---------- 2) validar estructura de cada jugador ----------
     let estructuraOk = true;
@@ -79,9 +86,9 @@ async function main() {
   assert(P.registroDeId('r999') === 999, `registroDeId('r999') === 999`);
   assert(P.registroDeId('x1') === null, `registroDeId('x1') === null`);
 
-  // ---------- 5) cambiosDesdeEditor — un jugador de Bolton ----------
-  if (iBolton >= 0) {
-    const pl = P.plantillaParaEditor(PES5_EDITOR, bytes, iBolton);
+  // ---------- 5) cambiosDesdeEditor — un jugador de la plantilla de referencia ----------
+  if (plRef.length > 0) {
+    const pl = plRef;
     if (pl.length > 0) {
       const o = pl[0];
       const d = JSON.parse(JSON.stringify(o));
@@ -100,8 +107,8 @@ async function main() {
   }
 
   // ---------- 6) cambiosDesdeEditor — objeto igual a si mismo no produce cambios ----------
-  if (iBolton >= 0) {
-    const pl = P.plantillaParaEditor(PES5_EDITOR, bytes, iBolton);
+  if (plRef.length > 0) {
+    const pl = plRef;
     if (pl.length > 0) {
       const o = pl[0];
       const c = P.cambiosDesdeEditor(o, JSON.parse(JSON.stringify(o)));
@@ -110,8 +117,8 @@ async function main() {
   }
 
   // ---------- 7) round-trip con escribirJugadorCompleto ----------
-  if (iBolton >= 0) {
-    const pl = P.plantillaParaEditor(PES5_EDITOR, bytes, iBolton);
+  if (plRef.length > 0) {
+    const pl = plRef;
     if (pl.length > 0) {
       const o = pl[0];
       const d = JSON.parse(JSON.stringify(o));
@@ -128,8 +135,8 @@ async function main() {
   }
 
   // ---------- 8) aplicarCambiosAlJugador — casos Slice Q2 ----------
-  if (iBolton >= 0) {
-    const pl = P.plantillaParaEditor(PES5_EDITOR, bytes, iBolton);
+  if (plRef.length > 0) {
+    const pl = plRef;
     if (pl.length > 0) {
       const o = pl[0];
 
