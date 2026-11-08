@@ -388,7 +388,7 @@ function renderStatusBar(){
     el.innerHTML = `
       <div class="pt-statusbar">
         <div class="pt-status-item"><span class="pt-dot off"></span> Sin carpeta elegida — sugerido: <code>Documents\\KONAMI\\Pro Evolution Soccer 5\\save\\folder1</code></div>
-        <div class="pt-status-item" style="font-size:12px;">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abrí esto en <b>Chrome o Edge</b>.</div>
+        <div class="pt-status-item pt-status-note">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abrí esto en <b>Chrome o Edge</b>.</div>
         <div class="pt-status-actions">
           <button class="btn btn-sm btn-primary" data-onclick="ptElegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
         </div>
