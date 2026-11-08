@@ -162,8 +162,10 @@ async function main(){
     await op.create(`pedidos_pes5/${nuevoId('extra')}`, mejora('pres5', 5, { hack: 'x' }), AS.pres5));
   await expect('pedidos: presidente NO crea un pedido de formacion con un campo extra', 403,
     await op.create(`pedidos_pes5/${nuevoId('extra-f')}`, formacion('pres5', 5, { hack: 'x' }), AS.pres5));
-  await expect('pedidos: NO crea un pedido de mejora con mas de 40 lineas', 403,
-    await op.create(`pedidos_pes5/${nuevoId('lines')}`, mejora('pres5', 5, { lines: Array.from({ length: 41 }, (_, i) => ({ label: 'l' + i })) }), AS.pres5));
+  await expect('pedidos: crea un pedido de mejora de 60 lineas (mejoras con muchas posiciones y habilidades)', 200,
+    await op.create(`pedidos_pes5/${nuevoId('lines-60')}`, mejora('pres5', 5, { lines: Array.from({ length: 60 }, (_, i) => ({ label: 'l' + i })) }), AS.pres5));
+  await expect('pedidos: NO crea un pedido de mejora con mas de 150 lineas', 403,
+    await op.create(`pedidos_pes5/${nuevoId('lines-151')}`, mejora('pres5', 5, { lines: Array.from({ length: 151 }, (_, i) => ({ label: 'l' + i })) }), AS.pres5));
   await expect('pedidos: NO crea un pedido de formacion con mas de 11 slots', 403,
     await op.create(`pedidos_pes5/${nuevoId('slots')}`, formacion('pres5', 5, { formacion: { nombre: '4-4-2', slots: Array.from({ length: 12 }, (_, i) => ({ slot: i })) } }), AS.pres5));
   await expect('pedidos: NO crea un pedido con playerName de mas de 100 caracteres', 403,

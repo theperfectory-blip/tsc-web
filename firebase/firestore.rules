@@ -233,13 +233,13 @@ service cloud.firestore {
       // un admin que preside un club tambien pide).
       // Allowlist (slice 5.B): solo los campos que escribe mejoras-page.js, en dos
       // formas: pedido de mejora (sin campo tipo) o pedido de formacion (tipo 'formacion').
-      // Limites: lines <= 40, formacion.slots <= 11, strings <= 100.
+      // Limites: lines <= 150, formacion.slots <= 11, strings <= 100.
       allow create: if signedIn() && meExists()
                     && me().teamId != null
                     && request.resource.data.uid == request.auth.uid
                     && string(me().teamId) == request.resource.data.teamId
                     && request.resource.data.estado == 'pendiente'
-                    && request.resource.data.lines.size() <= 40
+                    && request.resource.data.lines.size() <= 150
                     && (request.resource.data.teamName == null || request.resource.data.teamName.size() <= 100)
                     && (request.resource.data.pes5Club == null || request.resource.data.pes5Club.size() <= 100)
                     && (
