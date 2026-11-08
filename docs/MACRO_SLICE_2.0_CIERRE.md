@@ -905,9 +905,11 @@ Estado actual que importa:
 - **Los movimientos viejos sin el campo cuentan como ya sincronizados.**
   Nunca se suman como pendientes; si no, el primer pegado restaría toda la
   historia.
-- **Neto pendiente de un equipo** = Σ(`add`) − Σ(`sub`) de sus movimientos
-  `pendiente`, solo de la temporada abierta. Es lo que Streamlabs todavía
-  no sabe.
+- **Neto pendiente de un equipo** = Σ(`sub`) − Σ(`add`) de sus movimientos
+  `pendiente`, solo de la temporada abierta: lo gastado en la web que
+  Streamlabs todavía no sabe, en positivo. Así, saldo nuevo = pegado − neto.
+  (Corregido en la auditoría: la primera versión de la spec tenía el signo
+  invertido.)
 - Función pura `netoPendiente(movimientos)` en `js/yunacoins-rules.js`, con
   test en node.
 
@@ -1000,6 +1002,20 @@ Es la mitigación del sobregiro del Plan B (§6 del macro de Streamlabs).
 - Escape explícito: casilla «Cobrar igual con saldo viejo (puede haber
   sobregiro)», que queda registrada en el log.
 - Las 12 h van como constante en `yunacoins-rules.js`.
+
+**4.F — Bono de suscriptores (decisión de Jimbo, 2026-11-08)**
+
+El bono es un **tope extra, no plata extra**. Un suscriptor gasta primero contra el bono y después contra el tope general, pero **todo se paga con los YunaCoins del equipo**: el cobro y `evaluarPago` ya hacen eso y no cambian. Por lo mismo, la parte del bono también se descuenta de Loyalty. Hay que corregir el techo que se muestra: `min(saldo, topeGeneralRestante + bonoRestante)` para un suscriptor y `min(saldo, topeGeneralRestante)` para el resto. Test: saldo 1.000, suscriptor, costo 3.000 → el pedido se rechaza por saldo y el techo es 1.000.
+
+**4.G — El Plan B se puede apagar (pedido de Jimbo, 2026-11-08)**
+
+El copiar y pegar es **solo el Plan B**. Si el Plan A (API de Streamlabs) llega a leer y escribir sin problemas, el flujo manual tiene que quedar **oculto**: no alcanza con dejarlo en gris. Así nadie lo usa en paralelo y descuenta dos veces.
+
+- El transporte se elige con el campo `transporte` en `settings/yunacoinsSync`: `'manual'` (Plan B, es el valor por defecto) o `'api'` (Plan A).
+- Lo cambia solo el admin, en la pestaña Reglas o YunaCoins de la tool, con una confirmación.
+- En la 2.0, la opción `'api'` aparece **deshabilitada**, con la nota «Disponible cuando se conecte la API de Streamlabs (2.1)». No se puede activar porque no hay implementación detrás.
+- Con `'api'` activo, en la pestaña YunaCoins se ocultan el textarea, «Preparar» y «Aplicar», y en su lugar aparece «Sincronización automática con Streamlabs». La validación de 4.D pasa a leer el saldo en vivo, cosa que hará la 2.1.
+- La lógica de 4.A–4.F no depende del transporte: el Plan A solo reemplaza de dónde sale `pegado` y cómo se aplican los ajustes. Hay que dejar ese punto de enchufe aislado en una función, por ejemplo `obtenerSaldosLoyalty()` / `aplicarAjustesLoyalty()`, con la implementación manual detrás.
 
 **4.E — Fin de temporada**
 
