@@ -13,6 +13,10 @@ Spec: `docs/MACRO_SLICE_2.0_CIERRE.md`.
 - **Slice 3d · Formación vertical en el teléfono.** Cancha de pie, sin cruz en táctil. [Reporte](docs/reportes/2.0-3d.md)
 - **Slice 4 · Núcleo YunaCoins y Plan B.** Ledger con marca de sincronizado, cobro sin sobregiro, pestaña YunaCoins para copiar y pegar con Loyalty, guardias de frescura, bono de suscriptores como tope y transporte apagable. [Reporte](docs/reportes/2.0-4.md)
 - **Slice 5 · Limpieza, reglas, versión 2.0.0 y APK.** `prototipo_yunas/` fuera de `tsc-src/`, allowlist en las colecciones nuevas, plantillas desactualizadas por equipo, `versionCode 21` / `versionName "2.0.0"`. [Reporte](docs/reportes/2.0-5.md)
+- **Slice 6 · Cierre y arreglos de la prueba con el save real.**
+  - 6.B: aviso de carpeta de la Tool en móvil.
+  - 6.G: tabla de Pedidos con estilo, botones deshabilitados visibles, contador de pedidos de Mejoras, y Publicar integrado en la pestaña Pedidos.
+  - 6.H: la Tool rechaza los pedidos armados sobre una plantilla desactualizada (antes podía deshacer una mejora ya pagada); Mejoras bloquea el envío mientras haya cambios aplicados sin publicar; «Publicar» no reescribe equipos sin cambios.
 
 ## Colecciones nuevas en Firestore
 
@@ -30,11 +34,11 @@ Las reglas se prueban con `npm run test:rules` (33 + 426 + 31 casos, en verde).
 ## Checklist de `WORKFLOW_2.0.md` §5
 
 - [x] **Editor de jugadores integrado como sección de la web**, con login, equipos y coins reales. El prototipo suelto se borró en el slice 5.
-- [ ] **Flujo completo de punta a punta en local contra datos reales.** Verificado en el sandbox: el presidente crea un pedido de mejora desde `mejoras.html` y queda `pendiente` con todos los campos permitidos. Falta la prueba con el save real de PES5: aplicar en la Tool y ver el resultado en el juego. Es el gate previo 2.
+- [x] **Flujo completo de punta a punta en local contra datos reales.** 2026-11-08, sandbox + save real de PES5 en Chrome: selector de clubes (rechaza repetidos), publicar, pedido de mejora y de formación desde `mejoras.html`, aplicar en la Tool con guardias 4.D, cobro en `teams.yunacoin`, backup automático en `backups-tsc/` y valores verificados leyendo el save escrito.
 - [x] **YunaCoins: dirección del sync decidida.** Plan B (copiar y pegar con Loyalty) implementado; Plan A por API pospuesto a 2.1.
 - [x] **Reglas de Firestore desplegadas y verificadas.** Ruleset `4bb7d57b`, `rules-drift` igual.
 - [x] **`prototipo_yunas/` limpia.** La investigación está en `docs/2.0/investigacion/` con README; los scripts en `tools/pes5/`; el HTML duplicado borrado.
-- [ ] **Probado en la APK Android (Capacitor), además del navegador.** La APK 2.0.0 está compilada y firmada; falta instalarla en el teléfono y repetir la prueba. Es el gate previo 1.
+- [x] **Probado en la APK Android (Capacitor), además del navegador.** 2026-11-08: APK 2.0.0 instalada sobre la 1.7.0 en un vivo Y28s (misma firma, sesión conservada). Arranque, Tool PES5 en modo móvil, Mejoras (plantilla, editor, formación vertical), solo navegación contra producción.
 - [x] **`versionCode`/`versionName` en 2.0.0.** `versionCode 21`, `versionName "2.0.0"` en `android/app/build.gradle`.
 - [x] **`graphify update .` corrido y `GRAPH_REPORT.md` commiteado.**
 - [x] **Merge de `main` hecho el mismo día del PR.** Al preparar este PR, `git rev-list --count feat/yunacoins-pes5..main` da 0. Se vuelve a verificar al mergear.
@@ -43,14 +47,16 @@ Las reglas se prueban con `npm run test:rules` (33 + 426 + 31 casos, en verde).
 
 - **Plan A de Streamlabs por API.** La pestaña YunaCoins deja el transporte `api` deshabilitado y oculta el flujo manual cuando está activo. Hoy no hay implementación detrás. Ver `docs/2.0/investigacion/MACRO_SLICE_STREAMLABS.md`.
 - **Slice G (nivelación).** Espera a Luis.
+- **Pedidos válidos tras una publicación nueva.** Hoy, si Luis publica cambios de un equipo, sus pedidos pendientes anteriores se rechazan y el presidente pide de nuevo. Para aceptarlos hay que guardar en cada pedido la vista del presidente, lo que requiere cambiar la regla de create.
+- **Menú admin en móvil** no se cierra al elegir una sección (comportamiento de `main`).
 
 ## Gate previo a la fusión
 
-Estas pruebas las hacen Jimbo o el supervisor antes del merge:
+1. APK 2.0.0 en el teléfono: **hecho** (ver checklist).
+2. Tool PES5 en PC con el save real: **hecho** (ver checklist).
+3. Plan B (copiar y pegar con Loyalty) con `@TheRationalUser`: **pendiente, se hace en producción después del merge** (decisión de Jimbo, 2026-11-08). Hasta entonces no se usa el Plan B con cuentas de presidentes.
 
-1. APK 2.0.0 en el teléfono (`adb install -r`): arranque y splash, Mejoras (plantilla, editor, formación vertical), Tool PES5 en modo móvil (pedidos, rechazo, YunaCoins). La APK lee producción: solo navegación; escrituras únicamente con Jimbo presente.
-2. Tool PES5 en PC con el save real: aplicar un pedido de mejora y uno de formación; guardias 4.D; selector de clubes.
-3. Plan B con una cuenta de prueba (nunca la de un presidente).
+Decisión de producto: la Tool cobra pedidos aunque no haya temporada activa (Jimbo, 2026-11-08).
 
 ## Riesgos y cómo verificar en producción después del merge
 
