@@ -16,8 +16,8 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 3c | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **cerrado** (`docs/reportes/2.0-3c.md`) |
 | 3d | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | **cerrado** (`docs/reportes/2.0-3d.md`, probado en teléfono real) |
 | 4 | Núcleo YunaCoins (sobregiro, ledger, marca de sincronizado) + Plan B copiar/pegar | **cerrado** (`docs/reportes/2.0-4.md`) |
-| **5** | Limpieza de `prototipo_yunas/`, reglas cerradas y desplegadas, versión 2.0.0 y APK | **spec abajo** |
-| 6 | PR | pendiente |
+| 5 | Limpieza de `prototipo_yunas/`, reglas cerradas y desplegadas, versión 2.0.0 y APK | **cerrado** (`docs/reportes/2.0-5.md`; reglas desplegadas 2026-11-08, ruleset 4bb7d57b, drift IGUAL) |
+| **6** | PR | **spec abajo** |
 
 Fuera de la 2.0 (propuesto para 2.1): Slice G (nivelación, espera a Luis) y
 Plan A de Streamlabs por API (`docs/2.0/investigacion/MACRO_SLICE_STREAMLABS.md`).
@@ -1205,3 +1205,87 @@ Hoy el aviso de «plantillas desactualizadas» compara el `saveHash` del save co
 Commits separados (5.A, 5.B, 5.C, 5.D) y `docs/reportes/2.0-5.md`. Push
 después de la auditoría. Después: deploy de reglas (supervisor + OK de Jimbo)
 e instalación de la APK en el teléfono (supervisor).
+
+### Cierre (supervisor, 2026-11-08)
+
+- Auditoría: allowlists coinciden con los payloads de `mejoras-page.js` y
+  `pes5-bloqueo.js`. Corregido en la auditoría: `lines` ≤ 150 (40 rechazaba
+  pedidos legítimos, 69085a8) y tests de `tools/` independientes del
+  contenido editable del save (80c9496).
+- `npm test` 56/56; `test:rules` 33/33, 426/426, 31/31.
+- Antes del deploy, lo publicado era idéntico a las reglas de la rama previas
+  a 5.B y `main` no tenía nada fuera de la rama (diff sin líneas quitadas).
+  Deploy `firestore:rules` con OK de Jimbo; `rules-drift`: Firestore y
+  Storage IGUAL al repo.
+- Pendiente de 5.D: instalar la APK en el teléfono (Jimbo no está delante).
+  Pasa al gate del slice 6.
+
+---
+
+## Slice 6 — PR de la 2.0 a `main`
+
+Cierra la 2.0 según `WORKFLOW_2.0.md` §5. Partes de implementador (6.A–6.B)
+y partes del supervisor con OK explícito de Jimbo (6.C–6.F).
+
+### Gate previo (bloquea 6.C)
+
+Pruebas de Jimbo / supervisor que siguen abiertas:
+
+1. APK 2.0.0 en el teléfono (`adb install -r`): arranque y splash, Mejoras
+   (plantilla, editor, formación vertical), Tool PES5 en modo móvil
+   (pedidos, rechazo, YunaCoins). La APK lee producción: solo navegación,
+   escrituras únicamente con Jimbo presente.
+2. Tool PES5 en PC con el save real: aplicar un pedido de mejora y uno de
+   formación, guardias 4.D, selector de clubes.
+3. Plan B con `@TheRationalUser` (nunca la cuenta de un presidente).
+4. Streamlabs Plan A: **pospuesto a 2.1** (decidido); el PR lo dice.
+
+### 6.A — `PR_2.0.md` (implementador)
+
+En la raíz, en español, sin emojis. Secciones:
+
+- Qué trae la 2.0 (por slice 1–5, una línea cada uno, con link al reporte).
+- Colecciones nuevas en Firestore y su regla (ya desplegadas, ruleset
+  4bb7d57b). Sin cambios en colecciones existentes.
+- Checklist de `WORKFLOW_2.0.md` §5 con cada ítem marcado o explicado.
+- Pospuesto a 2.1: Plan A Streamlabs, Slice G.
+- Riesgos y cómo verificar en producción después del merge (lista corta:
+  splash, Mejoras como presidente, Tool como admin, YunaCoins).
+- Pie: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+  (única excepción a "sin emojis": no es UI).
+
+### 6.B — Barrido final (implementador)
+
+- `git ls-files` sin `.ps2`, `*KONAMI*`, snapshots de `sandbox/`,
+  service accounts, keystores, `.env*`, APK/AAB.
+- `grep` de `prototipo_yunas` en `tsc-src/`, `scripts/` y `firebase.json`: 0.
+- `build-web`, `build-www`, `smoke-parity`, `audit-wiring`, `csp --check`,
+  `npm test` y `test:rules` en verde.
+- `graphify update .` + `graphify-label.py`, `GRAPH_REPORT.md` commiteado.
+- Commit `docs(2.0-6): PR_2.0.md y barrido final`. Push (autorizado por el
+  supervisor tras auditar).
+
+### 6.C — Merge de `main` y PR (supervisor, con OK de Jimbo)
+
+El mismo día: `git merge origin/main --no-edit` en `tsc.web-yunacoins`,
+`git rev-list --count feat/yunacoins-pes5..origin/main` = 0, push y
+`gh pr create --base main --head feat/yunacoins-pes5 --title "Web 2.0:
+editor de jugadores, PES5 y YunaCoins" --body-file PR_2.0.md`.
+
+### 6.D — Merge (Jimbo o supervisor con OK)
+
+**Merge commit**, no squash. El push a `main` dispara el deploy de hosting
+(CI arreglado, ver memoria). Verificar en `teamsubscup.web.app` que el
+bundle servido es el nuevo (hash en `index.html`) y repetir la lista de
+riesgos de `PR_2.0.md`.
+
+### 6.E — APK 2.0.0 en GitHub Releases (supervisor, con OK)
+
+Misma firma que la 1.7.0. El actualizador (`js/updater.js`) lee de ahí.
+Después del release, M-13 (archivado de la T3) sigue su propio calendario.
+
+### 6.F — Cierre del ciclo
+
+Copiar fuera del repo lo ignorado que valga (memory cards, `sandbox/`),
+`git worktree remove`, borrar la rama local y remota. Solo con OK de Jimbo.
+
