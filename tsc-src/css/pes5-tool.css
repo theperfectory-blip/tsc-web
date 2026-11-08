@@ -157,6 +157,9 @@
 #page-pes5-admin .pt-tbl-pedidos td.pt-td-accion{display:block;margin-top:4px;}
 #page-pes5-admin .pt-tbl-pedidos td.pt-td-accion::before{content:none;}
 #page-pes5-admin .pt-tbl-pedidos .pt-btn-rechazar{width:100%;min-height:44px;}
+/* Bloque Publicar plantillas dentro de Pedidos (antes su propia pestaña). */
+#page-pes5-admin .pt-pub-block{margin-top:22px;padding-top:16px;border-top:1px solid var(--brd);}
+#page-pes5-admin .pt-pub-title{font-family:'Bebas Neue';font-size:20px;letter-spacing:0.5px;margin:0 0 4px;}
 }
 
 /* 3.C — layout angosto: sin scroll horizontal a 375 px */

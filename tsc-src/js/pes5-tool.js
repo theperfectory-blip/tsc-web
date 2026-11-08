@@ -538,7 +538,6 @@ const TABS = [
   { id: 'equipos', label: 'Equipos', icon: ICN.users },
   { id: 'plantilla', label: 'Plantilla', icon: ICN.shirt },
   { id: 'pedidos', label: 'Pedidos', icon: ICN.inbox },
-  { id: 'publicar', label: 'Publicar', icon: ICN.upload },
   { id: 'yunacoins', label: 'YunaCoins', icon: ICN.refresh },
   { id: 'reglas', label: 'Reglas', icon: ICN.wallet },
 ];
@@ -556,7 +555,6 @@ function switchTab(id){
   if (id === 'equipos') renderEquiposTab();
   else if (id === 'plantilla') renderPlantillaTab();
   else if (id === 'pedidos') renderPedidosTab();
-  else if (id === 'publicar') renderPublicarTab();
   else if (id === 'yunacoins') renderYunacoinsTab();
   else if (id === 'reglas') renderReglasTab();
 }
@@ -814,7 +812,7 @@ async function _publicarEquipoTrasEscritura(team){
     return;
   }
   const ok = await publicarPlantillas([team.id]);   // libera el bloqueo si publica bien y no quedan pendientes
-  if (!ok) showToast(`No se pudo publicar la plantilla de ${team.name}. El bloqueo sigue activo: publicala desde la pestaña Publicar.`, 'error');
+  if (!ok) showToast(`No se pudo publicar la plantilla de ${team.name}. El bloqueo sigue activo: publicala desde la pestaña Pedidos.`, 'error');
 }
 
 window.addEventListener('pagehide', () => {
@@ -1223,7 +1221,7 @@ async function escribirAlSave(){
    PESTAÑA 3 · PEDIDOS
    ============================================================ */
 let PEDIDOS_PENDIENTES = [];
-async function renderPedidosTab(){
+async function renderPedidosTab(opts){
   const cont = document.getElementById('pt-tabcontent');
   cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>Cargando pedidos…</div></div>`;
   try {
@@ -1235,11 +1233,14 @@ async function renderPedidosTab(){
     return;
   }
   PEDIDOS_PENDIENTES.sort((a, b) => String(a.teamName || '').localeCompare(String(b.teamName || '')));
+  const movil = ptModo() === 'movil';
+  // Publicar vive en Pedidos (solo PC, como antes la pestaña): el aviso global «Publicar ahora» lleva acá.
+  const bloquePub = movil ? '' : _bloquePublicarHTML();
   if (!PEDIDOS_PENDIENTES.length){
-    cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>No hay pedidos pendientes.</div></div>`;
+    cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>No hay pedidos pendientes.</div></div><div class="pt-log" id="ped-log"></div>${bloquePub}`;
+    _despuesDeRenderPedidos(movil, opts);
     return;
   }
-  const movil = ptModo() === 'movil';
   const filas = PEDIDOS_PENDIENTES.map(p => {
     const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
     const esFormacion = p.tipo === 'formacion';
@@ -1281,7 +1282,19 @@ async function renderPedidosTab(){
     ${intro}
     <div class="pt-tbl-wrap"><table class="tbl pt-tbl-pedidos"><thead><tr>${cabecera}</tr></thead><tbody>${filas}</tbody></table></div>
     ${aplicar}
-    <div class="pt-log" id="ped-log"></div>`;
+    <div class="pt-log" id="ped-log"></div>
+    ${bloquePub}`;
+  _despuesDeRenderPedidos(movil, opts);
+}
+
+/* Tras pintar Pedidos: restaura el log de la ultima aplicacion (si vuelve a pintar) y
+   carga el estado de cada plantilla en el bloque Publicar (solo PC). */
+function _despuesDeRenderPedidos(movil, opts){
+  if (opts && opts.logHtml){
+    const el = document.getElementById('ped-log');
+    if (el) el.innerHTML = opts.logHtml;
+  }
+  if (!movil && PLANO) cargarEstadoPublicacion(_equiposPublicables());
 }
 
 /* 3.B — rechazo con motivo obligatorio. Modal propio de la seccion (no prompt()), igual
@@ -1530,56 +1543,44 @@ async function aplicarPedidosSeleccionados(){
   }
   GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
   showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
-  if (aplicados.some(a => !a.info.formacion)) log('Recordá publicar las plantillas para que los presidentes vean los cambios (pestaña Publicar).');
-  setTimeout(renderPedidosTab, 1500);
+  if (aplicados.some(a => !a.info.formacion)) log('Publicá para que el presidente vea los cambios.');
+  // El save cambió: los equipos tocados quedan desactualizados. El aviso y el bloque Publicar lo muestran.
+  const logHtml = logEl ? logEl.innerHTML : '';
+  setTimeout(async () => { await revisarPlantillasDesactualizadas(); renderPedidosTab({ logHtml }); }, 1500);
 }
 
 /* ============================================================
-   PESTAÑA 4 · PUBLICAR (esqueleto — slice D)
+   PUBLICAR PLANTILLAS (dentro de Pedidos, solo PC)
+   Antes era la pestaña Publicar (slice D). Mismo contenido y mismas funciones de publicacion.
    ============================================================ */
-function renderPublicarTab(){
-  const cont = document.getElementById('pt-tabcontent');
-  if (!PLANO) {
-    cont.innerHTML = `<div class="pt-empty">${ICN.upload}<div>Cargá el save para publicar plantillas.</div></div>`;
-    return;
-  }
-  const objetivo = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
+function _equiposPublicables(){
+  return EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
+}
+function _bloquePublicarHTML(){
+  const abre = '<section class="pt-pub-block"><h3 class="pt-pub-title">Publicar plantillas</h3>';
+  if (!PLANO) return `${abre}<div class="pt-empty">${ICN.upload}<div>Cargá el save para publicar plantillas.</div></div></section>`;
+  const objetivo = _equiposPublicables();
   const filas = objetivo.map(t => {
     const clubNombre = CLUBES_PES5[t.pes5ClubIdx] || '?';
     const cantJugadores = PES5_EDITOR.leerPlantillaEquipo(PLANO, t.pes5ClubIdx).length;
     return `
       <tr>
-        <td style="padding:10px;">${escHtml(t.name)}</td>
-        <td style="padding:10px;font-size:12.5px;color:var(--txt3);">${escHtml(clubNombre)}</td>
-        <td style="padding:10px;text-align:center;font-size:12.5px;">${cantJugadores}</td>
-        <td style="padding:10px;font-size:12.5px;"><span id="pub-estado-${t.id}">…</span></td>
-        <td style="padding:10px;text-align:right;"><button class="btn btn-sm" data-onclick="ptPublicarPlantillaDeEquipo(${t.id})">${ICN.upload} Publicar</button></td>
-      </tr>
-    `;
+        <td>${escHtml(t.name)}</td>
+        <td style="font-size:12.5px;color:var(--txt3);">${escHtml(clubNombre)}</td>
+        <td style="text-align:center;font-size:12.5px;">${cantJugadores}</td>
+        <td style="font-size:12.5px;"><span id="pub-estado-${t.id}">…</span></td>
+        <td style="text-align:right;"><button class="btn btn-sm" data-onclick="ptPublicarPlantillaDeEquipo(${t.id})">${ICN.upload} Publicar</button></td>
+      </tr>`;
   }).join('');
-  cont.innerHTML = `
-    <div style="max-width:900px;">
-      <h2 class="pt-h1">Publicar plantillas</h2>
+  return `${abre}
       <div class="pt-sub">Copia la plantilla actual del save a la web para que cada presidente la vea en su editor.</div>
       <button class="btn btn-primary btn-sm" id="btn-publicar-todos" data-onclick="ptPublicarPlantillas()">${ICN.upload} Publicar todos (${objetivo.length})</button>
-      <table style="width:100%;margin-top:14px;border-collapse:collapse;font-size:13px;">
-        <thead>
-          <tr style="border-bottom:1px solid var(--brd);color:var(--txt3);">
-            <th style="padding:8px;text-align:left;font-weight:600;">Equipo TSC</th>
-            <th style="padding:8px;text-align:left;font-weight:600;">Club PES5</th>
-            <th style="padding:8px;text-align:center;font-weight:600;">Jugadores</th>
-            <th style="padding:8px;text-align:left;font-weight:600;">Última publicación</th>
-            <th style="padding:8px;"></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filas}
-        </tbody>
-      </table>
+      <div class="pt-tbl-wrap"><table class="tbl pt-tbl-publicar">
+        <thead><tr><th>Equipo TSC</th><th>Club PES5</th><th style="text-align:center;">Jugadores</th><th>Última publicación</th><th></th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table></div>
       <div class="pt-log" id="pub-log"></div>
-    </div>
-  `;
-  cargarEstadoPublicacion(objetivo);
+    </section>`;
 }
 
 async function _hashPlano(){
