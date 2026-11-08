@@ -991,7 +991,7 @@ function renderCard(){
       <div class="ep-ficha-top">
         <div class="ep-posbig ep-line-${linea}">${escHtml(CODIGO_POS[posRegistrada] || posRegistrada)}</div>
         <div class="ep-ficha-txt">
-          <div class="ep-name">${escHtml(p.name)}</div>
+          <div class="ep-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</div>
           <div class="ep-tag">${p.dorsal && p.dorsal !== '?' ? '#' + escHtml(p.dorsal) + ' · ' : ''}${escHtml(posLabel)} · ${escHtml(p.country)}</div>
         </div>
       </div>
