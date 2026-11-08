@@ -457,7 +457,7 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-res-item{height:32px;padding:0 10px;border-radius:8px;background:var(--card);display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:13px;color:var(--txt);}
 .ep-root .ep-res-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
 .ep-root .ep-res-item b{font-family:'Bebas Neue';font-weight:400;font-size:19px;line-height:1;flex:none;}
-.ep-root .ep-chips{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;max-height:60px;overflow:hidden;}
+.ep-root .ep-chips{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;max-height:60px;overflow:clip;}
 .ep-root .ep-chip{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--card3);border:1px solid var(--brd2);color:var(--txt);white-space:nowrap;}
 .ep-root .ep-chip.nat{background:var(--gold-l);border-color:var(--gold-b);color:var(--gold);}
 .ep-root .ep-chip-mas{color:var(--txt3);}
