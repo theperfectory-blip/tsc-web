@@ -1005,6 +1005,16 @@ Es la mitigación del sobregiro del Plan B (§6 del macro de Streamlabs).
 
 El bono es un **tope extra, no plata extra**. Un suscriptor gasta primero contra el bono y después contra el tope general, pero **todo se paga con los YunaCoins del equipo**: el cobro y `evaluarPago` ya hacen eso y no cambian. Por lo mismo, la parte del bono también se descuenta de Loyalty. Hay que corregir el techo que se muestra: `min(saldo, topeGeneralRestante + bonoRestante)` para un suscriptor y `min(saldo, topeGeneralRestante)` para el resto. Test: saldo 1.000, suscriptor, costo 3.000 → el pedido se rechaza por saldo y el techo es 1.000.
 
+**4.G — El Plan B se puede apagar (pedido de Jimbo, 2026-11-08)**
+
+El copiar y pegar es **solo el Plan B**. Si el Plan A (API de Streamlabs) llega a leer y escribir sin problemas, el flujo manual tiene que quedar **oculto**: no alcanza con dejarlo en gris. Así nadie lo usa en paralelo y descuenta dos veces.
+
+- El transporte se elige con el campo `transporte` en `settings/yunacoinsSync`: `'manual'` (Plan B, es el valor por defecto) o `'api'` (Plan A).
+- Lo cambia solo el admin, en la pestaña Reglas o YunaCoins de la tool, con una confirmación.
+- En la 2.0, la opción `'api'` aparece **deshabilitada**, con la nota «Disponible cuando se conecte la API de Streamlabs (2.1)». No se puede activar porque no hay implementación detrás.
+- Con `'api'` activo, en la pestaña YunaCoins se ocultan el textarea, «Preparar» y «Aplicar», y en su lugar aparece «Sincronización automática con Streamlabs». La validación de 4.D pasa a leer el saldo en vivo, cosa que hará la 2.1.
+- La lógica de 4.A–4.F no depende del transporte: el Plan A solo reemplaza de dónde sale `pegado` y cómo se aplican los ajustes. Hay que dejar ese punto de enchufe aislado en una función, por ejemplo `obtenerSaldosLoyalty()` / `aplicarAjustesLoyalty()`, con la implementación manual detrás.
+
 **4.E — Fin de temporada**
 
 `coins` se archiva por temporada (D8). Antes de **finalizar** una temporada
