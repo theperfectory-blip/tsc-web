@@ -183,15 +183,20 @@ function _resumenLineas(lineas){
 // resultado de repartoPendienteEquipo(). Se llama SOLO despues de que el
 // save ya se escribio con exito (macro-slice D.R, punto 3).
 async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'){
+  // 4.B: sin sobregiro silencioso. Si el saldo no alcanza para el reparto completo,
+  // se lanza ANTES de escribir nada de este equipo (el pedido queda pendiente).
+  const totalCobro = Object.values(reparto.porJugador).reduce((s, i) => s + (i && i.total > 0 ? i.total : 0), 0);
+  YUNACOINS_RULES.cobroSinSobregiro(team.yunacoin || 0, totalCobro);
   let current = team.yunacoin || 0;
   for (const id of Object.keys(reparto.porJugador)){
     const info = reparto.porJugador[id];
     if (!info || info.total <= 0) continue;
-    const newTotal = Math.max(0, current - info.total);
+    const newTotal = current - info.total;
     await dbAdd('coins', {
       teamId: team.id, teamName: team.name, mode: 'sub', amount: info.total,
       reason, note: _resumenLineas(info.lineas),
       before: current, after: newTotal, season: STATE.season, date: new Date().toISOString(),
+      streamlabs: YUNACOINS_RULES.marcaStreamlabsInicial(team),
       pes5: {
         playerId: info.playerId, playerName: info.playerName, subscriber: info.subscriber,
         fromGeneral: info.fromGeneral, fromSub: info.fromSub, lineas: info.lineas,

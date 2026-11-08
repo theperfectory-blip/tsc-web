@@ -192,7 +192,7 @@ function saveCoinsTransaction(teamId, mode){
     }
     const newTotal = mode==='add' ? current+amount : current-amount;
     await dbWriteBatch([
-      {type:'add', store:'coins', data:{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:STATE.season,date:new Date().toISOString()}},
+      {type:'add', store:'coins', data:{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:STATE.season,date:new Date().toISOString(),streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}},
       {type:'set', store:'teams', data:{...team,yunacoin:newTotal}},
     ]);
     showToast(`${mode==='add'?'+':'-'}${amount.toLocaleString('es-CL')} coins a ${team.name}`);
@@ -303,7 +303,7 @@ function saveBulkCoins(){
       const ops = [];
       for(const {team,cur,delta} of plan){
         const nxt = mode==='add' ? cur+delta : cur-delta;
-        ops.push({type:'add', store:'coins', data:{teamId:team.id,teamName:team.name,mode,amount:delta,reason,note:'Masivo',before:cur,after:nxt,season:STATE.season,date}});
+        ops.push({type:'add', store:'coins', data:{teamId:team.id,teamName:team.name,mode,amount:delta,reason,note:'Masivo',before:cur,after:nxt,season:STATE.season,date,streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}});
         ops.push({type:'set', store:'teams', data:{...team,yunacoin:nxt}});
       }
       await dbWriteBatch(ops);
