@@ -14,7 +14,7 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 3 | Tool en dos modos: móvil/APK (pedidos, rechazo, reglas, YunaCoins) y PC (save) | **cerrado** (`docs/reportes/2.0-3.md`) |
 | **3b** | Splash colgado al recargar en una sección admin | **spec abajo** |
 | **3c** | Rediseño visual de `mejoras.html` (presidente), teléfono primero | **spec abajo** |
-| 3d | Formación vertical en el teléfono (cancha de pie) | pendiente, después de 3c |
+| 3d | Formación vertical en el teléfono (cancha de pie, sin cruz en táctil; debajo, ficha básica y resumen Mejores/Peores/Habilidades/Posiciones solo si el alto alcanza; propuesta, pantalla 4) | pendiente, después de 3c |
 | 4 | Núcleo YunaCoins (sobregiro, ledger, marca `synced`) + Plan B copiar/pegar | pendiente |
 | 5 | Limpieza de `prototipo_yunas/`, versión 2.0.0, reglas desplegadas | pendiente |
 | 6 | PR | pendiente |
