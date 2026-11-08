@@ -10,7 +10,7 @@
    ============================================================ */
 // window.PES5_ADMIN (no const): nav.js lo llama como window.PES5_ADMIN?.entrar()
 window.PES5_ADMIN = (() => {
-  const CSS = ['css/pes5-tool.css', 'css/mejoras-editor.css'];
+  const CSS = ['css/pes5-tool.css', 'css/mejoras-editor.css', 'css/pes5-yunacoins.css'];
   const JS = [
     'js/pes5-crypt.js',
     'js/pes5-editor.js',
@@ -18,6 +18,7 @@ window.PES5_ADMIN = (() => {
     'js/yunacoins-rules.js',
     'js/pes5-plantilla.js',
     'js/pes5-bloqueo.js',
+    'js/pes5-yunacoins.js',   // pestana YunaCoins (slice 2.0-4), antes de pes5-tool.js
     'js/mejoras-page.js',   // editor de mejoras (MEJORAS_EDITOR), se monta en el modal del jugador
     'js/pes5-tool.js',
   ];

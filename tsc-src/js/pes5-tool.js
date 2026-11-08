@@ -251,7 +251,7 @@ function _alCambiarAuth(){
    cambia el layout (CSS). Se fija una vez por montaje. */
 function ptModo(){ return _modo; }
 // Pestañas de cada modo. Slice 4 suma YunaCoins a los dos modos.
-const TABS_MOVIL = ['pedidos', 'reglas'];
+const TABS_MOVIL = ['pedidos', 'yunacoins', 'reglas'];
 function tabsDelModo(){
   return _modo === 'movil' ? TABS.filter(t => TABS_MOVIL.includes(t.id)) : TABS;
 }
@@ -499,6 +499,7 @@ const TABS = [
   { id: 'plantilla', label: 'Plantilla', icon: ICN.shirt },
   { id: 'pedidos', label: 'Pedidos', icon: ICN.inbox },
   { id: 'publicar', label: 'Publicar', icon: ICN.upload },
+  { id: 'yunacoins', label: 'YunaCoins', icon: ICN.refresh },
   { id: 'reglas', label: 'Reglas', icon: ICN.wallet },
 ];
 function renderTabs(){
@@ -516,6 +517,7 @@ function switchTab(id){
   else if (id === 'plantilla') renderPlantillaTab();
   else if (id === 'pedidos') renderPedidosTab();
   else if (id === 'publicar') renderPublicarTab();
+  else if (id === 'yunacoins') renderYunacoinsTab();
   else if (id === 'reglas') renderReglasTab();
 }
 
@@ -1090,6 +1092,10 @@ async function escribirAlSave(){
   const equipoCobro = equipoTSCActual();
   const debeCobrar = !!(equipoCobro && tienePresidente(equipoCobro));
   const repartoCobro = debeCobrar ? repartoPendienteEquipo() : null;
+  // Slice 2.0-4 (4.D): con cobro, la lista de Loyalty tiene que ser reciente (12 h)
+  if (debeCobrar && repartoCobro && repartoCobro.totalCosto > 0 && window.PES5_YUNACOINS){
+    if (!(await window.PES5_YUNACOINS.guardiaCobro(log))){ log('Escritura cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
+  }
   async function _aplicarCobroSiCorresponde(){
     if (!debeCobrar || !repartoCobro || repartoCobro.totalCosto <= 0) return;
     try {
@@ -1292,6 +1298,8 @@ async function aplicarPedidosSeleccionados(){
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
+  // Slice 2.0-4 (4.D): aplicar cobra; con la lista de Loyalty vencida se pide confirmacion explicita
+  if (window.PES5_YUNACOINS && !(await window.PES5_YUNACOINS.guardiaCobro(log))){ log('Aplicacion cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
 
   // 1) evaluar y aplicar sobre una copia, equipo por equipo
@@ -1572,6 +1580,10 @@ async function publicarPlantillas(ids){
 /* ============================================================
    PESTAÑA 5 · REGLAS (Slice R)
    ============================================================ */
+/* Slice 2.0-4 (4.C): la pestana vive en js/pes5-yunacoins.js (carga con la Tool). */
+function renderYunacoinsTab(){
+  if (window.PES5_YUNACOINS) window.PES5_YUNACOINS.render(document.getElementById('pt-tabcontent'));
+}
 function renderReglasTab(){
   const cont = document.getElementById('pt-tabcontent');
   const r = YC_RULES;

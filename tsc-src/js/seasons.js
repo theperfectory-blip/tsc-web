@@ -184,8 +184,24 @@ async function confirmFinalizeSeason(number){
     async()=>{await finalizeSeason(number);});
 }
 
+/* Slice 2.0-4 (4.E): equipos con movimientos de YunaCoins que Streamlabs todavia no sabe. */
+async function _equiposConPendientesDeTemporada(number){
+  const [teams, movs] = await Promise.all([dbGetAll('teams'), dbGetAll('coins', c => c.season === number)]);
+  const ids = YUNACOINS_RULES.equiposConPendientes(movs, number);
+  return teams.filter(t => ids.has(String(t.id))).map(t => t.name);
+}
 async function finalizeSeason(number){
   if(_seasonArchivedBlock(number)) return;
+  const pendientes = await _equiposConPendientesDeTemporada(number).catch(() => []);
+  if(pendientes.length){
+    showConfirm('Hay YunaCoins sin sincronizar',
+      `Sincronizá con Loyalty antes de cerrar la temporada. Quedan ${pendientes.length} equipo(s) con movimientos pendientes: ${pendientes.join(', ')}. ¿Finalizar igual?`,
+      () => _finalizarTemporada(number));
+    return;
+  }
+  return _finalizarTemporada(number);
+}
+async function _finalizarTemporada(number){
   try {
     const season=(await dbGetAll('seasons')).find(s=>s.number===number);
     if(!season){ showToast('Temporada no encontrada','error'); return; }
