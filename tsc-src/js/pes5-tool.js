@@ -528,13 +528,27 @@ function renderEquiposTab(){
   const cont = document.getElementById('pt-tabcontent');
   // Slice C1.2: los clubes solo existen si hay save cargado (nunca lista fija).
   const hayClubes = !!(PLANO && CLUBES_PES5.length);
-  const opciones = hayClubes
-    ? ['<option value="">— sin asignar —</option>']
-        .concat(CLUBES_PES5.map((n, i) => `<option value="${i}">${escHtml(n)}</option>`)).join('')
-    : '';
 
   // Slice C1.1: solo equipos activos (status !== 'INACTIVO'; si falta el campo, cuenta como activo).
   const equiposActivos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO');
+  // Club repetido (2.0-4): indice de club -> equipos activos que lo tienen vinculado.
+  const duenosDeClub = new Map();
+  equiposActivos.forEach(t => {
+    if (t.pes5ClubIdx == null) return;
+    if (!duenosDeClub.has(t.pes5ClubIdx)) duenosDeClub.set(t.pes5ClubIdx, []);
+    duenosDeClub.get(t.pes5ClubIdx).push(t);
+  });
+  // Opciones del selector de UN equipo: un club de OTRO equipo activo sale deshabilitado con su
+  // dueño, «Arsenal (Malvinas Jr)»; el club propio del equipo sigue elegible.
+  const opcionesDe = (t) => {
+    const valorSel = t.pes5ClubIdx != null ? String(t.pes5ClubIdx) : '';
+    return ['<option value="">— sin asignar —</option>'].concat(CLUBES_PES5.map((n, i) => {
+      const otros = (duenosDeClub.get(i) || []).filter(o => o.id !== t.id);
+      const ocupado = otros.length > 0 && String(i) !== valorSel;
+      const etiqueta = ocupado ? `${n} (${otros[0].name})` : n;
+      return `<option value="${i}"${String(i) === valorSel ? ' selected' : ''}${ocupado ? ' disabled' : ''}>${escHtml(etiqueta)}</option>`;
+    })).join('');
+  };
 
   const filas = equiposActivos.map(t => {
     const pres = PRESIDENTES_POR_TEAM[t.id];
@@ -543,11 +557,9 @@ function renderEquiposTab(){
       : '—/32';
     const cupoLleno = cupo === '32/32';
     const roto = VINCULOS_ROTOS.has(t.id);
-    const valorSel = t.pes5ClubIdx != null ? String(t.pes5ClubIdx) : '';
+    const repetido = t.pes5ClubIdx != null ? (duenosDeClub.get(t.pes5ClubIdx) || []).find(o => o.id !== t.id) : null;
     const selectorHtml = hayClubes
-      ? `<select data-onchange="ptVincularEquipo(${t.id}, this.value)">${opciones.replace(
-          `value="${valorSel}"`, `value="${valorSel}" selected`
-        )}</select>`
+      ? `<select data-onchange="ptVincularEquipo(${t.id}, this.value)">${opcionesDe(t)}</select>`
       : `<select disabled><option>Cargá el save para ver los clubes</option></select>${
           t.pes5Club ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px;">vinculado: ${escHtml(t.pes5Club)}</div>` : ''
         }`;
@@ -556,7 +568,7 @@ function renderEquiposTab(){
         <td>${t.logo ? `<img class="pt-escudo" src="${escHtml(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
         <td>${escHtml(t.name)}</td>
         <td>${pres ? escHtml(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
-        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revinculá</span>` : ''}</td>
+        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revinculá</span>` : ''}${repetido ? ` <span class="pt-badge-repetido" title="Dos equipos tienen este club: corregilo a mano">${ICN.alert} club repetido con ${escHtml(repetido.name)}</span>` : ''}</td>
         <td class="pt-cupo${cupoLleno?' full':''}">${cupo}</td>
       </tr>`;
   }).join('');
@@ -585,6 +597,17 @@ async function vincularEquipo(teamId, idxStr){
   const team = EQUIPOS_TSC.find(t => t.id === teamId);
   if (!team || !PLANO) return;
   const idx = idxStr === '' ? null : parseInt(idxStr, 10);
+  // Club repetido (2.0-4): dos pestañas o dos admins pueden vincular el mismo club a la vez. Antes de
+  // escribir se relee la base (no la cache); si otro equipo activo ya lo tiene, no se escribe.
+  if (idx != null){
+    const frescos = await dbGetAll('teams');
+    const otro = frescos.find(t => t.id !== teamId && t.status !== 'INACTIVO' && t.pes5ClubIdx != null && Number(t.pes5ClubIdx) === idx);
+    if (otro){
+      showToast(`${CLUBES_PES5[idx]} ya lo tiene ${otro.name}. Elegí otro club.`, 'error');
+      renderEquiposTab();
+      return;
+    }
+  }
   const nombreClub = idx != null ? PES5_EDITOR.nombreEquipo(PLANO, idx) : null;
   // Slice C1.3: pes5ClubIdx es la fuente del vinculo; pes5Club sigue
   // escribiendose como etiqueta informativa con el nombre vigente.

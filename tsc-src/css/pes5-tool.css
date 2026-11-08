@@ -165,3 +165,5 @@
 @media(max-width:899px){
 #page-pes5-admin .pt-side{position:static;max-height:none;overflow:visible;}
 }
+/* Club repetido (2.0-4): dos equipos activos con el mismo club PES5. */
+.pt-badge-repetido{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;color:var(--red);background:rgba(232,64,64,0.12);border:1px solid rgba(232,64,64,0.45);}
