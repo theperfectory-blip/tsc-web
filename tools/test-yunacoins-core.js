@@ -202,3 +202,35 @@ test('frescura: horas desde la sincronizacion', () => {
   assert.equal(Math.round(R.horasDesde(hace(3), T0)), 3);
   assert.equal(R.horasDesde(null, T0), null);
 });
+
+// ---------- techo de jugador (4.F) ----------
+
+test('4.F Jimbo: suscriptor con saldo 1000 y costo 3000 se rechaza por saldo y el techo es 1000', () => {
+  const pool = R.techoPresupuesto(1000, R.DEFAULT_RULES);
+  assert.equal(R.bonoSuscriptor(pool, true), 1000);             // min(1000, 50000 + 25000)
+  const reparto = R.distribuirCosto(3000, pool.subscribers, true);
+  const ev = R.evaluarPago(1000, 3000, reparto.fromGeneral, pool.general);
+  assert.equal(ev.ok, false);
+  assert.equal(ev.excedeSaldo, true);
+  assert.equal(ev.excedeTopeGeneral, false);                    // el rechazo es por saldo, no por tope
+});
+
+test('4.F techo: no suscriptor = min(saldo, general restante); suscriptor = min(saldo, general + bono restantes)', () => {
+  const pool = { saldo: 100000, general: 10000, subscribers: 5000 };
+  assert.equal(R.bonoSuscriptor(pool, false), 10000);
+  assert.equal(R.bonoSuscriptor(pool, true), 15000);
+  assert.equal(R.bonoSuscriptor({ saldo: 12000, general: 10000, subscribers: 5000 }, true), 12000);
+  assert.equal(R.bonoSuscriptor({ saldo: 8000, general: 10000, subscribers: 5000 }, false), 8000);
+  assert.equal(R.bonoSuscriptor({ saldo: 0, general: 10000, subscribers: 5000 }, true), 0);
+});
+
+test('4.F techo: sin saldo en el pool no hay tope por saldo (compatibilidad)', () => {
+  assert.equal(R.bonoSuscriptor({ general: 10000, subscribers: 5000 }, true), 15000);
+});
+
+test('4.F techo: techoPresupuesto deja el saldo real; con saldo alto manda el tope de temporada', () => {
+  const pool = R.techoPresupuesto(400000, R.DEFAULT_RULES);
+  assert.equal(pool.saldo, 400000);
+  assert.equal(R.bonoSuscriptor(pool, true), 75000);            // general 50000 + bono 25000
+  assert.equal(R.bonoSuscriptor(pool, false), 50000);
+});

@@ -40,6 +40,16 @@
      - `puedePagar` real = saldo real >= total Y los topes de temporada no
        se exceden (general para todos, bono solo para suscriptores) — ver
        `evaluarPago`.
+     - 4.F (techo de suscriptor, decision de Jimbo): el TECHO de un jugador
+       nunca supera el saldo real del equipo.
+         suscriptor:    techo = min(saldo, topeGeneralRestante + bonoRestante)
+         no suscriptor: techo = min(saldo, topeGeneralRestante)
+       Lo calcula `bonoSuscriptor(pool, esSuscriptor)` con pool = {saldo,
+       general, subscribers}. `saldo` es `teams.yunacoin` (en el editor del
+       presidente, menos lo reservado en pedidos pendientes). El COBRO NO
+       cambia: todo se paga con los YunaCoins del equipo (`evaluarPago` exige
+       saldo >= total) y el neto pendiente usa el `amount` completo del
+       movimiento, bono incluido (`netoPendiente`).
    ============================================================ */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -139,6 +149,7 @@
      puede llegar a gastar en total, sin importar el orden) — no cambia con
      la inversion de orden, que solo afecta COMO se reparte un costo ya
      calculado entre bono y general (`distribuirCosto`, mas abajo).
+     4.F: el techo nunca supera el saldo real (`bonoSuscriptor` lo aplica; ver cabecera).
 
      Los topes de TEMPORADA (`budgetGeneral`/`budgetSubscribers`) no se
      guardan en `teams`: se derivan del libro `coins` filtrando `season`
@@ -149,16 +160,23 @@
      ============================================================ */
   function techoPresupuesto(walletReal, rules) {
     const r = rules || DEFAULT_RULES;
+    const saldo = Math.max(0, walletReal || 0);
     return {
-      general: Math.min(walletReal || 0, r.budgetGeneral),
+      saldo: saldo,
+      general: Math.min(saldo, r.budgetGeneral),
       subscribers: r.budgetSubscribers,
     };
   }
+  /* 4.F: TECHO de gasto de UN jugador, nunca mayor que el saldo real del equipo.
+     pool = {saldo, general, subscribers} (general y subscribers son lo que queda
+     de cada tope de temporada). Sin `saldo` en el pool no hay tope por saldo. */
   function bonoSuscriptor(pool, esSuscriptor) {
     if (!pool) return 0;
     const general = pool.general || 0;
     const subscribers = pool.subscribers || 0;
-    return esSuscriptor ? general + subscribers : general;
+    const techo = esSuscriptor ? general + subscribers : general;
+    if (pool.saldo == null) return techo;
+    return Math.min(Math.max(0, pool.saldo), techo);
   }
 
   /* ============================================================

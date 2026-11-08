@@ -850,13 +850,16 @@ function pendingCost(){
   ALL_ABILITY_KEYS.forEach(k=>{ if(d.abilities[k] && !p.abilities[k]) total += RULES.abilityCost; });
   return total;
 }
-/* techo de gasto del jugador: los suscriptores suman el bono exclusivo una vez
-   agotado el presupuesto general; el resto del plantel solo ve el general.
-   Slice D.R: misma formula, ahora vive en YUNACOINS_RULES.bonoSuscriptor
-   (ver comentario "PUNTO ABIERTO" en yunacoins-rules.js). */
+/* techo de gasto del jugador (4.F): los suscriptores suman el bono exclusivo al tope general;
+   el resto del plantel solo ve el general. Los dos quedan acotados por el saldo real del equipo.
+   Formula en YUNACOINS_RULES.bonoSuscriptor (ver cabecera de yunacoins-rules.js). APP.saldo ya
+   descuenta lo reservado en pedidos pendientes. La edicion libre de la tool (equipo sin cobro)
+   no tiene saldo que limite. */
 function remainingForPlayer(p){
   if(!p) return 0;
-  return YUNACOINS_RULES.bonoSuscriptor(APP.budget, !!p.subscriber);
+  const cobra = !(EQUIPO_TSC && EQUIPO_TSC.cobra === false);
+  const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
+  return YUNACOINS_RULES.bonoSuscriptor(pool, !!p.subscriber);
 }
 /* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual */
 function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCost(); }
