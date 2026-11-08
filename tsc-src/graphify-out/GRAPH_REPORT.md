@@ -256,12 +256,12 @@ Nodes (5): readClusterPhys(), readCluster(), fatNext(), chain(), readEntries()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `showToast()` connect `Bracket` to `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `pes5-tool.js`, `Sorteo en vivo`, `Perfil del presidente`, `Navegacion`, `Equipos`, `Sonido`, `Push y Ajustes y arranque`, `Capa de datos`, `Calendario`, `Bracket`, `Tablas de posiciones`, `Competiciones`?**
-  _High betweenness centrality (0.191) - this node is a cross-community bridge._
-- **Why does `dbGetAll()` connect `Bracket` to `Palmares (Sala de Trofeos 3D)`, `mejoras-page.js`, `Historial y H2H`, `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Equipos`, `Capa de datos`, `Calendario`, `Bracket`, `Tablas de posiciones`, `Competiciones`?**
-  _High betweenness centrality (0.169) - this node is a cross-community bridge._
 - **Why does `escHtml()` connect `Historial y H2H` to `Bracket`, `Palmares (Sala de Trofeos 3D)`, `mejoras-page.js`, `pes5-tool.js`, `Sorteo en vivo`, `Perfil del presidente`, `Navegacion`, `Equipos`, `Push y Ajustes y arranque`, `Capa de datos`, `Calendario`, `Bracket`, `Tablas de posiciones`?**
-  _High betweenness centrality (0.157) - this node is a cross-community bridge._
+  _High betweenness centrality (0.179) - this node is a cross-community bridge._
+- **Why does `dbGetAll()` connect `Bracket` to `Palmares (Sala de Trofeos 3D)`, `mejoras-page.js`, `Historial y H2H`, `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Equipos`, `Capa de datos`, `Calendario`, `Bracket`, `Tablas de posiciones`, `Competiciones`?**
+  _High betweenness centrality (0.172) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Bracket` to `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `pes5-tool.js`, `Sorteo en vivo`, `Perfil del presidente`, `Navegacion`, `Equipos`, `Sonido`, `Push y Ajustes y arranque`, `Capa de datos`, `Calendario`, `Bracket`, `Tablas de posiciones`, `Competiciones`?**
+  _High betweenness centrality (0.142) - this node is a cross-community bridge._
 - **Are the 140 inferred relationships involving `dbGetAll()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
   _`dbGetAll()` has 140 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 107 inferred relationships involving `showToast()` (e.g. with `authForgotPassword()` and `authSignOut()`) actually correct?**

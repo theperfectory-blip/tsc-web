@@ -962,8 +962,7 @@ function renderCard(){
         <div class="ep-posbig ep-line-${linea}">${escHtml(CODIGO_POS[posRegistrada] || posRegistrada)}</div>
         <div class="ep-ficha-txt">
           <div class="ep-name">${escHtml(p.name)}</div>
-          <div class="ep-tag">#${escHtml(p.dorsal)} · ${escHtml(posLabel)} · ${escHtml(p.country)}</div>
-          <div class="ep-tipo" id="ep-subtitle"></div>
+          <div class="ep-tag">${p.dorsal && p.dorsal !== '?' ? '#' + escHtml(p.dorsal) + ' · ' : ''}${escHtml(posLabel)} · ${escHtml(p.country)}</div>
         </div>
       </div>
       <div class="ep-casillas">
@@ -976,8 +975,6 @@ function renderCard(){
     </div>
   `;
   document.getElementById('ep-edit-pos').textContent = posicionEnPlantilla(p);
-  document.getElementById('ep-subtitle').textContent = ((EQUIPO_TSC && EQUIPO_TSC.name) || 'Mi equipo') + ' · ' +
-    (p.subscriber ? 'Suscriptor' : p.heightFixed ? 'Fichaje real' : 'Plantilla base');
 }
 
 /* ================= render: pager / hint / cart ================= */
@@ -1001,8 +998,13 @@ function renderPending(){
   const x = pend[0];
   const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
   const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
+  // pedido de formacion: no tiene jugador, va con el nombre de la formacion
+  const nombreForm = x.tipo === 'formacion' ? ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '') : '';
+  const frase = x.tipo === 'formacion'
+    ? `Formación ${escHtml(nombreForm)} espera que Luis la aplique.`
+    : `${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.`;
   box.hidden = false;
-  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.${mas} Podés cancelarlo desde Pedidos mientras siga pendiente.</span>`;
+  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${frase}${mas} Podés cancelarlo desde Pedidos mientras siga pendiente.</span>`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
@@ -1029,11 +1031,11 @@ function renderHero(){
   document.getElementById('ep-balance-total').textContent = Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL');
   document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
   document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
-  // barra del tope de temporada: lo usado (tope menos lo que queda), mismos datos que el texto de arriba
+  // barra del tope de temporada: lo que queda sobre el tope, mismos datos que el texto de arriba
   const cap = RULES.budgetGeneral || 0;
   const quedaGeneral = APP.budget.general - fromGeneral;
   const fill = document.getElementById('ep-cap-fill');
-  if (fill) fill.style.width = cap > 0 ? Math.min(100, Math.max(0, (cap - quedaGeneral) / cap * 100)) + '%' : '0%';
+  if (fill) fill.style.width = cap > 0 ? Math.min(100, Math.max(0, quedaGeneral / cap * 100)) + '%' : '0%';
 }
 function renderCart(){
   const cost = pendingCost();
@@ -1951,6 +1953,7 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
   const incDisabled = locked || value>=max || !affordNext;
   const sel = APP.hint===desc;
   const cambiada = value !== min; // min = valor original del jugador: si cambio, la fila se resalta
+  const tono = cambiada ? 'var(--gold)' : color; // fila cambiada: valor y barra en dorado
   const costBadge = costSoFar>0 ? `<span class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</span>` : '';
   const viejo = cambiada ? `<span class="ep-rold">${min}</span>` : '';
   // la descripcion vive dentro de la fila: la del atributo elegido o la de un cambio pendiente
@@ -1958,9 +1961,9 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
   return `<div class="ep-row ${sel?'sel':''} ${cambiada?'chg':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
     <div class="ep-rmain">
       <div class="ep-rhead"><span class="ep-rlabel">${escHtml(label)}</span>${costBadge}</div>
-      <div class="ep-rbar"><i style="width:${pct}%;background:${color};"></i></div>
+      <div class="ep-rbar"><i style="width:${pct}%;background:${tono};"></i></div>
     </div>
-    <div class="ep-rnum">${viejo}<span class="ep-rval" style="color:${color};">${value}</span></div>
+    <div class="ep-rnum">${viejo}<span class="ep-rval" style="color:${tono};">${value}</span></div>
     <div class="ep-rstep">
       <button ${decDisabled?'disabled':''} aria-label="Bajar ${escHtml(label)}" data-onclick="event.stopPropagation();${onDec}">&minus;</button>
       <button ${incDisabled?'disabled':''} aria-label="Subir ${escHtml(label)}" data-onclick="event.stopPropagation();${onInc}">+</button>
