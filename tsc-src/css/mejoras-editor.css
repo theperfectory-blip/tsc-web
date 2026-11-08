@@ -115,7 +115,7 @@
   font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:0.6px;text-transform:uppercase;white-space:nowrap;}
 .ep-root .ep-seg button[aria-selected="true"]{background:var(--card3);color:var(--txt);}
 .ep-root .ep-seg b{color:var(--gold);font-weight:700;margin-left:2px;}
-.ep-root .ep-roster-list{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;border:1px solid var(--brd);}
+.ep-root .ep-roster-list{display:flex;flex-direction:column;border-radius:14px;overflow:clip;border:1px solid var(--brd);}
 .ep-root .ep-bkt-hd{padding:10px 14px 6px;font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:1.4px;
   text-transform:uppercase;color:var(--txt2);background:var(--card);}
 .ep-root .ep-pitem{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 12px;background:var(--card);
@@ -172,7 +172,7 @@
 .ep-root .ep-pgdots i{display:block;width:6px;height:4px;border-radius:2px;background:var(--txt3);}
 .ep-root .ep-pgdots i.on{width:18px;background:var(--gold);}
 
-.ep-root .ep-rows{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;border:1px solid var(--brd);}
+.ep-root .ep-rows{display:flex;flex-direction:column;border-radius:14px;overflow:clip;border:1px solid var(--brd);}
 .ep-root .ep-grp{padding:12px 14px 8px;background:var(--card);font-family:'Barlow Condensed';font-weight:700;font-size:13px;
   letter-spacing:1.4px;text-transform:uppercase;color:var(--txt2);border-top:1px solid var(--brd);}
 .ep-root .ep-grp:first-child{border-top:none;}
@@ -247,7 +247,7 @@
 .ep-root .ep-sheet-hd{display:flex;flex-direction:column;gap:4px;}
 .ep-root .ep-sheet-hd h2{margin:0;font-family:'Bebas Neue';font-weight:400;font-size:32px;letter-spacing:0.5px;line-height:1;color:var(--txt);}
 .ep-root .ep-sheet-hd span{font-size:13.5px;color:var(--txt2);line-height:1.35;}
-.ep-root .ep-sheet-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;border:1px solid var(--brd);}
+.ep-root .ep-sheet-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-radius:14px;overflow:clip;border:1px solid var(--brd);}
 .ep-root .ep-sheet-line{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card2);border-top:1px solid var(--brd);font-size:14px;}
 .ep-root .ep-sheet-line:first-child{border-top:none;}
 .ep-root .ep-sheet-line .lbl{flex:1;min-width:0;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -411,9 +411,7 @@
 html.ep-lock,
 html.ep-lock body{overflow:hidden;}
 .ep-root .ep-overlay,
-.ep-root .ep-modal-body,
-.ep-root .ep-rows,
-.ep-root .ep-roster-list{overscroll-behavior:contain;}
+.ep-root .ep-modal-body{overscroll-behavior:contain;}
 
 /* ---- Tool PES5 del panel admin (.admin-embed): solo el editor, sin cabecera de cuenta ni plantilla ---- */
 .ep-root.admin-embed .ep-roster{display:none;}
