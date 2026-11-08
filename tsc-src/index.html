@@ -197,6 +197,11 @@
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg></span>Palmarés
   </div>
 
+  <div class="nav-section-lbl">Herramientas</div>
+  <div class="nav-item" data-onclick="goAdminPage('pes5-admin',this)">
+    <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Tool PES5
+  </div>
+
   <div class="nav-section-lbl">Sistema</div>
   <div class="nav-item" data-onclick="goAdminPage('usuarios-admin',this)">
     <span class="nav-item-icon"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Usuarios
@@ -320,6 +325,11 @@
       <div id="adm-calendar-content"></div>
       <div id="adm-calendar-labels"></div>
     </div>
+  </div>
+
+  <div id="page-pes5-admin" class="page">
+    <div class="section-lbl">Tool PES5</div>
+    <div id="pes5-admin-content"></div>
   </div>
 
   <!-- Footer público — el link de APK sale de TSC_APK_URL (apk-promo.js),
@@ -549,6 +559,7 @@
 <script src="js/playoff.js"></script>
 <script src="js/public-bracket.js"></script>
 <script src="js/public.js"></script>
+<script src="js/yunacoins-rules.js"></script>
 <script src="js/coins.js"></script>
 <script src="js/seasons.js"></script>
 <script src="js/data.js"></script>
@@ -558,6 +569,7 @@
 <script src="js/sorteo.js"></script>
 <script src="js/palmares.js"></script>
 <script src="js/calendar.js"></script>
+<script src="js/pes5-admin.js"></script>
 <script src="js/livematch.js"></script>
 <script src="js/apk-promo.js"></script>
 

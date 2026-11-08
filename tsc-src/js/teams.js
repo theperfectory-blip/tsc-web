@@ -232,13 +232,19 @@ async function openTeamModal(id=null){
           </div>
         </div>
 
-        ${team ? `<div class="form-group" style="margin-bottom:0;">
+        ${team ? `<div class="form-group">
           <label>YuNaCoins actuales</label>
           <div style="padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${(team.yunacoin||0).toLocaleString('es-CL')}</strong>
             <span style="font-size:12px;color:var(--txt3);">Solo lectura: el saldo se cambia en la sección YuNaCoins, que deja el movimiento en el historial.</span>
           </div>
         </div>` : ''}
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Usuario de Streamlabs <span style="font-size:11px;color:var(--txt3);font-weight:400;">(mapeo para YunaCoins · solo admin)</span></label>
+          <input type="text" id="tf-streamlabs-user" value="${_esc(team?.streamlabsUser||'')}" placeholder="Ej: LuisYuNa3210">
+          <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Sin arroba — el mismo nombre que figura en el panel de Streamlabs.</div>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn" data-onclick="closeTeamModal()">Cancelar</button>
@@ -406,6 +412,9 @@ async function _saveTeam(id){
   const color = document.getElementById('tf-color').value;
   const color2 = document.getElementById('tf-color2')?.value || color;
   const status= document.getElementById('tf-status').value;
+  let streamlabsUser = document.getElementById('tf-streamlabs-user')?.value || '';
+  streamlabsUser = streamlabsUser.trim().replace(/^@/, '').trim();
+  streamlabsUser = streamlabsUser || null;
 
   if(!name){ showToast('El nombre es obligatorio','error'); return; }
   if(name.length>40){ showToast('El nombre admite hasta 40 caracteres','error'); return; }
@@ -452,6 +461,7 @@ async function _saveTeam(id){
 
   const data = {
     name, ini, pres, color, color2, status,
+    streamlabsUser,
     previousNames,                                  // ← nuevo (array)
     historyNames: previousNames.join(' → '),        // ← compatibilidad legacy (string)
     logo: logoUrl,

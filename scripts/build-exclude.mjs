@@ -6,7 +6,10 @@
 import { basename } from 'node:path';
 
 export const EXCLUDE_NAMES = new Set([
-  'docs', 'trophies-svg', 'graphify-out', 'trophies-upload', '_cmp', 'node_modules'
+  'docs', 'trophies-svg', 'graphify-out', 'trophies-upload', '_cmp', 'node_modules',
+  // Rama 2.0: material de diseno interno. La investigacion y los scripts de prueba
+  // ya no viven en tsc-src/ (slice 5.A): estan en docs/2.0/investigacion/ y tools/.
+  '_material-diseno'
 ]);
 
 export function isExcluded(pathOrName){

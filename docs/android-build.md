@@ -108,6 +108,29 @@ cd android && ./gradlew :app:assembleDebug
 
 El APK queda en `android/app/build/outputs/apk/debug/`.
 
+### Si Gradle falla con «Unable to establish loopback connection»
+
+Pasa en esta PC al compilar desde una terminal (en Android Studio no). La
+causa: en Windows, Java 21 arma su canal interno (`Selector.open()`) con un
+socket tipo Unix dentro de `%TEMP%`, y con el `%TEMP%` de esta cuenta
+(`C:\Users\ADMINI~1\AppData\Local\Temp`) la conexión falla con
+`SocketException: Invalid argument: connect`. Gradle lo necesita para hablar
+con su daemon. Pasa con el JDK Temurin 21 y con el `jbr` de Android Studio;
+`-Djava.net.preferIPv4Stack` no lo arregla. Verificado el 2026-11-05.
+
+Solución: darle a Java una carpeta temporal corta. En PowerShell, antes de
+`gradlew`:
+
+```powershell
+New-Item -ItemType Directory -Force C:\tmp | Out-Null
+$env:JAVA_HOME = 'D:\Desktop\Android Studio\jbr'
+$env:JAVA_TOOL_OPTIONS = '-Djdk.net.unixdomain.tmpdir=C:\tmp'
+cd android; .\gradlew.bat :app:assembleDebug
+```
+
+Para no repetirlo en cada terminal, se puede dejar `JAVA_TOOL_OPTIONS` como
+variable de entorno del usuario (Configuración → Variables de entorno).
+
 ## Generar un release (APK/AAB firmado)
 
 El release **no tiene firma por defecto** — `android/app/build.gradle` busca

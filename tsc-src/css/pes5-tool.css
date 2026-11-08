@@ -1,0 +1,179 @@
+/* ============================================================
+   Tool PES5 — estilos de la seccion "Tool PES5" del panel admin (slice 2.0-1).
+   Se extrajo de la pagina pes5-tool.html, ya borrada (slice 5.A). Todo cuelga de #page-pes5-admin
+   para no pisar el CSS del panel. Se carga bajo demanda (js/pes5-admin.js).
+   ============================================================ */
+#page-pes5-admin *{box-sizing:border-box;}
+#page-pes5-admin .icn{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+#page-pes5-admin .icn.lg{width:18px;height:18px;}
+#page-pes5-admin .gate{padding:60px 20px;text-align:center;color:var(--txt3);}
+#page-pes5-admin .gate .icn{width:32px;height:32px;margin-bottom:10px;color:var(--txt3);}
+#page-pes5-admin .pt-shell{max-width:1280px;margin:0 auto;padding:20px 16px 90px;}
+#page-pes5-admin .pt-h1{font-family:'Bebas Neue';font-size:26px;letter-spacing:0.5px;margin:0 0 2px;}
+#page-pes5-admin .pt-sub{color:var(--txt3);font-size:13px;margin-bottom:16px;}
+#page-pes5-admin .pt-statusbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--card);
+  border:1px solid var(--brd2);border-radius:var(--rl);padding:10px 14px;margin-bottom:16px;}
+#page-pes5-admin .pt-status-item{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--txt2);}
+#page-pes5-admin .pt-status-item b{color:var(--txt);font-weight:600;}
+/* Aviso en parrafo: como .pt-status-item es flex, su texto y el <b> quedaban como items separados. */
+#page-pes5-admin .pt-status-note{display:block;font-size:12px;}
+#page-pes5-admin .pt-status-sep{width:1px;align-self:stretch;background:var(--brd);}
+#page-pes5-admin .pt-status-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+#page-pes5-admin .pt-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+#page-pes5-admin .pt-dot.ok{background:var(--green);}
+#page-pes5-admin .pt-dot.off{background:var(--txt3);}
+#page-pes5-admin .pt-dot.warn{background:#F59E0B;}
+#page-pes5-admin .pt-tabs{display:flex;gap:4px;border-bottom:1px solid var(--brd);margin-bottom:16px;overflow-x:auto;}
+#page-pes5-admin .pt-tab{display:flex;align-items:center;gap:6px;padding:9px 14px;background:none;border:none;
+  border-bottom:2px solid transparent;color:var(--txt3);font-family:'Barlow Condensed';font-weight:700;
+  font-size:14px;letter-spacing:0.5px;text-transform:uppercase;cursor:pointer;white-space:nowrap;flex:none;}
+#page-pes5-admin .pt-tab:hover{color:var(--txt);}
+#page-pes5-admin .pt-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+#page-pes5-admin .pt-tab .icn{width:14px;height:14px;}
+#page-pes5-admin .pt-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+#page-pes5-admin .pt-search{flex:1;min-width:180px;max-width:320px;padding:7px 10px;background:var(--card2);
+  border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:13px;}
+#page-pes5-admin .pt-escudo{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--card3);flex:none;}
+#page-pes5-admin .pt-escudo-ph{width:26px;height:26px;border-radius:50%;background:var(--card3);display:flex;align-items:center;
+  justify-content:center;color:var(--txt3);flex:none;}
+#page-pes5-admin .pt-cupo{font-family:'Barlow Condensed';font-weight:700;color:var(--txt2);}
+#page-pes5-admin .pt-cupo.full{color:var(--green);}
+#page-pes5-admin .pt-team-select-row{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+#page-pes5-admin .pt-team-select-row select{padding:8px 10px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);color:var(--txt);font-size:13px;min-width:260px;}
+#page-pes5-admin .pt-grid{display:grid;grid-template-columns:1fr;gap:14px;}
+#page-pes5-admin .pt-panel-open .pt-grid{grid-template-columns:minmax(0,1fr) 320px;}
+@media(max-width:900px){
+#page-pes5-admin .pt-panel-open .pt-grid{grid-template-columns:1fr;}
+}
+#page-pes5-admin .pt-plantilla-table th{white-space:nowrap;}
+#page-pes5-admin .pt-plantilla-table td{white-space:nowrap;}
+#page-pes5-admin .pt-row-jugador{cursor:pointer;}
+#page-pes5-admin .pt-row-jugador.selected td{background:var(--gold-l);}
+#page-pes5-admin .pt-stat-cell{text-align:center;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-alsoin{display:inline-flex;align-items:center;gap:3px;margin-left:6px;}
+#page-pes5-admin .pt-side{background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);padding:14px;
+  display:flex;flex-direction:column;gap:12px;align-self:start;position:sticky;top:14px;max-height:calc(100vh - 28px);overflow-y:auto;}
+#page-pes5-admin .pt-side-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+#page-pes5-admin .pt-side-hd h3{font-family:'Bebas Neue';font-size:19px;margin:0;letter-spacing:0.5px;}
+#page-pes5-admin .pt-side-close{background:none;border:none;color:var(--txt3);cursor:pointer;padding:2px;}
+#page-pes5-admin .pt-side-close:hover{color:var(--txt);}
+#page-pes5-admin .pt-side-sub{font-size:12px;color:var(--txt3);margin-top:-6px;}
+#page-pes5-admin .pt-fieldgrp{display:flex;flex-direction:column;gap:6px;}
+#page-pes5-admin .pt-fieldgrp-title{font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;
+  text-transform:uppercase;color:var(--txt3);margin:6px 0 2px;}
+#page-pes5-admin .pt-field{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;}
+#page-pes5-admin .pt-field label{color:var(--txt2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#page-pes5-admin .pt-field input[type=number]{width:56px;padding:3px 5px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:4px;color:var(--txt);font-size:12.5px;text-align:right;}
+#page-pes5-admin .pt-field input[type=number].changed{border-color:var(--gold);color:var(--gold);}
+#page-pes5-admin .pt-field select{padding:3px 5px;background:var(--card2);border:1px solid var(--brd);border-radius:4px;
+  color:var(--txt);font-size:12.5px;}
+#page-pes5-admin .pt-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;}
+#page-pes5-admin .pt-toggle input{accent-color:var(--gold);width:14px;height:14px;}
+#page-pes5-admin .pt-chips{display:flex;flex-wrap:wrap;gap:4px;}
+#page-pes5-admin .pt-chip{font-size:10.5px;padding:2px 7px;border-radius:999px;background:var(--card2);border:1px solid var(--brd);
+  color:var(--txt2);}
+#page-pes5-admin .pt-chip.active{background:var(--gold-l);border-color:var(--gold-b);color:var(--gold);}
+#page-pes5-admin .pt-writebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--brd);}
+#page-pes5-admin .pt-writebar label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt2);cursor:pointer;}
+#page-pes5-admin .pt-writebar input[type=checkbox]{accent-color:var(--gold);}
+#page-pes5-admin .pt-changes-count{font-size:12px;color:var(--gold);font-weight:600;}
+#page-pes5-admin .pt-cobro{display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:var(--r);background:var(--card2);
+  border:1px solid var(--brd);}
+#page-pes5-admin .pt-cobro-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;
+  letter-spacing:0.3px;padding:3px 9px;border-radius:999px;width:fit-content;}
+#page-pes5-admin .pt-cobro-badge.pagando{background:var(--gold-l);border:1px solid var(--gold-b);color:var(--gold);}
+#page-pes5-admin .pt-cobro-badge.libre{background:var(--card3);border:1px solid var(--brd);color:var(--txt2);}
+#page-pes5-admin .pt-cobro-badge .icn{width:12px;height:12px;}
+#page-pes5-admin .pt-cobro-lineas{display:flex;flex-direction:column;gap:2px;font-size:12px;}
+#page-pes5-admin .pt-cobro-line{display:flex;justify-content:space-between;gap:8px;color:var(--txt2);}
+#page-pes5-admin .pt-cobro-line b{color:var(--txt);font-weight:600;}
+#page-pes5-admin .pt-cobro-line .costo{font-family:'Bebas Neue';font-size:13px;color:var(--gold);white-space:nowrap;}
+#page-pes5-admin .pt-cobro-line .costo.gratis{color:var(--txt3);font-family:inherit;font-size:12px;}
+#page-pes5-admin .pt-cobro-total{display:flex;justify-content:space-between;align-items:center;padding-top:6px;
+  border-top:1px solid var(--brd);font-size:12.5px;color:var(--txt2);}
+#page-pes5-admin .pt-cobro-total b{font-family:'Bebas Neue';font-size:18px;color:var(--gold);}
+#page-pes5-admin .pt-cobro-faltante{font-size:11.5px;color:#f87171;}
+#page-pes5-admin .pt-empty{padding:50px 20px;text-align:center;color:var(--txt3);border:1px dashed var(--brd);border-radius:var(--rl);}
+#page-pes5-admin .pt-empty .icn{width:30px;height:30px;margin-bottom:8px;}
+#page-pes5-admin .pt-log{font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;
+  background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:10px;margin-top:10px;}
+#page-pes5-admin .pt-log .ok{color:#4ade80;}
+#page-pes5-admin .pt-log .err{color:#f87171;}
+#page-pes5-admin .pt-log .warn{color:#facc15;}
+#page-pes5-admin .pt-panel-msg{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:10px 12px;
+  border-radius:var(--r);font-size:12.5px;line-height:1.5;}
+#page-pes5-admin .pt-panel-msg .icn{margin-top:1px;}
+#page-pes5-admin .pt-panel-msg-body{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;}
+#page-pes5-admin .pt-panel-msg-close{background:none;border:none;color:inherit;cursor:pointer;padding:2px;flex:none;opacity:0.8;}
+#page-pes5-admin .pt-panel-msg-close:hover{opacity:1;}
+#page-pes5-admin .pt-panel-err{background:rgba(248,113,113,0.1);border:1px solid #f87171;color:#f87171;}
+#page-pes5-admin .pt-panel-ok{background:rgba(74,222,128,0.1);border:1px solid #4ade80;color:#4ade80;}
+#page-pes5-admin .pt-tbl-wrap{overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;
+  -webkit-mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+  mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);}
+#page-pes5-admin .pt-tbl-wrap::-webkit-scrollbar{display:none;height:0;}
+#page-pes5-admin .pt-ed-overlay{position:fixed;inset:0;z-index:960;background:rgba(4,6,10,0.72);display:flex;align-items:center;justify-content:center;padding:16px;}
+#page-pes5-admin .pt-ed-box{width:min(1240px,100%);height:min(94vh,100%);background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);display:flex;flex-direction:column;overflow:hidden;}
+#page-pes5-admin .pt-ed-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;border-bottom:1px solid var(--brd);font-family:'Bebas Neue';font-size:19px;letter-spacing:0.5px;}
+#page-pes5-admin .pt-ed-close{background:none;border:none;color:var(--txt3);cursor:pointer;padding:4px;}
+#page-pes5-admin .pt-ed-close:hover{color:var(--txt);}
+#page-pes5-admin .pt-ed-host{flex:1;min-height:0;overflow:auto;background:var(--card);}
+#page-pes5-admin .pt-cell-changed{color:var(--gold);font-weight:700;}
+#page-pes5-admin .pt-cobro-txt{font-size:12px;color:var(--txt2);}
+#page-pes5-admin .pt-hint-click{margin-top:8px;font-size:12px;color:var(--txt3);}
+#page-pes5-admin #pl-writebar{position:sticky;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--brd);padding:10px 14px;margin-top:10px;}
+#page-pes5-admin #pl-writebar:empty{display:none;}
+#page-pes5-admin #pl-writebar .pt-writebar{border-top:none;padding-top:0;}
+
+/* 3.B — rechazo de pedidos: modal propio de la seccion (reemplaza el prompt()) */
+#page-pes5-admin .pt-rech-ov{position:fixed;inset:0;z-index:960;background:rgba(4,6,10,0.72);display:flex;align-items:center;justify-content:center;padding:16px;}
+#page-pes5-admin .pt-rech-box{width:min(480px,100%);background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);padding:16px;display:flex;flex-direction:column;gap:10px;}
+#page-pes5-admin .pt-rech-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+#page-pes5-admin .pt-rech-hd h3{font-family:'Bebas Neue';font-size:19px;margin:0;letter-spacing:0.5px;}
+#page-pes5-admin .pt-rech-sub{font-size:12.5px;color:var(--txt3);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-rech-lbl{font-size:12px;color:var(--txt2);}
+#page-pes5-admin .pt-rech-motivo{width:100%;min-height:96px;resize:vertical;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-family:inherit;font-size:14px;padding:8px 10px;}
+#page-pes5-admin .pt-rech-foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+#page-pes5-admin .pt-rech-foot .btn:disabled{opacity:0.5;cursor:not-allowed;}
+/* 6.G: botones de escritura deshabilitados (p. ej. "Aplicar seleccionados" con PES5 cerrado).
+   Sin hover: el .btn-primary:hover del global les subia la opacidad. */
+#page-pes5-admin .btn:disabled,
+#page-pes5-admin .btn:disabled:hover{opacity:0.45;cursor:not-allowed;}
+#page-pes5-admin .btn:disabled:not(.btn-primary):hover{border-color:var(--brd2);background:transparent;}
+#page-pes5-admin .pt-acciones{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
+
+/* 3.B — pedidos en tarjetas bajo 640 px (en los dos modos). La tabla sigue siendo la
+   misma: solo cambia el layout, con data-label en cada celda. */
+@media(max-width:639px){
+#page-pes5-admin .pt-tbl-pedidos thead{display:none;}
+#page-pes5-admin .pt-tbl-pedidos,
+#page-pes5-admin .pt-tbl-pedidos tbody{display:block;width:100%;}
+#page-pes5-admin .pt-tbl-pedidos tr{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);padding:12px 14px;margin-bottom:10px;}
+#page-pes5-admin .pt-tbl-pedidos td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:0;border:none;text-align:left !important;white-space:normal;word-break:break-word;}
+#page-pes5-admin .pt-tbl-pedidos td::before{content:attr(data-label);flex:none;color:var(--txt3);font-size:12px;}
+#page-pes5-admin .pt-tbl-pedidos td[data-label="Aplicar"]{justify-content:flex-start;}
+#page-pes5-admin .pt-tbl-pedidos td.pt-td-accion{display:block;margin-top:4px;}
+#page-pes5-admin .pt-tbl-pedidos td.pt-td-accion::before{content:none;}
+#page-pes5-admin .pt-tbl-pedidos .pt-btn-rechazar{width:100%;min-height:44px;}
+/* Bloque Publicar plantillas dentro de Pedidos (antes su propia pestaña). */
+#page-pes5-admin .pt-pub-block{margin-top:22px;padding-top:16px;border-top:1px solid var(--brd);}
+#page-pes5-admin .pt-pub-title{font-family:'Bebas Neue';font-size:20px;letter-spacing:0.5px;margin:0 0 4px;}
+}
+
+/* 3.C — layout angosto: sin scroll horizontal a 375 px */
+@media(max-width:639px){
+#page-pes5-admin .pt-tab{min-height:44px;}
+#page-pes5-admin .pt-status-item{word-break:break-word;}
+#page-pes5-admin .pt-team-select-row select{min-width:0;width:100%;}
+#page-pes5-admin .pt-field{flex-wrap:wrap;}
+#page-pes5-admin .pt-field label{flex:1 1 100%;white-space:normal;}
+#page-pes5-admin .pt-field input[type=number]{width:100% !important;}
+#page-pes5-admin .pt-acciones .btn{min-height:44px;}
+}
+@media(max-width:899px){
+#page-pes5-admin .pt-side{position:static;max-height:none;overflow:visible;}
+}
+/* Club repetido (2.0-4): dos equipos activos con el mismo club PES5. */
+.pt-badge-repetido{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;color:var(--red);background:rgba(232,64,64,0.12);border:1px solid rgba(232,64,64,0.45);}

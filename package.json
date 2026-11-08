@@ -1,7 +1,8 @@
 {
   "scripts": {
     "build:www": "node scripts/build-www.mjs",
-    "sync:android": "npm run build:www && npx cap sync android"
+    "sync:android": "npm run build:www && npx cap sync android",
+    "test": "node --test \"tools/test-*.js\""
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.1",

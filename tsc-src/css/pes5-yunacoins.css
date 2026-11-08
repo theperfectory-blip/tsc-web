@@ -1,0 +1,50 @@
+/* ============================================================
+   Pestana YunaCoins de la Tool PES5 (slice 2.0-4, js/pes5-yunacoins.js).
+   Sin tablas con scroll: cada fila es una tarjeta (en el telefono no hay scroll
+   dentro de contenedores; ver el arreglo de scroll tactil del 3c).
+   ============================================================ */
+:root{--yc-on-gold:#0C0F14;}
+:root[data-theme="light"]{--yc-on-gold:#1A1A1A;}
+.yc-root{max-width:720px;display:flex;flex-direction:column;gap:14px;}
+.yc-card{background:var(--card);border:1px solid var(--brd);border-radius:var(--rl);padding:14px;display:flex;flex-direction:column;gap:10px;}
+.yc-h3{margin:0;font-family:'Bebas Neue';font-weight:400;font-size:20px;letter-spacing:0.5px;color:var(--txt);}
+.yc-ayuda{margin:0;font-size:13px;color:var(--txt2);line-height:1.4;}
+.yc-aviso{margin:0;font-size:13px;color:var(--gold);line-height:1.4;}
+.yc-dl{margin:0;display:grid;grid-template-columns:1fr;gap:6px;}
+.yc-dl > div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+.yc-dl dt{font-size:13px;color:var(--txt2);}
+.yc-dl dd{margin:0;font-size:14px;color:var(--txt);text-align:right;}
+.yc-dl-2{grid-template-columns:1fr 1fr;gap:8px;}
+.yc-dl-2 > div{flex-direction:column;align-items:flex-start;gap:2px;}
+.yc-dl-2 dd{text-align:left;}
+.yc-texto{width:100%;min-height:140px;padding:10px;box-sizing:border-box;background:var(--card2);border:1px solid var(--brd2);border-radius:var(--r);color:var(--txt);font-family:'Barlow Condensed',monospace;font-size:15px;resize:vertical;}
+.yc-texto:focus{outline:none;border-color:var(--gold-b);}
+.yc-acciones{display:flex;flex-wrap:wrap;gap:8px;}
+.yc-btn{min-height:44px;padding:0 14px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--card3);color:var(--txt);font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:0.6px;text-transform:uppercase;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation;}
+.yc-btn.primary{background:var(--gold);border-color:var(--gold);color:var(--yc-on-gold);}
+.yc-btn.ghost{background:transparent;}
+.yc-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.yc-btn .icn{width:16px;height:16px;}
+.yc-chk{display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;color:var(--txt);}
+.yc-chk input{width:20px;height:20px;flex:none;}
+.yc-chk small{color:var(--txt2);font-size:12px;}
+.yc-chk.yc-off{opacity:0.6;}
+.yc-lista{display:flex;flex-direction:column;gap:8px;}
+.yc-fila{border:1px solid var(--brd);border-radius:var(--r);padding:10px;background:var(--card2);display:flex;flex-direction:column;gap:8px;}
+.yc-fila.sin{opacity:0.6;}
+.yc-fila-hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.yc-fila-hd span{font-size:13px;color:var(--txt2);}
+.yc-strong{color:var(--gold);font-weight:700;}
+.yc-avisos{margin:0;padding-left:18px;font-size:13px;color:var(--txt2);display:flex;flex-direction:column;gap:4px;line-height:1.4;}
+.yc-ajustes{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;}
+.yc-ajuste{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--brd);border-radius:var(--r);padding:8px 10px;font-size:14px;color:var(--txt);}
+.yc-ajuste small{color:var(--txt3);}
+.yc-msg{padding:10px 12px;border-radius:var(--r);font-size:14px;line-height:1.4;border:1px solid var(--brd2);color:var(--txt);}
+.yc-msg.ok{border-color:rgba(37,168,100,0.35);color:var(--green-hi);background:var(--green-l);}
+.yc-msg.warn{border-color:var(--gold-b);color:var(--gold);background:var(--gold-l);}
+.yc-msg.err{border-color:var(--red);color:var(--red);}
+.yc-modal-ov{position:fixed;inset:0;z-index:960;background:rgba(4,6,10,0.72);display:flex;align-items:center;justify-content:center;padding:16px;}
+.yc-modal{max-width:440px;width:100%;background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);padding:18px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box;}
+@media (min-width:700px){
+  .yc-dl-2{grid-template-columns:repeat(5,minmax(0,1fr));}
+}

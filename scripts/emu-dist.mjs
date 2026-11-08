@@ -35,6 +35,6 @@ console.log('[emu-dist] sandbox/site: código sincronizado desde tsc-src (assets
 
 execFileSync(process.execPath, [join(ROOT, 'scripts', 'build-web.mjs'), '--src=sandbox/site', '--dest=sandbox/dist'], { stdio: 'inherit' });
 
-const serve = spawn('npx', ['serve', 'sandbox/dist', '-l', '3001'], { cwd: ROOT, stdio: 'inherit', shell: true });
+const serve = spawn('npx', ['serve', 'sandbox/dist', '-l', '3001', '--no-port-switching'], { cwd: ROOT, stdio: 'inherit', shell: true });
 serve.on('exit', code => process.exit(code ?? 0));
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => serve.kill(sig));
