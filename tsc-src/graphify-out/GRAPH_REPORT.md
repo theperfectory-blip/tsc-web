@@ -4,35 +4,32 @@
 - solo AST
 
 ## Summary
-- 1392 nodes · 3824 edges · 31 communities detected
-- Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 1054 edges (avg confidence: 0.8)
+- 1405 nodes · 3857 edges · 28 communities detected
+- Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 1064 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Promo APK|Promo APK]]
 - [[_COMMUNITY_Perfil del presidente|Perfil del presidente]]
-- [[_COMMUNITY_Push|Push]]
+- [[_COMMUNITY_Push y Ajustes y arranque|Push y Ajustes y arranque]]
 - [[_COMMUNITY_Splash de arranque|Splash de arranque]]
 - [[_COMMUNITY_Bracket|Bracket]]
-- [[_COMMUNITY_Bracket publico|Bracket publico]]
+- [[_COMMUNITY_Historial y H2H|Historial y H2H]]
 - [[_COMMUNITY_Sonido|Sonido]]
-- [[_COMMUNITY_Sorteo en vivo|Sorteo en vivo]]
 - [[_COMMUNITY_Tablas de posiciones|Tablas de posiciones]]
 - [[_COMMUNITY_Calendario|Calendario]]
-- [[_COMMUNITY_Historial y H2H|Historial y H2H]]
 - [[_COMMUNITY_Navegacion|Navegacion]]
 - [[_COMMUNITY_Config Cloudinary (ejemplo)|Config Cloudinary (ejemplo)]]
-- [[_COMMUNITY_Competiciones|Competiciones]]
+- [[_COMMUNITY_pes5-yunacoins.js y yunacoins-rules.js|pes5-yunacoins.js y yunacoins-rules.js]]
 - [[_COMMUNITY_Equipos|Equipos]]
-- [[_COMMUNITY_Ajustes y arranque|Ajustes y arranque]]
 - [[_COMMUNITY_Capa de datos|Capa de datos]]
 - [[_COMMUNITY_Delegacion de eventos|Delegacion de eventos]]
 - [[_COMMUNITY_Config Firebase (ejemplo)|Config Firebase (ejemplo)]]
 - [[_COMMUNITY_Config Firebase|Config Firebase]]
 - [[_COMMUNITY_Generador de fechas|Generador de fechas]]
+- [[_COMMUNITY_Sorteo en vivo|Sorteo en vivo]]
 - [[_COMMUNITY_mejoras-page.js|mejoras-page.js]]
 - [[_COMMUNITY_pes5-tool.js|pes5-tool.js]]
-- [[_COMMUNITY_pes5-yunacoins.js y yunacoins-rules.js|pes5-yunacoins.js y yunacoins-rules.js]]
 - [[_COMMUNITY_Palmares (Sala de Trofeos 3D)|Palmares (Sala de Trofeos 3D)]]
 - [[_COMMUNITY_pes5-bloqueo.js|pes5-bloqueo.js]]
 - [[_COMMUNITY_pes5-clubes.js|pes5-clubes.js]]
@@ -58,136 +55,124 @@
   D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\calendar.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\nav.js
 - `_calInitHeroCountdown()` --calls--> `countdown()`  [INFERRED]
   D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\calendar.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\motion.js
-- `openBulkCoinsModal()` --calls--> `dbGetAll()`  [INFERRED]
-  D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\coins.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\db.js
-- `_deletePhaseCascade()` --calls--> `dbDeleteMany()`  [INFERRED]
-  D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\competitions.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\db.js
 - `dbGetAll()` --calls--> `_palmDuplicate()`  [INFERRED]
   D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\db.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\palmares.js
+- `getForSeason()` --calls--> `resolveTeamData()`  [INFERRED]
+  D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\db.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\standings.js
+- `loadDraft()` --calls--> `aplicarCambiosAlJugador()`  [INFERRED]
+  D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\mejoras-page.js → D:\Desktop\tsc.web\.claude\worktrees\heuristic-benz-286c07\tsc-src\js\pes5-plantilla.js
 
 ## Communities
 
-### Community 20 - "Promo APK"
+### Community 17 - "Promo APK"
 Cohesion: 0.36
 Nodes (9): _apkIsNativeApp(), _apkShouldOffer(), _apkAlreadyDownloaded(), _apkClosedRecently(), openApkPromo(), _apkHideOverlay(), closeApkPromo(), tscApkDownloadClick() (+1 more)
 
-### Community 6 - "Perfil del presidente"
-Cohesion: 0.05
-Nodes (64): _usersCol(), _injectAuthModal(), openAuthModal(), toggleAuthMode(), _renderAuthModalMode(), authForgotPassword(), authSubmit(), _authErrorMsg() (+56 more)
+### Community 7 - "Perfil del presidente"
+Cohesion: 0.04
+Nodes (66): _usersCol(), _injectAuthModal(), openAuthModal(), toggleAuthMode(), _renderAuthModalMode(), authForgotPassword(), authSubmit(), _authErrorMsg() (+58 more)
 
-### Community 12 - "Push"
-Cohesion: 0.08
-Nodes (30): authSignOut(), rgbStr(), Particle, Rocket, _plugin(), _clearToken(), _setPendingTokenRemoval(), _clearPendingTokenRemoval() (+22 more)
+### Community 9 - "Push y Ajustes y arranque"
+Cohesion: 0.06
+Nodes (50): authSignOut(), getVariant(), _plugin(), isEnabled(), _clearToken(), _setPendingTokenRemoval(), _clearPendingTokenRemoval(), _pushDocRef() (+42 more)
 
-### Community 22 - "Splash de arranque"
+### Community 19 - "Splash de arranque"
 Cohesion: 0.4
 Nodes (0): 
 
 ### Community 0 - "Bracket"
 Cohesion: 0.03
-Nodes (209): getWinner(), spawnRocket(), loop(), _cleanup(), _onClick(), renderBracket(), buildBracketRounds(), getStandingsForPhase() (+201 more)
+Nodes (231): getWinner(), hexToRgb(), lighten(), spawnRocket(), loop(), _cleanup(), _onClick(), renderBracket() (+223 more)
 
-### Community 11 - "Bracket publico"
-Cohesion: 0.09
-Nodes (41): teamLogoHtml(), _calLogo(), _coinsAmount(), renderAdmCoins(), renderCoinsTable(), filterCoinsTable(), openCoinsModal(), updateCoinsPreview() (+33 more)
+### Community 4 - "Historial y H2H"
+Cohesion: 0.04
+Nodes (102): teamLogoHtml(), _calHeroGoH2H(), openCompModal(), dbIsArchivedSeason(), _histNorm(), _histResolveExactTeam(), _histResolveTeam(), computeResultado() (+94 more)
 
 ### Community 8 - "Sonido"
-Cohesion: 0.07
-Nodes (42): _getAudioCtx(), resume(), _fwSoundOff(), _soundRocketLaunch(), _soundExplosion(), liveRadarStart(), _palmAudio(), _palmSoundOff() (+34 more)
-
-### Community 4 - "Sorteo en vivo"
 Cohesion: 0.06
-Nodes (77): hexToRgb(), lighten(), newBomboId(), newBombo(), emptyState(), _journalCapturePhase(), _journalCaptureMatches(), effectiveDrawnIds() (+69 more)
+Nodes (45): _getAudioCtx(), resume(), _fwSoundOff(), _soundRocketLaunch(), _soundExplosion(), rgbStr(), Particle, Rocket (+37 more)
 
-### Community 16 - "Tablas de posiciones"
+### Community 14 - "Tablas de posiciones"
 Cohesion: 0.12
 Nodes (22): refBadgeHTML(), saveCriteria(), openCriteriaModal(), closeCriteriaModal(), criteriaDragEnd(), criteriaDrop(), criteriaDropOnContainer(), criteriaDisable() (+14 more)
 
-### Community 14 - "Calendario"
-Cohesion: 0.12
-Nodes (31): _calFormatDay(), _calTodayStr(), _calViewerTodayStr(), _calMatchInstant(), _calMatchTimeLocal(), _calLocalDateStr(), _calJornadaViewerDate(), _calWhenError() (+23 more)
+### Community 13 - "Calendario"
+Cohesion: 0.11
+Nodes (33): _calFormatDay(), _calTodayStr(), _calViewerTodayStr(), _calMatchInstant(), _calMatchTimeLocal(), _calLocalDateStr(), _calJornadaViewerDate(), _calLogo() (+25 more)
 
-### Community 7 - "Historial y H2H"
+### Community 6 - "Navegacion"
 Cohesion: 0.06
-Nodes (70): _calHeroGoH2H(), dbIsArchivedSeason(), _histNorm(), _histResolveExactTeam(), _histResolveTeam(), computeResultado(), loadStaticHistory(), seedHistoryIfEmpty() (+62 more)
+Nodes (74): _calHeroGoComp(), _pubSwitchHistoryView(), liveStop(), liveSubscribe(), liveRadarStop(), liveRadarProximity(), _subscribeAdminMatchesLive(), getPublicScrollPages() (+66 more)
 
-### Community 5 - "Navegacion"
-Cohesion: 0.06
-Nodes (71): _calHeroGoComp(), _pubSwitchHistoryView(), liveStop(), liveSubscribe(), liveRadarStop(), liveRadarProximity(), _subscribeAdminMatchesLive(), getPublicScrollPages() (+63 more)
-
-### Community 23 - "Config Cloudinary (ejemplo)"
+### Community 20 - "Config Cloudinary (ejemplo)"
 Cohesion: 1.0
 Nodes (2): cloudReady(), uploadImageToCloud()
 
-### Community 17 - "Competiciones"
-Cohesion: 0.16
-Nodes (14): openColorPicker(), _sortComps(), renderAdmComps(), renderCompsGrid(), _compPickColor(), closeCompModal(), _deletePhaseCascade(), openCompReorderModal() (+6 more)
-
-### Community 10 - "Equipos"
-Cohesion: 0.07
-Nodes (39): resize(), frame(), wake(), stop(), setVariant(), init(), reduced(), _settle() (+31 more)
-
-### Community 15 - "Ajustes y arranque"
-Cohesion: 0.1
-Nodes (29): getVariant(), isEnabled(), _handleNotificationData(), getVolume(), closeConfirm(), runConfirm(), setTheme(), toggleThemeKey() (+21 more)
-
-### Community 13 - "Capa de datos"
+### Community 10 - "pes5-yunacoins.js y yunacoins-rules.js"
 Cohesion: 0.09
-Nodes (37): exportFullDB(), downloadJSON(), _dataBackupStores(), _dataTypeOk(), _dataValidateRecord(), _dataValidateStoreItems(), _dataValidateBackup(), _dataWarnings() (+29 more)
+Nodes (46): openColorPicker(), _compPickColor(), R(), esc(), ahora(), haceTexto(), emailActual(), leerSync() (+38 more)
 
-### Community 19 - "Delegacion de eventos"
+### Community 11 - "Equipos"
+Cohesion: 0.07
+Nodes (37): resize(), frame(), wake(), stop(), setVariant(), init(), reduced(), _settle() (+29 more)
+
+### Community 12 - "Capa de datos"
+Cohesion: 0.09
+Nodes (39): exportFullDB(), downloadJSON(), _dataBackupStores(), _dataTypeOk(), _dataValidateRecord(), _dataValidateStoreItems(), _dataValidateBackup(), _dataWarnings() (+31 more)
+
+### Community 16 - "Delegacion de eventos"
 Cohesion: 0.2
 Nodes (6): _onTokens(), _onParse(), _onIsNative(), _onEventFor(), _onResolve(), _onRun()
 
-### Community 24 - "Config Firebase (ejemplo)"
+### Community 21 - "Config Firebase (ejemplo)"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 25 - "Config Firebase"
+### Community 22 - "Config Firebase"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 18 - "Generador de fechas"
-Cohesion: 0.2
-Nodes (9): _fxScheduledCount(), _fxShuffle(), fxBuildRoundRobin(), fxBuildLuisRoute(), _fxBuildLuisRouteForLegs(), _fxGenerateCalendarAndRoute(), fxShuffleAgain(), renderFixtureGenModal() (+1 more)
+### Community 15 - "Generador de fechas"
+Cohesion: 0.19
+Nodes (10): _fxScheduledCount(), _fxShuffle(), fxBuildRoundRobin(), fxBuildLuisRoute(), _fxBuildLuisRouteForLegs(), _fxGenerateCalendarAndRoute(), fxShuffleAgain(), renderFixtureGenModal() (+2 more)
+
+### Community 5 - "Sorteo en vivo"
+Cohesion: 0.06
+Nodes (74): _mxDeleteOps(), newBomboId(), newBombo(), emptyState(), _journalCapturePhase(), _journalCaptureMatches(), effectiveDrawnIds(), ensureBC() (+66 more)
 
 ### Community 1 - "mejoras-page.js"
 Cohesion: 0.04
 Nodes (133): jsq(), openModal(), closeModal(), _syncScrollLock(), showToast(), renderAuthUI(), puedeMandarPedido(), applyTheme() (+125 more)
 
 ### Community 3 - "pes5-tool.js"
-Cohesion: 0.05
-Nodes (94): cargarReglasFirestore(), jugadorDesdePlantillaReal(), desmontar(), jugadorParaEditor(), plantillaParaEditor(), registroDeId(), cambiosDesdeEditor(), aplicarCambiosAlJugador() (+86 more)
-
-### Community 9 - "pes5-yunacoins.js y yunacoins-rules.js"
-Cohesion: 0.09
-Nodes (46): recalcularPresupuestoReal(), R(), esc(), ahora(), haceTexto(), emailActual(), leerSync(), guardarSync() (+38 more)
+Cohesion: 0.04
+Nodes (107): cargarReglasFirestore(), recalcularPresupuestoReal(), _hayAplicadoSinPublicar(), jugadorDesdePlantillaReal(), desmontar(), jugadorParaEditor(), plantillaParaEditor(), registroDeId() (+99 more)
 
 ### Community 2 - "Palmares (Sala de Trofeos 3D)"
 Cohesion: 0.03
-Nodes (113): getTrophyStyles(), _uid(), trophyClassica(), trophyImperial(), trophyKonami(), trophyOrejona(), trophySobria(), trophyModerno() (+105 more)
+Nodes (115): getTrophyStyles(), _uid(), trophyClassica(), trophyImperial(), trophyKonami(), trophyOrejona(), trophySobria(), trophyModerno() (+107 more)
 
-### Community 26 - "pes5-bloqueo.js"
+### Community 23 - "pes5-bloqueo.js"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 21 - "pes5-clubes.js"
+### Community 18 - "pes5-clubes.js"
 Cohesion: 0.62
 Nodes (6): activos(), vinculado(), duenosDeClub(), otroEquipoConClub(), repetidoDe(), opcionesClub()
 
-### Community 27 - "pes5-crypt.js"
+### Community 24 - "pes5-crypt.js"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 28 - "pes5-editor.js"
+### Community 25 - "pes5-editor.js"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 29 - "pes5-save.js"
+### Community 26 - "pes5-save.js"
 Cohesion: 1.0
 Nodes (0): 
 
-### Community 30 - "Estado global"
+### Community 27 - "Estado global"
 Cohesion: 1.0
 Nodes (0): 
 
@@ -210,12 +195,12 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dbGetAll()` connect `Bracket` to `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Historial y H2H`, `pes5-yunacoins.js y yunacoins-rules.js`, `Equipos`, `Bracket publico`, `Push`, `Capa de datos`, `Calendario`, `Competiciones`?**
-  _High betweenness centrality (0.244) - this node is a cross-community bridge._
-- **Why does `escHtml()` connect `Bracket publico` to `Bracket`, `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Historial y H2H`, `pes5-yunacoins.js y yunacoins-rules.js`, `Equipos`, `Push`, `Calendario`, `Ajustes y arranque`, `Tablas de posiciones`?**
-  _High betweenness centrality (0.180) - this node is a cross-community bridge._
-- **Why does `showToast()` connect `Bracket` to `Palmares (Sala de Trofeos 3D)`, `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Historial y H2H`, `Sonido`, `Bracket publico`, `Push`, `Capa de datos`, `Calendario`, `Ajustes y arranque`, `Tablas de posiciones`, `Competiciones`?**
-  _High betweenness centrality (0.150) - this node is a cross-community bridge._
+- **Why does `dbGetAll()` connect `Bracket` to `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `pes5-tool.js`, `Historial y H2H`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Push y Ajustes y arranque`, `pes5-yunacoins.js y yunacoins-rules.js`, `Equipos`, `Capa de datos`, `Calendario`, `Generador de fechas`?**
+  _High betweenness centrality (0.227) - this node is a cross-community bridge._
+- **Why does `escHtml()` connect `Historial y H2H` to `Bracket`, `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Push y Ajustes y arranque`, `pes5-yunacoins.js y yunacoins-rules.js`, `Equipos`, `Calendario`, `Tablas de posiciones`?**
+  _High betweenness centrality (0.200) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Bracket` to `Palmares (Sala de Trofeos 3D)`, `pes5-tool.js`, `Historial y H2H`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Sonido`, `Push y Ajustes y arranque`, `Capa de datos`, `Calendario`, `Tablas de posiciones`, `Generador de fechas`?**
+  _High betweenness centrality (0.152) - this node is a cross-community bridge._
 - **Are the 146 inferred relationships involving `dbGetAll()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
   _`dbGetAll()` has 146 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 108 inferred relationships involving `showToast()` (e.g. with `authForgotPassword()` and `authSignOut()`) actually correct?**
