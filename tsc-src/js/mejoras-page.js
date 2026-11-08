@@ -10,84 +10,89 @@ window.MEJORAS_EDITOR = (function(){
 'use strict';
 /* Markup del editor (antes estaba en mejoras.html). Lo inserta montar(). */
 const MEJ_MARKUP = `
-<div id="mej-root" class="ep-root">
+<div id="mej-root" class="ep-root" data-vista="plantilla">
 <div id="ep-gate" style="display:none;max-width:480px;margin:60px auto;padding:24px;text-align:center;color:var(--txt2);"></div>
 <div class="ep-shell" id="ep-shell" style="display:none;">
-  <div class="ep-crumb">
-    <a href="index.html" style="display:flex;align-items:center;gap:6px;color:inherit;text-decoration:none;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>TSC &middot; Copa Suscriptores <b>&rsaquo; Mejoras de jugadores</b></span></a>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <span id="ep-auth-status" style="font-size:12px;"></span>
-      <button class="ep-theme-btn" id="ep-theme-btn" data-onclick="mejToggleTheme()"></button>
+  <header class="ep-top">
+    <a class="ep-top-back" href="index.html" aria-label="Volver a la web"><svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></a>
+    <div class="ep-top-badge" id="ep-top-badge" aria-hidden="true">TSC</div>
+    <div class="ep-top-txt">
+      <span class="ep-top-name" id="ep-top-name">Mi equipo</span>
+      <span class="ep-top-sub">Mejoras de jugadores</span>
     </div>
-  </div>
-
-  <div class="ep-hero">
-    <div class="ep-hero-main" title="Saldo total de YunaCoins del equipo">
-      <svg class="icn" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
-      <div>
-        <div class="ep-hero-lbl">YunaCoins del equipo</div>
-        <div class="ep-hero-val"><b id="ep-balance-total">0</b></div>
+    <div class="ep-top-acc">
+      <button class="ep-top-btn" id="ep-acc-btn" aria-label="Cuenta" aria-expanded="false" data-onclick="mejToggleCuenta()"><svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>
+      <div class="ep-acc-menu" id="ep-acc-menu" hidden>
+        <div class="ep-acc-sesion" id="ep-auth-status"></div>
+        <button class="ep-theme-btn" id="ep-theme-btn" data-onclick="mejToggleTheme()"></button>
       </div>
     </div>
-    <div class="ep-hero-sub" title="Lo que todavia se puede gastar en mejoras esta temporada, sobre el tope">
-      <div class="ep-hero-lbl">Mejoras de la temporada</div>
-      <div class="ep-hero-val small"><b id="ep-balance-general">0</b><span class="ep-hero-cap">/ <span id="ep-hero-general-cap">0</span></span></div>
-    </div>
-    <div class="ep-hero-sub" title="Bono exclusivo para jugadores suscriptores: se gasta primero en ellos">
-      <div class="ep-hero-lbl">Bono suscriptores</div>
-      <div class="ep-hero-val small"><b id="ep-balance-sub">0</b></div>
-    </div>
-    <div class="ep-hero-actions">
-      <button class="ep-histbtn formation" data-onclick="openFormationModal()">
-        <span class="ep-pitch-cta-icon"><i></i><i></i><i></i></span>
-        Formacion
-      </button>
-      <button class="ep-histbtn" data-onclick="openAuditModal()">
-        <svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
-        Historial <span class="badge" id="ep-hist-badge">0</span>
-      </button>
-    </div>
-  </div>
+  </header>
 
-  <div class="ep-app">
+  <div class="ep-layout">
     <aside class="ep-roster">
-      <div class="ep-roster-hd"><input id="ep-search" placeholder="Buscar jugador..." data-oninput="renderRoster()"></div>
+      <section class="ep-saldo" aria-label="YunaCoins del equipo">
+        <div class="ep-saldo-lbl">Saldo del equipo</div>
+        <div class="ep-saldo-val" title="Saldo total de YunaCoins del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
+        <div class="ep-cap">
+          <div class="ep-cap-txt"><span>Queda del tope de la temporada</span><span><b id="ep-balance-general">0</b> / <span id="ep-hero-general-cap">0</span></span></div>
+          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
+        </div>
+        <div class="ep-bono"><span>Bono suscriptores</span><b id="ep-balance-sub">0</b></div>
+      </section>
+
+      <div class="ep-access">
+        <button class="ep-acc formation" data-onclick="openFormationModal()"><span class="ep-acc-t">Formación</span><span class="ep-acc-s" id="ep-form-sub">Gratis</span></button>
+        <button class="ep-acc" data-onclick="openAuditModal()"><span class="ep-acc-t">Pedidos</span><span class="ep-acc-s" id="ep-pedidos-sub">Sin pendientes</span><span class="badge" id="ep-hist-badge">0</span></button>
+      </div>
+
+      <div class="ep-pend" id="ep-pend" hidden></div>
+
+      <div class="ep-roster-hd"><input id="ep-search" type="search" placeholder="Buscar jugador" aria-label="Buscar jugador" data-oninput="renderRoster()"></div>
+
+      <div class="ep-seg" role="tablist" aria-label="Grupo de la plantilla">
+        <button role="tab" id="ep-seg-titular" aria-selected="true" data-onclick="setSquadTab('titular')">Titulares <b id="ep-seg-n-titular">0</b></button>
+        <button role="tab" id="ep-seg-suplente" aria-selected="false" data-onclick="setSquadTab('suplente')">Suplentes <b id="ep-seg-n-suplente">0</b></button>
+        <button role="tab" id="ep-seg-reserva" aria-selected="false" data-onclick="setSquadTab('reserva')">Reserva <b id="ep-seg-n-reserva">0</b></button>
+      </div>
+
       <div class="ep-roster-list" id="ep-roster-list"></div>
     </aside>
 
     <section class="ep-editor">
-      <div class="ep-titlebar">
-        <div>
-          <h1 id="ep-title">EDITAR JUGADOR</h1>
-          <div class="sub" id="ep-subtitle">FK Tupadre</div>
-        </div>
+      <div class="ep-edit-hd">
+        <button class="ep-back" data-onclick="mejVolverPlantilla()" aria-label="Volver a la plantilla"><svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>Plantilla</button>
+        <span class="ep-edit-pos" id="ep-edit-pos">Titular 1 de 11</span>
+        <button class="ep-navbtn" data-onclick="mejPasar(-1)" aria-label="Jugador anterior"><svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+        <button class="ep-navbtn" data-onclick="mejPasar(1)" aria-label="Jugador siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
       </div>
 
-      <div class="ep-body">
-        <div class="ep-card" id="ep-card"></div>
-        <div class="ep-panel">
-          <div class="ep-panel-hd">
-            <div class="ep-panel-title" id="ep-page-title">Principales</div>
-            <div class="ep-pager">
-              <button class="ep-pgbtn" id="ep-prev" data-onclick="gotoPage(-1)" title="Pagina anterior" aria-label="Pagina anterior"><svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
-              <div class="ep-pgnum" id="ep-pgnum">1/5</div>
-              <button class="ep-pgbtn" id="ep-next" data-onclick="gotoPage(1)" title="Pagina siguiente" aria-label="Pagina siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
-            </div>
-          </div>
-          <div class="ep-rows" id="ep-rows"></div>
-          <div class="ep-hint" id="ep-hint">Selecciona un atributo para ver su descripcion.</div>
+      <h1 id="ep-title" class="ep-sr">Editar jugador</h1>
+
+      <div class="ep-card" id="ep-card"></div>
+
+      <nav class="ep-pager" aria-label="Páginas de atributos">
+        <button class="ep-pgbtn" id="ep-prev" data-onclick="gotoPage(-1)" title="Pagina anterior" aria-label="Pagina anterior"><svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+        <div class="ep-pgcenter">
+          <div class="ep-pgtitle"><span id="ep-page-title">Principales</span> <span class="ep-pgnum" id="ep-pgnum">1/4</span></div>
+          <div class="ep-pgdots" id="ep-pgdots" aria-hidden="true"></div>
         </div>
-      </div>
+        <button class="ep-pgbtn" id="ep-next" data-onclick="gotoPage(1)" title="Pagina siguiente" aria-label="Pagina siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+      </nav>
+
+      <div class="ep-rows" id="ep-rows"></div>
+      <div class="ep-hint" id="ep-hint" hidden></div>
 
       <div class="ep-cart">
-        <div class="ep-cart-tot">
-          <span>Acumulado en esta sesion</span>
-          <b id="ep-cost">0</b>
+        <div class="ep-cart-info">
+          <span class="ep-cart-count" id="ep-cart-count">Sin cambios</span>
+          <span class="ep-cart-left" id="ep-cart-left"></span>
         </div>
+        <div class="ep-cart-tot"><b id="ep-cost">0</b></div>
         <div id="ep-warn" class="ep-warn"></div>
         <div class="ep-cart-actions">
-          <button class="ep-btn" data-onclick="discardChanges()"><svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg>Descartar</button>
-          <button class="ep-btn primary" id="ep-apply" data-onclick="openApplyConfirm()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Aplicar cambios</button>
+          <button class="ep-cart-btn" data-onclick="discardChanges()" aria-label="Descartar cambios" title="Descartar cambios"><svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg></button>
+          <button class="ep-cart-go" id="ep-apply" data-onclick="openApplyConfirm()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Revisar</button>
         </div>
       </div>
     </section>
@@ -555,10 +560,14 @@ async function recalcularPresupuestoReal(){
     gastado = YUNACOINS_RULES.gastoTemporada(tx);
   } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); }
   let pendG = 0, pendS = 0, pendTotal = 0;
+  APP.pendientes = [];
   try {
     const q = await firebase.firestore().collection('pedidos_pes5')
       .where('uid', '==', AUTH.user.uid).where('estado', '==', 'pendiente').get();
-    q.forEach(d => { const p = d.data(); pendG += p.fromGeneral || 0; pendS += p.fromSub || 0; pendTotal += p.totalCost || 0; });
+    q.forEach(d => {
+      const p = d.data(); pendG += p.fromGeneral || 0; pendS += p.fromSub || 0; pendTotal += p.totalCost || 0;
+      APP.pendientes.push(Object.assign({ _id: d.id }, p)); // presentacion: aviso y marca «Pedido» (sin lecturas nuevas)
+    });
   } catch (e) { console.warn('[editor] no se pudieron leer los pedidos pendientes', e); }
   const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES);
   APP.budget = {
@@ -771,6 +780,10 @@ async function cargarPlantillaReal(teamId, pes5ClubActual){
 const APP = {
   playerId: null, // se fija en cargarPlantillaReal() -> renderAuthUI(), no hay dataset local
   page: 1,
+  // Presentacion (2.0-3c): grupo de la plantilla que se ve (titular / suplente / reserva) y
+  // los pedidos pendientes propios, que se llenan con la lectura que ya existe (sin lecturas nuevas).
+  squadTab: 'titular',
+  pendientes: [],
   // Slice D.R punto 5a: el wallet real es SIEMPRE teams.yunacoin, nunca
   // hardcodeado. Aca EQUIPO_TSC todavia no cargo (arranca en null antes de
   // loguearse) — se recalcula con el valor real apenas carga, ver
@@ -820,31 +833,48 @@ function canAfford(nextCost){ return nextCost <= remainingBalance(); }
 
 /* ================= render: roster (agrupado por posicion, estilo PES5) ================= */
 
+/* Presentacion: linea de cada posicion (color de la fila) y codigo corto de la posicion. */
+const LINEA_POS = {GK:'gk', CB:'def', CWP:'def', SB:'def', WB:'def', CMF:'mid', DMF:'mid', AMF:'mid', SMF:'mid', CF:'att', SS:'att', WG:'att'};
+const CODIGO_POS = {GK:'PT', CB:'CT', CWP:'LI', SB:'CAR', WB:'LAT', DMF:'MCD', CMF:'CC', AMF:'MP', SMF:'VOL', WG:'EX', SS:'SD', CF:'DC'};
+function sectionKeyOfSlot(slot){ const s = slot ?? 999; return s < 11 ? 'titular' : s < 23 ? 'suplente' : 'reserva'; }
 function renderRoster(){
   const q = (document.getElementById('ep-search').value||'').toLowerCase();
   const list = document.getElementById('ep-roster-list');
-  const userSvg = '<svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>';
+  // conteos y estado del segmentado (siempre sobre todo el plantel)
+  SQUAD_SECTIONS.forEach(sec=>{
+    const n = PLAYERS.filter(p => sectionKeyOfSlot(p.slot) === sec.key).length;
+    const b = document.getElementById('ep-seg-n-' + sec.key);
+    if (b) b.textContent = n;
+    const tab = document.getElementById('ep-seg-' + sec.key);
+    if (tab) tab.setAttribute('aria-selected', String(sec.key === APP.squadTab));
+  });
 
   function item(p){
+    const pos = p.primaryPos || 'CB';
+    const linea = LINEA_POS[pos] || 'mid';
+    const pendiente = (APP.pendientes||[]).some(x => x.playerId === p.id && x.estado === 'pendiente');
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" data-onclick="selectPlayer('${p.id}')">
-      <div class="av">${userSvg}</div>
-      <div class="ep-pitem-info">
-        <div class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</div>
-        <div class="ep-pitem-tag">#${escHtml(p.dorsal)} &middot; ${escHtml(p.tag)}</div>
-      </div>
+      <span class="ep-pitem-pos ep-line-${linea}">${escHtml(CODIGO_POS[pos] || pos)}</span>
+      <span class="ep-pitem-info">
+        <span class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</span>
+        <span class="ep-pitem-tag">${escHtml((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || '')}</span>
+      </span>
+      ${pendiente ? '<span class="ep-pitem-pedido">Pedido</span>' : ''}
     </div>`;
   }
 
   let html = '';
   SQUAD_SECTIONS.forEach(sec=>{
+    // sin busqueda se ve el grupo elegido en el segmentado; con busqueda, todos los grupos que coinciden
+    if (!q && sec.key !== APP.squadTab) return;
     const players = PLAYERS
-      .filter(p => (p.slot ?? 999) >= sec.from && (p.slot ?? 999) < sec.to && p.name.toLowerCase().includes(q))
+      .filter(p => sectionKeyOfSlot(p.slot) === sec.key && p.name.toLowerCase().includes(q))
       .sort((a,b) => (a.slot ?? 0) - (b.slot ?? 0)); // orden real del archivo, no alfabetico ni por posicion
     if(!players.length) return;
-    html += `<div class="ep-bkt-hd" style="background:${sec.color};">${sec.label}</div>`;
+    if (q) html += `<div class="ep-bkt-hd">${sec.label}</div>`;
     html += players.map(item).join('');
   });
-  list.innerHTML = html || '<div style="padding:8px;color:var(--txt3);font-size:12px;">Sin resultados.</div>';
+  list.innerHTML = html || '<div style="padding:14px;color:var(--txt3);font-size:13px;">Sin resultados.</div>';
   // Slice F.M: en movil la lista es una tira horizontal; traer el jugador activo a la vista.
   const activo = list.querySelector('.ep-pitem.active');
   if (activo && window.matchMedia('(max-width: 860px)').matches) activo.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -854,8 +884,51 @@ function selectPlayer(id){
   APP.playerId = id;
   APP.page = 1;
   APP.hint = 'Selecciona un atributo para ver su descripcion.';
+  const jugador = PLAYER_BY_ID[id];
+  if (jugador) APP.squadTab = sectionKeyOfSlot(jugador.slot); // el segmentado sigue al jugador elegido
   loadDraft();
   renderAll();
+  // Telefono (<860 px): tocar un jugador abre el editor como vista propia. El scroll de la
+  // plantilla se guarda solo cuando se sale de ella, para volver al mismo lugar.
+  if (!ADMIN_EMBED && window.matchMedia('(max-width: 859.98px)').matches){
+    const r = _raiz();
+    if (r && r.dataset.vista !== 'editor') _scrollPlantilla = window.scrollY;
+    setVista('editor');
+    window.scrollTo(0, 0);
+  }
+}
+/* Presentacion (2.0-3c): vistas del telefono. En escritorio las dos columnas van siempre. */
+let _scrollPlantilla = 0;
+function setVista(v){ const r = _raiz(); if (r) r.dataset.vista = v; }
+/* Menu de cuenta de la cabecera: sesion, tema y salir (presentacion). */
+function mejToggleCuenta(){
+  const m = document.getElementById('ep-acc-menu'), b = document.getElementById('ep-acc-btn');
+  if (!m) return;
+  m.hidden = !m.hidden;
+  if (b) b.setAttribute('aria-expanded', String(!m.hidden));
+}
+function mejVolverPlantilla(){
+  setVista('plantilla');
+  window.scrollTo(0, _scrollPlantilla || 0);
+  renderRoster();
+}
+function setSquadTab(key){
+  APP.squadTab = key;
+  renderRoster();
+}
+/* Jugador anterior / siguiente en el orden de la plantilla (titulares, suplentes, reserva). */
+function mejPasar(delta){
+  const orden = PLAYERS.slice().sort((a,b) => (a.slot ?? 0) - (b.slot ?? 0));
+  const i = orden.findIndex(p => p.id === APP.playerId);
+  if (!orden.length || i < 0) return;
+  selectPlayer(orden[(i + delta + orden.length) % orden.length].id);
+}
+/* «Titular 3 de 11», «Suplente 2 de 12», «Reserva 1» para el encabezado del editor. */
+function posicionEnPlantilla(p){
+  const s = p.slot ?? 0;
+  if (s < 11) return 'Titular ' + (s + 1) + ' de 11';
+  if (s < 23) return 'Suplente ' + (s - 10) + ' de 12';
+  return 'Reserva ' + (s - 22);
 }
 
 /* ================= render: card ================= */
@@ -863,39 +936,46 @@ function selectPlayer(id){
 function renderCard(){
   const p = currentPlayer();
   const d = APP.draft;
-  const photo = BUCKET_PHOTO[p.bucket] || BUCKET_PHOTO.ME;
   const lockSvg = '<svg class="icn" viewBox="0 0 24 24" style="width:12px;height:12px;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
   const heightVal = p.heightFixed ? p.height : d.height;
-  const heightRow = p.heightFixed
+  // Presentacion (2.0-3c): las cuatro casillas. La altura se edita desde su casilla con el mismo control.
+  const heightCtl = p.heightFixed
     ? `<b>${heightVal} cm ${lockSvg}</b>`
-    : `<div class="ep-info-height-val"><b>${heightVal} cm</b><div class="ep-rstep">
+    : `<div class="ep-casilla-ctl"><b>${heightVal} cm</b><div class="ep-rstep">
         <button data-onclick="adjustHeight(-1)">&minus;</button>
         <button data-onclick="adjustHeight(1)">+</button>
       </div></div>`;
-  const ageRow = ADMIN_EMBED
-    ? `<div class="ep-info-height"><span>Edad</span><div class="ep-info-height-val"><b>${d.age}</b><div class="ep-rstep">
+  const ageCtl = ADMIN_EMBED
+    ? `<div class="ep-casilla-ctl"><b>${d.age}</b><div class="ep-rstep">
         <button data-onclick="adjustAge(-1)">&minus;</button>
         <button data-onclick="adjustAge(1)">+</button>
-      </div></div></div>`
-    : `<div><span>Edad</span><b>${p.age}</b></div>`;
+      </div></div>`
+    : `<b>${p.age}</b>`;
   const posRegistrada = d.primaryPos || p.primaryPos;
   const posLabel = POS_BY_KEY[posRegistrada]?.l || posRegistrada;
-  const sideRow = d.side !== undefined ? `<div><span>Banda</span><b>${escHtml(SIDE_LABEL[d.side]||'—')}</b></div>` : '';
+  const linea = LINEA_POS[posRegistrada] || 'mid';
+  const banda = d.side !== undefined ? (SIDE_LABEL[d.side] || '—') : '—';
+  const pie = FOOT_LABEL[d.favfoot] || p.foot;
   document.getElementById('ep-card').innerHTML = `
-    <div class="ep-photo"><img src="${photo}" alt=""></div>
-    <div>
-      <div class="ep-name">${escHtml(p.name)}</div>
-      <div class="ep-tag">#${escHtml(p.dorsal)} &middot; ${escHtml(posLabel)}</div>
+    <div class="ep-ficha">
+      <div class="ep-ficha-top">
+        <div class="ep-posbig ep-line-${linea}">${escHtml(CODIGO_POS[posRegistrada] || posRegistrada)}</div>
+        <div class="ep-ficha-txt">
+          <div class="ep-name">${escHtml(p.name)}</div>
+          <div class="ep-tag">#${escHtml(p.dorsal)} · ${escHtml(posLabel)} · ${escHtml(p.country)}</div>
+          <div class="ep-tipo" id="ep-subtitle"></div>
+        </div>
+      </div>
+      <div class="ep-casillas">
+        <div class="ep-casilla"><span>Edad</span>${ageCtl}</div>
+        <div class="ep-casilla"><span>Altura</span>${heightCtl}</div>
+        <div class="ep-casilla"><span>Pie</span><b>${escHtml(pie)}</b></div>
+        <div class="ep-casilla"><span>Banda</span><b>${escHtml(banda)}</b></div>
+      </div>
+      ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
     </div>
-    <div class="ep-info">
-      <div class="ep-info-height"><span>Altura</span>${heightRow}</div>
-      ${ageRow}
-      <div><span>Nacionalidad</span><b>${escHtml(p.country)}</b></div>
-      <div><span>Pie</span><b>${escHtml(FOOT_LABEL[d.favfoot] || p.foot)}</b></div>
-      ${sideRow}
-    </div>
-    ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
   `;
+  document.getElementById('ep-edit-pos').textContent = posicionEnPlantilla(p);
   document.getElementById('ep-subtitle').textContent = ((EQUIPO_TSC && EQUIPO_TSC.name) || 'Mi equipo') + ' · ' +
     (p.subscriber ? 'Suscriptor' : p.heightFixed ? 'Fichaje real' : 'Plantilla base');
 }
@@ -907,6 +987,22 @@ function renderPager(){
   document.getElementById('ep-pgnum').textContent = APP.page + '/' + PAGES.length;
   document.getElementById('ep-prev').disabled = APP.page<=1;
   document.getElementById('ep-next').disabled = APP.page>=PAGES.length;
+  // marcas de pagina como en el juego: una activa (larga) y el resto
+  document.getElementById('ep-pgdots').innerHTML = PAGES.map((_, i) => `<i class="${i===APP.page-1?'on':''}"></i>`).join('');
+}
+/* Aviso del pedido pendiente (presentacion): usa los pedidos que ya carga el editor. */
+function renderPending(){
+  const pend = (APP.pendientes||[]).filter(x => x.estado === 'pendiente');
+  const sub = document.getElementById('ep-pedidos-sub');
+  if (sub) sub.textContent = pend.length ? pend.length + (pend.length === 1 ? ' en revisión' : ' en revisión') : 'Sin pendientes';
+  const box = document.getElementById('ep-pend');
+  if (!box) return;
+  if (!pend.length || ADMIN_EMBED){ box.hidden = true; box.innerHTML = ''; return; }
+  const x = pend[0];
+  const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
+  const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
+  box.hidden = false;
+  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.${mas} Podés cancelarlo desde Pedidos mientras siga pendiente.</span>`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
@@ -933,10 +1029,18 @@ function renderHero(){
   document.getElementById('ep-balance-total').textContent = Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL');
   document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
   document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
+  // barra del tope de temporada: lo usado (tope menos lo que queda), mismos datos que el texto de arriba
+  const cap = RULES.budgetGeneral || 0;
+  const quedaGeneral = APP.budget.general - fromGeneral;
+  const fill = document.getElementById('ep-cap-fill');
+  if (fill) fill.style.width = cap > 0 ? Math.min(100, Math.max(0, (cap - quedaGeneral) / cap * 100)) + '%' : '0%';
 }
 function renderCart(){
   const cost = pendingCost();
-  document.getElementById('ep-cost').textContent = cost.toLocaleString('es-CL');
+  const n = pendingChangeLines().length;
+  document.getElementById('ep-cost').textContent = cost > 0 ? '−' + cost.toLocaleString('es-CL') : '0';
+  document.getElementById('ep-cart-count').textContent = n ? n + (n === 1 ? ' cambio' : ' cambios') : 'Sin cambios';
+  document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL') + ' YC' : '';
   renderHero();
   const applyBtn = document.getElementById('ep-apply');
   applyBtn.disabled = pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
@@ -1001,30 +1105,38 @@ function openApplyConfirm(){
     return;
   }
   const cost = pendingCost();
+  // saldo, tope y bono antes y despues del pedido: los mismos datos que muestra el saldo
+  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!p.subscriber);
+  const saldoAntes = APP.saldo || 0;
+  const saldoDespues = Math.max(0, saldoAntes - cost);
+  const cap = RULES.budgetGeneral || 0;
+  const quedaGeneral = APP.budget.general - fromGeneral;
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
-  <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
-    <div class="ep-modal">
-      <div class="ep-modal-hd">
-        <h2>Confirmar mejoras — ${escHtml(p.name)}</h2>
-        <button class="ep-modal-close" data-onclick="closeApplyConfirm()">&times;</button>
+  <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
+    <section class="ep-sheet" role="dialog" aria-modal="true" aria-labelledby="ep-sheet-tit">
+      <div class="ep-grab" aria-hidden="true"></div>
+      <div class="ep-sheet-hd">
+        <h2 id="ep-sheet-tit">${ADMIN_EMBED ? 'Revisar cambios' : 'Revisar pedido'}</h2>
+        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.' : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo podés cancelar.'}</span>
       </div>
-      <div class="ep-modal-body">
-        ${lines.map(l=>`<div class="ep-diffline">
-          <div class="lbl">${escHtml(l.label)}</div>
-          <div class="chg">${escHtml(l.from)} &rarr; ${escHtml(l.to)}</div>
-          <div class="cost">${l.cost>0? '+'+l.cost.toLocaleString('es-CL') : 'gratis'}</div>
-        </div>`).join('')}
-        <div class="ep-modal-total">
-          <span>Costo total</span>
-          <b>${cost.toLocaleString('es-CL')} YunaCoins</b>
-        </div>
+      <ul class="ep-sheet-list">
+        ${lines.map(l=>`<li class="ep-sheet-line">
+          <span class="lbl">${escHtml(p.name)} · ${escHtml(l.label)}</span>
+          <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
+          <span class="cost">${l.cost>0? '+'+l.cost.toLocaleString('es-CL') : 'gratis'}</span>
+        </li>`).join('')}
+      </ul>
+      ${ADMIN_EMBED ? '' : `<dl class="ep-sheet-saldo">
+        <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
+        <div><dt>Queda del tope</dt><dd>${quedaGeneral.toLocaleString('es-CL')} / ${cap.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Bono suscriptores usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
+      </dl>`}
+      <div class="ep-sheet-act">
+        <button class="ep-btn" data-onclick="closeApplyConfirm()">Seguir editando</button>
+        <button class="ep-btn primary" data-onclick="commitChanges()">${ADMIN_EMBED ? 'Aplicar cambios' : 'Enviar a Luis'}</button>
       </div>
-      <div class="ep-modal-foot">
-        <button class="ep-btn" data-onclick="closeApplyConfirm()">Cancelar</button>
-        <button class="ep-btn primary" data-onclick="commitChanges()">Confirmar</button>
-      </div>
-    </div>
+    </section>
   </div>`;
 }
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
@@ -1110,10 +1222,14 @@ async function commitChanges(){
   });
   saveAuditLog();
 
+  // presentacion: el pedido recien enviado ya cuenta como pendiente (marca «Pedido» y aviso)
+  APP.pendientes.push({ _id: 'local-' + Date.now(), playerId: p.id, playerName: p.name, lines, totalCost: cost, estado: 'pendiente' });
   closeApplyConfirm();
   renderCard();
   renderRows();
   renderCart();
+  renderRoster();
+  renderPending();
   showMiniToast(`Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins`);
 }
 
@@ -1833,18 +1949,37 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
   const pct = Math.round(value/max*100);
   const decDisabled = locked || value<=(ADMIN_EMBED ? (max===8 ? 1 : 0) : min);
   const incDisabled = locked || value>=max || !affordNext;
-  const costBadge = costSoFar>0 ? `<div class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</div>` : '';
-  return `<div class="ep-row ${APP.hint===desc?'sel':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
-    <div class="ep-rlabel">${escHtml(label)}</div>
-    ${costBadge}
-    <div class="ep-rval" style="color:${color};">${value}</div>
-    <div class="ep-rbar"><i style="width:${pct}%;background:${color};"></i></div>
-    <div class="ep-rstep">
-      <button ${decDisabled?'disabled':''} data-onclick="event.stopPropagation();${onDec}">&minus;</button>
-      <button ${incDisabled?'disabled':''} data-onclick="event.stopPropagation();${onInc}">+</button>
+  const sel = APP.hint===desc;
+  const cambiada = value !== min; // min = valor original del jugador: si cambio, la fila se resalta
+  const costBadge = costSoFar>0 ? `<span class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</span>` : '';
+  const viejo = cambiada ? `<span class="ep-rold">${min}</span>` : '';
+  // la descripcion vive dentro de la fila: la del atributo elegido o la de un cambio pendiente
+  const detalle = (sel || cambiada) ? `<div class="ep-rdesc">${escHtml(desc)}</div>` : '';
+  return `<div class="ep-row ${sel?'sel':''} ${cambiada?'chg':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
+    <div class="ep-rmain">
+      <div class="ep-rhead"><span class="ep-rlabel">${escHtml(label)}</span>${costBadge}</div>
+      <div class="ep-rbar"><i style="width:${pct}%;background:${color};"></i></div>
     </div>
+    <div class="ep-rnum">${viejo}<span class="ep-rval" style="color:${color};">${value}</span></div>
+    <div class="ep-rstep">
+      <button ${decDisabled?'disabled':''} aria-label="Bajar ${escHtml(label)}" data-onclick="event.stopPropagation();${onDec}">&minus;</button>
+      <button ${incDisabled?'disabled':''} aria-label="Subir ${escHtml(label)}" data-onclick="event.stopPropagation();${onInc}">+</button>
+    </div>
+    ${detalle}
   </div>`;
 }
+
+/* Presentacion (2.0-3c): grupos de la pagina Principales y etiquetas completas de la propuesta.
+   Solo cambian lo que se muestra; las claves (k) y MAIN_STATS siguen igual. */
+const GRUPOS_PRINCIPALES = [
+  ['Rol', ['atk','def']],
+  ['Físico', ['equ','res','vm','ace','rsp','agi']],
+  ['Balón y pase', ['pcd','vcd','ppc','vpc','ppl','vpl']],
+  ['Disparo', ['pre','pot','ted']],
+];
+const ETIQUETA_FILA = {atk:'Ataque', def:'Defensa', equ:'Equilibrio', res:'Resistencia', vm:'Vel. máxima', ace:'Aceleración',
+  rsp:'Respuesta', agi:'Agilidad', pcd:'Prec. conducción', vcd:'Vel. conducción', ppc:'Prec. pase corto', vpc:'Vel. pase corto',
+  ppl:'Prec. pase largo', vpl:'Vel. pase largo', pre:'Precisión', pot:'Potencia', ted:'Téc. de disparo'};
 
 function renderRows(){
   const p = currentPlayer();
@@ -1853,13 +1988,14 @@ function renderRows(){
   let html = '';
 
   if(APP.page===1){
-    html = PAGE1_STATS.map(s=>{
-      const v = d.stats[s.k];
+    html = GRUPOS_PRINCIPALES.map(([titulo, keys]) => `<div class="ep-grp">${titulo}</div>` + keys.map(k => {
+      const s = MAIN_BY_KEY[k];
+      const v = d.stats[k];
       const afford = v>=99 || canAfford(bandCost99(v+1));
-      const cost = v>p.stats[s.k] ? costRange99(p.stats[s.k], v) : 0;
-      return numericRowHTML(s.l, s.d, v, p.stats[s.k], 99, val=>TIER_COLOR[tierClass99(val)],
-        `adjustMain('${s.k}',-1)`, `adjustMain('${s.k}',1)`, false, afford, cost);
-    }).join('');
+      const cost = v>p.stats[k] ? costRange99(p.stats[k], v) : 0;
+      return numericRowHTML(ETIQUETA_FILA[k] || s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
+        `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
+    }).join('')).join('');
   }
 
   if(APP.page===2){
@@ -1961,12 +2097,25 @@ function renderRows(){
 /* ================= boot ================= */
 
 function renderAll(){
+  renderTop();
   renderRoster();
   renderCard();
   renderPager();
   renderRows();
   renderCart();
+  renderPending();
   document.getElementById('ep-hint').textContent = APP.hint;
+}
+/* Cabecera: nombre del equipo e iniciales (presentacion). En modo admin lo pisa renderAdminBar. */
+function renderTop(){
+  const nombre = (EQUIPO_TSC && EQUIPO_TSC.name) || 'Mi equipo';
+  const nameEl = document.getElementById('ep-top-name');
+  if (nameEl && !ADMIN_EMBED) nameEl.textContent = nombre;
+  const badge = document.getElementById('ep-top-badge');
+  if (badge && !ADMIN_EMBED){
+    const iniciales = nombre.split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    badge.textContent = iniciales || 'TSC';
+  }
 }
 
 // Slice D2: el presidente cancela un pedido propio mientras esta pendiente.
@@ -1990,17 +2139,18 @@ function adjustAge(delta){
 
 // Barra superior del modo admin: titulo con el equipo y si se cobra o es edicion libre.
 function renderAdminBar(){
-  const crumb = document.querySelector('.ep-crumb');
-  if(!crumb || !crumb.firstElementChild) return;
+  const top = document.querySelector('.ep-top-txt');
+  if(!top) return;
   const e = EQUIPO_TSC;
   const estado = e.cobra
     ? `Se cobra a ${escHtml(e.name)} · saldo ${Number(e.yunacoin||0).toLocaleString('es-CL')}`
     : 'Sin presidente · edición libre, sin cobro';
-  const titulo = document.createElement('span');
-  titulo.innerHTML = `Editando <b>&rsaquo; ${escHtml(e.name)}</b> &middot; ${escHtml(e.pes5Club||'')}`;
-  crumb.firstElementChild.replaceWith(titulo);
-  let tag = crumb.querySelector('.ep-admin-tag');
-  if(!tag){ tag = document.createElement('span'); tag.className = 'ep-admin-tag'; crumb.appendChild(tag); }
+  const nameEl = document.getElementById('ep-top-name');
+  if (nameEl) nameEl.textContent = 'Editando · ' + (e.name || '');
+  const sub = top.querySelector('.ep-top-sub');
+  if (sub) sub.textContent = e.pes5Club || 'Mejoras de jugadores';
+  let tag = top.querySelector('.ep-admin-tag');
+  if(!tag){ tag = document.createElement('span'); tag.className = 'ep-admin-tag'; top.appendChild(tag); }
   tag.textContent = estado;
 }
 
@@ -2198,6 +2348,10 @@ window.setSide = setSide;
 window.toggleAbility = toggleAbility;
 window.togglePosition = togglePosition;
 window.mejToggleTheme = toggleTheme;
+window.setSquadTab = setSquadTab;
+window.mejVolverPlantilla = mejVolverPlantilla;
+window.mejPasar = mejPasar;
+window.mejToggleCuenta = mejToggleCuenta;
 
 iniciarPagina();
 
