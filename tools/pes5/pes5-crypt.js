@@ -7,7 +7,7 @@
 //      con key[] de 367 palabras, ciclica, reiniciada en cada bloque.
 const fs = require('fs'), path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, 'OptionFile.java'), 'latin1');
+const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'docs', '2.0', 'investigacion', 'OptionFile.java'), 'latin1');
 function arr(nombre) {
   const i = SRC.indexOf(nombre + ' = {');
   if (i < 0) throw new Error('no encuentro el array ' + nombre);

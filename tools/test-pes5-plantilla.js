@@ -3,9 +3,9 @@
 // que espera el editor del presidente (mejoras.html).
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const { TextDecoder } = require('util');
-const { descifrar } = require('./pes5-crypt.js');
+const { descifrar } = require('./pes5/pes5-crypt.js');
 
-const JS_DIR = path.join(__dirname, '..', '..', '..', 'js');
+const JS_DIR = path.join(__dirname, '..', 'tsc-src', 'js');
 const PES5_JSON_DIR = path.join(JS_DIR, 'pes5');
 
 function cargarPES5_EDITOR() {
@@ -27,7 +27,7 @@ function cargarPES5_EDITOR() {
 const SAVE_REAL = process.env.PES5_SAVE ||
   'C:/Users/Administrator/Documents/KONAMI/Pro Evolution Soccer 5/save/folder1/KONAMI-WIN32PES5OPT';
 
-const P = require('../../../js/pes5-plantilla.js');
+const P = require('../tsc-src/js/pes5-plantilla.js');
 
 let fallas = 0;
 function assert(cond, msg) {
@@ -41,8 +41,8 @@ async function main() {
   await PES5_EDITOR.cargarNombresEquipos('./');
 
   if (!fs.existsSync(SAVE_REAL)) {
-    console.error('No encuentro el save real en: ' + SAVE_REAL);
-    process.exit(1);
+    console.log('SKIP test-pes5-plantilla: no encuentro el save real en: ' + SAVE_REAL);
+    process.exit(0);
   }
   console.log('Save real (SOLO LECTURA): ' + SAVE_REAL);
   const bytes = descifrar(fs.readFileSync(SAVE_REAL));

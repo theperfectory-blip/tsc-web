@@ -20,7 +20,7 @@ Rama `feat/yunacoins-pes5`. Objetivo: dejar la 2.0 lista para el PR a `main`
 | 6 | PR | pendiente |
 
 Fuera de la 2.0 (propuesto para 2.1): Slice G (nivelación, espera a Luis) y
-Plan A de Streamlabs por API (`tsc-src/prototipo_yunas/MACRO_SLICE_STREAMLABS.md`).
+Plan A de Streamlabs por API (`docs/2.0/investigacion/MACRO_SLICE_STREAMLABS.md`).
 
 ---
 
@@ -861,7 +861,7 @@ auditoría. La prueba en el teléfono real la hace el supervisor por USB.
 
 ### Por qué
 
-Las decisiones están cerradas en `tsc-src/prototipo_yunas/MACRO_SLICE_STREAMLABS.md`
+Las decisiones están cerradas en `docs/2.0/investigacion/MACRO_SLICE_STREAMLABS.md`
 §1 (léelo entero antes de empezar, en especial §1, §2 y §6):
 
 - una sola moneda;
@@ -1112,7 +1112,7 @@ AGENTS.md dice: «Nada que no se cargue en runtime vive dentro de
 | **Borrar** (HTML duplicado del editor y de la tool, ya portados): `pes5-tool.html`, `prototype-editor-jugador.html`, `prototype-editor-jugador.OLD-26jul.html`, `pes5/admin-pes5.html`, `pes5/admin-tool-luis.html`, `pes5/admin-vincular-equipos.html`, `pes5/test-browser-crypto.html` | — |
 
 Además:
-- Quitar `'prototipo_yunas'` de `scripts/build-exclude.mjs`.
+- Quitar `'prototipo_yunas'` de `scripts/build-exclude.mjs`. **Hecho en 5.A.**
 - Actualizar los enlaces a esos archivos: este documento, `WORKFLOW_2.0.md`,
   `CLAUDE.md`/`AGENTS.md` y los reportes 2.0-*. Buscarlos con `grep -rn
   prototipo_yunas`. Lo de `graphify-out` se regenera solo.

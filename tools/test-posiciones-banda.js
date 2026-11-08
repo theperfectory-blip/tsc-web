@@ -6,9 +6,9 @@
 // El save real NUNCA se escribe: toda escritura va sobre copias en memoria.
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const { TextDecoder } = require('util');
-const { descifrar } = require('./pes5-crypt.js');
+const { descifrar } = require('./pes5/pes5-crypt.js');
 
-const JS_DIR = path.join(__dirname, '..', '..', '..', 'js');
+const JS_DIR = path.join(__dirname, '..', 'tsc-src', 'js');
 const PES5_JSON_DIR = path.join(JS_DIR, 'pes5');
 const SAVE_REAL = process.argv[2] || process.env.PES5_SAVE ||
   'C:/Users/Administrator/Documents/KONAMI/Pro Evolution Soccer 5/save/folder1/KONAMI-WIN32PES5OPT';
@@ -39,7 +39,7 @@ const TODAS = Object.keys(CODIGOS);
 async function main() {
   const E = cargarEditor();
   await E.cargarMapa('./');
-  if (!fs.existsSync(SAVE_REAL)) { console.error('No encuentro el save real en: ' + SAVE_REAL); process.exit(1); }
+  if (!fs.existsSync(SAVE_REAL)) { console.log('SKIP test-posiciones-banda: no encuentro el save real en: ' + SAVE_REAL); process.exit(0); }
   console.log('Save real (SOLO LECTURA): ' + SAVE_REAL);
   const plano = descifrar(new Uint8Array(fs.readFileSync(SAVE_REAL)));
   const copiar = () => Uint8Array.from(plano); // copia REAL (Buffer.slice comparte memoria)

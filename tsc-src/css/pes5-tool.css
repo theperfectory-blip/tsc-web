@@ -1,6 +1,6 @@
 /* ============================================================
    Tool PES5 — estilos de la seccion "Tool PES5" del panel admin (slice 2.0-1).
-   Se extrajo de prototipo_yunas/pes5-tool.html. Todo cuelga de #page-pes5-admin
+   Se extrajo de la pagina pes5-tool.html, ya borrada (slice 5.A). Todo cuelga de #page-pes5-admin
    para no pisar el CSS del panel. Se carga bajo demanda (js/pes5-admin.js).
    ============================================================ */
 #page-pes5-admin *{box-sizing:border-box;}

@@ -1,7 +1,7 @@
 /* ============================================================
    TOOL PES5 — seccion "Tool PES5" del panel admin (slice 2.0-1).
-   Antes era la pagina suelta prototipo_yunas/pes5-tool.html (que queda solo
-   como referencia). Ahora la carga bajo demanda js/pes5-admin.js, despues de
+   Antes era una pagina suelta (borrada en el slice
+   5.A). Ahora la carga bajo demanda js/pes5-admin.js, despues de
    css/pes5-tool.css y de los modulos pes5-*.js. No va en index.html.
    Todo queda en una IIFE: solo se expone window.PES5_TOOL, con montar, salir
    y los handlers que usan los data-on*. No pisa globales del panel.

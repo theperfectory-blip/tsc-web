@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path'), crypto = require('crypto');
 
 const SAVE = process.env.PES5_SAVE ||
   'C:/Users/Administrator/Documents/KONAMI/Pro Evolution Soccer 5/save/folder1/KONAMI-WIN32PES5OPT';
-const DIR = path.join(__dirname, '..', 'snapshots');
+const DIR = path.join(__dirname, 'snapshots');
 
 const label = (process.argv[2] || 'sin-etiqueta').replace(/[^a-zA-Z0-9_-]/g, '-');
 if (!fs.existsSync(SAVE)) { console.error('No encuentro el save en:', SAVE); process.exit(1); }

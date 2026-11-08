@@ -13,9 +13,9 @@
 //   un buffer en memoria aparte)
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const { TextDecoder } = require('util');
-const { descifrar } = require('./pes5-crypt.js');
+const { descifrar } = require('./pes5/pes5-crypt.js');
 
-const JS_DIR = path.join(__dirname, '..', '..', '..', 'js');
+const JS_DIR = path.join(__dirname, '..', 'tsc-src', 'js');
 const PES5_JSON_DIR = path.join(JS_DIR, 'pes5');
 
 function cargarPES5_EDITOR() {

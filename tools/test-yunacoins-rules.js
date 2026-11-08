@@ -25,7 +25,7 @@
 // Uso: node test-yunacoins-rules.js
 
 const path = require('path');
-const YUNACOINS_RULES = require(path.join(__dirname, '..', '..', '..', 'js', 'yunacoins-rules.js'));
+const YUNACOINS_RULES = require(path.join(__dirname, '..', 'tsc-src', 'js', 'yunacoins-rules.js'));
 
 let fallas = 0;
 function assert(cond, msg) {

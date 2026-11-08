@@ -379,7 +379,7 @@
   /* ================= Slice 4 · nucleo YunaCoins + Plan B =================
      Funciones PURAS (sin DOM ni Firestore). Las usan coins.js, pes5-tool.js y la
      pestana YunaCoins. Ver docs/MACRO_SLICE_2.0_CIERRE.md (Slice 4) y
-     tsc-src/prototipo_yunas/MACRO_SLICE_STREAMLABS.md §1.
+     docs/2.0/investigacion/MACRO_SLICE_STREAMLABS.md §1.
 
      Convencion de signos (4.C): neto = Σ(sub) − Σ(add) de los movimientos
      `pendiente` de la temporada: lo que la web gasto de mas (positivo) o agrego

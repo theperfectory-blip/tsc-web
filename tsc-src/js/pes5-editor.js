@@ -1,7 +1,7 @@
 // Funciones de alto nivel para leer/escribir un option file de PES5 ya
 // descifrado (Uint8Array), usando pes5-map.json como fuente de verdad de
 // offsets. Puerto a browser de la logica validada en
-// tsc-src/prototipo_yunas/pes5/tools/write-test-full.js y write-team-test.js.
+// tools/pes5/write-test-full.js y tools/pes5/write-team-test.js (slice 5.A).
 
 const PES5_EDITOR = (() => {
   const BASE = 36872, STRIDE = 124; // tabla de jugadores (bloque 4)

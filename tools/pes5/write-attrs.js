@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MAP = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'pes4-map.json'), 'utf8'));
+const MAP = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'docs', '2.0', 'investigacion', 'pes4-map.json'), 'utf8'));
 const [CARD_IN, PLAYER, CARD_OUT, ...assigns] = process.argv.slice(2);
 const raw = fs.readFileSync(CARD_IN);
 

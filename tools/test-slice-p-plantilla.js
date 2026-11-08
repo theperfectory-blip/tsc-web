@@ -2,11 +2,11 @@
 // Uso: node test-slice-p-plantilla.js   (el save real se abre en SOLO LECTURA)
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const { TextDecoder } = require('util');
-const { descifrar } = require('./pes5-crypt.js');
-const JS_DIR = path.join(__dirname, '..', '..', '..', 'js');
+const { descifrar } = require('./pes5/pes5-crypt.js');
+const JS_DIR = path.join(__dirname, '..', 'tsc-src', 'js');
 const SAVE_REAL = process.env.PES5_SAVE || 'C:/Users/Administrator/Documents/KONAMI/Pro Evolution Soccer 5/save/folder1/KONAMI-WIN32PES5OPT';
-const P = require('../../../js/pes5-plantilla.js');
-const R = require('../../../js/yunacoins-rules.js');
+const P = require('../tsc-src/js/pes5-plantilla.js');
+const R = require('../tsc-src/js/yunacoins-rules.js');
 const sb = { console, TextDecoder, fetch: async (u) => ({ json: async () => JSON.parse(fs.readFileSync(path.join(JS_DIR, 'pes5', u.split('/').pop()), 'utf8')) }) };
 vm.createContext(sb);
 vm.runInContext(fs.readFileSync(path.join(JS_DIR, 'pes5-editor.js'), 'utf8') + '\nthis.E = PES5_EDITOR;', sb);

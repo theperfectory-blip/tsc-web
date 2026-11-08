@@ -1,5 +1,5 @@
 // Descifrado/cifrado del option file de PES5 PC (KONAMI-WIN32PES5OPT).
-// Puerto a browser de tsc-src/prototipo_yunas/pes5/tools/pes5-crypt.js.
+// Puerto a browser de tools/pes5/pes5-crypt.js (script de node, slice 5.A).
 // Mismo algoritmo (ver ese archivo para la explicacion completa), usando
 // DataView en vez de Buffer de Node. DataView.getInt32/setInt32(offset,true)
 // son little-endian y de 32 bits con signo, igual que Buffer.readInt32LE.

@@ -17,7 +17,7 @@ historial; un commit hecho en una se ve en la otra al instante.
 
 Lo que la 2.0 tiene de más respecto de `main`:
 - `tsc-src/mejoras.html` (página del presidente, enlazada desde su perfil) y `tsc-src/assets/mejoras/`.
-- `tsc-src/prototipo_yunas/pes5-tool.html` (Tool PES5 del admin) y la documentación de investigación en `tsc-src/prototipo_yunas/`.
+- La Tool PES5 del admin vive en `tsc-src/js/pes5-tool.js` (la página suelta `prototipo_yunas/pes5-tool.html` se borró en el slice 5.A) y la documentación de investigación en `docs/2.0/investigacion/`.
 - Módulos `tsc-src/js/pes5-crypt.js`, `pes5-editor.js`, `pes5-save.js`, `pes5-plantilla.js`, `yunacoins-rules.js` y los JSON de `tsc-src/js/pes5/`.
 - Reglas de Firestore `pedidos_pes5`, `pes5_plantillas` y `pes5_config` (desplegadas).
 - `tsc-src/_material-diseno/`.
@@ -150,7 +150,7 @@ Solo cuando **todo** esto se cumple. Mientras falte algo, no hay PR.
       reales: presidente crea pedido → admin lo ve en la tool → lo aplica en
       el option file de PES5 → lo marca aplicado → el presidente lo ve.
 - [ ] YunaCoins: decidida e implementada la dirección del sync con Streamlabs
-      (ver `tsc-src/prototipo_yunas/STREAMLABS_YUNACOINS.md`), o
+      (ver `docs/2.0/investigacion/STREAMLABS_YUNACOINS.md`), o
       explícitamente pospuesta a una 2.1.
 - [ ] Reglas de Firestore desplegadas a mano y verificadas
       (`firebase deploy --only firestore:rules` desde esta carpeta).
@@ -224,14 +224,14 @@ Al mergear `main`, `android/app/build.gradle` trae el `versionCode` nuevo. La
 
 | Tema | Archivo |
 |---|---|
-| **Plan vigente: Tool PES5 unificada (slices A-E)** | `tsc-src/prototipo_yunas/MACRO_SLICE_PES5_TOOL.md` |
-| Plan del editor PES4 (slices A-E, sin implementar) | `tsc-src/prototipo_yunas/MACRO_SLICE_EDITOR_PES4.md` |
-| Cifrado y mapa del option file PES5 (resuelto) | `tsc-src/prototipo_yunas/pes5/README.md`, `pes5-map.json`, `pes5-keys.json` |
-| Editor de jugadores (prototipo funcional) | `tsc-src/prototipo_yunas/prototype-editor-jugador.html` |
-| Tool del admin para aplicar pedidos | `tsc-src/prototipo_yunas/pes5/admin-pes5.html`, `admin-tool-luis.html` |
-| Vincular equipos TSC ↔ PES5 | `tsc-src/prototipo_yunas/pes5/admin-vincular-equipos.html` |
+| **Plan vigente: Tool PES5 unificada (slices A-E)** | `docs/2.0/investigacion/MACRO_SLICE_PES5_TOOL.md` |
+| Plan del editor PES4 (slices A-E, sin implementar) | `docs/2.0/investigacion/MACRO_SLICE_EDITOR_PES4.md` |
+| Cifrado y mapa del option file PES5 (resuelto) | `docs/2.0/investigacion/pes5-README.md`, `pes4-map.json`, `js/pes5/pes5-keys.json` |
+| Editor de jugadores (prototipo funcional) | `prototype-editor-jugador.html`: borrado en el slice 5.A; la versión viva es `js/mejoras-page.js` |
+| Tool del admin para aplicar pedidos | `admin-pes5.html`, `admin-tool-luis.html`: borrados en el slice 5.A; la versión viva es `js/pes5-tool.js` |
+| Vincular equipos TSC ↔ PES5 | `admin-vincular-equipos.html`: borrado en el slice 5.A; la versión viva es `js/pes5-tool.js` |
 | Módulos de navegador PES5 | `tsc-src/js/pes5-crypt.js`, `tsc-src/js/pes5-editor.js` |
-| YunaCoins / Streamlabs (decisión abierta) | `tsc-src/prototipo_yunas/STREAMLABS_YUNACOINS.md` |
+| YunaCoins / Streamlabs (decisión abierta) | `docs/2.0/investigacion/STREAMLABS_YUNACOINS.md` |
 | Reglas Firestore nuevas | `firebase/firestore.rules` (`pedidos_pes5`, `pes5_plantillas`) |
-| Tool del admin (save, pedidos, publicar, reglas) | `tsc-src/prototipo_yunas/pes5-tool.html` |
+| Tool del admin (save, pedidos, publicar, reglas) | `tsc-src/js/pes5-tool.js` (la página `pes5-tool.html` se borró en el slice 5.A) |
 | Página del presidente (mejoras con YunaCoins) | `tsc-src/mejoras.html` |
