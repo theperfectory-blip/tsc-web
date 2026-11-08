@@ -398,6 +398,13 @@ function renderStatusBar(){
 
   const meta = SAVE_META;
   const fecha = meta ? new Date(meta.lastModified).toLocaleString('es-AR') : '—';
+  const pend = PLANTILLAS_DESACTUALIZADAS || [];
+  const aviso = pend.length
+    ? `<div class="pt-statusbar">
+        <div class="pt-status-item"><span class="badge badge-warn">${ICN.alert} ${pend.length} ${pend.length === 1 ? 'plantilla desactualizada' : 'plantillas desactualizadas'}: el presidente ve datos viejos</span></div>
+        <div class="pt-status-actions"><button class="btn btn-sm btn-primary" data-onclick="ptPublicarDesactualizadas()">${ICN.upload} Publicar ahora</button></div>
+      </div>`
+    : '';
   el.innerHTML = `
     <div class="pt-statusbar">
       <div class="pt-status-item">${ICN.folder} <b>${escHtml(carpeta)}</b></div>
@@ -407,8 +414,39 @@ function renderStatusBar(){
         <button class="btn btn-sm" data-onclick="ptReconectarCarpetaClick()">${ICN.link} Reconectar</button>
         <button class="btn btn-sm" data-onclick="ptRecargarSaveClick()">${ICN.refresh} Recargar</button>
       </div>
-    </div>`;
+    </div>${aviso}`;
 }
+
+/* Aviso de plantillas desactualizadas (2.0-4). Compara cada pes5_plantillas con el save abierto
+   (saveHash y pes5ClubIdx). Solo AVISA: publicar lo decide el admin con el boton, nunca solo,
+   porque el save puede estar a mitad de edicion. */
+let PLANTILLAS_DESACTUALIZADAS = null;
+async function revisarPlantillasDesactualizadas(){
+  PLANTILLAS_DESACTUALIZADAS = null;
+  if (PLANO){
+    const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
+    try {
+      if (equipos.length){
+        const hashActual = await _hashPlano();
+        const publicadas = {};
+        const snap = await firebase.firestore().collection('pes5_plantillas').get();
+        snap.forEach(d => { publicadas[d.id] = d.data(); });
+        PLANTILLAS_DESACTUALIZADAS = PES5_PLANTILLA.desactualizadas(equipos, publicadas, hashActual);
+      }
+    } catch (e){
+      console.error('[pes5-tool] plantillas desactualizadas', e);
+    }
+  }
+  if (document.getElementById('pt-statusbar')) renderStatusBar();
+}
+function publicarDesactualizadasClick(){
+  const ids = (PLANTILLAS_DESACTUALIZADAS || []).map(x => x.teamId);
+  if (!ids.length) return;
+  showConfirm('Publicar plantillas',
+    `Se publican ${ids.length} plantilla(s) desde el save que está abierto. Confirmá que no hay cambios a medio hacer: el presidente va a ver esos datos.`,
+    () => publicarPlantillas(ids));
+}
+window.ptPublicarDesactualizadas = publicarDesactualizadasClick;
 
 async function elegirCarpetaClick(){
   try {
@@ -444,6 +482,7 @@ async function cargarSaveDesdeCarpeta(){
   recalcularClubesDelSave();
   await migrarPes5ClubIdx();
   iniciarObservador();
+  await revisarPlantillasDesactualizadas();
 }
 
 /* ============================================================
@@ -1557,7 +1596,7 @@ async function cargarEstadoPublicacion(equipos){
       if (!snap.exists){ el.textContent = 'Nunca'; continue; }
       const d = snap.data();
       const cuando = d.publicadoEn && d.publicadoEn.toDate ? d.publicadoEn.toDate().toLocaleString('es-CL') : 'fecha desconocida';
-      const vieja = d.saveHash !== hashActual || d.pes5ClubIdx !== t.pes5ClubIdx;
+      const vieja = PES5_PLANTILLA.plantillaDesactualizada(d, t, hashActual);
       el.innerHTML = `${escHtml(cuando)}${vieja ? ' <span class="badge badge-warn">desactualizada</span>' : ' <span class="badge badge-green">al día</span>'}`;
     } catch (e) {
       el.textContent = 'error al leer';
@@ -1600,6 +1639,7 @@ async function publicarPlantillas(ids){
   } finally {
     if (btn) btn.disabled = false;
     cargarEstadoPublicacion(equipos);
+    revisarPlantillasDesactualizadas();
   }
 }
 
