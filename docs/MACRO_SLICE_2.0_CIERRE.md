@@ -905,9 +905,11 @@ Estado actual que importa:
 - **Los movimientos viejos sin el campo cuentan como ya sincronizados.**
   Nunca se suman como pendientes; si no, el primer pegado restaría toda la
   historia.
-- **Neto pendiente de un equipo** = Σ(`add`) − Σ(`sub`) de sus movimientos
-  `pendiente`, solo de la temporada abierta. Es lo que Streamlabs todavía
-  no sabe.
+- **Neto pendiente de un equipo** = Σ(`sub`) − Σ(`add`) de sus movimientos
+  `pendiente`, solo de la temporada abierta: lo gastado en la web que
+  Streamlabs todavía no sabe, en positivo. Así, saldo nuevo = pegado − neto.
+  (Corregido en la auditoría: la primera versión de la spec tenía el signo
+  invertido.)
 - Función pura `netoPendiente(movimientos)` en `js/yunacoins-rules.js`, con
   test en node.
 
