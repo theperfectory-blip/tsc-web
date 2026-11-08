@@ -783,7 +783,7 @@ let PLAYER_BY_ID = {};
 function jugadorDesdePlantillaReal(raw, equipo){
   return {
     id: raw.id, slot: raw.slot, name: raw.name, dorsal: raw.dorsal || '', tag: raw.tag, bucket: raw.bucket,
-    heightFixed: false, subscriber: !!raw.subscriber, country: equipo.teamName || 'TSC',
+    heightFixed: false, subscriber: PES5_PLANTILLA.esSuscriptorPublicado(raw), country: equipo.teamName || 'TSC',
     height: raw.height, age: raw.age, foot: raw.foot,
     primaryPos: raw.primaryPos, stats: raw.stats, sec: raw.sec,
     abilities: raw.abilities, positions: raw.positions, favfoot: raw.favfoot,

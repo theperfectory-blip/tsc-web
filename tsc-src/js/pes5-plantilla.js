@@ -181,6 +181,25 @@
     return j;
   }
 
+  /* Plantilla publicada (pes5_plantillas/{teamId}) frente al save abierto. Desactualizada =
+     el save cambio desde la publicacion (saveHash distinto) o el club vinculado cambio
+     (pes5ClubIdx distinto). Misma regla que cargarEstadoPublicacion en js/pes5-tool.js. */
+  function plantillaDesactualizada(publicada, equipo, hashActual) {
+    return publicada.saveHash !== hashActual || publicada.pes5ClubIdx !== equipo.pes5ClubIdx;
+  }
+  /* equipos: los vinculados y activos (los filtra quien llama). publicadas: { [teamId]: doc }.
+     Un equipo sin plantilla publicada no sale aca: es «Nunca», no «desactualizada». */
+  function desactualizadas(equipos, publicadas, hashActual) {
+    return (equipos || [])
+      .filter(t => publicadas && publicadas[t.id] && plantillaDesactualizada(publicadas[t.id], t, hashActual))
+      .map(t => ({ teamId: t.id, teamName: t.name }));
+  }
+  /* Suscriptor de un jugador publicado: el flag, o el nombre con $ (la misma regla de
+     jugadorParaEditor). Asi un jugador renombrado en el juego cuenta aunque la publicacion sea vieja. */
+  function esSuscriptorPublicado(raw) {
+    return !!raw.subscriber || String(raw.name || '').startsWith('$');
+  }
+
   return {
     STAT_MAP: STAT_MAP,
     SEC_MAP: SEC_MAP,
@@ -194,5 +213,8 @@
     registroDeId: registroDeId,
     cambiosDesdeEditor: cambiosDesdeEditor,
     aplicarCambiosAlJugador: aplicarCambiosAlJugador,
+    plantillaDesactualizada: plantillaDesactualizada,
+    desactualizadas: desactualizadas,
+    esSuscriptorPublicado: esSuscriptorPublicado,
   };
 });
