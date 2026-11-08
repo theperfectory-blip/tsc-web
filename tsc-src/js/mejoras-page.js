@@ -429,11 +429,36 @@ function isKeeperSlot(slot){ return PLAYER_BY_ID[slot.id]?.primaryPos === 'GK'; 
    de color. En horizontal 1,7% del ancho y en vertical 3,8% del alto dan el
    mismo margen en pixeles (el campo es 2,2:1). */
 const PITCH_PAD_X = 1.7, PITCH_PAD_Y = 3.8;
-function pitchColPct(c){ return PITCH_PAD_X + pitchFrac(c)*(100-2*PITCH_PAD_X); }
-function pitchRowPct(r){ return PITCH_PAD_Y + (r-1)/(PITCH_ROWS-1)*(100-2*PITCH_PAD_Y); }
+/* Orientacion de la cancha (slice 3d): vertical en el telefono (< 860 px), horizontal en
+   escritorio. Es UNA sola variable: pitchPctX / pitchPctY, pitchRectGrilla y
+   pitchCeldaDesdePunto la leen. La grilla (x profundidad, y lateral) y los margenes no
+   cambian: solo se rotan. Lo que se guarda (prof/lat) no depende de esto. */
+let PITCH_VERTICAL = false;
+const clamp01 = v => Math.max(0, Math.min(1, v));
+function pitchLatFrac(y){ return clamp01((y-1)/(PITCH_ROWS-1)); }
+/* Porcentaje dentro del campo en pantalla (left = X, top = Y) de la celda (x, y).
+   Horizontal: x (profundidad) de izquierda a derecha, y (lateral) de arriba abajo.
+   Vertical: y (lateral) de izquierda a derecha, x sube desde el arco propio (x = 2 abajo). */
+function pitchPctX(x, y){
+  return PITCH_VERTICAL
+    ? PITCH_PAD_Y + pitchLatFrac(y)*(100-2*PITCH_PAD_Y)
+    : PITCH_PAD_X + pitchFrac(x)*(100-2*PITCH_PAD_X);
+}
+function pitchPctY(x, y){
+  return PITCH_VERTICAL
+    ? PITCH_PAD_X + (1-pitchFrac(x))*(100-2*PITCH_PAD_X)
+    : PITCH_PAD_Y + pitchLatFrac(y)*(100-2*PITCH_PAD_Y);
+}
+/* Rectangulo en % que cubre las celdas x en [xa, xb] e y en [ya, yb] (franjas, zona de posicion). */
+function pitchRectGrilla(xa, xb, ya, yb){
+  const xs = [pitchPctX(xa,ya), pitchPctX(xb,ya), pitchPctX(xa,yb), pitchPctX(xb,yb)];
+  const ys = [pitchPctY(xa,ya), pitchPctY(xb,ya), pitchPctY(xa,yb), pitchPctY(xb,yb)];
+  const left = Math.min(...xs), top = Math.min(...ys);
+  return { left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top };
+}
 /* Inversa de la grilla: punto de la pantalla -> celda (x, y) mas cercana. Usa
    el area util del campo (sin el borde de 3 px, clientLeft/clientTop) y las
-   mismas constantes que pitchColPct / pitchRowPct: la celda que devuelve es la
+   mismas constantes que pitchPctX / pitchPctY: la celda que devuelve es la
    que se dibuja en ese punto. null si no hay campo en pantalla. */
 function pitchCeldaDesdePunto(clientX, clientY){
   const campo = document.getElementById('ep-pitch-field');
@@ -441,20 +466,25 @@ function pitchCeldaDesdePunto(clientX, clientY){
   const r = campo.getBoundingClientRect();
   const xPct = (clientX - r.left - campo.clientLeft) / campo.clientWidth * 100;
   const yPct = (clientY - r.top - campo.clientTop) / campo.clientHeight * 100;
-  const fx = Math.max(0, Math.min(1, (xPct - PITCH_PAD_X) / (100 - 2*PITCH_PAD_X)));
-  const fy = Math.max(0, Math.min(1, (yPct - PITCH_PAD_Y) / (100 - 2*PITCH_PAD_Y)));
+  if (PITCH_VERTICAL){
+    // vertical: X de pantalla = lateral (y); Y de pantalla = profundidad (x), arriba = mas adelante
+    const fy = clamp01((xPct - PITCH_PAD_Y) / (100 - 2*PITCH_PAD_Y));
+    const fx = clamp01(1 - (yPct - PITCH_PAD_X) / (100 - 2*PITCH_PAD_X));
+    return {
+      x: Math.round(2 + fx * (PITCH_COLS - 2)),
+      y: Math.round(1 + fy * (PITCH_ROWS - 1)),
+    };
+  }
+  const fx = clamp01((xPct - PITCH_PAD_X) / (100 - 2*PITCH_PAD_X));
+  const fy = clamp01((yPct - PITCH_PAD_Y) / (100 - 2*PITCH_PAD_Y));
   return {
     x: Math.round(2 + fx * (PITCH_COLS - 2)),
     y: Math.round(1 + fy * (PITCH_ROWS - 1)),
   };
 }
-/* Borde de cada franja en el CENTRO de su primera/ultima columna, no en el
-   medio paso: entre la 15 y la 16 (y entre la 34 y la 35) queda un hueco sin
-   pintar de un paso, que separa las zonas como en el juego. Cada franja cede
-   la mitad de ese hueco. */
-function pitchZoneEdges(zone){
-  return { left: pitchColPct(zone.from), right: pitchColPct(zone.to) };
-}
+/* Franjas: cada una cubre sus columnas (pitchRectGrilla). Entre la 15 y la 16 (y
+   entre la 34 y la 35) queda un hueco sin pintar de un paso, que separa las zonas
+   como en el juego. */
 
 /* Formacion titular 4-1-2-3 compacto (contexto_copa_subs1.md): solo las
    11 coordenadas del dibujo. La primera es la del arquero.
@@ -1378,21 +1408,26 @@ function openFormationModal(){
   FORM.sel = 0;
   FORM.motivo = null;
   FORM_DRAG = null;
+  FORM.resumen = 'mejores';
+  _pitchSyncOrientation();
+  _montarModalCancha();
+}
+/* Arma o rehace el modal con el borrador actual: al abrir y al cambiar la orientacion
+   (slice 3d). No reinicia el borrador ni la seleccion. */
+function _montarModalCancha(){
   // En pantalla tactil la ayuda habla de arrastrar; con mouse, de las flechas.
   const toqueFino = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const wrap = document.getElementById('ep-pitch-wrap');
   // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
   // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
   const franjas = PITCH_ZONES.map(z => {
-    const e = pitchZoneEdges(z);
-    // 3,8% arriba y abajo: la franja tampoco toca los costados de la cancha,
-    // igual que en profundidad. El margen es el mismo (~9 px).
-    return `<div class="ep-pitch-zone" style="left:${e.left}%;width:${e.right-e.left}%;top:${PITCH_PAD_Y}%;height:${100-2*PITCH_PAD_Y}%;background:${z.color};"></div>`;
+    const e = pitchRectGrilla(z.from, z.to, 1, PITCH_ROWS);
+    return `<div class="ep-pitch-zone" style="left:${e.left}%;width:${e.width}%;top:${e.top}%;height:${e.height}%;background:${z.color};"></div>`;
   }).join('');
   // Las zonas ya no llevan linea blanca: las separa el hueco sin pintar.
   wrap.innerHTML = `
   <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeFormationModal)">
-    <div class="ep-modal wide">
+    <div class="ep-modal wide${PITCH_VERTICAL ? ' ep-form-vert' : ''}">
       <div class="ep-modal-hd">
         <h2>Formacion &middot; estrategia</h2>
         <button class="ep-modal-close" data-onclick="closeFormationModal()">&times;</button>
@@ -1403,7 +1438,7 @@ function openFormationModal(){
           ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineacion
           <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineacion segun las lineas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
         </div>
-        <div class="ep-pitch-field" id="ep-pitch-field">
+        <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
           ${franjas}
           <div class="ep-pitch-halfline"></div>
           <div class="ep-pitch-circle"></div>
@@ -1430,19 +1465,31 @@ function openFormationModal(){
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
+        <div class="ep-pitch-ficha" id="ep-pitch-ficha"${PITCH_VERTICAL ? '' : ' hidden'}>
+          <div class="ep-casillas" id="ep-form-casillas"></div>
+        </div>
+        <div class="ep-res" id="ep-res"${PITCH_VERTICAL ? '' : ' hidden'}>
+            <div class="ep-res-tabs" role="tablist" aria-label="Resumen del jugador">
+              <button role="tab" id="ep-res-t-mejores" data-onclick="setFormResumen('mejores')">Mejores</button>
+              <button role="tab" id="ep-res-t-peores" data-onclick="setFormResumen('peores')">Peores</button>
+              <button role="tab" id="ep-res-t-habilidades" data-onclick="setFormResumen('habilidades')">Habilid.</button>
+              <button role="tab" id="ep-res-t-posiciones" data-onclick="setFormResumen('posiciones')">Posic.</button>
+            </div>
+            <div class="ep-res-body" id="ep-res-body"></div>
+        </div>
         <div class="ep-pitch-nudge" role="group" aria-label="Ajuste fino de la posicion">
-          <button class="ep-nudge up" data-onclick="moveFormationDot(0,-1)" title="Subir" aria-label="Subir">
+          <button class="ep-nudge up" data-onclick="moveFormationScreen('up')" title="Subir" aria-label="Subir">
             <svg class="icn" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
-          <button class="ep-nudge left" data-onclick="moveFormationDot(-1,0)" title="Atrás" aria-label="Atrás">
+          <button class="ep-nudge left" data-onclick="moveFormationScreen('left')" title="Atrás" aria-label="Atrás">
             <svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
           <span class="ep-nudge-c" aria-hidden="true"></span>
-          <button class="ep-nudge right" data-onclick="moveFormationDot(1,0)" title="Adelante" aria-label="Adelante">
+          <button class="ep-nudge right" data-onclick="moveFormationScreen('right')" title="Adelante" aria-label="Adelante">
             <svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-          <button class="ep-nudge down" data-onclick="moveFormationDot(0,1)" title="Bajar" aria-label="Bajar">
+          <button class="ep-nudge down" data-onclick="moveFormationScreen('down')" title="Bajar" aria-label="Bajar">
             <svg class="icn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
         </div>
         <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Arrastrá un punto para moverlo · flechas para el ajuste fino.' : 'Clic en un punto para elegirlo · flechas (en pantalla o del teclado) para moverlo.'}</span>
+          <span>${toqueFino ? 'Arrastrá un punto para moverlo.' : 'Clic en un punto para elegirlo · flechas (en pantalla o del teclado) para moverlo.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1456,9 +1503,11 @@ function openFormationModal(){
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
+  _formObservarAlto();
 }
 function closeFormationModal(){
   FORM_DRAG = null;
+  _formDejarDeObservar();
   document.getElementById('ep-pitch-wrap').innerHTML='';
 }
 
@@ -1473,8 +1522,8 @@ const FORM_RADIO_TOQUE = 22; // px: el punto se ve de ~12 px; la zona de toque e
 function _centroPunto(campo, slot){
   const r = campo.getBoundingClientRect();
   return {
-    x: r.left + campo.clientLeft + pitchColPct(slot.x) / 100 * campo.clientWidth,
-    y: r.top + campo.clientTop + pitchRowPct(slot.y) / 100 * campo.clientHeight,
+    x: r.left + campo.clientLeft + pitchPctX(slot.x, slot.y) / 100 * campo.clientWidth,
+    y: r.top + campo.clientTop + pitchPctY(slot.x, slot.y) / 100 * campo.clientHeight,
   };
 }
 function _formProgramarRender(){
@@ -1548,8 +1597,8 @@ function renderFormationModal(){
   if(!wrap.innerHTML) return;
   const dots = FORM.draft.map((slot,i)=>{
     const pl = PLAYER_BY_ID[slot.id];
-    const xPct = pitchColPct(slot.x);
-    const yPct = pitchRowPct(slot.y);
+    const xPct = pitchPctX(slot.x, slot.y);
+    const yPct = pitchPctY(slot.x, slot.y);
     const isSel = i===FORM.sel;
     const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
     const arrastrando = FORM_DRAG && FORM_DRAG.activo && FORM_DRAG.idx === i && !isKeeperSlot(slot);
@@ -1571,9 +1620,8 @@ function renderFormationModal(){
   const posCont = document.getElementById('ep-pitch-pos');
   if (posCont){
     if (zonaPos){
-      const l = pitchColPct(zonaPos.d[0]), r = pitchColPct(zonaPos.d[1]);
-      const t = pitchRowPct(zonaPos.l[0]), b = pitchRowPct(zonaPos.l[1]);
-      posCont.innerHTML = `<div class="ep-pitch-pos" style="left:${l}%;top:${t}%;width:${r-l}%;height:${b-t}%;background:${PITCH_POS_COLOR[pitchThird((zonaPos.d[0]+zonaPos.d[1])/2)]};"></div>`;
+      const zr = pitchRectGrilla(zonaPos.d[0], zonaPos.d[1], zonaPos.l[0], zonaPos.l[1]);
+      posCont.innerHTML = `<div class="ep-pitch-pos" style="left:${zr.left}%;top:${zr.top}%;width:${zr.width}%;height:${zr.height}%;background:${PITCH_POS_COLOR[pitchThird((zonaPos.d[0]+zonaPos.d[1])/2)]};"></div>`;
     } else {
       posCont.innerHTML = ''; // arquero: no tiene zona de posicion
     }
@@ -1602,7 +1650,119 @@ function renderFormationModal(){
     ).join('');
     sel.disabled = keeper;
   }
+  _renderFichaFormacion();
+  _formAjustarAlto();
 }
+
+/* ================= Slice 3d: ficha y resumen del jugador seleccionado (solo vertical) ================= */
+const FORM_CAMPO_MAX = 520;      // px: la cancha no crece mas que esto
+const FORM_RESUMEN_ALTO = 150;   // px libres que pide el resumen (spec 3d): se reservan aunque la pestana sea corta
+const FORM_CAMPO_MIN = 230;      // la cancha no baja de aca: con resumen, lo que sobra tras el resumen; sin el, se oculta el resumen
+const FORM_ESCALA_CHICA = new Set(['cons','cond','wff','wfa','inj']); // escala 1-8 o lesion: fuera de mejores/peores
+function _formValoresJugador(p){
+  const out = [];
+  for (const s of MAIN_STATS) out.push({ label: ETIQUETA_FILA[s.k] || s.l, value: p.stats[s.k] });
+  for (const s of SEC_NEW) if (s.sc === 99 && !FORM_ESCALA_CHICA.has(s.k)) out.push({ label: s.l, value: p.sec[s.k] });
+  return out.filter(x => typeof x.value === 'number');
+}
+/* chips que entran en el contenedor (2 lineas, overflow oculto); el resto se resume con «+N» */
+function _formChipsQueEntran(cont, chips){
+  let n = chips.length;
+  const html = k => chips.slice(0, k).join('') + (k < chips.length ? `<span class="ep-chip ep-chip-mas">+${chips.length - k}</span>` : '');
+  cont.innerHTML = html(n);
+  while (n > 0 && cont.scrollHeight > cont.clientHeight + 1){ n--; cont.innerHTML = html(n); }
+}
+function _renderFichaFormacion(){
+  if (!PITCH_VERTICAL || !document.getElementById('ep-pitch-ficha')) return;
+  const slot = FORM.draft[FORM.sel];
+  const p = slot && PLAYER_BY_ID[slot.id];
+  if (!p) return;
+  const banda = p.side !== undefined ? (SIDE_LABEL[p.side] || '—') : '—';
+  const pie = FOOT_LABEL[p.favfoot] || p.foot;
+  document.getElementById('ep-form-casillas').innerHTML = `
+    <div class="ep-casilla"><span>Edad</span><b>${escHtml(p.age)}</b></div>
+    <div class="ep-casilla"><span>Altura</span><b>${escHtml(p.height)} cm</b></div>
+    <div class="ep-casilla"><span>Pie</span><b>${escHtml(pie)}</b></div>
+    <div class="ep-casilla"><span>Banda</span><b>${escHtml(banda)}</b></div>`;
+  const tab = FORM.resumen || 'mejores';
+  for (const t of ['mejores','peores','habilidades','posiciones']){
+    const b = document.getElementById('ep-res-t-' + t);
+    if (b){ b.setAttribute('aria-selected', String(t === tab)); b.classList.toggle('on', t === tab); }
+  }
+  const body = document.getElementById('ep-res-body');
+  if (tab === 'mejores' || tab === 'peores'){
+    const orden = _formValoresJugador(p).sort((a,b) => tab === 'mejores' ? b.value - a.value : a.value - b.value).slice(0, 4);
+    body.className = 'ep-res-body ep-res-list';
+    body.innerHTML = orden.map(s => `<div class="ep-res-item"><span>${escHtml(s.label)}</span><b style="color:${TIER_COLOR[tierClass99(s.value)]};">${s.value}</b></div>`).join('');
+  } else if (tab === 'habilidades'){
+    body.className = 'ep-res-body ep-chips';
+    _formChipsQueEntran(body, ALL_ABILITIES.filter(a => p.abilities[a.k]).map(a => `<span class="ep-chip">${escHtml(a.l)}</span>`));
+  } else {
+    body.className = 'ep-res-body ep-chips';
+    const pos = POSITIONS.filter(q => p.positions[q.k]).sort((a,b) => (b.k === p.primaryPos) - (a.k === p.primaryPos));
+    _formChipsQueEntran(body, pos.map(q => `<span class="ep-chip${q.k === p.primaryPos ? ' nat' : ''}">${escHtml(POS_BY_KEY[q.k]?.l || q.k)}</span>`));
+  }
+}
+function setFormResumen(tab){ FORM.resumen = tab; _renderFichaFormacion(); _formAjustarAlto(); }
+
+/* Orientacion: una sola fuente (la media query). Al cambiar con el modal abierto se
+   cancela un arrastre en curso y se redibuja con el mismo borrador. */
+const _PITCH_MQ = (typeof window !== 'undefined' && window.matchMedia) ? window.matchMedia('(max-width: 859.98px)') : null;
+function _pitchSyncOrientation(){ PITCH_VERTICAL = !!(_PITCH_MQ && _PITCH_MQ.matches); return PITCH_VERTICAL; }
+function _pitchOrientacionCambio(){
+  _pitchSyncOrientation();
+  const wrap = document.getElementById('ep-pitch-wrap');
+  if (!wrap || !wrap.innerHTML) return;
+  FORM_DRAG = null;
+  _montarModalCancha();
+}
+if (_PITCH_MQ && _PITCH_MQ.addEventListener) _PITCH_MQ.addEventListener('change', _pitchOrientacionCambio);
+
+let FORM_RO = null;
+function _formObservarAlto(){
+  _formDejarDeObservar();
+  const body = document.querySelector('#ep-pitch-wrap .ep-modal-body');
+  if (body && typeof ResizeObserver !== 'undefined'){
+    FORM_RO = new ResizeObserver(() => _formAjustarAlto());
+    FORM_RO.observe(body);
+  }
+  _formAjustarAlto();
+}
+function _formDejarDeObservar(){ if (FORM_RO){ FORM_RO.disconnect(); FORM_RO = null; } }
+/* Alto de la cancha vertical: toma el alto que sobra. Muestra el resumen solo si la cancha
+   queda FORM_CAMPO_MIN de cancha; si no, solo la ficha; si tampoco entra, ninguna. Horizontal: como antes. */
+function _formAjustarAlto(){
+  const wrap = document.getElementById('ep-pitch-wrap');
+  const body = wrap && wrap.querySelector('.ep-modal-body');
+  const campo = document.getElementById('ep-pitch-field');
+  const fic = document.getElementById('ep-pitch-ficha');
+  const res = document.getElementById('ep-res');
+  if (!body || !campo) return;
+  if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); if (fic) fic.hidden = true; return; }
+  // Medir con ficha y resumen visibles; luego decidir cuanto entra cada uno.
+  campo.style.removeProperty('--campo-h');
+  if (fic) fic.hidden = false;
+  if (res) res.hidden = false;
+  const cs = getComputedStyle(body);
+  const gap = parseFloat(cs.rowGap) || 10;
+  const libreTot = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const fijosEls = [...body.children].filter(el => el !== campo && el !== fic && el !== res && el.offsetHeight > 0);
+  const fijos = fijosEls.reduce((s, el) => s + el.offsetHeight, 0);
+  const ficAlto = fic ? fic.offsetHeight : 0;
+  const resAlto = res ? res.offsetHeight : 0;
+  // altura de la cancha si quedan visibles la ficha y/o el resumen (cada bloque suma un espacio)
+  const alto = (conFic, conRes) => libreTot - fijos - (conFic ? ficAlto : 0) - (conRes ? resAlto : 0)
+    - (fijosEls.length + 1 + (conFic ? 1 : 0) + (conRes ? 1 : 0) - 1) * gap;
+  let conFicha = true;
+  // el resumen se muestra solo si, reservando FORM_RESUMEN_ALTO, la cancha conserva FORM_CAMPO_MIN
+  const conResumen = alto(true, false) - FORM_RESUMEN_ALTO - gap >= FORM_CAMPO_MIN;
+  let h = alto(true, conResumen);
+  if (h < FORM_CAMPO_MIN){ conFicha = false; h = alto(false, false); }
+  if (res) res.hidden = !conResumen;
+  if (fic) fic.hidden = !conFicha;
+  campo.style.setProperty('--campo-h', Math.max(160, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
+}
+
 function opcionesPosicion(slot){
   if (isKeeperSlot(slot) || FORM.draft.indexOf(slot) === 0) return [{ pos:'PT', disponible:true }];
   const base = posicionesEnBloque(slot.x, slot.y);
@@ -1737,6 +1897,14 @@ function moveFormationDot(dx,dy){
   moveFormationDotTo(slot.x + dx, slot.y + dy);
   renderFormationModal();
 }
+/* Flechas y cruz segun la pantalla. Horizontal: arriba = y-1, izquierda = x-1 (arco propio a la
+   izquierda). Vertical: arriba = x+1 (adelante), izquierda = y-1 (banda izquierda). */
+const FORM_DIR_HORIZ = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
+const FORM_DIR_VERT  = { up:[1,0], down:[-1,0], left:[0,-1], right:[0,1] };
+function moveFormationScreen(dir){
+  const [dx, dy] = (PITCH_VERTICAL ? FORM_DIR_VERT : FORM_DIR_HORIZ)[dir] || [0, 0];
+  moveFormationDot(dx, dy);
+}
 function resetFormationDraft(){
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
   completarPosiciones();
@@ -1795,8 +1963,8 @@ async function confirmFormation(){
 document.addEventListener('keydown', function(e){
   const wrap = document.getElementById('ep-pitch-wrap');
   if(!wrap || !wrap.innerHTML) return;
-  const move = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
-  if(move[e.key]){ e.preventDefault(); moveFormationDot(move[e.key][0], move[e.key][1]); return; }
+  const move = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'};
+  if(move[e.key]){ e.preventDefault(); moveFormationScreen(move[e.key]); return; }
   if(e.key==='Tab'){ e.preventDefault(); cycleFormationPlayer(e.shiftKey?-1:1); }
 });
 
@@ -2345,6 +2513,8 @@ window.selectFormationPlayer = selectFormationPlayer;
 window.selectPlayer = selectPlayer;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
+window.moveFormationScreen = moveFormationScreen;
+window.setFormResumen = setFormResumen;
 window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;
 window.setSide = setSide;
