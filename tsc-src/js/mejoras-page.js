@@ -67,6 +67,8 @@ const MEJ_MARKUP = `
         <button class="ep-navbtn" data-onclick="mejPasar(1)" aria-label="Jugador siguiente"><svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
       </div>
 
+      <section class="ep-aviso" id="ep-aviso" aria-live="polite" hidden></section>
+
       <h1 id="ep-title" class="ep-sr">Editar jugador</h1>
 
       <div class="ep-card" id="ep-card"></div>
@@ -171,7 +173,9 @@ async function renderAuthUI(){
     _gateTeamId = AUTH.teamId;
     try { EQUIPO_TSC = await dbGet('teams', AUTH.teamId); } catch(e){ EQUIPO_TSC = null; }
     RULES = await cargarReglasFirestore();
-    RULES = YUNACOINS_RULES.reglasConExtra(RULES, await cargarTopeExtraEquipo(AUTH.teamId));
+    const topeExtra = await cargarTopeExtraEquipo(AUTH.teamId); // {extra, motivo}: el aviso lo muestra aparte
+    APP.extra = topeExtra.extra; APP.motivo = topeExtra.motivo;
+    RULES = YUNACOINS_RULES.reglasConExtra(RULES, topeExtra.extra);
     // Slice D2: recalcular el presupuesto disponible (topes - gastado - pedidos pendientes)
     await recalcularPresupuestoReal();
   }
@@ -581,15 +585,18 @@ async function cargarReglasFirestore(){
 }
 
 // Tope extra del equipo en la temporada actual (premio del admin, pes5_config/topesExtra-<temporada>).
+// Devuelve {extra, motivo}: extra suma al tope general; motivo se muestra en el aviso.
 async function cargarTopeExtraEquipo(teamId){
-  if (STATE.season == null || teamId == null) return 0;
+  const nada = { extra: 0, motivo: '' };
+  if (STATE.season == null || teamId == null) return nada;
   try {
     const snap = await firebase.firestore().collection('pes5_config').doc('topesExtra-' + STATE.season).get();
     const topes = YUNACOINS_RULES.normalizarTopesExtra(snap.exists ? snap.data() : null);
-    return YUNACOINS_RULES.extraDeEquipo(topes, teamId);
+    const e = topes[String(teamId)];
+    return e ? { extra: e.extra, motivo: e.motivo || '' } : nada;
   } catch (e) {
     console.warn('[editor] no se pudo leer el tope extra', e);
-    return 0;
+    return nada;
   }
 }
 
@@ -615,6 +622,9 @@ async function recalcularPresupuestoReal(){
     });
   } catch (e) { console.warn('[editor] no se pudieron leer los pedidos pendientes', e); }
   const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES);
+  // slice 2.1-A: lo que necesita el aviso grande (sin pendientes de la edicion en curso)
+  APP.gastado = { general: gastado.general, sub: gastado.sub };
+  APP.pend = { total: pendTotal, general: pendG, sub: pendS };
   APP.budget = {
     general: Math.max(0, Math.min(wallet - pendTotal, rest.general - pendG)),
     subscribers: Math.max(0, rest.subscribers - pendS),
@@ -850,6 +860,9 @@ const APP = {
   // loguearse) — se recalcula con el valor real apenas carga, ver
   // renderAuthUI() > "if (_gateTeamId !== AUTH.teamId)".
   budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES),
+  gastado: { general: 0, sub: 0 },              // slice 2.1-A: gastado de la temporada (libro coins)
+  pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
+  extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
   draft: null,
   hint: 'Selecciona un atributo para ver su descripcion.',
 };
@@ -1113,6 +1126,81 @@ function renderHero(){
   const fill = document.getElementById('ep-cap-fill');
   if (fill) fill.style.width = cap > 0 ? Math.min(100, Math.max(0, quedaGeneral / cap * 100)) + '%' : '0%';
 }
+/* ================= Slice 2.1-A: aviso grande de presupuesto =================
+   Arriba del editor, en el presidente y en la Tool (modo admin). Los numeros salen de
+   YUNACOINS_RULES.resumenPresupuesto (pura, con tests en tools/test-aviso-presupuesto.js).
+   Modo admin: la Tool pasa gastado, extra, motivo, pendientesOtros y equipo.gratis. */
+// Icono Lucide "trophy" (SVG inline, sin emojis: AGENTS.md).
+const ICN_AVISO_TROFEO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
+function resumenAviso(){
+  const extra = APP.extra || 0;
+  return YUNACOINS_RULES.resumenPresupuesto({
+    saldo: EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0,
+    reglas: { budgetGeneral: (RULES.budgetGeneral || 0) - extra, budgetSubscribers: RULES.budgetSubscribers },
+    extra: extra,
+    gastado: APP.gastado,
+    pendientes: APP.pend,
+  });
+}
+function renderAviso(){
+  const el = document.getElementById('ep-aviso');
+  if (!el) return;
+  const e = EQUIPO_TSC;
+  if (!e || !APP.draft){ el.hidden = true; el.innerHTML = ''; return; }
+  const fmt = n => Math.round(n || 0).toLocaleString('es-CL');
+  el.hidden = false;
+  if (ADMIN_EMBED && e.gratis){
+    el.className = 'ep-aviso gratis';
+    el.innerHTML = `<div class="ep-aviso-big">Edición gratis: no se cobra</div>
+      <p class="ep-aviso-sub">No se descuentan YunaCoins de ${escHtml(e.name || 'este equipo')} por estos cambios.</p>`;
+    return;
+  }
+  if (ADMIN_EMBED && !e.cobra){
+    el.className = 'ep-aviso libre';
+    el.innerHTML = `<div class="ep-aviso-big">Edición libre: no se cobra</div>
+      <p class="ep-aviso-sub">El equipo no tiene presidente: sin costo ni topes.</p>`;
+    return;
+  }
+  const r = resumenAviso();
+  const p = currentPlayer();
+  const esSub = !!(p && p.subscriber);
+  const cost = pendingCost();
+  const motivo = APP.motivo || 'Tope extra';
+  const extraHtml = r.extra > 0
+    ? `<div class="ep-aviso-extra"><span class="ep-aviso-trofeo">${ICN_AVISO_TROFEO}</span><span><b>+${fmt(r.extra)}</b> · ${escHtml(motivo)}</span></div>`
+    : '';
+  el.className = 'ep-aviso';
+  el.innerHTML = `
+    <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span>${ADMIN_EMBED ? `<span class="ep-aviso-team">${escHtml(e.name || '')}</span>` : ''}</div>
+    <div class="ep-aviso-grid">
+      <div class="ep-aviso-cell">
+        <span class="ep-aviso-k">Saldo actual</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(r.saldoDisponible)}</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note">Sin lo reservado en pedidos o cambios pendientes</span>
+      </div>
+      <div class="ep-aviso-cell">
+        <span class="ep-aviso-k">Tope de la temporada</span>
+        <div class="ep-aviso-row"><span>General</span><b>${fmt(r.topeGeneral)}</b></div>
+        ${extraHtml}
+        <div class="ep-aviso-row ep-aviso-total"><span>Total</span><b>${fmt(r.topeTotal)}</b></div>
+      </div>
+      <div class="ep-aviso-cell">
+        <span class="ep-aviso-k">Gastado en la temporada</span>
+        <div class="ep-aviso-row"><span>General</span><b>${fmt(r.gastadoGeneral)}</b></div>
+        <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.gastadoSub)}</b></div>
+      </div>
+      <div class="ep-aviso-cell ep-aviso-disp">
+        <span class="ep-aviso-k">Disponible para gastar ahora</span>
+        <div class="ep-aviso-row"><span>General${r.extra > 0 ? ' (con extra)' : ''}</span><b>${fmt(r.restanteGeneral)}</b></div>
+        <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.restanteSub)}</b></div>
+        <p class="ep-aviso-lim">Límite real: <b>${fmt(r.disponibleAhora)} YC</b>, el menor entre el saldo y el tope restante${r.limitaPor === 'saldo' ? ' (manda el saldo)' : ' (manda el tope)'}.</p>
+        ${esSub ? `<p class="ep-aviso-lim">Jugador suscriptor: el bono suma hasta <b>${fmt(r.disponibleSuscriptor)} YC</b>, sin pasar el saldo.</p>` : ''}
+      </div>
+    </div>
+    <div class="ep-aviso-cost">${cost > 0
+      ? `Esta edición: <b>−${fmt(cost)} YC</b> · queda ${fmt(Math.max(0, r.saldoDisponible - cost))} YC`
+      : 'Esta edición: sin costo'}</div>`;
+}
 function renderCart(){
   const cost = pendingCost();
   const n = pendingChangeLines().length;
@@ -1120,6 +1208,7 @@ function renderCart(){
   document.getElementById('ep-cart-count').textContent = n ? n + (n === 1 ? ' cambio' : ' cambios') : 'Sin cambios';
   document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL') + ' YC' : '';
   renderHero();
+  renderAviso();
   const applyBtn = document.getElementById('ep-apply');
   applyBtn.disabled = (pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)) || (!ADMIN_EMBED && !!APP.bloqueoPorAplicado);
   document.getElementById('ep-warn').textContent = '';
@@ -2494,6 +2583,11 @@ function iniciarModoAdmin(m){
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p => [p.id, p]));
   APP.budget = { general: m.presupuesto.general, subscribers: m.presupuesto.subscribers };
   APP.saldo = m.presupuesto.saldo || 0;
+  // slice 2.1-A: el aviso grande necesita lo gastado, el tope extra y lo que reservan otros cambios
+  APP.gastado = { general: (m.gastado && m.gastado.general) || 0, sub: (m.gastado && m.gastado.sub) || 0 };
+  APP.pend = m.pendientesOtros || { total: 0, general: 0, sub: 0 };
+  APP.extra = m.extra || 0;
+  APP.motivo = m.motivo || '';
   APP.playerId = m.jugadorId;
   APP.page = 1;
   APP.hint = 'Selecciona un atributo para ver su descripcion.';
