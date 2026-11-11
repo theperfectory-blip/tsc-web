@@ -242,7 +242,7 @@ async function openTeamModal(id=null){
 
         <div class="form-group" style="margin-bottom:0;">
           <label>Usuario de Streamlabs <span style="font-size:11px;color:var(--txt3);font-weight:400;">(mapeo para YunaCoins · solo admin)</span></label>
-          <input type="text" id="tf-streamlabs-user" value="${_esc(team?.streamlabsUser||'')}" placeholder="Ej: LuisYuNa3210">
+          <input type="text" id="tf-streamlabs-user" value="${escAttr(team?.streamlabsUser||'')}" placeholder="Ej: LuisYuNa3210">
           <div style="font-size:11px;color:var(--txt3);margin-top:4px;">Sin arroba — el mismo nombre que figura en el panel de Streamlabs.</div>
         </div>
       </div>

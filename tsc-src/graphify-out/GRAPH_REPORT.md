@@ -210,10 +210,10 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `escHtml()` connect `Bracket publico` to `Bracket`, `mejoras-page.js`, `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Historial y H2H`, `Push y Ajustes y arranque`, `Equipos`, `pes5-yunacoins.js y yunacoins-rules.js`, `Calendario`, `Tablas de posiciones`, `Bracket y Usuarios (admin)`?**
-  _High betweenness centrality (0.247) - this node is a cross-community bridge._
 - **Why does `dbGetAll()` connect `Bracket` to `mejoras-page.js`, `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Sorteo en vivo`, `Navegacion`, `Historial y H2H`, `Bracket publico`, `Equipos`, `pes5-yunacoins.js y yunacoins-rules.js`, `Calendario`, `Bracket y Usuarios (admin)`?**
-  _High betweenness centrality (0.196) - this node is a cross-community bridge._
+  _High betweenness centrality (0.223) - this node is a cross-community bridge._
+- **Why does `escHtml()` connect `Bracket publico` to `Bracket`, `mejoras-page.js`, `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Historial y H2H`, `Push y Ajustes y arranque`, `Equipos`, `pes5-yunacoins.js y yunacoins-rules.js`, `Calendario`, `Tablas de posiciones`, `Bracket y Usuarios (admin)`?**
+  _High betweenness centrality (0.177) - this node is a cross-community bridge._
 - **Why does `showToast()` connect `Bracket` to `pes5-tool.js`, `Sorteo en vivo`, `Navegacion`, `Perfil del presidente`, `Historial y H2H`, `Push y Ajustes y arranque`, `Sonido`, `Bracket publico`, `Calendario`, `Tablas de posiciones`, `Bracket y Usuarios (admin)`, `Export / import`?**
   _High betweenness centrality (0.158) - this node is a cross-community bridge._
 - **Are the 146 inferred relationships involving `dbGetAll()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
