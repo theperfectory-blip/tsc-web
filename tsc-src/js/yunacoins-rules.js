@@ -268,6 +268,55 @@
   }
 
   /* ============================================================
+     resumenPresupuesto (slice 2.1-A) — arma los numeros del aviso grande del
+     editor de mejoras. Puro: no lee Firestore ni el DOM.
+       - saldo: saldo real del equipo (teams.yunacoin).
+       - reglas: reglas BASE, SIN el tope extra (budgetGeneral, budgetSubscribers).
+       - extra: tope extra del equipo esta temporada (0 si no tiene).
+       - gastado: {general, sub} de gastoTemporada (libro coins, sin pendientes).
+       - pendientes: {total, general, sub} ya reservado: pedidos pendientes
+         propios (presidente) o cambios de otros jugadores (admin). No incluye
+         la edicion en curso.
+     Devuelve:
+       saldoDisponible  saldo menos lo reservado (lo que el aviso muestra como saldo).
+       topeGeneral, extra, topeTotal   tope general de base, extra y su suma.
+       gastadoGeneral, gastadoSub      lo gastado de la temporada.
+       restanteGeneral, restanteSub    lo que queda de cada tope (ya descontado lo reservado).
+       disponibleAhora       min(saldoDisponible, restanteGeneral): limite para un no suscriptor.
+       disponibleSuscriptor  min(saldoDisponible, restanteGeneral + restanteSub): limite para un suscriptor.
+       limitaPor             'saldo' o 'tope': cual de los dos es el limite de disponibleAhora.
+     ============================================================ */
+  function resumenPresupuesto(opts) {
+    const o = opts || {};
+    const r = o.reglas || DEFAULT_RULES;
+    const saldo = Math.max(0, Number(o.saldo) || 0);
+    const extra = Math.max(0, Math.floor(Number(o.extra) || 0));
+    const gastado = o.gastado || {};
+    const pend = o.pendientes || {};
+    const topeGeneral = Math.max(0, Number(r.budgetGeneral) || 0);
+    const topeSub = Math.max(0, Number(r.budgetSubscribers) || 0);
+    const topeTotal = topeGeneral + extra;
+    const gastadoGeneral = Math.max(0, Number(gastado.general) || 0);
+    const gastadoSub = Math.max(0, Number(gastado.sub) || 0);
+    const saldoDisponible = Math.max(0, saldo - (Number(pend.total) || 0));
+    const restanteGeneral = Math.max(0, topeTotal - gastadoGeneral - (Number(pend.general) || 0));
+    const restanteSub = Math.max(0, topeSub - gastadoSub - (Number(pend.sub) || 0));
+    return {
+      saldoDisponible: saldoDisponible,
+      topeGeneral: topeGeneral,
+      extra: extra,
+      topeTotal: topeTotal,
+      gastadoGeneral: gastadoGeneral,
+      gastadoSub: gastadoSub,
+      restanteGeneral: restanteGeneral,
+      restanteSub: restanteSub,
+      disponibleAhora: Math.min(saldoDisponible, restanteGeneral),
+      disponibleSuscriptor: Math.min(saldoDisponible, restanteGeneral + restanteSub),
+      limitaPor: saldoDisponible < restanteGeneral ? 'saldo' : 'tope',
+    };
+  }
+
+  /* ============================================================
      evaluarPago — version completa de `puedePagar` (punto 5 del
      macro-slice): "puedePagar = saldo real >= total Y los topes de
      temporada no se exceden (tope general para todos, bono solo para
@@ -635,6 +684,7 @@
     distribuirCosto: distribuirCosto,
     gastoTemporada: gastoTemporada,
     topesRestantes: topesRestantes,
+    resumenPresupuesto: resumenPresupuesto,
     normalizarTopesExtra: normalizarTopesExtra,
     extraDeEquipo: extraDeEquipo,
     reglasConExtra: reglasConExtra,

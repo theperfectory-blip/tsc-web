@@ -896,7 +896,11 @@ function cerrarEditorJugador(){
 function _opcionesEditor(j){
   const team = equipoTSCActual();
   const cobra = _cobraEquipo(team);
+  // slice 2.1-A: datos del aviso grande (gastado de la temporada, tope extra y su motivo, lo reservado por otros cambios)
+  const extraEq = team ? YUNACOINS_RULES.extraDeEquipo(YC_TOPES_EXTRA, team.id) : 0;
+  const motivoEq = (team && YC_TOPES_EXTRA[String(team.id)] && YC_TOPES_EXTRA[String(team.id)].motivo) || '';
   let reglas, presupuesto;
+  let gastado = { general: 0, sub: 0 }, pendientesOtros = { total: 0, general: 0, sub: 0 };
   if (cobra){
     reglas = _reglasEquipo(team.id);
     const reparto = repartoPendienteEquipo();
@@ -910,6 +914,9 @@ function _opcionesEditor(j){
       subscribers: Math.max(0, restantes.subscribers - otrosSub),
       saldo: Math.max(0, (team.yunacoin || 0) - otrosTotal),
     };
+    const delEquipo = GASTO_TEMPORADA_CACHE.teamId === team.id;
+    gastado = { general: delEquipo ? GASTO_TEMPORADA_CACHE.general : 0, sub: delEquipo ? GASTO_TEMPORADA_CACHE.sub : 0 };
+    pendientesOtros = { total: otrosTotal, general: otrosGeneral, sub: otrosSub };
   } else {
     // Edicion gratis de un equipo con presidente: sin costos, pero con el maximo de posiciones de la TSC.
     const gratisConPresidente = !!(team && tienePresidente(team));
@@ -934,6 +941,10 @@ function _opcionesEditor(j){
     jugadores: PES5_PLANTILLA.plantillaParaEditor(PES5_EDITOR, PLANO, PLANTILLA_INDICE),
     jugadorId: 'r' + j.id,
     pendiente: CAMBIOS_PENDIENTES[j.id] || null,
+    gastado: gastado,
+    pendientesOtros: pendientesOtros,
+    extra: extraEq,
+    motivo: motivoEq,
     onAplicar: recibirAplicarDelEditor,
     onCerrar: cerrarEditorJugador,
   };
