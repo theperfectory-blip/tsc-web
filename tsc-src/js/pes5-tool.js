@@ -51,6 +51,9 @@ let RECHAZO_ID = null;
 let PLANTILLA_ACTUAL = null;    // array de leerJugadorCompleto(...) del equipo elegido
 let PLANTILLA_INDICE = null;    // indice de club PES5 elegido en la pestaña Plantilla
 let JUGADOR_SELECCIONADO = null; // id de registro seleccionado en el panel lateral
+// Edicion gratis (admin): con la casilla marcada no se cobra al equipo del club abierto.
+// Se apaga sola al cambiar de club y despues de escribir el save.
+let EDICION_GRATIS = false;
 let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habilidades:{},edad,altura,pieDominante,lesiones} }
 
 /* ============================================================
@@ -137,6 +140,10 @@ function equipoTSCActual(){
 // cargarEquiposYPresidentes / PRESIDENTES_POR_TEAM, la MISMA fuente que ya
 // pinta la columna Presidente en la pestaña Equipos — no se recalcula
 // distinto, punto 3 del macro-slice D.R).
+// Se cobra al equipo si tiene presidente y el admin no marco «Edición gratis».
+function _cobraEquipo(team){
+  return !!(team && tienePresidente(team) && !EDICION_GRATIS);
+}
 function tienePresidente(team){
   return !!(team && PRESIDENTES_POR_TEAM[team.id]);
 }
@@ -725,6 +732,7 @@ function onTeamSelectPorIndice(idxStr){
     CAMBIOS_PENDIENTES = {};
     liberarBloqueoEquipo();
   }
+  if (nuevo !== PLANTILLA_INDICE) EDICION_GRATIS = false;
   if (nuevo === null){
     document.getElementById('pl-body').innerHTML = '';
     PLANTILLA_INDICE = null;
@@ -866,6 +874,7 @@ async function abrirEditorJugador(id){
     <div class="pt-ed-box">
       <div class="pt-ed-hd"><span>${escHtml(j.nombre)}</span>
         <button class="pt-ed-close" data-onclick="ptCerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
+      ${_casillaGratisHTML(equipoTSCActual(), 'ed')}
       <div id="pt-ed-host" class="pt-ed-host"></div>
     </div>`;
   (_montadoEn || document.body).appendChild(ov);
@@ -886,7 +895,7 @@ function cerrarEditorJugador(){
 // jugadores); si no, edicion libre: reglas en cero y presupuesto enorme.
 function _opcionesEditor(j){
   const team = equipoTSCActual();
-  const cobra = !!(team && tienePresidente(team));
+  const cobra = _cobraEquipo(team);
   let reglas, presupuesto;
   if (cobra){
     reglas = _reglasEquipo(team.id);
@@ -902,7 +911,9 @@ function _opcionesEditor(j){
       saldo: Math.max(0, (team.yunacoin || 0) - otrosTotal),
     };
   } else {
-    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0, maxPositions: 12 });
+    // Edicion gratis de un equipo con presidente: sin costos, pero con el maximo de posiciones de la TSC.
+    const gratisConPresidente = !!(team && tienePresidente(team));
+    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0, maxPositions: gratisConPresidente ? YC_RULES.maxPositions : 12 });
     presupuesto = { general: 1e9, subscribers: 1e9, saldo: 0 };
   }
   const pres = cobra ? PRESIDENTES_POR_TEAM[team.id] : null;
@@ -915,6 +926,7 @@ function _opcionesEditor(j){
       pes5ClubIdx: PLANTILLA_INDICE,
       yunacoin: team ? (team.yunacoin || 0) : 0,
       cobra: cobra,
+      gratis: !cobra && !!(team && tienePresidente(team)),
       presidente: pres ? (pres.displayName || pres.email || null) : null,
     },
     reglas: reglas,
@@ -946,6 +958,31 @@ function recibirAplicarDelEditor(m){
   renderWriteBar();
 }
 
+// Casilla grande «Edición gratis»: solo para un equipo con presidente (a los demas no se les cobra nunca).
+function _casillaGratisHTML(team, donde){
+  if (!team || !tienePresidente(team)) return '';
+  return `<label class="pt-gratis${EDICION_GRATIS ? ' on' : ''}" for="pt-gratis-${donde}">
+    <input type="checkbox" id="pt-gratis-${donde}" ${EDICION_GRATIS ? 'checked' : ''} data-onchange="ptToggleEdicionGratis(this)">
+    <span class="pt-gratis-txt"><b>Edición gratis</b><span>No cobrar YunaCoins a ${escHtml(team.name)} por estos cambios</span></span>
+  </label>`;
+}
+function toggleEdicionGratis(el){
+  const on = el && typeof el === "object" ? !!el.checked : !!el;
+  EDICION_GRATIS = !!on;
+  showToast(EDICION_GRATIS ? 'Edición gratis: estos cambios no se cobran.' : 'Se vuelve a cobrar los cambios.');
+  // Si el editor esta abierto, se guarda su borrador como pendiente y se vuelve a montar con los costos nuevos.
+  if (JUGADOR_SELECCIONADO != null && window.MEJORAS_EDITOR && document.getElementById('pt-ed-overlay')){
+    const b = MEJORAS_EDITOR.borrador ? MEJORAS_EDITOR.borrador() : null;
+    if (b) recibirAplicarDelEditor(b);
+    const j = PLANTILLA_ACTUAL.find(p => p.id === JUGADOR_SELECCIONADO);
+    const casilla = document.getElementById('pt-gratis-ed');
+    if (casilla){ casilla.checked = EDICION_GRATIS; casilla.closest('.pt-gratis').classList.toggle('on', EDICION_GRATIS); }
+    if (j) MEJORAS_EDITOR.montar(document.getElementById('pt-ed-host'), _opcionesEditor(j));
+  }
+  renderPlantillaBody();
+  renderWriteBar();
+}
+
 // Barra de escritura del plantel abierto: estado de cobro, cambios pendientes,
 // checkbox "PES5 esta cerrado" y botones. Vive en #pl-writebar, fuera de #pl-body.
 function renderWriteBar(){
@@ -955,6 +992,7 @@ function renderWriteBar(){
   const cerrado = !!document.getElementById('pes5-cerrado')?.checked;
   const equipoTSC = equipoTSCActual();
   const presidente = tienePresidente(equipoTSC);
+  const cobra = _cobraEquipo(equipoTSC);
   const total = Object.keys(CAMBIOS_PENDIENTES).length;
   const modoDescarga = !PES5_SAVE.tieneSoporte();
   let cobroHtml;
@@ -962,6 +1000,8 @@ function renderWriteBar(){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
   } else if (!presidente){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${escHtml(equipoTSC.name)} · sin presidente · edición libre</span>`;
+  } else if (!cobra){
+    cobroHtml = `<span class="pt-cobro-badge gratis">${ICN.unlock} Edición gratis · no se cobra a ${escHtml(equipoTSC.name)} (saldo ${(equipoTSC.yunacoin || 0).toLocaleString('es-AR')})</span>`;
   } else {
     const reparto = repartoPendienteEquipo();
     const restantes = _restantesTemporada();
@@ -973,6 +1013,7 @@ function renderWriteBar(){
       ${(!ev.excedeSaldo && ev.excedeTopeGeneral) ? `<span class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada</span>` : ''}`;
   }
   el.innerHTML = `
+    ${_casillaGratisHTML(equipoTSC, 'wb')}
     <div class="pt-writebar">
       ${cobroHtml}
       ${BLOQUEO_EQUIPO != null ? `<span class="pt-cobro-txt">${ICN.lock} Bloqueo activo: el presidente no puede usar Mejoras hasta que escribas y publiques.</span>` : ''}
@@ -1033,7 +1074,7 @@ function actualizarBotonEscritura(){
   // (macro-slice D.R punto 3: "si el saldo no alcanza, no se escribe").
   const equipoTSC = equipoTSCActual();
   let sinSaldo = false;
-  if (equipoTSC && tienePresidente(equipoTSC)){
+  if (_cobraEquipo(equipoTSC)){
     const reparto = repartoPendienteEquipo();
     const restantes = _restantesTemporada();
     const evalPago = YUNACOINS_RULES.evaluarPago(equipoTSC.yunacoin || 0, reparto.totalCosto, reparto.fromGeneral, restantes.general);
@@ -1105,7 +1146,7 @@ async function confirmarEscribirAlSave(){
   // presupuesto de este equipo mientras tanto. "Si el saldo no alcanza, no
   // se escribe" (macro-slice D.R, punto 3).
   const equipoTSCConfirm = equipoTSCActual();
-  if (equipoTSCConfirm && tienePresidente(equipoTSCConfirm)){
+  if (_cobraEquipo(equipoTSCConfirm)){
     await _refrescarGastoTemporadaEquipo(equipoTSCConfirm, true);
     const repartoConfirm = repartoPendienteEquipo();
     const restantesConfirm = _restantesTemporada();
@@ -1136,7 +1177,8 @@ async function confirmarEscribirAlSave(){
   const nota = PES5_SAVE.tieneSoporte()
     ? 'Se crea backup automático.'
     : 'Se va a descargar el archivo editado (el original de tu carpeta no se toca).';
-  const ok = confirm(`Equipo: ${nombreEquipo}\nJugadores: ${nombresJugadores}\n\n${nota} ¿Confirmar?`);
+  const avisoGratis = (EDICION_GRATIS && equipoTSCConfirm && tienePresidente(equipoTSCConfirm)) ? '\nEDICIÓN GRATIS: no se cobran YunaCoins.\n' : '';
+  const ok = confirm(`Equipo: ${nombreEquipo}\nJugadores: ${nombresJugadores}\n${avisoGratis}\n${nota} ¿Confirmar?`);
   if (!ok) return;
   await escribirAlSave();
 }
@@ -1162,7 +1204,10 @@ async function escribirAlSave(){
   // — el cobro real se aplica DESPUES de que el save (o la descarga de
   // fallback) se confirmo con exito.
   const equipoCobro = equipoTSCActual();
-  const debeCobrar = !!(equipoCobro && tienePresidente(equipoCobro));
+  const debeCobrar = _cobraEquipo(equipoCobro);
+  if (!debeCobrar && EDICION_GRATIS && equipoCobro && tienePresidente(equipoCobro)){
+    log(`edición gratis: no se cobra a ${equipoCobro.name} (marcada por ${(AUTH.user && AUTH.user.email) || 'admin'})`);
+  }
   const repartoCobro = debeCobrar ? repartoPendienteEquipo() : null;
   // Slice 2.0-4 (4.D): con cobro, la lista de Loyalty tiene que ser reciente (12 h)
   if (debeCobrar && repartoCobro && repartoCobro.totalCosto > 0 && window.PES5_YUNACOINS){
@@ -1210,6 +1255,7 @@ async function escribirAlSave(){
       await _aplicarCobroSiCorresponde();
       PLANO = copia;
       CAMBIOS_PENDIENTES = {};
+      EDICION_GRATIS = false;
       await _publicarEquipoTrasEscritura(equipoCobro);
       if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
       return;
@@ -1230,6 +1276,7 @@ async function escribirAlSave(){
     await _aplicarCobroSiCorresponde();
     PLANO = copia;
     CAMBIOS_PENDIENTES = {};
+    EDICION_GRATIS = false;
     await _publicarEquipoTrasEscritura(equipoCobro);
     if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
     renderStatusBar();
@@ -1957,6 +2004,7 @@ window.ptConfirmarEscribirAlSave = confirmarEscribirAlSave;
 window.ptDescartarTodo = descartarTodo;
 window.ptElegirCarpetaClick = elegirCarpetaClick;
 window.ptGuardarReglas = guardarReglas;
+window.ptToggleEdicionGratis = toggleEdicionGratis;
 window.ptGuardarTopeExtra = guardarTopeExtra;
 window.ptQuitarTopeExtra = quitarTopeExtra;
 window.ptHabilitarAplicarPedidos = habilitarAplicarPedidos;
