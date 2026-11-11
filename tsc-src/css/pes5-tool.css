@@ -177,3 +177,14 @@
 }
 /* Club repetido (2.0-4): dos equipos activos con el mismo club PES5. */
 .pt-badge-repetido{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;color:var(--red);background:rgba(232,64,64,0.12);border:1px solid rgba(232,64,64,0.45);}
+
+/* Edicion gratis (admin): casilla grande, visible al editar */
+#page-pes5-admin .pt-cobro-badge.gratis{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.45);color:#4ade80;}
+.pt-gratis{display:flex;align-items:center;gap:12px;margin:10px 0;padding:12px 16px;border:2px dashed var(--gold-b,#a8862f);border-radius:12px;background:var(--card2,rgba(255,255,255,.03));cursor:pointer;user-select:none;}
+.pt-gratis input{width:24px;height:24px;flex:0 0 auto;accent-color:#22c55e;cursor:pointer;margin:0;}
+.pt-gratis-txt{display:flex;flex-direction:column;gap:2px;line-height:1.25;}
+.pt-gratis-txt b{font-size:16px;color:var(--txt,#fff);}
+.pt-gratis-txt span{font-size:12.5px;color:var(--txt2,#bbb);}
+.pt-gratis.on{border-style:solid;border-color:#22c55e;background:rgba(34,197,94,.12);}
+.pt-gratis.on .pt-gratis-txt b{color:#4ade80;}
+.pt-ed-box > .pt-gratis{margin:10px 14px 0;}

@@ -2477,7 +2477,7 @@ function renderAdminBar(){
   const e = EQUIPO_TSC;
   const estado = e.cobra
     ? `Se cobra a ${escHtml(e.name)} · saldo ${Number(e.yunacoin||0).toLocaleString('es-CL')}`
-    : 'Sin presidente · edición libre, sin cobro';
+    : (e.gratis ? 'Edición gratis · no se cobra a ' + (e.name || '') : 'Sin presidente · edición libre, sin cobro');
   const nameEl = document.getElementById('ep-top-name');
   if (nameEl) nameEl.textContent = 'Editando · ' + (e.name || '');
   const sub = top.querySelector('.ep-top-sub');
@@ -2621,6 +2621,15 @@ function montar(contenedor, opciones){
   }
 }
 
+/* Modo admin: borrador del jugador abierto, con la misma forma que entrega onAplicar. */
+function borrador(){
+  if (!ADMIN_EMBED || !APP.draft) return null;
+  const p = currentPlayer();
+  if (!p) return null;
+  const d = APP.draft;
+  return { jugadorId: p.id, draft: { stats: d.stats, sec: d.sec, abilities: d.abilities, positions: d.positions, primaryPos: d.primaryPos, side: d.side, height: d.height, favfoot: d.favfoot, age: d.age } };
+}
+
 /* Saca el editor del DOM y suelta lo que engancha afuera (eventos, latidos, observers). */
 function desmontar(){
   window.removeEventListener('tsc:auth', _alCambiarAuthPresidente);
@@ -2692,5 +2701,5 @@ window.mejToggleCuenta = mejToggleCuenta;
 
 iniciarPagina();
 
-return { montar: montar, desmontar: desmontar };
+return { montar: montar, desmontar: desmontar, borrador: borrador };
 })();
