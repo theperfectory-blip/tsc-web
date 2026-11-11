@@ -171,6 +171,7 @@ async function renderAuthUI(){
     _gateTeamId = AUTH.teamId;
     try { EQUIPO_TSC = await dbGet('teams', AUTH.teamId); } catch(e){ EQUIPO_TSC = null; }
     RULES = await cargarReglasFirestore();
+    RULES = YUNACOINS_RULES.reglasConExtra(RULES, await cargarTopeExtraEquipo(AUTH.teamId));
     // Slice D2: recalcular el presupuesto disponible (topes - gastado - pedidos pendientes)
     await recalcularPresupuestoReal();
   }
@@ -576,6 +577,19 @@ async function cargarReglasFirestore(){
   } catch (e) {
     console.warn('[editor] no se pudieron leer las reglas de Firestore, uso las de codigo:', e);
     return YUNACOINS_RULES.normalizarReglas(null);
+  }
+}
+
+// Tope extra del equipo en la temporada actual (premio del admin, pes5_config/topesExtra-<temporada>).
+async function cargarTopeExtraEquipo(teamId){
+  if (STATE.season == null || teamId == null) return 0;
+  try {
+    const snap = await firebase.firestore().collection('pes5_config').doc('topesExtra-' + STATE.season).get();
+    const topes = YUNACOINS_RULES.normalizarTopesExtra(snap.exists ? snap.data() : null);
+    return YUNACOINS_RULES.extraDeEquipo(topes, teamId);
+  } catch (e) {
+    console.warn('[editor] no se pudo leer el tope extra', e);
+    return 0;
   }
 }
 

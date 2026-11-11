@@ -86,6 +86,29 @@ async function cargarReglasFirestore(){
   }
 }
 
+// Tope extra por equipo de la temporada actual (premio del admin): {teamId: {extra, motivo}}.
+let YC_TOPES_EXTRA = {};
+let YC_TOPES_EXTRA_META = null;
+function _docTopesExtra(){
+  return firebase.firestore().collection('pes5_config').doc('topesExtra-' + STATE.season);
+}
+async function cargarTopesExtra(){
+  YC_TOPES_EXTRA = {}; YC_TOPES_EXTRA_META = null;
+  if (STATE.season == null) return;
+  try {
+    const snap = await _docTopesExtra().get();
+    const data = snap.exists ? snap.data() : null;
+    YC_TOPES_EXTRA = YUNACOINS_RULES.normalizarTopesExtra(data);
+    YC_TOPES_EXTRA_META = data ? { actualizadoEn: data.actualizadoEn || null, actualizadoPor: data.actualizadoPor || null } : null;
+  } catch (e) {
+    console.warn('[pes5-tool] no se pudieron leer los topes extra:', e);
+  }
+}
+// Reglas con el tope general de ESE equipo (general + su extra de la temporada).
+function _reglasEquipo(teamId){
+  return YUNACOINS_RULES.reglasConExtra(YC_RULES, YUNACOINS_RULES.extraDeEquipo(YC_TOPES_EXTRA, teamId));
+}
+
 // Cache de lo ya gastado esta temporada por el equipo cuyo plantel esta
 // abierto ahora mismo (derivado del libro `coins`, punto 5c del macro-slice
 // — no se persiste nada nuevo en `teams`). Se recalcula cada vez que cambia
@@ -121,7 +144,7 @@ function tienePresidente(team){
 // lo ya gastado, cache de GASTO_TEMPORADA_CACHE — ver _refrescarGastoTemporadaEquipo).
 function _restantesTemporada(){
   return YUNACOINS_RULES.topesRestantes(
-    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, YC_RULES);
+    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, _reglasEquipo(GASTO_TEMPORADA_CACHE.teamId));
 }
 // Reparte TODOS los cambios pendientes del plantel abierto entre bono de
 // suscriptores y tope general, con el orden nuevo (punto 5b): itera
@@ -312,6 +335,7 @@ async function initApp(){
   await PES5_CRYPT.cargarClaves('js/pes5/');
   await PES5_EDITOR.cargarMapa('js/pes5/');
   YC_RULES = await cargarReglasFirestore();
+  await cargarTopesExtra();
   // Slice C1.2: pes5-teams.json / cargarNombresEquipos ya NO se usan para poblar
   // selectores en esta tool — los 138 clubes salen siempre del save cargado.
   await cargarEquiposYPresidentes();
@@ -865,7 +889,7 @@ function _opcionesEditor(j){
   const cobra = !!(team && tienePresidente(team));
   let reglas, presupuesto;
   if (cobra){
-    reglas = Object.assign({}, YC_RULES);
+    reglas = _reglasEquipo(team.id);
     const reparto = repartoPendienteEquipo();
     const info = reparto.porJugador[j.id];
     const otrosTotal = reparto.totalCosto - (info ? info.total : 0);
@@ -1713,6 +1737,94 @@ async function publicarPlantillas(ids){
 function renderYunacoinsTab(){
   if (window.PES5_YUNACOINS) window.PES5_YUNACOINS.render(document.getElementById('pt-tabcontent'));
 }
+function _bloqueTopesExtraHTML(){
+  if (STATE.season == null){
+    return `<div class="pt-fieldgrp" style="margin-bottom:18px;"><div class="pt-fieldgrp-title">Tope extra por equipo</div>
+      <div style="font-size:12px;color:var(--txt3);">No hay temporada activa: el tope extra se asigna por temporada.</div></div>`;
+  }
+  const activos = EQUIPOS_TSC.filter(t => t.status === 'ACTIVO').slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'));
+  const nombre = id => { const t = EQUIPOS_TSC.find(x => String(x.id) === String(id)); return t ? t.name : ('Equipo ' + id); };
+  const filas = Object.keys(YC_TOPES_EXTRA).map(id => {
+    const e = YC_TOPES_EXTRA[id];
+    const total = (YC_RULES.budgetGeneral || 0) + e.extra;
+    return `<tr>
+      <td>${escHtml(nombre(id))}</td>
+      <td style="text-align:right;">+${e.extra.toLocaleString('es-CL')}</td>
+      <td style="text-align:right;">${total.toLocaleString('es-CL')}</td>
+      <td>${escHtml(e.motivo || '')}</td>
+      <td><button class="btn btn-sm" data-onclick="ptQuitarTopeExtra('${escAttr(id)}')">Quitar</button></td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="pt-fieldgrp" style="margin-bottom:18px;">
+      <div class="pt-fieldgrp-title">Tope extra por equipo · temporada actual</div>
+      <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Premio para campeones o equipos con buen desempeño: se suma al tope general solo para ese equipo y solo esta temporada. No da YunaCoins: el equipo paga con su saldo.</div>
+      ${filas ? `<table class="tbl" style="width:100%;margin-bottom:12px;">
+        <thead><tr><th>Equipo</th><th style="text-align:right;">Extra</th><th style="text-align:right;">Tope total</th><th>Motivo</th><th></th></tr></thead>
+        <tbody>${filas}</tbody></table>` : `<div style="font-size:12px;color:var(--txt3);margin-bottom:12px;">Ningún equipo tiene tope extra.</div>`}
+      <div class="pt-field">
+        <label>Equipo</label>
+        <select id="te-equipo"><option value="">Elegí un equipo</option>${activos.map(t => `<option value="${escAttr(t.id)}">${escHtml(t.name)}</option>`).join('')}</select>
+      </div>
+      <div class="pt-field">
+        <label>Extra (YunaCoins)<br><span style="font-size:11px;color:var(--txt3);">0 lo quita.</span></label>
+        <input type="number" min="0" step="500" id="te-extra" value="" style="width:100px;">
+      </div>
+      <div class="pt-field">
+        <label>Motivo</label>
+        <input type="text" maxlength="100" id="te-motivo" placeholder="Ej: Campeón T2" style="width:200px;">
+      </div>
+      <div id="te-errores"></div>
+      <div class="pt-acciones">
+        <button class="btn btn-primary btn-sm" data-onclick="ptGuardarTopeExtra()">${ICN.save} Guardar tope extra</button>
+      </div>
+      ${YC_TOPES_EXTRA_META && YC_TOPES_EXTRA_META.actualizadoEn ? `<div style="font-size:12px;color:var(--txt3);margin-top:8px;">Última actualización: ${new Date(YC_TOPES_EXTRA_META.actualizadoEn).toLocaleString('es-CL')} por ${escHtml(YC_TOPES_EXTRA_META.actualizadoPor || '')}</div>` : ''}
+    </div>`;
+}
+
+async function _escribirTopesExtra(nuevo){
+  const equipos = {};
+  Object.keys(nuevo).forEach(id => { equipos[id] = { extra: nuevo[id].extra, motivo: nuevo[id].motivo || '' }; });
+  const doc = { temporada: STATE.season, equipos, actualizadoEn: new Date().toISOString(), actualizadoPor: AUTH.user.email };
+  await _docTopesExtra().set(doc);
+  YC_TOPES_EXTRA = YUNACOINS_RULES.normalizarTopesExtra(doc);
+  YC_TOPES_EXTRA_META = { actualizadoEn: doc.actualizadoEn, actualizadoPor: doc.actualizadoPor };
+}
+
+async function guardarTopeExtra(){
+  const box = document.getElementById('te-errores');
+  const id = document.getElementById('te-equipo').value;
+  const extra = parseInt(document.getElementById('te-extra').value, 10);
+  const motivo = String(document.getElementById('te-motivo').value || '').trim().slice(0, 100);
+  const err = msg => { box.innerHTML = `<div style="color:var(--red,#f87171);font-size:12px;">${escHtml(msg)}</div>`; };
+  if (!id) return err('Elegí un equipo.');
+  if (!Number.isFinite(extra) || extra < 0) return err('El extra tiene que ser un número mayor o igual a 0.');
+  const nuevo = Object.assign({}, YC_TOPES_EXTRA);
+  if (extra === 0) delete nuevo[id]; else nuevo[id] = { extra, motivo };
+  try {
+    await _escribirTopesExtra(nuevo);
+    showToast(extra === 0 ? 'Tope extra quitado.' : 'Tope extra guardado.');
+    renderReglasTab();
+  } catch (e) {
+    console.error('[pes5-tool] error guardando tope extra', e);
+    err('No se pudo guardar: ' + (e.message || String(e)));
+  }
+}
+
+async function quitarTopeExtra(id){
+  if (!YC_TOPES_EXTRA[id]) return;
+  const nuevo = Object.assign({}, YC_TOPES_EXTRA);
+  delete nuevo[id];
+  try {
+    await _escribirTopesExtra(nuevo);
+    showToast('Tope extra quitado.');
+    renderReglasTab();
+  } catch (e) {
+    console.error('[pes5-tool] error quitando tope extra', e);
+    showToast('No se pudo quitar: ' + (e.message || e), 'error');
+  }
+}
+
 function renderReglasTab(){
   const cont = document.getElementById('pt-tabcontent');
   const r = YC_RULES;
@@ -1742,6 +1854,8 @@ function renderReglasTab(){
           <input type="number" min="0" step="500" id="rg-budgetSubscribers" value="${r.budgetSubscribers}" style="width:100px;">
         </div>
       </div>
+
+      ${_bloqueTopesExtraHTML()}
 
       <div class="pt-fieldgrp" style="margin-bottom:18px;">
         <div class="pt-fieldgrp-title">Costo por punto (atributos 0-99)</div>
@@ -1843,6 +1957,8 @@ window.ptConfirmarEscribirAlSave = confirmarEscribirAlSave;
 window.ptDescartarTodo = descartarTodo;
 window.ptElegirCarpetaClick = elegirCarpetaClick;
 window.ptGuardarReglas = guardarReglas;
+window.ptGuardarTopeExtra = guardarTopeExtra;
+window.ptQuitarTopeExtra = quitarTopeExtra;
 window.ptHabilitarAplicarPedidos = habilitarAplicarPedidos;
 window.ptOnTeamSelectPorIndice = onTeamSelectPorIndice;
 window.ptPublicarPlantillaDeEquipo = publicarPlantillaDeEquipo;
