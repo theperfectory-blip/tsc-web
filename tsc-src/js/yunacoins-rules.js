@@ -225,6 +225,38 @@
     });
     return { general: general, sub: sub };
   }
+  /* ============================================================
+     Tope extra por equipo (premio del admin a campeones o buen desempeño)
+     ------------------------------------------------------------
+     Se guarda por temporada en pes5_config/topesExtra-<temporada>, campo
+     `equipos: {<teamId>: {extra, motivo}}`. Suma al tope GENERAL de
+     temporada de ese equipo; no toca el bono de suscriptores ni da
+     YunaCoins: el equipo sigue pagando con su saldo.
+     ============================================================ */
+  function normalizarTopesExtra(data) {
+    const out = {};
+    const eq = data && data.equipos;
+    if (!eq || typeof eq !== 'object') return out;
+    Object.keys(eq).forEach(function (id) {
+      const e = eq[id] || {};
+      const n = Math.floor(Number(e.extra));
+      if (Number.isFinite(n) && n > 0) {
+        out[String(id)] = { extra: n, motivo: typeof e.motivo === 'string' ? e.motivo.slice(0, 100) : '' };
+      }
+    });
+    return out;
+  }
+  function extraDeEquipo(topesExtra, teamId) {
+    const e = topesExtra && teamId != null ? topesExtra[String(teamId)] : null;
+    return e ? e.extra : 0;
+  }
+  function reglasConExtra(rules, extra) {
+    const r = Object.assign({}, rules || DEFAULT_RULES);
+    const n = Math.floor(Number(extra));
+    if (Number.isFinite(n) && n > 0) r.budgetGeneral = (r.budgetGeneral || 0) + n;
+    return r;
+  }
+
   function topesRestantes(gastado, rules) {
     const r = rules || DEFAULT_RULES;
     const g = (gastado && gastado.general) || 0;
@@ -603,6 +635,9 @@
     distribuirCosto: distribuirCosto,
     gastoTemporada: gastoTemporada,
     topesRestantes: topesRestantes,
+    normalizarTopesExtra: normalizarTopesExtra,
+    extraDeEquipo: extraDeEquipo,
+    reglasConExtra: reglasConExtra,
     evaluarPago: evaluarPago,
     costoCambios: costoCambios,
     motivoRechazoMejora: motivoRechazoMejora,
