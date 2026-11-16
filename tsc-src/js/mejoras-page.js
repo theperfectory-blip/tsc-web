@@ -203,6 +203,8 @@ async function renderAuthUI(){
     loadDraft();
   }
   // Slice Q4: un solo editor a la vez por equipo. Si el admin lo esta editando, se muestra el aviso.
+  // BLOQ-1: si la edicion esta pausada por inactividad, no se vuelve a tomar el bloqueo hasta «Volver a entrar».
+  if (_pausadoInactividad){ _mostrarPausa(); return; }
   const bq = await tomarBloqueoPresidente();
   if (!bq.ok){ mostrarBloqueoActivo(bq.de); return; }
   iniciarLatidoPresidente();
@@ -2865,36 +2867,113 @@ let _bloqTeamLatido = null;
 function _alSalirPagina(){
   if (_bloqUid && _bloqTeamLatido != null) PES5_BLOQUEO.liberar(_bloqTeamLatido, _bloqUid).catch(() => {});
 }
-function _detenerBloqueoPresidente(){
+// Pausa por inactividad (BLOQ-1 ampliado): sin clic, tecla ni cambio de input durante
+// PES5_BLOQUEO.INACTIVIDAD_MS, el bloqueo se libera y la edicion queda pausada (lo armado se conserva en pantalla).
+let _bloqInact = null, _ultimaActividad = 0, _pausadoInactividad = false;
+function _marcarActividad(){ if (!_pausadoInactividad) _ultimaActividad = Date.now(); }
+function _quitarPausa(){
+  const el = document.getElementById('mej-pausa');
+  if (el) el.remove();
+}
+function _mostrarPausa(){
+  if (document.getElementById('mej-pausa')) return;
+  const el = document.createElement('div');
+  el.id = 'mej-pausa';
+  el.className = 'mej-pausa';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.innerHTML = `<div class="mej-pausa-box">
+      <p>Tu edición se pausó por inactividad. Vuelve a entrar para seguir.</p>
+      <button type="button" class="ep-btn primary" data-onclick="volverAEntrarPresidente()">Volver a entrar</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+// La pausa: se libera el bloqueo y se cortan latido y observador. No se toca lo armado en pantalla.
+async function _pausarPorInactividad(){
+  if (_pausadoInactividad || !_bloqUid) return;
+  _pausadoInactividad = true;
+  _pausarIntervalos();
+  _mostrarPausa();
+  try { await PES5_BLOQUEO.liberar(_bloqTeamLatido, _bloqUid); } catch (e) { console.warn('[mejoras] no se pudo liberar el bloqueo por inactividad', e); }
+}
+function _revisarInactividad(){
+  if (_pausadoInactividad || !_bloqUid) return;
+  if (Date.now() - _ultimaActividad >= PES5_BLOQUEO.INACTIVIDAD_MS) _pausarPorInactividad();
+}
+// Boton «Volver a entrar»: vuelve a tomar el bloqueo si el equipo esta libre.
+async function volverAEntrarPresidente(){
+  if (!AUTH.user || AUTH.teamId == null) return;
+  if (_bloqUid && AUTH.user.uid !== _bloqUid) return;
+  const bq = await tomarBloqueoPresidente();
+  if (!bq.ok){ _quitarPausa(); _pausadoInactividad = false; mostrarBloqueoActivo(bq.de); return; }
+  _pausadoInactividad = false;
+  _bloqUid = AUTH.user.uid;
+  _bloqTeamLatido = AUTH.teamId;
+  _ultimaActividad = Date.now();
+  _quitarPausa();
+  _arrancarIntervalos();
+}
+window.volverAEntrarPresidente = volverAEntrarPresidente;
+// Al volver a la pestaña: si la edicion no estaba pausada, se revisa la inactividad y se re-toma el bloqueo si esta libre.
+async function _alCambiarVisibilidad(){
+  if (document.visibilityState !== 'visible' || !_bloqUid) return;
+  _revisarInactividad();
+  if (_pausadoInactividad) return;
+  try {
+    const r = await PES5_BLOQUEO.tomar(_bloqTeamLatido, 'presidente', _bloqUid, _bloqNombre());
+    if (!r.ok) mostrarBloqueoActivo(r.de);
+  } catch (e) {}
+}
+function _pausarIntervalos(){
   if (_bloqLatido){ clearInterval(_bloqLatido); _bloqLatido = null; }
-  if (_bloqSondeo){ clearInterval(_bloqSondeo); _bloqSondeo = null; }
   if (_bloqObs){ try { _bloqObs(); } catch (e) {} _bloqObs = null; }
+}
+function _arrancarIntervalos(){
+  if (!_bloqLatido){
+    // mientras la pagina esta visible se renueva el bloqueo; oculta, vence solo a los 3 minutos
+    _bloqLatido = setInterval(async () => {
+      // Otra sesion (o sin sesion): el latido se apaga y no renueva nada.
+      if (!AUTH.user || AUTH.user.uid !== _bloqUid || AUTH.teamId !== _bloqTeamLatido){ _detenerBloqueoPresidente(); return; }
+      if (document.visibilityState !== 'visible' || _pausadoInactividad) return;
+      try {
+        const r = await PES5_BLOQUEO.latir(_bloqTeamLatido, 'presidente', _bloqUid, _bloqNombre());
+        if (!r.ok) mostrarBloqueoActivo(r.de);
+      } catch (e) {}
+    }, PES5_BLOQUEO.LATIDO_MS);
+  }
+  if (!_bloqInact) _bloqInact = setInterval(_revisarInactividad, 10000);
+  if (!_bloqObs){
+    // si el admin toma el equipo mientras el presidente esta adentro, se lo bloquea al instante
+    try {
+      _bloqObs = PES5_BLOQUEO.observar(_bloqTeamLatido, (d) => {
+        if (!AUTH.user || AUTH.user.uid !== _bloqUid) return;
+        if (d && PES5_BLOQUEO.vivo(d) && d.uid !== _bloqUid) mostrarBloqueoActivo(d);
+      });
+    } catch (e) {}
+  }
+}
+function _detenerBloqueoPresidente(){
+  _pausarIntervalos();
+  if (_bloqSondeo){ clearInterval(_bloqSondeo); _bloqSondeo = null; }
+  if (_bloqInact){ clearInterval(_bloqInact); _bloqInact = null; }
   window.removeEventListener('pagehide', _alSalirPagina);
+  ['click', 'keydown', 'input', 'change'].forEach(ev => document.removeEventListener(ev, _marcarActividad, true));
+  document.removeEventListener('visibilitychange', _alCambiarVisibilidad);
+  _quitarPausa();
+  _pausadoInactividad = false;
   _bloqUid = null;
   _bloqTeamLatido = null;
 }
 function iniciarLatidoPresidente(){
-  if (_bloqLatido || !AUTH.user || AUTH.teamId == null) return;
+  if (_bloqUid || !AUTH.user || AUTH.teamId == null) return;
   _bloqUid = AUTH.user.uid;
   _bloqTeamLatido = AUTH.teamId;
-  // mientras la pagina esta visible se renueva el bloqueo; oculta, vence solo a los 3 minutos
-  _bloqLatido = setInterval(async () => {
-    // Otra sesion (o sin sesion): el latido se apaga y no renueva nada.
-    if (!AUTH.user || AUTH.user.uid !== _bloqUid || AUTH.teamId !== _bloqTeamLatido){ _detenerBloqueoPresidente(); return; }
-    if (document.visibilityState !== 'visible') return;
-    try {
-      const r = await PES5_BLOQUEO.latir(_bloqTeamLatido, 'presidente', _bloqUid, _bloqNombre());
-      if (!r.ok) mostrarBloqueoActivo(r.de);
-    } catch (e) {}
-  }, PES5_BLOQUEO.LATIDO_MS);
+  _pausadoInactividad = false;
+  _ultimaActividad = Date.now();
   window.addEventListener('pagehide', _alSalirPagina);
-  // si el admin toma el equipo mientras el presidente esta adentro, se lo bloquea al instante
-  try {
-    _bloqObs = PES5_BLOQUEO.observar(_bloqTeamLatido, (d) => {
-      if (!AUTH.user || AUTH.user.uid !== _bloqUid) return;
-      if (d && PES5_BLOQUEO.vivo(d) && d.uid !== _bloqUid) mostrarBloqueoActivo(d);
-    });
-  } catch (e) {}
+  ['click', 'keydown', 'input', 'change'].forEach(ev => document.addEventListener(ev, _marcarActividad, true));
+  document.addEventListener('visibilitychange', _alCambiarVisibilidad);
+  _arrancarIntervalos();
 }
 // BLOQ-1: se llama ANTES de cerrar sesion (auth.js): libera el bloqueo del presidente mientras las reglas
 // todavia lo dejan, y corta latido y observador.

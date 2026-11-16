@@ -24,6 +24,8 @@ const hace = (ms) => new Date(Date.now() - ms).toISOString();
 
 // TTL: 3 minutos sin latido = bloqueo muerto
 assert(B.TTL_MS === 180000, 'TTL de 3 minutos');
+assert(B.INACTIVIDAD_MS === 600000, 'inactividad del presidente: 10 minutos (constante en pes5-bloqueo.js)');
+assert(B.LATIDO_MS === 30000, 'latido cada 30 s (dentro del TTL)');
 assert(B.vivo({ latido: hace(60 * 1000) }) === true, 'latido de hace 1 minuto: el bloqueo sigue vivo');
 assert(B.vivo({ latido: hace(170 * 1000) }) === true, 'latido de hace 2 min 50 s: sigue vivo');
 assert(B.vivo({ latido: hace(181 * 1000) }) === false, 'latido de hace más de 3 minutos: el bloqueo está muerto (el admin puede editar)');

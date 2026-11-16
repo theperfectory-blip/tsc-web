@@ -10,6 +10,9 @@
 const PES5_BLOQUEO = (() => {
   const TTL_MS = 180000;    // 3 minutos sin latido = bloqueo muerto
   const LATIDO_MS = 30000;  // el dueño lo renueva cada 30 s
+  // BLOQ-1: el presidente que deja Mejoras sin tocar nada 10 minutos pierde el bloqueo (se pausa su edicion).
+  // Se lee en tiempo de ejecucion: solo para pruebas se puede bajar desde la consola.
+  const INACTIVIDAD_MS = 600000;
 
   function _ref(teamId) {
     return firebase.firestore().collection('pes5_bloqueos').doc(String(teamId));
@@ -67,5 +70,5 @@ const PES5_BLOQUEO = (() => {
     return _ref(teamId).onSnapshot((s) => cb(s.exists ? s.data() : null), () => cb(null));
   }
 
-  return { TTL_MS: TTL_MS, LATIDO_MS: LATIDO_MS, vivo: vivo, leer: leer, tomar: tomar, tomarControl: tomarControl, latir: latir, liberar: liberar, observar: observar };
+  return { TTL_MS: TTL_MS, LATIDO_MS: LATIDO_MS, INACTIVIDAD_MS: INACTIVIDAD_MS, vivo: vivo, leer: leer, tomar: tomar, tomarControl: tomarControl, latir: latir, liberar: liberar, observar: observar };
 })();

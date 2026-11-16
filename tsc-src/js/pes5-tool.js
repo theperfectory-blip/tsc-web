@@ -869,6 +869,8 @@ function onTeamSelectPorIndice(idxStr){
     CAMBIOS_PENDIENTES = {};
     liberarBloqueoEquipo();
   }
+  // BLOQ-1: al cambiar de equipo, el admin suelta el bloqueo del anterior (aunque no tuviera cambios pendientes).
+  if (nuevo !== PLANTILLA_INDICE && BLOQUEO_EQUIPO != null) liberarBloqueoEquipo();
   if (nuevo !== PLANTILLA_INDICE) EDICION_GRATIS = false;
   if (nuevo === null){
     document.getElementById('pl-body').innerHTML = '';

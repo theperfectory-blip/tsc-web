@@ -527,3 +527,9 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-emparejar-btn{display:inline-flex;align-items:center;gap:6px;}
 .ep-root .ep-emparejar-btn[disabled]{opacity:.5;cursor:not-allowed;}
 .ep-root .ep-emparejar-note{font-size:12px;color:var(--txt3);line-height:1.35;}
+
+/* BLOQ-1 · pausa del presidente por inactividad (el overlay vive en body, fuera de .ep-root) */
+.mej-pausa{position:fixed;inset:0;background:rgba(4,6,10,0.72);z-index:970;display:flex;align-items:center;justify-content:center;padding:16px;}
+.mej-pausa-box{background:var(--card);border:1px solid var(--brd);border-radius:12px;padding:20px;max-width:360px;text-align:center;color:var(--txt);}
+.mej-pausa-box p{margin:0 0 14px;font-size:15px;line-height:1.4;}
+.mej-pausa-box button{background:var(--gold);color:#111;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;}
