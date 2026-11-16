@@ -2188,13 +2188,18 @@ function _emparejarReglasHTML(r){
   // Cada perfil trae sus propias condiciones (lesion y escala 1-8). Vacio = ese chequeo no se aplica.
   const fila = (nombre, etiqueta) => {
     const p = e[nombre] || {};
-    return `<div class="pt-field pt-emp-perfil">
-      <div class="pt-emp-perfil-nombre"><b>${etiqueta}</b></div>
-      <label>Mínimo <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-min" value="${escAttr(val(p.min))}" style="width:90px;"></label>
-      <label>Máximo <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-max" value="${escAttr(val(p.max))}" style="width:90px;"></label>
-      <label class="pt-emp-subir"><input type="checkbox" id="rg-emp-${nombre}-subir"${p.subir === true ? ' checked' : ''}> Subir gratis hasta el máximo</label>
-      <label>Resistencia a lesiones <select id="rg-emp-${nombre}-lesion" style="width:90px;">${['', 'A', 'B', 'C'].map(x => `<option value="${x}"${(p.lesion || '') === x ? ' selected' : ''}>${x || '—'}</option>`).join('')}</select></label>
-      <label>Parámetros 1-8 <input type="number" min="1" max="8" step="1" id="rg-emp-${nombre}-escala8" value="${escAttr(val(p.escala8))}" placeholder="4" style="width:70px;"></label>
+    // Cada fila: label completo a la izquierda y su input a la derecha (ver .pt-emp-fila en pes5-tool.css).
+    return `<div class="pt-emp-perfil">
+      <div class="pt-emp-perfil-nombre">${etiqueta}</div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-min">Mínimo</label>
+        <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-min" value="${escAttr(val(p.min))}"></div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-max">Máximo</label>
+        <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-max" value="${escAttr(val(p.max))}"></div>
+      <div class="pt-emp-fila pt-emp-fila-check"><label class="pt-toggle" for="rg-emp-${nombre}-subir"><input type="checkbox" id="rg-emp-${nombre}-subir"${p.subir === true ? ' checked' : ''}> Subir gratis hasta el máximo</label></div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-lesion">Resistencia a lesiones</label>
+        <select id="rg-emp-${nombre}-lesion">${['', 'A', 'B', 'C'].map(x => `<option value="${x}"${(p.lesion || '') === x ? ' selected' : ''}>${x || '—'}</option>`).join('')}</select></div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-escala8">Parámetros 1-8</label>
+        <input type="number" min="1" max="8" step="1" id="rg-emp-${nombre}-escala8" value="${escAttr(val(p.escala8))}" placeholder="4"></div>
     </div>`;
   };
   return `<div class="pt-fieldgrp" style="margin-bottom:18px;">
