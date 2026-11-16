@@ -138,12 +138,8 @@ async function _completarPerfilesEquipo(teamId, clubIdx){
   const ref = firebase.firestore().collection('pes5_perfiles').doc(id);
   const snap = await ref.get();
   const actual = snap.exists && snap.data().perfiles ? Object.assign({}, snap.data().perfiles) : {};
-  const nuevos = {};
-  PES5_EDITOR.leerPlantillaEquipo(PLANO, clubIdx).forEach(reg => {
-    if (actual[String(reg)] != null) return;
-    const j = PES5_EDITOR.leerJugadorCompleto(PLANO, reg);
-    nuevos[String(reg)] = YUNACOINS_RULES.valorPerfilFijado(YUNACOINS_RULES.perfilEmparejar(j, cfg));
-  });
+  const plantel = PES5_EDITOR.leerPlantillaEquipo(PLANO, clubIdx).map(reg => PES5_EDITOR.leerJugadorCompleto(PLANO, reg));
+  const nuevos = YUNACOINS_RULES.perfilesFaltantes(plantel, actual, cfg);
   const n = Object.keys(nuevos).length;
   if (n){
     const perfiles = Object.assign({}, actual, nuevos);
@@ -153,6 +149,19 @@ async function _completarPerfilesEquipo(teamId, clubIdx){
     PERFILES_TOOL[id] = perfiles;
   }
   return { agregados: n };
+}
+// EMP-80-2 (cierre): antes de aprobar un pedido o de escribir un cambio directo, si alguno de los
+// jugadores tocados no tiene perfil fijado en la temporada, se fija el plantel entero del equipo.
+// Se llama con el save ANTES de escribir (PLANO todavia no tiene los cambios). No pisa los fijados.
+// Lanza error si no se pudo guardar: en ese caso no se escribe nada.
+async function _fijarPlantelSiFalta(team, registros){
+  if (!team || team.pes5ClubIdx == null || !PLANO) return { agregados: 0 };
+  const lista = (registros || []).filter(r => r != null);
+  if (!lista.length) return { agregados: 0 };
+  if (!PERFILES_TOOL) await _cargarPerfilesTool();
+  const mapa = PERFILES_TOOL[_docPerfiles(team.id, _temporadaCobro())] || {};
+  if (!lista.some(r => mapa[String(r)] == null)) return { agregados: 0 };
+  return _completarPerfilesEquipo(team.id, team.pes5ClubIdx);
 }
 // Boton «Fijar perfiles de la temporada» (plantilla del club abierto).
 async function ptFijarPerfiles(){
@@ -1482,6 +1491,13 @@ async function escribirAlSave(op){
   if (!op && !debeCobrar && EDICION_GRATIS && equipoCobro && tienePresidente(equipoCobro)){
     log(`edición gratis: no se cobra a ${equipoCobro.name} (marcada por ${(AUTH.user && AUTH.user.email) || 'admin'})`);
   }
+  // EMP-80-2 (cierre): antes de cobrar o escribir, si algun jugador tocado no tiene perfil fijado, se fija el plantel.
+  try {
+    await _fijarPlantelSiFalta(equipoCobro, op ? [op.registro] : Object.keys(CAMBIOS_PENDIENTES).map(Number));
+  } catch (e) {
+    log('No se fijaron los perfiles de emparejar del equipo (' + (e.message || e) + '). No se escribió nada.', 'err');
+    return;
+  }
   const repartoCobro = debeCobrar ? repartoPendienteEquipo() : null;
   // Slice 2.0-4 (4.D): con cobro, la lista de Loyalty tiene que ser reciente (12 h)
   if (debeCobrar && repartoCobro && repartoCobro.totalCosto > 0 && window.PES5_YUNACOINS){
@@ -1744,6 +1760,14 @@ async function aplicarPedidosSeleccionados(){
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
   // EMP-80-2: perfiles fijados al día antes de cobrar (la misma funcion que usa el presidente).
   try { await _cargarPerfilesTool(); } catch (e) { showToast('No se pudieron leer los perfiles fijados: ' + (e.message || e), 'error'); return; }
+  // EMP-80-2 (cierre): antes de evaluar o cobrar, se fija el plantel de cada equipo que tenga un jugador sin perfil
+  // fijado. El save todavia es el original: el perfil sale del estado previo a las mejoras.
+  try {
+    for (const teamId of [...new Set(pedidos.map(p => String(p.teamId)))]){
+      const team = EQUIPOS_TSC.find(t => String(t.id) === teamId);
+      await _fijarPlantelSiFalta(team, pedidos.filter(p => String(p.teamId) === teamId && p.registro != null).map(p => p.registro));
+    }
+  } catch (e) { showToast('No se fijaron los perfiles de emparejar (' + (e.message || e) + '): no se aplicó nada.', 'error'); return; }
   // Slice 2.0-4 (4.D): si aplicar cobra algo, con la lista de Loyalty vencida se pide confirmacion explicita
   if (window.PES5_YUNACOINS && !(await window.PES5_YUNACOINS.guardiaCobro(log, _costoEstimadoPedidos(pedidos)))){ log('Aplicacion cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;

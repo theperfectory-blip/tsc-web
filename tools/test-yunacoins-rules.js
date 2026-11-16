@@ -477,6 +477,25 @@ assert(EP.valorPerfilFijado('base') === 'base' && EP.valorPerfilFijado(null) ===
 const jFueraRango = { atributos: { Ataque: 81, Defensa: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' };
 assert(EP.cambiosEmparejar(jFueraRango, cfgBS, 'base').motivo !== null, 'emparejar con perfil fijado: una stat fuera del rango (81) → no se puede sin costo');
 assert(EP.cambiosEmparejar({ atributos: { Ataque: 79, Defensa: 80 }, escala8: {}, habilidades: {}, lesiones: 'C' }, cfgBS, 'base').lineas.length === 1, 'emparejar con perfil fijado: dentro del rango sube lo que falta');
+/* ---- EMP-80-2 · cierre: el plantel se fija ANTES de escribir la primera mejora ---- */
+// Equipo sin perfiles fijados: A base, B suscriptor, C fuera de perfil.
+const plantelCierre = [
+  { id: 1, atributos: { Ataque: 80, Defensa: 79, Salto: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' },
+  { id: 2, atributos: { Ataque: 84, Defensa: 85 }, escala8: {}, habilidades: {}, lesiones: 'B' },
+  { id: 3, atributos: { Ataque: 50, Defensa: 80 }, escala8: {}, habilidades: {}, lesiones: 'C' },
+];
+const fijadoCierre = EP.perfilesFaltantes(plantelCierre, {}, cfgBS);
+assert(fijadoCierre['1'] === 'base' && fijadoCierre['2'] === 'suscriptor' && fijadoCierre['3'] === 'ninguno', 'cierre: fija el perfil de todo el plantel sin valor (base, suscriptor, ninguno)');
+assert(EP.perfilesFaltantes(plantelCierre, { '1': 'ninguno' }, cfgBS)['1'] === undefined, 'cierre: no pisa un perfil ya fijado');
+// Primera mejora pagada 80→81 sobre A: el perfil ya estaba fijado antes de escribir
+const perfilAntes = EP.perfilParaJugador(null, cfgBS, fijadoCierre['1']);
+assert(EP.costoCambios(plantelCierre[0], { atributos: { Ataque: 81 } }, EP.DEFAULT_RULES, { perfil: perfilAntes, cfg: cfgBS }).total === 100, 'cierre: la mejora pagada 80→81 cuesta 100 (fuera del rango)');
+plantelCierre[0].atributos.Ataque = 81; // se escribe el cambio en el save
+// Después, otra stat en 79 sigue saliendo gratis: el perfil ya está fijado
+const perfilDespues = EP.perfilParaJugador(null, cfgBS, fijadoCierre['1']);
+assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: perfilDespues, cfg: cfgBS }).total === 0, 'cierre: otra stat en 79 después de la mejora pagada sigue gratis');
+// Contraste: sin fijar antes, el perfil en vivo ya no calza y ese 79→80 se cobraría (el hueco que cierra el fijado)
+assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: EP.perfilEmparejar(plantelCierre[0], cfgBS), cfg: cfgBS }).total === 100, 'cierre: sin fijar antes, el perfil en vivo cobraría 79→80 (por eso se fija antes)');
 console.log('');
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

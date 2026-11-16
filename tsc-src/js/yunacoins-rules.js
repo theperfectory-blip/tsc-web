@@ -565,6 +565,20 @@
   }
   // Valor que se guarda en pes5_perfiles para un perfil calculado (null -> 'ninguno').
   function valorPerfilFijado(perfil) { return perfil === 'base' || perfil === 'suscriptor' ? perfil : 'ninguno'; }
+  /* Perfiles que faltan por fijar en un plantel: calcula con perfilEmparejar (sobre el save ANTES de
+     escribir) a cada jugador que no tenga valor en `fijado` (mapa { [registro]: valor }). No pisa los
+     fijados. Devuelve { [registro]: 'base' | 'suscriptor' | 'ninguno' } solo con los nuevos. */
+  function perfilesFaltantes(jugadores, fijado, cfg) {
+    const f = fijado || {};
+    const out = {};
+    (jugadores || []).forEach(function (j) {
+      if (!j || j.id == null) return;
+      const reg = String(j.id);
+      if (f[reg] != null) return;
+      out[reg] = valorPerfilFijado(perfilEmparejar(j, cfg));
+    });
+    return out;
+  }
 
   const LESION_MSG = (l) => 'La resistencia a lesiones no es la exigida (' + l + ').';
   const ESCALA_MSG = (e) => 'Los parámetros 1-8 no están en el valor exigido (' + e + ').';
@@ -1040,6 +1054,7 @@
     costoAtributoConPerfil: costoAtributoConPerfil,
     perfilParaJugador: perfilParaJugador,
     valorPerfilFijado: valorPerfilFijado,
+    perfilesFaltantes: perfilesFaltantes,
     PERFIL_FIJADO_VALORES: PERFIL_FIJADO_VALORES,
     validarEmparejar: validarEmparejar,
     FICHAJE_EMPAREJAR_MSG: FICHAJE_EMPAREJAR_MSG,
