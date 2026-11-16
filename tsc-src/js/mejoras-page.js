@@ -183,7 +183,7 @@ async function renderAuthUI(){
   }
   if (!EQUIPO_TSC || EQUIPO_TSC.pes5ClubIdx == null){
     gate.style.display = ''; shell.style.display = 'none';
-    gate.innerHTML = `<p>Tu equipo (<b>${escHtml(EQUIPO_TSC?.name||'')}</b>) todavía no tiene un club de PES5 vinculado. Esperá a que Luis lo asigne.</p>`;
+    gate.innerHTML = `<p>Tu equipo (<b>${escHtml(EQUIPO_TSC?.name||'')}</b>) todavía no tiene un club de PES5 vinculado. Espera a que Luis lo asigne.</p>`;
     return;
   }
   if (!PLAYERS.length || _gatePlantillaClub !== EQUIPO_TSC.pes5ClubIdx){
@@ -192,14 +192,19 @@ async function renderAuthUI(){
     if (!hayPlantilla){
       PLAYERS = []; PLAYER_BY_ID = {}; _gatePlantillaClub = undefined;
       gate.style.display = ''; shell.style.display = 'none';
-      gate.innerHTML = `<p>Tu equipo (<b>${escHtml(EQUIPO_TSC.name)}</b> · ${escHtml(EQUIPO_TSC.pes5Club)}) todavía no fue publicado por Luis. Esperá a que corra la tool.</p>`;
+      gate.innerHTML = `<p>Tu equipo (<b>${escHtml(EQUIPO_TSC.name)}</b> · ${escHtml(EQUIPO_TSC.pes5Club)}) todavía no fue publicado por Luis. Espera a que corra la tool.</p>`;
       return;
     }
     _gatePlantillaClub = EQUIPO_TSC.pes5ClubIdx;
+    // EMP-80-2: perfiles fijados de la temporada de cobro (si el admin ya los fijo). Sin doc: calculo en vivo.
+    try { PERFILES_FIJADOS = await cargarPerfilesFijados(AUTH.teamId, COBRO_TEMPORADA ?? STATE.season); }
+    catch(e){ console.warn('[mejoras] no se pudieron leer los perfiles fijados', e); PERFILES_FIJADOS = null; }
     APP.playerId = PLAYERS[0].id;
     loadDraft();
   }
   // Slice Q4: un solo editor a la vez por equipo. Si el admin lo esta editando, se muestra el aviso.
+  // BLOQ-1: si la edicion esta pausada por inactividad, no se vuelve a tomar el bloqueo hasta «Volver a entrar».
+  if (_pausadoInactividad){ _mostrarPausa(); return; }
   const bq = await tomarBloqueoPresidente();
   if (!bq.ok){ mostrarBloqueoActivo(bq.de); return; }
   iniciarLatidoPresidente();
@@ -625,7 +630,9 @@ async function recalcularPresupuestoReal(){
     const tx = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId) && c.season === (COBRO_TEMPORADA ?? STATE.season)
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
     gastado = YUNACOINS_RULES.gastoTemporada(tx);
-  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); }
+    // EMP-80-1: jugadores con mejoras PAGADAS en la temporada de cobro (bloquea «Solicitar emparejar»)
+    APP.pagadosRegistro = new Set(tx.filter(c => c.pes5 && Number(c.amount) > 0).map(c => Number(c.pes5.playerId)));
+  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); APP.pagadosRegistro = null; }
   let pendG = 0, pendS = 0, pendTotal = 0;
   APP.pendientes = [];
   try {
@@ -665,6 +672,55 @@ async function _hayAplicadoSinPublicar(){
 const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
 function bandCost99(dest){ return YUNACOINS_RULES.bandCost99(dest, RULES); }
 function costRange99(from,to){ return YUNACOINS_RULES.costRange99(from, to, RULES); }
+
+/* EMP-80-2 · costo con el perfil del jugador: los puntos dentro de su rango (min..max) son gratis; el
+   resto, la banda normal. El perfil sale de pes5_perfiles (fijado por temporada) o, si no hay, del calculo
+   en vivo. Escala, habilidades y lesiones nunca tienen tramo gratis (no pasan por aca). */
+let PERFILES_FIJADOS = null; // { [registro]: 'base' | 'suscriptor' | 'ninguno' } de pes5_perfiles; null = sin fijar
+function registroPres(p){ return PES5_PLANTILLA.registroDeId(p.id); }
+// Valor fijado del jugador (o null si la temporada no lo tiene fijado).
+function fijadoPres(p){
+  if (!PERFILES_FIJADOS || !p) return null;
+  const v = PERFILES_FIJADOS[String(registroPres(p))];
+  return v == null ? null : v;
+}
+// Perfil del jugador con el que se cobra: fijado si existe, si no el calculo en vivo (sobre el jugador original).
+function perfilPres(p){
+  const cfg = emparejarCfgPres();
+  if (!p || !cfg) return null;
+  const fijado = fijadoPres(p);
+  if (fijado != null) return YUNACOINS_RULES.perfilParaJugador(null, cfg, fijado);
+  return YUNACOINS_RULES.perfilEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+}
+function costoStatPres(campo, from, to){
+  return YUNACOINS_RULES.costoAtributoConPerfil(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres(), RULES);
+}
+function costoPuntoPres(campo, v){ return costoStatPres(campo, v-1, v); }
+function gratisStatPres(campo, from, to){
+  return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres());
+}
+const PERFIL_LABEL = { base: 'Base', suscriptor: 'Suscriptor' };
+// Costo de un pedido en la lista: «sin costo (perfil X)» si todo fue tramo gratis; si no, los YunaCoins.
+function pedidoCostoTexto(p){
+  const total = Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0));
+  const gratisLine = (p.lines || []).find(l => Number(l.gratis || 0) > 0 && PERFIL_LABEL[l.perfil]);
+  if (total === 0 && gratisLine) return 'sin costo (perfil ' + PERFIL_LABEL[gratisLine.perfil] + ')';
+  return total.toLocaleString('es-CL') + ' YunaCoins';
+}
+// Texto del costo de una linea. Con tramo gratis: «+200 · 1 sin costo (perfil Base)»; sin costo: «sin costo (perfil X)».
+function lineaCostoTexto(l){
+  const g = Number(l.gratis || 0);
+  const etiqueta = l.perfil && PERFIL_LABEL[l.perfil] ? PERFIL_LABEL[l.perfil] : null;
+  if (l.cost > 0 && g > 0) return '+' + Number(l.cost).toLocaleString('es-CL') + ' · ' + g + ' sin costo (perfil ' + etiqueta + ')';
+  if (l.cost > 0) return '+' + Number(l.cost).toLocaleString('es-CL');
+  if (g > 0 && etiqueta) return 'sin costo (perfil ' + etiqueta + ')';
+  return 'gratis';
+}
+async function cargarPerfilesFijados(teamId, season){
+  if (season == null || teamId == null) return null;
+  const snap = await firebase.firestore().collection('pes5_perfiles').doc(season + '_' + teamId).get();
+  return snap.exists && snap.data().perfiles ? snap.data().perfiles : null;
+}
 const INJURY_ORDER = YUNACOINS_RULES.INJURY_ORDER;
 
 function tierClass99(v){
@@ -896,9 +952,9 @@ function pendingCost(){
   const p = currentPlayer(), d = APP.draft;
   if(!p || !d) return 0;
   let total=0;
-  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costRange99(p.stats[s.k], d.stats[s.k]); });
+  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costoStatPres(s.k, p.stats[s.k], d.stats[s.k]); });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costRange99(p.sec[s.k], d.sec[s.k]); }
+    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costoStatPres(s.k, p.sec[s.k], d.sec[s.k]); }
     else if(s.sc===8){ if(d.sec[s.k]>p.sec[s.k]) total += (d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost; }
     else if(s.sc==='inj'){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1025,6 +1081,134 @@ function posicionEnPlantilla(p){
 
 /* ================= render: card ================= */
 
+/* ================= EMP-80-1 · Solicitar emparejar a N (presidente, sin costo) =================
+   Pedido de costo 0 por jugador. No descuenta saldo ni reserva YunaCoins (totalCost 0). Pasa por el
+   flujo normal de pedidos: lo aplica Luis en la Tool (aplicarPedidosSeleccionados, rama tipo 'emparejar').
+   Solo antes de empezar a mejorar a ese jugador: se bloquea si ya tiene mejoras pagadas en la
+   temporada de cobro o un pedido pagado pendiente. Un solo pedido de emparejar pendiente por jugador. */
+function emparejarCfgPres(){
+  return (RULES && RULES.emparejar) || null;
+}
+// ¿Hay algun perfil con boton? Si no, el boton no aparece.
+function hayPerfilEmparejarPres(){
+  const cfg = emparejarCfgPres();
+  return !!cfg && ['base', 'suscriptor'].some(n => YUNACOINS_RULES.rangoEmparejar(cfg, n));
+}
+// Motivo por el que NO se puede pedir el emparejar de este jugador (null = se puede).
+function motivoNoEmparejar(p){
+  if (!p) return 'Jugador no encontrado.';
+  if (ADMIN_EMBED) return 'Lo empareja el admin desde la Tool PES5.';
+  if (!AUTH.user || !AUTH.teamId) return 'Tu cuenta no tiene equipo asignado.';
+  const registro = PES5_PLANTILLA.registroDeId(p.id);
+  if (registro == null) return 'Este jugador no está en el save.';
+  if (APP.bloqueoPorAplicado) return 'Luis aplicó cambios que todavía no publicó: espera a que publique.';
+  const pend = APP.pendientes || [];
+  if (pend.some(x => x.tipo === 'emparejar' && Number(x.registro) === Number(registro))) return 'Ya hay un pedido de emparejar pendiente para este jugador.';
+  if (pend.some(x => !x.tipo && Number(x.registro) === Number(registro) && (x.totalCost || 0) > 0)) return 'Este jugador tiene una mejora pagada pendiente: ya no se puede emparejar.';
+  if (!APP.pagadosRegistro) return 'No se pudo verificar si el jugador tiene mejoras pagadas (o todavía no cargó). Prueba de nuevo.';
+  if (APP.pagadosRegistro.has(Number(registro))) return 'Este jugador ya tiene mejoras pagadas en la temporada de cobro: ya no se puede emparejar.';
+  // EMP-80-2: con perfil fijado para la temporada, el emparejar usa ese perfil (no el calculo en vivo).
+  const fijado = fijadoPres(p);
+  if (fijado != null){
+    const r0 = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), emparejarCfgPres(), fijado);
+    return r0.perfil ? null : r0.motivo;
+  }
+  return YUNACOINS_RULES.motivoSinEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), emparejarCfgPres());
+}
+function emparejarBtnHTML(p){
+  if (!hayPerfilEmparejarPres()) return '';
+  const cfg = emparejarCfgPres();
+  const motivo = motivoNoEmparejar(p);
+  const perfil = perfilPres(p);
+  const max = perfil ? YUNACOINS_RULES.rangoEmparejar(cfg, perfil).max : null;
+  const etiqueta = max != null ? 'Solicitar emparejar a ' + max : 'Solicitar emparejar';
+  const title = motivo || ('Sube los atributos del perfil ' + perfil + ' hasta ' + max + ' sin costo. Luis lo revisa.');
+  return `<div class="ep-emparejar">
+    <button type="button" class="ep-btn ep-emparejar-btn" data-onclick="solicitarEmparejar('${p.id}')"${motivo ? ' disabled' : ''} title="${escAttr(title)}">
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+      ${escHtml(etiqueta)}
+    </button>${motivo ? `<span class="ep-emparejar-note">${escHtml(motivo)}</span>` : ''}
+  </div>`;
+}
+function solicitarEmparejar(playerId){
+  if (ADMIN_EMBED) return;
+  const p = PLAYER_BY_ID[playerId];
+  const motivo = motivoNoEmparejar(p);
+  if (motivo){ showMiniToast(motivo); return; }
+  const cfg = emparejarCfgPres();
+  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg, fijadoPres(p));
+  if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
+  const max = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
+  const wrap = document.getElementById('ep-confirm-wrap');
+  wrap.innerHTML = `
+  <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
+    <section class="ep-sheet" role="dialog" aria-modal="true" aria-labelledby="ep-sheet-emp">
+      <div class="ep-grab" aria-hidden="true"></div>
+      <div class="ep-sheet-hd">
+        <h2 id="ep-sheet-emp">Solicitar emparejar a ${Number(max)}</h2>
+        <span>Luis lo revisa y lo aplica en el juego. No descuenta saldo ni reserva YunaCoins.</span>
+      </div>
+      <ul class="ep-sheet-list">
+        ${r.lineas.map(l => `<li class="ep-sheet-line">
+          <span class="lbl">${escHtml(p.name)} · ${escHtml(l.campo)}</span>
+          <span class="chg">${Number(l.de)} → ${Number(l.a)}</span>
+          <span class="cost">gratis</span>
+        </li>`).join('')}
+      </ul>
+      <dl class="ep-sheet-saldo">
+        <div><dt>Costo</dt><dd><b>0 YC</b></dd></div>
+      </dl>
+      <div class="ep-sheet-act">
+        <button class="ep-btn" data-onclick="closeApplyConfirm()">Cancelar</button>
+        <button class="ep-btn primary" data-onclick="confirmarSolicitarEmparejar('${p.id}')">Enviar a Luis</button>
+      </div>
+    </section>
+  </div>`;
+}
+async function confirmarSolicitarEmparejar(playerId){
+  closeApplyConfirm();
+  const p = PLAYER_BY_ID[playerId];
+  const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
+  if (motivo){ showMiniToast(motivo); return; }
+  const cfg = emparejarCfgPres();
+  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg, fijadoPres(p));
+  if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
+  const nivel = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
+  const registro = PES5_PLANTILLA.registroDeId(p.id);
+  try {
+    await firebase.firestore().collection('pedidos_pes5').add({
+      uid: AUTH.user.uid,
+      teamId: String(AUTH.teamId),
+      teamName: EQUIPO_TSC?.name || null,
+      pes5Club: EQUIPO_TSC?.pes5Club || null,
+      tipo: 'emparejar',
+      pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
+      playerId: p.id,
+      playerName: p.name,
+      registro,
+      dorsal: p.dorsal ?? null,
+      subscriber: !!p.subscriber,
+      perfil: r.perfil,
+      nivel,
+      cambios: { atributos: r.atributos },
+      lines: r.lineas.map(l => ({ label: l.campo, from: l.de, to: l.a })),
+      totalCost: 0,
+      fromGeneral: 0,
+      fromSub: 0,
+      estado: 'pendiente',
+      creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
+    return;
+  }
+  // presentacion: el pedido ya cuenta como pendiente (boton, aviso y globito). No reserva saldo.
+  APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'emparejar', playerId: p.id, registro, perfil: r.perfil, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
+  renderCard();
+  renderPending();
+  showMiniToast('Pedido de emparejar enviado. Luis lo revisa.');
+}
+
 function renderCard(){
   const p = currentPlayer();
   const d = APP.draft;
@@ -1066,6 +1250,7 @@ function renderCard(){
         <div class="ep-casilla"><span>Banda</span><b>${escHtml(banda)}</b></div>
       </div>
       ${p.heightFixed?'<div class="ep-height-note">Fichaje real: la altura no se puede editar in-game.</div>':''}
+      ${ADMIN_EMBED ? '' : emparejarBtnHTML(p)}
     </div>
   `;
   document.getElementById('ep-edit-pos').textContent = posicionEnPlantilla(p);
@@ -1092,7 +1277,7 @@ function renderPending(){
   const box = document.getElementById('ep-pend');
   if (!box) return;
   const bloqueo = !ADMIN_EMBED && !!APP.bloqueoPorAplicado;
-  const avisoBloqueo = 'Luis aplicó cambios que todavía no publicó. Esperá a que publique para pedir más.';
+  const avisoBloqueo = 'Luis aplicó cambios que todavía no publicó. Espera a que publique para pedir más.';
   if (ADMIN_EMBED || (!pend.length && !bloqueo)){ box.hidden = true; box.innerHTML = ''; return; }
   if (!pend.length){
     box.hidden = false;
@@ -1242,10 +1427,10 @@ function pendingChangeLines(){
   const p = currentPlayer(), d = APP.draft;
   const lines = [];
   MAIN_STATS.forEach(s=>{
-    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costRange99(p.stats[s.k],d.stats[s.k])});
+    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costoStatPres(s.k, p.stats[s.k], d.stats[s.k]), gratis:(d.stats[s.k]>p.stats[s.k] ? gratisStatPres(s.k, p.stats[s.k], d.stats[s.k]) : 0), perfil:perfilPres(p)});
   });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costRange99(p.sec[s.k],d.sec[s.k])}); }
+    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costoStatPres(s.k, p.sec[s.k], d.sec[s.k]), gratis:(d.sec[s.k]>p.sec[s.k] ? gratisStatPres(s.k, p.sec[s.k], d.sec[s.k]) : 0), perfil:perfilPres(p)}); }
     else if(s.sc===8){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:Math.max(0,d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost}); }
     else if(d.sec.inj!==p.sec.inj){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1307,7 +1492,7 @@ function openApplyConfirm(){
         ${lines.map(l=>`<li class="ep-sheet-line">
           <span class="lbl">${escHtml(p.name)} · ${escHtml(l.label)}</span>
           <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
-          <span class="cost">${l.cost>0? '+'+l.cost.toLocaleString('es-CL') : 'gratis'}</span>
+          <span class="cost">${lineaCostoTexto(l)}</span>
         </li>`).join('')}
       </ul>
       ${ADMIN_EMBED ? '' : `<dl class="ep-sheet-saldo">
@@ -1326,7 +1511,7 @@ function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHT
 
 async function commitChanges(){
   if (ADMIN_EMBED) return commitChangesAdmin();
-  if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: esperá a que publique para pedir más.'); return; }
+  if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.'); return; }
   const p = currentPlayer();
   const lines = pendingChangeLines();
   const cost = pendingCost();
@@ -1490,7 +1675,7 @@ async function openAuditModal(){
       <div class="sum">${(p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)}&rarr;${escHtml(l.to)}`).join(', ')}</div>
       <div class="sum" style="margin-top:4px;">
         <span class="badge">${escHtml(ESTADO[p.estado] || p.estado || '')}</span>
-        &middot; ${Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0)).toLocaleString('es-CL')} YunaCoins
+        &middot; ${pedidoCostoTexto(p)}
         ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${escHtml(p.motivo)}` : ''}
         ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" data-onclick="cancelarPedidoDesdeHistorial('${escHtml(p._id)}')">Cancelar pedido</button>` : ''}
       </div>
@@ -2269,7 +2454,7 @@ function adjustMain(key,delta){
     if(cur>=99){ renderRows(); return; }
     const topeM = motivoTopeSubida(p.stats[key], cur+1);
     if(topeM){ showMiniToast(topeM); renderRows(); return; }
-    if(!canAfford(bandCost99(cur+1))){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
+    if(!canAfford(costoPuntoPres(key, cur+1))){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.stats[key] = cur+1;
   }else{
     if(cur<=(ADMIN_EMBED ? 0 : p.stats[key])){ renderRows(); return; }
@@ -2290,7 +2475,7 @@ function adjustSec(key,delta){
       const topeM = motivoTopeSubida(p.sec[key], cur+1);
       if(topeM){ showMiniToast(topeM); renderRows(); return; }
     }
-    const nextCost = def.sc===99 ? bandCost99(cur+1) : RULES.scale8Cost;
+    const nextCost = def.sc===99 ? costoPuntoPres(key, cur+1) : RULES.scale8Cost;
     if(!canAfford(nextCost)){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.sec[key] = cur+1;
   }else{
@@ -2460,8 +2645,8 @@ function renderRows(){
     html = GRUPOS_PRINCIPALES.map(([titulo, keys]) => `<div class="ep-grp">${titulo}</div>` + keys.map(k => {
       const s = MAIN_BY_KEY[k];
       const v = d.stats[k];
-      const afford = v>=99 || canAfford(bandCost99(v+1));
-      const cost = v>p.stats[k] ? costRange99(p.stats[k], v) : 0;
+      const afford = v>=99 || canAfford(costoPuntoPres(k, v+1));
+      const cost = v>p.stats[k] ? costoStatPres(k, p.stats[k], v) : 0;
       return numericRowHTML(ETIQUETA_FILA[k] || s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
         `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
     }).join('')).join('');
@@ -2470,16 +2655,16 @@ function renderRows(){
   if(APP.page===2){
     html += ECHO_KEYS.map(k=>{
       const s = MAIN_BY_KEY[k]; const v = d.stats[k];
-      const afford = v>=99 || canAfford(bandCost99(v+1));
-      const cost = v>p.stats[k] ? costRange99(p.stats[k], v) : 0;
+      const afford = v>=99 || canAfford(costoPuntoPres(k, v+1));
+      const cost = v>p.stats[k] ? costoStatPres(k, p.stats[k], v) : 0;
       return numericRowHTML(s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
         `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
     }).join('');
     html += SEC_NEW.map(s=>{
       if(s.sc===99){
         const v = d.sec[s.k];
-        const afford = v>=99 || canAfford(bandCost99(v+1));
-        const cost = v>p.sec[s.k] ? costRange99(p.sec[s.k], v) : 0;
+        const afford = v>=99 || canAfford(costoPuntoPres(s.k, v+1));
+        const cost = v>p.sec[s.k] ? costoStatPres(s.k, p.sec[s.k], v) : 0;
         return numericRowHTML(s.l, s.d, v, p.sec[s.k], 99, val=>TIER_COLOR[tierClass99(val)],
           `adjustSec('${s.k}',-1)`, `adjustSec('${s.k}',1)`, false, afford, cost);
       }
@@ -2509,14 +2694,18 @@ function renderRows(){
     }).join('');
   }
 
+  // UI-HAB-1: la fila entera activa la habilidad (un solo handler en la fila: el boton de la estrella
+  // no tiene handler propio, asi que no hay doble disparo). Nombre a la izquierda, costo y estrella a la derecha.
   function abilityRow(a){
     const on = d.abilities[a.k];
     const boughtBefore = p.abilities[a.k];
     const canToggle = boughtBefore || on || canAfford(RULES.abilityCost);
-    return `<div class="ep-row ${APP.hint===a.d?'sel':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="setHint('${jsq(a.d)}')">
-      <div class="ep-rlabel">${escHtml(a.l)}</div>
-      <div class="ep-rcost">${on&&!boughtBefore?'+'+RULES.abilityCost:''}</div>
-      <div class="ep-rstar ${on?'on':''}" data-onclick="event.stopPropagation();toggleAbility('${a.k}')">${starSvg(on)}</div>
+    const costo = RULES.abilityCost;
+    const etiqueta = `${a.l}: ${on ? 'desactivar' : 'activar'} habilidad (+${costo})`;
+    return `<div class="ep-row ep-hab ${APP.hint===a.d?'sel':''} ${on?'on':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="toggleAbility('${a.k}')">
+      <div class="ep-rlabel ep-hab-nombre">${escHtml(a.l)}</div>
+      <div class="ep-rcost ep-hab-costo">${on&&!boughtBefore?'+'+costo:''}</div>
+      <button type="button" class="ep-hab-estrella ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}">${starSvg(on)}</button>
     </div>`;
   }
   function padRow(){ return `<div class="ep-row pad"><div class="ep-rlabel">&mdash;</div></div>`; }
@@ -2560,6 +2749,7 @@ function renderRows(){
       </div>`;
   }
 
+  wrap.classList.toggle('ep-rows-hab', APP.page===3);
   wrap.innerHTML = html;
 }
 
@@ -2675,26 +2865,130 @@ async function tomarBloqueoPresidente(){
   catch (e){ console.warn('[mejoras] no se pudo tomar el bloqueo, se sigue sin bloqueo:', e); return { ok: true }; }
 }
 
-function iniciarLatidoPresidente(){
-  if (_bloqLatido) return;
-  // mientras la pagina esta visible se renueva el bloqueo; oculta, vence solo a los 3 minutos
-  _bloqLatido = setInterval(async () => {
-    if (document.visibilityState !== 'visible' || !AUTH.user || AUTH.teamId == null) return;
-    try {
-      const r = await PES5_BLOQUEO.latir(AUTH.teamId, 'presidente', AUTH.user.uid, _bloqNombre());
-      if (!r.ok) mostrarBloqueoActivo(r.de);
-    } catch (e) {}
-  }, PES5_BLOQUEO.LATIDO_MS);
-  window.addEventListener('pagehide', () => {
-    if (AUTH.user && AUTH.teamId != null) PES5_BLOQUEO.liberar(AUTH.teamId, AUTH.user.uid);
-  });
-  // si el admin toma el equipo mientras el presidente esta adentro, se lo bloquea al instante
+// BLOQ-1: el latido y el observador son del uid que los arranco (_bloqUid). Si la sesion cambia
+// (cierre de sesion, otra cuenta en la misma pestana), dejan de correr: nunca renuevan el bloqueo a nombre de otro.
+let _bloqUid = null;
+let _bloqTeamLatido = null;
+function _alSalirPagina(){
+  if (_bloqUid && _bloqTeamLatido != null) PES5_BLOQUEO.liberar(_bloqTeamLatido, _bloqUid).catch(() => {});
+}
+// Pausa por inactividad (BLOQ-1 ampliado): sin clic, tecla ni cambio de input durante
+// PES5_BLOQUEO.INACTIVIDAD_MS, el bloqueo se libera y la edicion queda pausada (lo armado se conserva en pantalla).
+let _bloqInact = null, _ultimaActividad = 0, _pausadoInactividad = false;
+function _marcarActividad(){ if (!_pausadoInactividad) _ultimaActividad = Date.now(); }
+function _quitarPausa(){
+  const el = document.getElementById('mej-pausa');
+  if (el) el.remove();
+}
+function _mostrarPausa(){
+  if (document.getElementById('mej-pausa')) return;
+  const el = document.createElement('div');
+  el.id = 'mej-pausa';
+  el.className = 'mej-pausa';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.innerHTML = `<div class="mej-pausa-box">
+      <p>Tu edición se pausó por inactividad. Vuelve a entrar para seguir.</p>
+      <button type="button" class="ep-btn primary" data-onclick="volverAEntrarPresidente()">Volver a entrar</button>
+    </div>`;
+  document.body.appendChild(el);
+}
+// La pausa: se libera el bloqueo y se cortan latido y observador. No se toca lo armado en pantalla.
+async function _pausarPorInactividad(){
+  if (_pausadoInactividad || !_bloqUid) return;
+  _pausadoInactividad = true;
+  _pausarIntervalos();
+  _mostrarPausa();
+  try { await PES5_BLOQUEO.liberar(_bloqTeamLatido, _bloqUid); } catch (e) { console.warn('[mejoras] no se pudo liberar el bloqueo por inactividad', e); }
+}
+function _revisarInactividad(){
+  if (_pausadoInactividad || !_bloqUid) return;
+  if (Date.now() - _ultimaActividad >= PES5_BLOQUEO.INACTIVIDAD_MS) _pausarPorInactividad();
+}
+// Boton «Volver a entrar»: vuelve a tomar el bloqueo si el equipo esta libre.
+async function volverAEntrarPresidente(){
+  if (!AUTH.user || AUTH.teamId == null) return;
+  if (_bloqUid && AUTH.user.uid !== _bloqUid) return;
+  const bq = await tomarBloqueoPresidente();
+  if (!bq.ok){ _quitarPausa(); _pausadoInactividad = false; mostrarBloqueoActivo(bq.de); return; }
+  _pausadoInactividad = false;
+  _bloqUid = AUTH.user.uid;
+  _bloqTeamLatido = AUTH.teamId;
+  _ultimaActividad = Date.now();
+  _quitarPausa();
+  _arrancarIntervalos();
+}
+window.volverAEntrarPresidente = volverAEntrarPresidente;
+// Al volver a la pestaña: si la edicion no estaba pausada, se revisa la inactividad y se re-toma el bloqueo si esta libre.
+async function _alCambiarVisibilidad(){
+  if (document.visibilityState !== 'visible' || !_bloqUid) return;
+  _revisarInactividad();
+  if (_pausadoInactividad) return;
   try {
-    _bloqObs = PES5_BLOQUEO.observar(AUTH.teamId, (d) => {
-      if (d && PES5_BLOQUEO.vivo(d) && d.uid !== AUTH.user.uid) mostrarBloqueoActivo(d);
-    });
+    const r = await PES5_BLOQUEO.tomar(_bloqTeamLatido, 'presidente', _bloqUid, _bloqNombre());
+    if (!r.ok) mostrarBloqueoActivo(r.de);
   } catch (e) {}
 }
+function _pausarIntervalos(){
+  if (_bloqLatido){ clearInterval(_bloqLatido); _bloqLatido = null; }
+  if (_bloqObs){ try { _bloqObs(); } catch (e) {} _bloqObs = null; }
+}
+function _arrancarIntervalos(){
+  if (!_bloqLatido){
+    // mientras la pagina esta visible se renueva el bloqueo; oculta, vence solo a los 3 minutos
+    _bloqLatido = setInterval(async () => {
+      // Otra sesion (o sin sesion): el latido se apaga y no renueva nada.
+      if (!AUTH.user || AUTH.user.uid !== _bloqUid || AUTH.teamId !== _bloqTeamLatido){ _detenerBloqueoPresidente(); return; }
+      if (document.visibilityState !== 'visible' || _pausadoInactividad) return;
+      try {
+        const r = await PES5_BLOQUEO.latir(_bloqTeamLatido, 'presidente', _bloqUid, _bloqNombre());
+        if (!r.ok) mostrarBloqueoActivo(r.de);
+      } catch (e) {}
+    }, PES5_BLOQUEO.LATIDO_MS);
+  }
+  if (!_bloqInact) _bloqInact = setInterval(_revisarInactividad, 10000);
+  if (!_bloqObs){
+    // si el admin toma el equipo mientras el presidente esta adentro, se lo bloquea al instante
+    try {
+      _bloqObs = PES5_BLOQUEO.observar(_bloqTeamLatido, (d) => {
+        if (!AUTH.user || AUTH.user.uid !== _bloqUid) return;
+        if (d && PES5_BLOQUEO.vivo(d) && d.uid !== _bloqUid) mostrarBloqueoActivo(d);
+      });
+    } catch (e) {}
+  }
+}
+function _detenerBloqueoPresidente(){
+  _pausarIntervalos();
+  if (_bloqSondeo){ clearInterval(_bloqSondeo); _bloqSondeo = null; }
+  if (_bloqInact){ clearInterval(_bloqInact); _bloqInact = null; }
+  window.removeEventListener('pagehide', _alSalirPagina);
+  ['click', 'keydown', 'input', 'change'].forEach(ev => document.removeEventListener(ev, _marcarActividad, true));
+  document.removeEventListener('visibilitychange', _alCambiarVisibilidad);
+  _quitarPausa();
+  _pausadoInactividad = false;
+  _bloqUid = null;
+  _bloqTeamLatido = null;
+}
+function iniciarLatidoPresidente(){
+  if (_bloqUid || !AUTH.user || AUTH.teamId == null) return;
+  _bloqUid = AUTH.user.uid;
+  _bloqTeamLatido = AUTH.teamId;
+  _pausadoInactividad = false;
+  _ultimaActividad = Date.now();
+  window.addEventListener('pagehide', _alSalirPagina);
+  ['click', 'keydown', 'input', 'change'].forEach(ev => document.addEventListener(ev, _marcarActividad, true));
+  document.addEventListener('visibilitychange', _alCambiarVisibilidad);
+  _arrancarIntervalos();
+}
+// BLOQ-1: se llama ANTES de cerrar sesion (auth.js): libera el bloqueo del presidente mientras las reglas
+// todavia lo dejan, y corta latido y observador.
+window.bloqueoPresidenteSoltar = async function bloqueoPresidenteSoltar(){
+  const uid = _bloqUid, tid = _bloqTeamLatido;
+  _detenerBloqueoPresidente();
+  if (uid && tid != null){
+    try { await PES5_BLOQUEO.liberar(tid, uid); } catch (e) { console.warn('[mejoras] no se pudo liberar el bloqueo al salir', e); }
+  }
+};
 
 // Pantalla de espera: el admin esta editando el equipo. Se resetea el estado cargado para que,
 // cuando se libere, se vuelva a leer la plantilla publicada, las reglas y el saldo actualizados.
@@ -2815,6 +3109,7 @@ window.closeFormationModal = closeFormationModal;
 window.closeIfBackdrop = closeIfBackdrop;
 window.commitChanges = commitChanges;
 window.confirmFormation = confirmFormation;
+window.confirmarSolicitarEmparejar = confirmarSolicitarEmparejar;
 window.cycleFormationPlayer = cycleFormationPlayer;
 window.discardChanges = discardChanges;
 window.gotoPage = gotoPage;
@@ -2825,6 +3120,7 @@ window.openFormationModal = openFormationModal;
 window.renderRoster = renderRoster;
 window.resetFormationDraft = resetFormationDraft;
 window.selectFormationPlayer = selectFormationPlayer;
+window.solicitarEmparejar = solicitarEmparejar;
 window.selectPlayer = selectPlayer;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;

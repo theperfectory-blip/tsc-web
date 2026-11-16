@@ -189,11 +189,104 @@ async function main(){
   await expect('pedidos: presidente NO cancela el pedido ajeno', 403,
     await op.update('pedidos_pes5/pm6', { estado: 'cancelado', canceladoEn: '2026-06-02T00:00:00.000Z' }, AS.pres5));
 
+  // ---- EMP-80-1 · pedidos «emparejar» (costo 0), perfiles definidos en pes5_config/reglas.emparejar ----
+  // Pedido que escribe solicitarEmparejar() en mejoras-page.js.
+  const emparejar = (uid, teamId, extra = {}) => ({
+    uid, teamId: String(teamId), teamName: 'Club', pes5Club: 'Club', tipo: 'emparejar', pes5ClubIdx: teamId,
+    playerId: 'r1', playerName: 'Juan', registro: 1, dorsal: null, subscriber: false, perfil: 'base', nivel: 80,
+    cambios: { atributos: { Ataque: 80, Salto: 80 } },
+    lines: [{ label: 'Ataque', from: 79, to: 80 }, { label: 'Salto', from: 40, to: 80 }],
+    totalCost: 0, fromGeneral: 0, fromSub: 0, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
+  });
+  // Sin doc pes5_config/reglas, nadie puede emparejar (el tope de cada perfil es 0).
+  await expect('emparejar: sin reglas en el servidor, presidente NO pide emparejar (cierra por defecto)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-sin-reglas')}`, emparejar('pres5', 5), AS.pres5));
+  // El admin guarda los perfiles de Luis: Base 79-80 y Suscriptor 84-85.
+  await expect('emparejar: admin guarda el bloque emparejar (Base 79-80, Suscriptor 84-85)', 200,
+    await op.create('pes5_config/reglas', { maxPositions: 5, emparejar: {
+      base: { min: 79, max: 80, subir: true, lesion: 'C', escala8: 4 }, suscriptor: { min: 84, max: 85, subir: true, lesion: 'B', escala8: 4 } } }, AS.admin));
+  await expect('emparejar: presidente pide Base a 80 (costo 0) de su equipo', 200,
+    await op.create(`pedidos_pes5/${nuevoId('emp-ok')}`, emparejar('pres5', 5), AS.pres5));
+  await expect('emparejar: presidente pide Suscriptor a 85 (costo 0)', 200,
+    await op.create(`pedidos_pes5/${nuevoId('emp-susc')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 85, cambios: { atributos: { Ataque: 85 } }, lines: [{ label: 'Ataque', from: 84, to: 85 }] }), AS.pres5));
+  await expect('emparejar: NO pide Base por encima de su máximo (81 > 80)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-81')}`, emparejar('pres5', 5, { nivel: 81 }), AS.pres5));
+  await expect('emparejar: NO pide Base por debajo de su máximo (79 < 80): el nivel es exactamente el máximo', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-79')}`, emparejar('pres5', 5, { nivel: 79 }), AS.pres5));
+  await expect('emparejar: NO pide Suscriptor a 86 (> 85)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-86')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 86 }), AS.pres5));
+  await expect('emparejar: NO pide con un perfil que no existe', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-perfil')}`, emparejar('pres5', 5, { perfil: 'leyenda' }), AS.pres5));
+  await expect('emparejar: NO pide a nivel 80 con el perfil Suscriptor (80 no es su máximo)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-susc-80')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 80 }), AS.pres5));
+  await expect('emparejar: NO pide con costo distinto de 0', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-costo')}`, emparejar('pres5', 5, { totalCost: 10 }), AS.pres5));
+  await expect('emparejar: NO descuenta saldo (fromGeneral distinto de 0)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-gen')}`, emparejar('pres5', 5, { fromGeneral: 5 }), AS.pres5));
+  await expect('emparejar: NO pide para el equipo ajeno', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-ajeno')}`, emparejar('pres5', 6), AS.pres5));
+  await expect('emparejar: NO toca escala 1-8 (cambios con mas de atributos)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-escala')}`, emparejar('pres5', 5, { cambios: { atributos: { Ataque: 80 }, escala8: { 'Estabilidad': 5 } } }), AS.pres5));
+  await expect('emparejar: NO agrega campos extra al pedido', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-extra')}`, emparejar('pres5', 5, { hack: 'x' }), AS.pres5));
+  await expect('emparejar: NO se crea con nivel que no es entero', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-sin-nivel')}`, emparejar('pres5', 5, { nivel: 'ochenta' }), AS.pres5));
+  // Luis quita el perfil Suscriptor: ya no se puede pedir a 85.
+  await expect('emparejar: Luis vacía el perfil Suscriptor (bloque con maximo null)', 200,
+    await op.update('pes5_config/reglas', { emparejar: {
+      base: { min: 79, max: 80, subir: true, lesion: 'C', escala8: 4 }, suscriptor: { min: null, max: null, subir: false, lesion: null, escala8: null } } }, AS.admin));
+  await expect('emparejar: con Suscriptor vacío, NO se pide a 85', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-susc-vacio')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 85 }), AS.pres5));
+  await expect('emparejar: presidente NO guarda reglas', 403,
+    await op.update('pes5_config/reglas', { emparejar: null }, AS.pres5));
+  await op.del('pes5_config/reglas', AS.admin);
+
+  // ---- EMP-80-1 · pes5_mejoras: registro sin costo que escribe el admin ----
+  const registroEmp = (teamId, extra = {}) => ({
+    tipo: 'emparejar', sinCosto: true, nivel: 80, teamId: String(teamId), teamName: 'Club',
+    playerId: 1, playerName: 'Juan', lineas: [{ campo: 'Ataque', de: 79, a: 80 }],
+    totalCost: 0, season: 1, por: 'admin1@test.dev', uid: 'admin1', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
+  });
+  await expect('registro emparejar: admin escribe el registro de su equipo', 200,
+    await op.create('pes5_mejoras/reg-5-1', registroEmp(5), AS.admin));
+  await expect('registro emparejar: presidente NO escribe el registro', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-pres')}`, registroEmp(5), AS.pres5));
+  await expect('registro emparejar: NO se escribe con costo distinto de 0', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-costo')}`, registroEmp(5, { totalCost: 1 }), AS.admin));
+  await expect('registro emparejar: NO se escribe sin sinCosto true', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-sincosto')}`, registroEmp(5, { sinCosto: false }), AS.admin));
+  await expect('registro emparejar: NO se escribe con un campo extra', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-extra')}`, registroEmp(5, { hack: 'x' }), AS.admin));
+  await expect('registro emparejar: presidente lee el registro de su equipo', 200,
+    await op.get('pes5_mejoras/reg-5-1', AS.pres5));
+  await expect('registro emparejar: presidente NO lee el registro de otro equipo', 403,
+    await op.get('pes5_mejoras/reg-5-1', AS.pres6));
+  await expect('registro emparejar: no se edita ni se borra desde la app (admin)', 403,
+    await op.update('pes5_mejoras/reg-5-1', { nivel: 90 }, AS.admin));
+  await expect('registro emparejar: anonimo no lee', 403, await op.get('pes5_mejoras/reg-5-1', AS.anon));
+
   // ---- pes5_plantillas: solo el admin escribe; cada presidente lee la de su equipo ----
   await expect('plantillas: presidente lee la plantilla de su equipo', 200, await op.get('pes5_plantillas/5', AS.pres5));
   await expect('plantillas: presidente NO lee la plantilla ajena', 403, await op.get('pes5_plantillas/6', AS.pres5));
   await expect('plantillas: presidente NO escribe plantillas', 403,
     await op.update('pes5_plantillas/5', { jugadores: [] }, AS.pres5));
+
+  // ---- EMP-80-2 · pes5_perfiles: perfiles fijados por temporada y equipo ----
+  const perfilesDoc = (teamId, perfiles, extra = {}) => Object.assign({ season: 2, teamId: String(teamId), perfiles }, extra);
+  await expect('perfiles: admin fija los perfiles del equipo 5 (temporada 2)', 200,
+    await op.create('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'base', '102': 'suscriptor', '103': 'ninguno' }), AS.admin));
+  await expect('perfiles: presidente lee los perfiles de su equipo', 200, await op.get('pes5_perfiles/2_5', AS.pres5));
+  await expect('perfiles: presidente NO lee los perfiles de otro equipo', 403, await op.get('pes5_perfiles/2_6', AS.pres5));
+  await expect('perfiles: presidente NO escribe perfiles', 403,
+    await op.update('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'suscriptor' }), AS.pres5));
+  await expect('perfiles: admin NO guarda un perfil fuera de base/suscriptor/ninguno', 403,
+    await op.update('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'leyenda' }), AS.admin));
+  await expect('perfiles: admin NO agrega campos extra al documento', 403,
+    await op.update('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'base' }, { hack: 'x' }), AS.admin));
+  await expect('perfiles: admin NO guarda la temporada como texto', 403,
+    await op.update('pes5_perfiles/2_5', { season: '2', teamId: '5', perfiles: { '101': 'base' } }, AS.admin));
+  await expect('perfiles: anonimo no lee', 403, await op.get('pes5_perfiles/2_5', AS.anon));
+  await expect('perfiles: nadie borra (admin)', 403, await op.del('pes5_perfiles/2_5', AS.admin));
 
   // ---- pes5_config: solo el admin escribe ----
   await expect('config: presidente lee pes5_config', 200, await op.get('pes5_config/topes', AS.pres5));
@@ -212,6 +305,11 @@ async function main(){
     await op.update('pes5_bloqueos/6', bloqueo('pres5', 'Presi Cinco'), AS.pres5));
   await expect('bloqueo: anonimo no lee bloqueos', 403, await op.get('pes5_bloqueos/5', AS.anon));
   await expect('bloqueo: presidente libera su bloqueo', 200, await op.del('pes5_bloqueos/5', AS.pres5));
+  // BLOQ-1: el admin toma el control de un bloqueo vivo de presidente (sobrescribe); el presidente no pisa el del admin
+  await expect('bloqueo: presidente crea su bloqueo', 200, await op.create('pes5_bloqueos/5', bloqueo('pres5', 'Presi Cinco'), AS.pres5));
+  await expect('bloqueo: admin toma el control del bloqueo del presidente (sobrescribe)', 200,
+    await op.update('pes5_bloqueos/5', { por: 'admin', uid: 'admin1', nombre: 'Luis', desde: '2026-06-03T00:00:00.000Z', latido: '2026-06-03T00:00:00.000Z' }, AS.admin));
+  await expect('bloqueo: admin libera el bloqueo que tomó', 200, await op.del('pes5_bloqueos/5', AS.admin));
 
   console.log(`\nrules-pes5: ${total - fallos}/${total} casos OK`);
   if (fallos) { console.log(`${fallos} FALLO(S)`); process.exit(1); }

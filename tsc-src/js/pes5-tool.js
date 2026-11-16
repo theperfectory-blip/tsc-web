@@ -99,6 +99,115 @@ function _nombreTemporadaCobro(){
   return s ? getSeasonName(s) + ' (temporada ' + n + ')' : 'temporada ' + n;
 }
 
+/* EMP-80-2 · perfiles fijados por temporada y jugador: pes5_perfiles/{temporada}_{teamId} = { perfiles: {[registro]: 'base'|'suscriptor'|'ninguno'} }.
+   Solo el admin escribe. Sin valor fijado, el perfil es el calculo en vivo (perfilEmparejar). */
+let PERFILES_TOOL = null; // { [docId]: { [registro]: valor } } cargado desde Firestore; null = todavia no leido
+function _docPerfiles(teamId, season){ return String(season) + '_' + String(teamId); }
+async function _cargarPerfilesTool(){
+  const snap = await firebase.firestore().collection('pes5_perfiles').get();
+  const mapa = {};
+  snap.forEach(d => { mapa[d.id] = (d.data() && d.data().perfiles) || {}; });
+  PERFILES_TOOL = mapa;
+  return mapa;
+}
+function _fijadoTool(teamId, registro){
+  if (!PERFILES_TOOL || teamId == null || registro == null) return null;
+  const m = PERFILES_TOOL[_docPerfiles(teamId, _temporadaCobro())];
+  const v = m ? m[String(registro)] : undefined;
+  return v == null ? null : v;
+}
+// Perfil con el que se cobra un jugador del save del equipo: fijado si existe, si no el calculo en vivo.
+function _perfilTool(teamId, j){
+  const cfg = _emparejarCfg();
+  if (!cfg || !j) return null;
+  const fijado = _fijadoTool(teamId, j.id);
+  if (fijado != null) return YUNACOINS_RULES.perfilParaJugador(null, cfg, fijado);
+  return YUNACOINS_RULES.perfilEmparejar(j, cfg);
+}
+// Costo de una mejora de un jugador del save con su perfil (mismo calculo que el presidente).
+function _costoTool(teamId, j, cambios){
+  return YUNACOINS_RULES.costoCambios(j, cambios, YC_RULES, { perfil: _perfilTool(teamId, j), cfg: _emparejarCfg() });
+}
+// Calcula y guarda el perfil de los jugadores del club que todavia no lo tienen fijado para la temporada de cobro.
+// No pisa los fijados. Jugadores sin perfil (fichaje, leyenda) quedan en 'ninguno'.
+async function _completarPerfilesEquipo(teamId, clubIdx){
+  const cfg = _emparejarCfg();
+  if (!cfg || !PLANO || clubIdx == null || teamId == null) return { agregados: 0 };
+  const season = _temporadaCobro();
+  const id = _docPerfiles(teamId, season);
+  const ref = firebase.firestore().collection('pes5_perfiles').doc(id);
+  const snap = await ref.get();
+  const actual = snap.exists && snap.data().perfiles ? Object.assign({}, snap.data().perfiles) : {};
+  const plantel = PES5_EDITOR.leerPlantillaEquipo(PLANO, clubIdx).map(reg => PES5_EDITOR.leerJugadorCompleto(PLANO, reg));
+  const nuevos = YUNACOINS_RULES.perfilesFaltantes(plantel, actual, cfg);
+  const n = Object.keys(nuevos).length;
+  if (n){
+    const perfiles = Object.assign({}, actual, nuevos);
+    await ref.set({ season: season, teamId: String(teamId), perfiles: perfiles,
+      fijadoEn: firebase.firestore.FieldValue.serverTimestamp(), fijadoPor: AUTH.user ? AUTH.user.email : null }, { merge: true });
+    PERFILES_TOOL = PERFILES_TOOL || {};
+    PERFILES_TOOL[id] = perfiles;
+  }
+  return { agregados: n };
+}
+// EMP-80-2 (cierre): antes de aprobar un pedido o de escribir un cambio directo, si alguno de los
+// jugadores tocados no tiene perfil fijado en la temporada, se fija el plantel entero del equipo.
+// Se llama con el save ANTES de escribir (PLANO todavia no tiene los cambios). No pisa los fijados.
+// Lanza error si no se pudo guardar: en ese caso no se escribe nada.
+async function _fijarPlantelSiFalta(team, registros){
+  if (!team || team.pes5ClubIdx == null || !PLANO) return { agregados: 0 };
+  const lista = (registros || []).filter(r => r != null);
+  if (!lista.length) return { agregados: 0 };
+  if (!PERFILES_TOOL) await _cargarPerfilesTool();
+  const mapa = PERFILES_TOOL[_docPerfiles(team.id, _temporadaCobro())] || {};
+  if (!lista.some(r => mapa[String(r)] == null)) return { agregados: 0 };
+  return _completarPerfilesEquipo(team.id, team.pes5ClubIdx);
+}
+// Boton «Fijar perfiles de la temporada» (plantilla del club abierto).
+async function ptFijarPerfiles(){
+  const team = equipoTSCActual();
+  if (!team){ showToast('El club no está vinculado a un equipo TSC.', 'error'); return; }
+  try {
+    const r = await _completarPerfilesEquipo(team.id, team.pes5ClubIdx);
+    showToast(r.agregados ? `Perfiles fijados: ${r.agregados} jugador(es) nuevos.` : 'Todos los jugadores ya tenían perfil fijado.');
+    renderPlantillaBody();
+  } catch (e) {
+    console.error('[pes5-tool] fijar perfiles', e);
+    showToast('No se pudieron fijar los perfiles: ' + (e.message || e), 'error');
+  }
+}
+// Override del admin: cambia el perfil fijado de un jugador (base | suscriptor | ninguno).
+async function ptPerfilOverride(registro, el){
+  const team = equipoTSCActual();
+  const valor = el ? el.value : '';
+  if (!team || !YUNACOINS_RULES.PERFIL_FIJADO_VALORES.includes(valor)) return;
+  const season = _temporadaCobro();
+  const id = _docPerfiles(team.id, season);
+  try {
+    await firebase.firestore().collection('pes5_perfiles').doc(id).set({ season: season, teamId: String(team.id),
+      perfiles: { [String(registro)]: valor }, fijadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      fijadoPor: AUTH.user ? AUTH.user.email : null }, { merge: true });
+    PERFILES_TOOL = PERFILES_TOOL || {};
+    PERFILES_TOOL[id] = Object.assign({}, PERFILES_TOOL[id] || {}, { [String(registro)]: valor });
+    showToast('Perfil de emparejar de la temporada: ' + valor);
+    cerrarEditorJugador();
+    renderPlantillaBody();
+  } catch (e) {
+    console.error('[pes5-tool] override perfil', e);
+    showToast('No se pudo guardar el perfil: ' + (e.message || e), 'error');
+  }
+}
+// Select del editor del jugador: perfil fijado para la temporada (o «sin fijar» si no hay).
+function _selectPerfilHTML(registro){
+  if (!_emparejarCfg()) return '';
+  const team = equipoTSCActual();
+  if (!team) return '';
+  const fijado = _fijadoTool(team.id, registro);
+  const opt = (v, t) => `<option value="${v}"${fijado === v ? ' selected' : ''}>${t}</option>`;
+  return `<select class="pt-ed-perfil" data-onchange="ptPerfilOverride(${Number(registro)}, this)" title="Perfil de emparejar fijado para la temporada: corrige el cobro gratis">
+    ${fijado == null ? '<option value="">Perfil: sin fijar</option>' : ''}${opt('base', 'Perfil: Base')}${opt('suscriptor', 'Perfil: Suscriptor')}${opt('ninguno', 'Perfil: ninguno')}</select>`;
+}
+
 async function cargarReglasFirestore(){
   try {
     const snap = await firebase.firestore().collection('pes5_config').doc('reglas').get();
@@ -191,7 +300,7 @@ function repartoPendienteEquipo(){
   const porJugador = {};
   (PLANTILLA_ACTUAL || []).forEach(j => {
     if (!CAMBIOS_PENDIENTES[j.id]) return;
-    const { total, lineas } = YUNACOINS_RULES.costoCambios(j, CAMBIOS_PENDIENTES[j.id], YC_RULES);
+    const { total, lineas } = _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id]);
     if (total <= 0) return;
     const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
     const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
@@ -209,7 +318,7 @@ function repartoPendienteEquipo(){
 // Costo de los cambios pendientes de UN jugador (para la linea a linea del
 // panel). cambios puede no existir todavia (jugador sin tocar) -> costo 0.
 function costoJugador(j){
-  return YUNACOINS_RULES.costoCambios(j, CAMBIOS_PENDIENTES[j.id] || {}, YC_RULES);
+  return _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id] || {});
 }
 // Costo total (sin desglose) de TODOS los jugadores con cambios pendientes
 // — atajo sobre repartoPendienteEquipo() para los lugares que solo
@@ -730,6 +839,10 @@ function renderPlantillaTab(){
       <div class="pt-panel-msg pt-panel-err" id="pl-error-panel" style="display:none;"></div>
       <div class="pt-panel-msg pt-panel-ok" id="pl-success-panel" style="display:none;"></div>
     </div>`;
+  // EMP-80-2: leer los perfiles fijados de la temporada y repintar el cuerpo cuando lleguen.
+  if (!PERFILES_TOOL){
+    _cargarPerfilesTool().then(() => { if (PLANTILLA_ACTUAL) renderPlantillaBody(); }).catch(e => console.warn('[pes5-tool] perfiles fijados', e));
+  }
   // Si ya habia un club abierto (volvimos a esta pestana), restaurarlo con sus cambios pendientes.
   if (PLANTILLA_INDICE != null && PLANTILLA_ACTUAL){
     const sel = document.getElementById('pl-team-select');
@@ -756,6 +869,8 @@ function onTeamSelectPorIndice(idxStr){
     CAMBIOS_PENDIENTES = {};
     liberarBloqueoEquipo();
   }
+  // BLOQ-1: al cambiar de equipo, el admin suelta el bloqueo del anterior (aunque no tuviera cambios pendientes).
+  if (nuevo !== PLANTILLA_INDICE && BLOQUEO_EQUIPO != null) liberarBloqueoEquipo();
   if (nuevo !== PLANTILLA_INDICE) EDICION_GRATIS = false;
   if (nuevo === null){
     document.getElementById('pl-body').innerHTML = '';
@@ -805,7 +920,13 @@ function renderPlantillaBody(){
       </tr>`;
   }).join('');
 
-  el.innerHTML = `
+  // EMP-80-2: boton para fijar los perfiles de emparejar de la temporada (solo si el club es de un equipo TSC).
+  const _eqFijar = equipoTSCActual();
+  const barraPerfiles = (_emparejarCfg() && _eqFijar)
+    ? `<div class="pt-perfiles-bar"><span class="pt-perfiles-txt">Perfiles de emparejar · ${escHtml(_nombreTemporadaCobro())}</span>
+        <button class="btn btn-sm" data-onclick="ptFijarPerfiles()" title="Calcula el perfil de los jugadores que todavía no lo tienen. No pisa los fijados.">Fijar perfiles de la temporada</button></div>`
+    : '';
+  el.innerHTML = barraPerfiles + `
     <div class="tbl-wrap pt-tbl-wrap">
       <table class="tbl pt-plantilla-table">
         <thead><tr>
@@ -830,17 +951,36 @@ let _bloqLatidoAdmin = null;
 
 function _bloqNombreAdmin(){ return (AUTH.profile && AUTH.profile.displayName) || 'Luis'; }
 
-async function asegurarBloqueoEquipo(team){
+// BLOQ-1: si otra persona tiene el bloqueo vivo, el admin decide: confirmacion de la app. Si acepta,
+// toma el control (las reglas le permiten sobrescribir) y se continua la accion `continuar`.
+// Si cancela, no pasa nada y el editor no se abre.
+async function asegurarBloqueoEquipo(team, continuar){
   if (!team || !tienePresidente(team)) return true;      // sin presidente no hay a quien bloquear
   if (BLOQUEO_EQUIPO === team.id) return true;
   let r;
   try { r = await PES5_BLOQUEO.tomar(team.id, 'admin', AUTH.user.uid, _bloqNombreAdmin()); }
   catch (e){ console.warn('[pes5-tool] no se pudo tomar el bloqueo, se sigue sin bloqueo:', e); return true; }
   if (!r.ok){
-    const hora = r.de && r.de.desde ? new Date(r.de.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
-    alert(`${(r.de && r.de.nombre) || 'El presidente'} está mejorando ${team.name} ahora${hora ? ' (desde las ' + hora + ')' : ''}. Esperá a que salga para editarlo.`);
+    const d = r.de || {};
+    const hora = d.desde ? new Date(d.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
+    // La hora termina en «p. m.»: si ya trae punto, no se agrega otro.
+    const cierre = hora && /\.$/.test(hora) ? ' ' : '. ';
+    showConfirm('Bloqueo activo',
+      `${d.nombre || 'El presidente'} está editando ${team.name}${hora ? ' desde ' + hora : ''}${cierre}¿Tomar el control? Sus cambios sin enviar se pierden.`,
+      () => _tomarControlEquipo(team, continuar));
     return false;
   }
+  _activarBloqueoAdmin(team);
+  return true;
+}
+async function _tomarControlEquipo(team, continuar){
+  try { await PES5_BLOQUEO.tomarControl(team.id, 'admin', AUTH.user.uid, _bloqNombreAdmin()); }
+  catch (e){ showToast('No se pudo tomar el control: ' + (e.message || e), 'error'); return; }
+  _activarBloqueoAdmin(team);
+  showToast(`Tomaste el control de ${team.name}.`);
+  if (typeof continuar === 'function') continuar();
+}
+function _activarBloqueoAdmin(team){
   BLOQUEO_EQUIPO = team.id;
   if (!_bloqLatidoAdmin){
     _bloqLatidoAdmin = setInterval(() => {
@@ -849,8 +989,9 @@ async function asegurarBloqueoEquipo(team){
     }, PES5_BLOQUEO.LATIDO_MS);
   }
   renderWriteBar();
-  return true;
 }
+// BLOQ-1: antes de cerrar sesion (auth.js) el admin suelta el bloqueo del equipo, mientras las reglas lo dejan.
+window.bloqueoAdminSoltar = async function bloqueoAdminSoltar(){ await liberarBloqueoEquipo(); };
 
 async function liberarBloqueoEquipo(){
   if (_bloqLatidoAdmin){ clearInterval(_bloqLatidoAdmin); _bloqLatidoAdmin = null; }
@@ -885,7 +1026,7 @@ window.addEventListener('pagehide', () => {
 async function abrirEditorJugador(id){
   const j = PLANTILLA_ACTUAL.find(p => p.id === id);
   if (!j) return;
-  if (!(await asegurarBloqueoEquipo(equipoTSCActual()))) return;
+  if (!(await asegurarBloqueoEquipo(equipoTSCActual(), () => abrirEditorJugador(id)))) return;
   const previo = document.getElementById('pt-ed-overlay');
   if (previo) previo.remove();
   MEJORAS_EDITOR.desmontar();
@@ -897,6 +1038,7 @@ async function abrirEditorJugador(id){
   ov.innerHTML = `
     <div class="pt-ed-box">
       <div class="pt-ed-hd"><span>${escHtml(j.nombre)}</span>
+        ${_btnEmparejarHTML(id)}${_selectPerfilHTML(id)}
         <button class="pt-ed-close" data-onclick="ptCerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
       ${_casillaGratisHTML(equipoTSCActual(), 'ed')}
       <div id="pt-ed-host" class="pt-ed-host"></div>
@@ -1243,8 +1385,116 @@ async function _validarCobroAntesDeEscribir(log){
   return false;
 }
 
-async function escribirAlSave(){
+/* ============================================================
+   EMP-80-1 · Emparejar a N (admin, por jugador, sin costo)
+   Sube cada atributo del perfil (Base o Suscriptor, definidos en Reglas) hasta su maximo. Pasa por escribirAlSave(op):
+   el mismo guardado, pero con op NO cobra, escribe SOLO ese jugador y deja registro en
+   pes5_mejoras (sinCosto: true). No crea coins ni toca CAMBIOS_PENDIENTES.
+   ============================================================ */
+function _emparejarCfg(){
+  return (YC_RULES && YC_RULES.emparejar) || null;
+}
+// ¿Hay algun perfil con boton? Si no, no se muestra el boton en el editor.
+function _hayPerfilEmparejarActivo(){
+  const cfg = _emparejarCfg();
+  return !!cfg && ['base', 'suscriptor'].some(n => YUNACOINS_RULES.rangoEmparejar(cfg, n));
+}
+// Estado del emparejar de un jugador del save: perfil, maximo, lineas (de → a) y motivo si no aplica.
+function _emparejarDe(registro){
+  const vacio = { perfil: null, max: null, lineas: [], cambios: null, nombre: '', motivo: 'No hay plantilla cargada.' };
+  if (!PLANO || registro == null) return vacio;
+  const cfg = _emparejarCfg();
+  const j = PES5_EDITOR.leerJugadorCompleto(PLANO, registro);
+  const r = YUNACOINS_RULES.cambiosEmparejar(j, cfg, _fijadoTool((equipoTSCActual() || {}).id, registro));
+  const cambios = { atributos: r.atributos };
+  // Defensa previa a escribir: la misma que usa la aprobación de un pedido, con el tope de la temporada.
+  // Si no hay perfil, el motivo lo dice cambiosEmparejar; si lo hay, lo dice motivoRechazoEmparejar.
+  const motivo = r.perfil
+    ? YUNACOINS_RULES.motivoRechazoEmparejar(j, cambios, cfg, _topeAtributoVigente(), _fijadoTool((equipoTSCActual() || {}).id, registro))
+    : (r.motivo || 'Este jugador no puede emparejarse.');
+  return {
+    perfil: r.perfil,
+    max: r.perfil ? YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max : null,
+    lineas: r.lineas,
+    cambios: cambios,
+    nombre: j.nombre || '',
+    motivo: motivo,
+  };
+}
+function _btnEmparejarHTML(registro){
+  if (!_hayPerfilEmparejarActivo()) return '';
+  const info = _emparejarDe(registro);
+  let motivo = '';
+  if (!equipoTSCActual()) motivo = 'El club no tiene equipo asignado: no se puede registrar el emparejar.';
+  else if (info.motivo) motivo = info.motivo;
+  else if (Object.keys(CAMBIOS_PENDIENTES).length) motivo = 'Hay cambios pendientes en la tool: guarda o descarta los cambios antes de emparejar.';
+  const etiqueta = info.max != null ? 'Emparejar a ' + info.max : 'Emparejar';
+  const title = motivo || ('Sube ' + info.lineas.length + ' atributo(s) a ' + info.max + ' sin costo (perfil ' + info.perfil + ')');
+  return `<button class="btn btn-sm pt-ed-emparejar" data-onclick="ptEmparejarJugador(${Number(registro)})"${motivo ? ' disabled' : ''} title="${escAttr(title)}"><svg class="icn" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg> ${escHtml(etiqueta)}</button>`;
+}
+function emparejarJugadorAdmin(registro){
+  const info = _emparejarDe(registro);
+  if (info.motivo){ showToast(info.motivo, 'error'); return; }
+  if (Object.keys(CAMBIOS_PENDIENTES).length){ showToast('Guarda o descarta los cambios pendientes antes de emparejar.', 'error'); return; }
+  const filas = info.lineas.map(l => `<li><span>${escHtml(l.campo)}</span><span class="pt-emp-de">${Number(l.de)} → <strong>${Number(l.a)}</strong></span></li>`).join('');
+  const previo = document.getElementById('pt-emp-overlay');
+  if (previo) previo.remove();
+  const ov = document.createElement('div');
+  ov.id = 'pt-emp-overlay';
+  ov.className = 'pt-ed-overlay';
+  ov.innerHTML = `
+    <div class="pt-ed-box pt-emp-box">
+      <div class="pt-ed-hd"><span>Emparejar a ${Number(info.max)}: ${escHtml(info.nombre)}</span>
+        <button class="pt-ed-close" data-onclick="ptCerrarEmparejar()" title="Cerrar">${ICN.x}</button></div>
+      <ul class="pt-emp-list">${filas}</ul>
+      <p class="pt-emp-costo">Costo: 0 YuNaCoins. No se cobra ni se crea ningún movimiento en coins.</p>
+      <div class="pt-emp-acciones">
+        <button class="btn btn-sm" data-onclick="ptCerrarEmparejar()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" data-onclick="ptConfirmarEmparejar(${Number(registro)})">Emparejar sin costo</button>
+      </div>
+    </div>`;
+  (_montadoEn || document.body).appendChild(ov);
+}
+function cerrarEmparejar(){
+  const ov = document.getElementById('pt-emp-overlay');
+  if (ov) ov.remove();
+}
+async function confirmarEmparejar(registro){
+  cerrarEmparejar();
+  // Se vuelve a calcular y a validar justo antes de escribir (motivoRechazoEmparejar incluido).
+  const info = _emparejarDe(registro);
+  if (info.motivo){ showToast(info.motivo, 'error'); return; }
+  if (!info.perfil || !info.lineas.length){ showToast('No hay nada que emparejar.', 'error'); return; }
+  if (Object.keys(CAMBIOS_PENDIENTES).length){ showToast('Guarda o descarta los cambios pendientes antes de emparejar.', 'error'); return; }
+  await escribirAlSave({ registro: Number(registro), nombre: info.nombre, perfil: info.perfil, nivel: info.max, cambios: info.cambios, lineas: info.lineas });
+  cerrarEditorJugador(); // el save cambió: el editor de ese jugador quedó con datos viejos
+}
+async function _registrarEmparejarAdmin(team, op){
+  const u = AUTH.user || {};
+  await firebase.firestore().collection('pes5_mejoras').add({
+    tipo: 'emparejar', sinCosto: true, nivel: op.nivel, perfil: op.perfil || null,
+    teamId: String(team.id), teamName: team.name || null,
+    playerId: op.registro, playerName: op.nombre || null,
+    lineas: op.lineas.map(l => ({ campo: l.campo, de: l.de, a: l.a })),
+    totalCost: 0, season: _temporadaCobro(), por: u.email || null, uid: u.uid || null,
+    creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+async function _registrarEmparejarAdminSeguro(team, op){
+  try { await _registrarEmparejarAdmin(team, op); }
+  catch (e) {
+    console.error('[pes5-tool] registro del emparejar', e);
+    showToast('Save escrito, pero no se pudo dejar el registro del emparejar: ' + (e.message || e), 'error');
+  }
+}
+
+async function escribirAlSave(op){
   const logEl = document.getElementById('pl-log');
+  // EMP-80-2: el cobro usa los perfiles fijados vigentes (si no se pudieron leer, se usa el calculo en vivo y se avisa).
+  if (!PERFILES_TOOL){
+    try { await _cargarPerfilesTool(); }
+    catch (e) { showToast('No se pudieron leer los perfiles fijados: ' + (e.message || e), 'error'); return; }
+  }
   // Cada intento nuevo arranca limpio de AMBOS paneles — si el intento
   // anterior habia terminado bien y este vuelve a fallar (o viceversa), no
   // deben quedar un exito y un error persistentes superpuestos.
@@ -1258,9 +1508,17 @@ async function escribirAlSave(){
   // — el cobro real se aplica DESPUES de que el save (o la descarga de
   // fallback) se confirmo con exito.
   const equipoCobro = equipoTSCActual();
-  const debeCobrar = _cobraEquipo(equipoCobro);
-  if (!debeCobrar && EDICION_GRATIS && equipoCobro && tienePresidente(equipoCobro)){
+  // EMP-80-1: un emparejar (op) nunca cobra; la edición gratis del equipo no aplica a él.
+  const debeCobrar = op ? false : _cobraEquipo(equipoCobro);
+  if (!op && !debeCobrar && EDICION_GRATIS && equipoCobro && tienePresidente(equipoCobro)){
     log(`edición gratis: no se cobra a ${equipoCobro.name} (marcada por ${(AUTH.user && AUTH.user.email) || 'admin'})`);
+  }
+  // EMP-80-2 (cierre): antes de cobrar o escribir, si algun jugador tocado no tiene perfil fijado, se fija el plantel.
+  try {
+    await _fijarPlantelSiFalta(equipoCobro, op ? [op.registro] : Object.keys(CAMBIOS_PENDIENTES).map(Number));
+  } catch (e) {
+    log('No se fijaron los perfiles de emparejar del equipo (' + (e.message || e) + '). No se escribió nada.', 'err');
+    return;
   }
   const repartoCobro = debeCobrar ? repartoPendienteEquipo() : null;
   // Slice 2.0-4 (4.D): con cobro, la lista de Loyalty tiene que ser reciente (12 h)
@@ -1293,7 +1551,8 @@ async function escribirAlSave(){
   try {
     log('aplicando cambios...');
     const copia = Uint8Array.from(PLANO);
-    for (const [id, cambios] of Object.entries(CAMBIOS_PENDIENTES)){
+    const aEscribir = op ? { [op.registro]: op.cambios } : CAMBIOS_PENDIENTES;
+    for (const [id, cambios] of Object.entries(aEscribir)){
       const escritos = PES5_EDITOR.escribirJugadorCompleto(copia, Number(id), cambios);
       log(`jugador ${id}: ${escritos.length} campo(s) escrito(s)`, 'ok');
     }
@@ -1312,9 +1571,9 @@ async function escribirAlSave(){
       showToast('Save editado descargado — copialo a mano a la carpeta del juego.');
       _mostrarExitoEscritura({ backup: '(sin backup automático — no se tocó el archivo en la carpeta del juego, solo se descargó la version editada)', bytes: cifrado.length });
       await _aplicarCobroSiCorresponde();
+      if (op) await _registrarEmparejarAdminSeguro(equipoCobro, op);
       PLANO = copia;
-      CAMBIOS_PENDIENTES = {};
-      EDICION_GRATIS = false;
+      if (!op){ CAMBIOS_PENDIENTES = {}; EDICION_GRATIS = false; }
       await _publicarEquipoTrasEscritura(equipoCobro);
       if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
       return;
@@ -1333,9 +1592,9 @@ async function escribirAlSave(){
     showToast('Save escrito. Backup: ' + res.backup);
     _mostrarExitoEscritura({ backup: res.backup, bytes: cifrado.length });
     await _aplicarCobroSiCorresponde();
+    if (op) await _registrarEmparejarAdminSeguro(equipoCobro, op);
     PLANO = copia;
-    CAMBIOS_PENDIENTES = {};
-    EDICION_GRATIS = false;
+    if (!op){ CAMBIOS_PENDIENTES = {}; EDICION_GRATIS = false; }
     await _publicarEquipoTrasEscritura(equipoCobro);
     if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
     renderStatusBar();
@@ -1495,7 +1754,7 @@ function _costoEstimadoPedidos(pedidos){
     if (!team || team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx) continue;
     if (!PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx).includes(p.registro)) continue;
     const j = PES5_EDITOR.leerJugadorCompleto(PLANO, p.registro);
-    total += YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES).total;
+    total += _costoTool(team.id, j, p.cambios).total;
   }
   return total;
 }
@@ -1521,6 +1780,16 @@ async function aplicarPedidosSeleccionados(){
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
+  // EMP-80-2: perfiles fijados al día antes de cobrar (la misma funcion que usa el presidente).
+  try { await _cargarPerfilesTool(); } catch (e) { showToast('No se pudieron leer los perfiles fijados: ' + (e.message || e), 'error'); return; }
+  // EMP-80-2 (cierre): antes de evaluar o cobrar, se fija el plantel de cada equipo que tenga un jugador sin perfil
+  // fijado. El save todavia es el original: el perfil sale del estado previo a las mejoras.
+  try {
+    for (const teamId of [...new Set(pedidos.map(p => String(p.teamId)))]){
+      const team = EQUIPOS_TSC.find(t => String(t.id) === teamId);
+      await _fijarPlantelSiFalta(team, pedidos.filter(p => String(p.teamId) === teamId && p.registro != null).map(p => p.registro));
+    }
+  } catch (e) { showToast('No se fijaron los perfiles de emparejar (' + (e.message || e) + '): no se aplicó nada.', 'error'); return; }
   // Slice 2.0-4 (4.D): si aplicar cobra algo, con la lista de Loyalty vencida se pide confirmacion explicita
   if (window.PES5_YUNACOINS && !(await window.PES5_YUNACOINS.guardiaCobro(log, _costoEstimadoPedidos(pedidos)))){ log('Aplicacion cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
@@ -1604,6 +1873,42 @@ async function aplicarPedidosSeleccionados(){
         log(`${team.name}: formación ${p.formacion.nombre || ''} aplicada (gratis)`, 'ok');
         continue;
       }
+      if (p.tipo === 'emparejar'){
+        // EMP-80-1: «emparejar a N» del presidente. Costo 0: no pasa por costoCambios, ni por el saldo, ni genera coins.
+        if (p.registro == null || !p.cambios){ rechazados.push({ pedido: p, motivo: 'pedido de emparejar sin datos' }); continue; }
+        if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
+        if (!PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx).includes(p.registro)){ rechazados.push({ pedido: p, motivo: 'el jugador ya no está en el plantel' }); continue; }
+        const pubE = publicadas[String(teamId)];
+        const motivoVistaE = _motivoSinVistaPublicada(pubE, p);
+        if (motivoVistaE){ rechazados.push({ pedido: p, motivo: motivoVistaE }); continue; }
+        const jPubE = (pubE.data.jugadores || []).find(x => x && x.id === 'r' + p.registro);
+        if (!jPubE){ rechazados.push({ pedido: p, motivo: 'el jugador no está en la plantilla publicada' }); continue; }
+        const jSaveE = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, p.registro, 0);
+        const cambioE = PES5_PLANTILLA.cambiosContraSave(jPubE, jSaveE, p.cambios);
+        if (cambioE){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioE.campo }); continue; }
+        // Perfil y maximo se recalculan con las reglas actuales y el save actual (no se confia en el pedido).
+        const cfgE = _emparejarCfg();
+        const jE = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
+        const fijadoE = _fijadoTool(team.id, p.registro);
+        const perfilE = fijadoE != null ? YUNACOINS_RULES.perfilParaJugador(null, cfgE, fijadoE) : YUNACOINS_RULES.perfilEmparejar(jE, cfgE);
+        if (!perfilE){ rechazados.push({ pedido: p, motivo: YUNACOINS_RULES.motivoSinEmparejar(jE, cfgE) || 'el jugador ya no es elegible para emparejar' }); continue; }
+        const nivelCfg = YUNACOINS_RULES.rangoEmparejar(cfgE, perfilE).max;
+        if (p.perfil !== perfilE || p.nivel !== nivelCfg){ rechazados.push({ pedido: p, motivo: 'el perfil o el nivel cambió desde el pedido (pedido ' + (p.perfil || '—') + ' ' + p.nivel + ', ahora ' + perfilE + ' ' + nivelCfg + ')' }); continue; }
+        const motivoE = YUNACOINS_RULES.motivoRechazoEmparejar(jE, p.cambios, cfgE, topeTemporada, fijadoE);
+        if (motivoE){ rechazados.push({ pedido: p, motivo: motivoE }); continue; }
+        try {
+          PES5_EDITOR.escribirJugadorCompleto(copia, p.registro, p.cambios);
+        } catch (e) {
+          rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
+        }
+        const lineasE = YUNACOINS_RULES.cambiosEmparejar(jE, cfgE, fijadoE).lineas;
+        aplicados.push({ pedido: p, team, info: {
+          pedidoId: p._id, playerId: p.registro, playerName: jE.nombre, subscriber: !!jE.subscriber,
+          total: 0, lineas: lineasE, fromGeneral: 0, fromSub: 0, emparejar: true, nivel: nivelCfg,
+        } });
+        log(`${team.name} · ${jE.nombre}: emparejado a ${nivelCfg} (sin costo)`, 'ok');
+        continue;
+      }
       if (!p.cambios || p.registro == null){ rechazados.push({ pedido: p, motivo: 'pedido viejo sin datos aplicables' }); continue; }
       if (team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx){ rechazados.push({ pedido: p, motivo: 'el equipo cambió de club en el juego' }); continue; }
       if (!PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx).includes(p.registro)){ rechazados.push({ pedido: p, motivo: 'el jugador ya no está en el plantel' }); continue; }
@@ -1617,8 +1922,14 @@ async function aplicarPedidosSeleccionados(){
       const cambioM = PES5_PLANTILLA.cambiosContraSave(jPub, jSave, p.cambios);
       if (cambioM){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioM.campo + ' era ' + cambioM.era + ', ahora ' + cambioM.ahora }); continue; }
       const j = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
-      const { total, lineas } = YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES);
-      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada);
+      const { total, lineas } = _costoTool(team.id, j, p.cambios);
+      // EMP-80-2: el pedido tiene que costar lo mismo que hoy con la misma funcion (tramo gratis incluido).
+      // Un pedido armado con otra tarifa se rechaza y el presidente lo arma de nuevo.
+      if (p.totalCost != null && Number(p.totalCost) !== total){
+        rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + total.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
+        continue;
+      }
+      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
       const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
@@ -1719,7 +2030,7 @@ async function aplicarPedidosSeleccionados(){
   }
   GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
   showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
-  if (aplicados.some(a => !a.info.formacion)) log('Publicá para que el presidente vea los cambios.');
+  if (aplicados.some(a => !a.info.formacion)) log('Publica para que el presidente vea los cambios.');
   // El save cambió: los equipos tocados quedan desactualizados. El aviso y el bloque Publicar lo muestran.
   const logHtml = logEl ? logEl.innerHTML : '';
   setTimeout(async () => { await revisarPlantillasDesactualizadas(); renderPedidosTab({ logHtml }); }, 1500);
@@ -1811,6 +2122,11 @@ async function publicarPlantillas(ids){
     const saveHash = await _hashPlano();
     for (const t of equipos){
       const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
+      // EMP-80-2: al publicar, los jugadores nuevos (fichajes) quedan con su perfil; los fijados no se tocan.
+      try {
+        const rp = await _completarPerfilesEquipo(t.id, t.pes5ClubIdx);
+        if (rp.agregados) linea(`${t.name}: ${rp.agregados} perfil(es) de emparejar fijados`, 'ok');
+      } catch (e) { linea(`${t.name}: no se fijaron los perfiles: ${e.message || e}`, 'err'); }
       // 2.0-6.H2: sin cambios no se reescribe (publicadoEn queda igual).
       const refPlantilla = firebase.firestore().collection('pes5_plantillas').doc(String(t.id));
       const previa = await refPlantilla.get();
@@ -2027,6 +2343,7 @@ function renderReglasTab(){
           <input type="number" min="1" max="12" step="1" id="rg-maxPositions" value="${r.maxPositions}" style="width:100px;">
         </div>
       </div>
+      ${_emparejarReglasHTML(r)}
 
       <div id="rg-errores"></div>
 
@@ -2038,6 +2355,56 @@ function renderReglasTab(){
   `;
 }
 
+/* EMP-80-1 · bloque «Emparejamiento sin costo». Los valores los define Luis; el codigo no trae numeros.
+   Los ejemplos son solo texto de ayuda (placeholder), nunca se guardan. */
+function _emparejarReglasHTML(r){
+  const e = (r && r.emparejar) || {};
+  const val = (x) => (x == null || x === '' ? '' : String(x));
+  // Cada perfil trae sus propias condiciones (lesion y escala 1-8). Vacio = ese chequeo no se aplica.
+  const fila = (nombre, etiqueta) => {
+    const p = e[nombre] || {};
+    // Cada fila: label completo a la izquierda y su input a la derecha (ver .pt-emp-fila en pes5-tool.css).
+    return `<div class="pt-emp-perfil">
+      <div class="pt-emp-perfil-nombre">${etiqueta}</div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-min">Mínimo</label>
+        <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-min" value="${escAttr(val(p.min))}"></div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-max">Máximo</label>
+        <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-max" value="${escAttr(val(p.max))}"></div>
+      <div class="pt-emp-fila pt-emp-fila-check"><label class="pt-toggle" for="rg-emp-${nombre}-subir"><input type="checkbox" id="rg-emp-${nombre}-subir"${p.subir === true ? ' checked' : ''}> Subir gratis hasta el máximo</label></div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-lesion">Resistencia a lesiones</label>
+        <select id="rg-emp-${nombre}-lesion">${['', 'A', 'B', 'C'].map(x => `<option value="${x}"${(p.lesion || '') === x ? ' selected' : ''}>${x || '—'}</option>`).join('')}</select></div>
+      <div class="pt-emp-fila"><label for="rg-emp-${nombre}-escala8">Parámetros 1-8</label>
+        <input type="number" min="1" max="8" step="1" id="rg-emp-${nombre}-escala8" value="${escAttr(val(p.escala8))}" placeholder="4"></div>
+    </div>`;
+  };
+  return `<div class="pt-fieldgrp" style="margin-bottom:18px;">
+    <div class="pt-fieldgrp-title">Emparejamiento sin costo</div>
+    <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Cada perfil tiene sus condiciones. Vacío = ese chequeo no se aplica a ese perfil. Un perfil sin «Subir gratis» no tiene botón. Ejemplo: Base 79–80 con lesión C; Suscriptor 84–85 con lesión B; parámetros 1-8 en 4.</div>
+    ${fila('base', 'Base')}
+    ${fila('suscriptor', 'Suscriptor')}
+  </div>`;
+}
+// Lee el bloque del formulario. Vacio = null (perfil sin rango, o chequeo que no se aplica). Texto no numerico = NaN (lo rechaza validarEmparejar).
+function _leerEmparejarForm(){
+  const num = (id) => {
+    const t = String(document.getElementById(id).value || '').trim();
+    if (t === '') return null;
+    const v = Number(t);
+    return Number.isFinite(v) ? v : NaN;
+  };
+  const perfil = (nombre) => ({
+    min: num('rg-emp-' + nombre + '-min'),
+    max: num('rg-emp-' + nombre + '-max'),
+    subir: document.getElementById('rg-emp-' + nombre + '-subir').checked,
+    lesion: document.getElementById('rg-emp-' + nombre + '-lesion').value || null,
+    escala8: num('rg-emp-' + nombre + '-escala8'),
+  });
+  return {
+    base: perfil('base'),
+    suscriptor: perfil('suscriptor'),
+  };
+}
+
 function _leerFormReglas(){
   const n = (id) => { const v = parseInt(document.getElementById(id).value, 10); return Number.isFinite(v) ? v : NaN; };
   return {
@@ -2045,6 +2412,7 @@ function _leerFormReglas(){
     scale8Cost: n('rg-scale8Cost'), abilityCost: n('rg-abilityCost'), injuryCost: n('rg-injuryCost'),
     budgetGeneral: n('rg-budgetGeneral'), budgetSubscribers: n('rg-budgetSubscribers'),
     maxPositions: n('rg-maxPositions'),
+    emparejar: _leerEmparejarForm(),
     topesAtributo: _leerListaTopes(document.getElementById('rg-topesAtributo').value),
   };
 }
@@ -2060,6 +2428,14 @@ function restaurarReglasDefault(){
   const d = YUNACOINS_RULES.DEFAULT_RULES;
   d.bandCosts.forEach((v, i) => { document.getElementById('rg-band-' + i).value = v; });
   ['scale8Cost','abilityCost','injuryCost','budgetGeneral','budgetSubscribers','maxPositions'].forEach(k => { document.getElementById('rg-' + k).value = d[k]; });
+  // EMP-80-1: el emparejar no tiene valores por defecto: se vacia el formulario.
+  ['base', 'suscriptor'].forEach(n => {
+    document.getElementById('rg-emp-' + n + '-min').value = '';
+    document.getElementById('rg-emp-' + n + '-max').value = '';
+    document.getElementById('rg-emp-' + n + '-subir').checked = false;
+    document.getElementById('rg-emp-' + n + '-lesion').value = '';
+    document.getElementById('rg-emp-' + n + '-escala8').value = '';
+  });
   document.getElementById('rg-topesAtributo').value = d.topesAtributo.join(', ');
   showToast('Valores por defecto cargados en el formulario. Falta Guardar.');
 }
@@ -2097,6 +2473,11 @@ async function guardarReglas(){
 window.ptOcultarErrorEscritura = _ocultarErrorEscritura;
 window.ptOcultarExitoEscritura = _ocultarExitoEscritura;
 window.ptAbrirEditorJugador = abrirEditorJugador;
+window.ptFijarPerfiles = ptFijarPerfiles;
+window.ptPerfilOverride = ptPerfilOverride;
+window.ptEmparejarJugador = emparejarJugadorAdmin;
+window.ptCerrarEmparejar = cerrarEmparejar;
+window.ptConfirmarEmparejar = confirmarEmparejar;
 window.ptAplicarPedidosSeleccionados = aplicarPedidosSeleccionados;
 window.ptCerrarEditorJugador = cerrarEditorJugador;
 window.ptConfirmarEscribirAlSave = confirmarEscribirAlSave;

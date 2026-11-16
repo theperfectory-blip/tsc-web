@@ -91,6 +91,37 @@
     return Number.isInteger(num) ? num : null;
   }
 
+  /* EMP-80-1: atributos 0-99 de un jugador del editor (stats + sec no escala), con los
+     nombres del save, para cambiosEmparejar. Es el mismo conjunto que cambiosDesdeEditor
+     manda a `atributos` (escala 1-8 y lesiones quedan fuera). Devuelve {campo: numero}. */
+  function atributosDeEditor(p) {
+    const out = {};
+    const ESCALA8 = { cons: true, cond: true, wff: true, wfa: true };
+    if (p && p.stats) for (const [k, campo] of Object.entries(STAT_MAP)) {
+      if (typeof p.stats[k] === 'number') out[campo] = p.stats[k];
+    }
+    if (p && p.sec) for (const [k, campo] of Object.entries(SEC_MAP)) {
+      if (!ESCALA8[k] && typeof p.sec[k] === 'number') out[campo] = p.sec[k];
+    }
+    return out;
+  }
+
+  /* EMP-80-1: jugador del editor en la forma que lee la regla de emparejar (perfilEmparejar):
+     atributos 0-99, habilidades (booleanas), lesiones (A/B/C), parametros 1-8 y fichaje. */
+  function jugadorEmparejarDeEditor(p) {
+    const q = p || {};
+    const hab = {};
+    if (q.abilities) for (const [k, v] of Object.entries(q.abilities)) hab[k] = v === true;
+    const sec = q.sec || {};
+    return {
+      atributos: atributosDeEditor(q),
+      habilidades: hab,
+      lesiones: sec.inj,
+      escala8: { cons: sec.cons, cond: sec.cond, wff: sec.wff, wfa: sec.wfa },
+      fichaje: q.heightFixed === true,
+    };
+  }
+
   function cambiosDesdeEditor(original, draft) {
     const c = { atributos: {}, escala8: {}, habilidades: {} };
     const ESCALA8 = { cons: 'Regularidad en el juego', cond: 'Estabilidad', wff: 'Frec. pie malo', wfa: 'Prec. pie malo' };
@@ -309,6 +340,8 @@
     plantillaParaEditor: plantillaParaEditor,
     registroDeId: registroDeId,
     cambiosDesdeEditor: cambiosDesdeEditor,
+    atributosDeEditor: atributosDeEditor,
+    jugadorEmparejarDeEditor: jugadorEmparejarDeEditor,
     aplicarCambiosAlJugador: aplicarCambiosAlJugador,
     canonicoJSON: canonicoJSON,
     contenidoDelEquipo: contenidoDelEquipo,

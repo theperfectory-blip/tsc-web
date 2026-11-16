@@ -173,6 +173,12 @@ function _authErrorMsg(e){
 }
 
 async function authSignOut(){
+  // BLOQ-1: soltar los bloqueos de equipo ANTES de cerrar sesion (despues, las reglas ya no dejan liberarlos).
+  // Cada pagina que tiene un bloqueo registra su funcion en window (mejoras-page: bloqueoPresidenteSoltar; Tool: bloqueoAdminSoltar).
+  for (const nombre of ['bloqueoPresidenteSoltar', 'bloqueoAdminSoltar']){
+    const fn = window[nombre];
+    if (typeof fn === 'function'){ try { await fn(); } catch(e){} }
+  }
   // Antes de perder AUTH.user: si este dispositivo tenía push activado,
   // desasociar el token FCM de la cuenta saliente (no toca el permiso ni
   // el registro nativo — ver tsc-src/js/push.js). Evita que, en un

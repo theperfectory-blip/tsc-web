@@ -388,7 +388,8 @@ const PES5_EDITOR = (() => {
       habilidades,
       edad: leerCampoJugador(bytes, id, 'Edad'),
       pieDominante: pieRaw === 1 ? 'izq' : 'der',
-      lesiones: LESIONES_POR_RAW[lesionesRaw] || 'C',
+      // Un valor crudo fuera de 0-2 queda en null (desconocido), nunca se lee como C.
+      lesiones: LESIONES_POR_RAW[lesionesRaw] !== undefined ? LESIONES_POR_RAW[lesionesRaw] : null,
       altura: leerCampoJugador(bytes, id, 'Altura'),
       posiciones: posicionesMarcadas(bytes, id),
       posicionRegistrada: posicionRegistrada(bytes, id),
