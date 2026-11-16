@@ -605,7 +605,7 @@
         if (p.subir === true) errores.push(et + ': marcaste «subir gratis» pero el rango está vacío');
         continue;
       }
-      if (!hayMin || !hayMax) { errores.push(et + ': completá mínimo y máximo, o dejá el perfil vacío'); continue; }
+      if (!hayMin || !hayMax) { errores.push(et + ': completa el mínimo y el máximo, o deja el perfil vacío'); continue; }
       if (!_enteroEmp(p.min, 1, 99) || !_enteroEmp(p.max, 1, 99)) { errores.push(et + ': mínimo y máximo, enteros entre 1 y 99'); continue; }
       if (p.min > p.max) { errores.push(et + ': el mínimo no puede ser mayor que el máximo'); continue; }
       if (p.subir !== undefined && typeof p.subir !== 'boolean') { errores.push(et + ': «subir gratis» debe ser sí o no'); continue; }

@@ -1047,11 +1047,11 @@ function motivoNoEmparejar(p){
   if (!AUTH.user || !AUTH.teamId) return 'Tu cuenta no tiene equipo asignado.';
   const registro = PES5_PLANTILLA.registroDeId(p.id);
   if (registro == null) return 'Este jugador no está en el save.';
-  if (APP.bloqueoPorAplicado) return 'Luis aplicó cambios que todavía no publicó: esperá a que publique.';
+  if (APP.bloqueoPorAplicado) return 'Luis aplicó cambios que todavía no publicó: espera a que publique.';
   const pend = APP.pendientes || [];
   if (pend.some(x => x.tipo === 'emparejar' && Number(x.registro) === Number(registro))) return 'Ya hay un pedido de emparejar pendiente para este jugador.';
   if (pend.some(x => !x.tipo && Number(x.registro) === Number(registro) && (x.totalCost || 0) > 0)) return 'Este jugador tiene una mejora pagada pendiente: ya no se puede emparejar.';
-  if (!APP.pagadosRegistro) return 'No se pudo verificar si el jugador tiene mejoras pagadas (o todavía no cargó). Probá de nuevo.';
+  if (!APP.pagadosRegistro) return 'No se pudo verificar si el jugador tiene mejoras pagadas (o todavía no cargó). Prueba de nuevo.';
   if (APP.pagadosRegistro.has(Number(registro))) return 'Este jugador ya tiene mejoras pagadas en la temporada de cobro: ya no se puede emparejar.';
   return YUNACOINS_RULES.motivoSinEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), emparejarCfgPres());
 }

@@ -370,7 +370,7 @@ assert(EP.validarEmparejar(cfgVacia).length === 0, 'validarEmparejar: perfiles v
 assert(EP.validarEmparejar(cfgCustom).length === 0, 'validarEmparejar: custom 75-82 con Suscriptor vacío es válido');
 assert(EP.validarEmparejar(null).length === 0, 'validarEmparejar: bloque ausente es válido (todo vacío)');
 assert(EP.validarEmparejar({ base: { min: 80, max: 79, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /mínimo no puede ser mayor/.test(e)), 'validarEmparejar: mínimo mayor que máximo → error');
-assert(EP.validarEmparejar({ base: { min: 79, max: null, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /completá/.test(e)), 'validarEmparejar: perfil a medias (sólo mínimo) → error');
+assert(EP.validarEmparejar({ base: { min: 79, max: null, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /completa el mínimo/.test(e)), 'validarEmparejar: perfil a medias (sólo mínimo) → error');
 assert(EP.validarEmparejar({ base: { min: null, max: null, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /vacío/.test(e)), 'validarEmparejar: subir gratis con rango vacío → error');
 assert(EP.validarEmparejar({ base: { min: 79, max: 85, subir: true }, suscriptor: { min: 84, max: 85, subir: true } }).some(e => /solaparse/.test(e)), 'validarEmparejar: rangos que se solapan (79-85 con 84-85) → error');
 assert(EP.validarEmparejar({ base: { min: 79, max: 80, subir: true }, suscriptor: { min: 80, max: 85, subir: true } }).some(e => /solaparse/.test(e)), 'validarEmparejar: rangos que se tocan en 80 → error');

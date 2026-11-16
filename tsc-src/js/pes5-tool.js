@@ -1265,13 +1265,19 @@ function _emparejarDe(registro){
   const cfg = _emparejarCfg();
   const j = PES5_EDITOR.leerJugadorCompleto(PLANO, registro);
   const r = YUNACOINS_RULES.cambiosEmparejar(j, cfg);
+  const cambios = { atributos: r.atributos };
+  // Defensa previa a escribir: la misma que usa la aprobación de un pedido, con el tope de la temporada.
+  // Si no hay perfil, el motivo lo dice cambiosEmparejar; si lo hay, lo dice motivoRechazoEmparejar.
+  const motivo = r.perfil
+    ? YUNACOINS_RULES.motivoRechazoEmparejar(j, cambios, cfg, _topeAtributoVigente())
+    : (r.motivo || 'Este jugador no puede emparejarse.');
   return {
     perfil: r.perfil,
     max: r.perfil ? YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max : null,
     lineas: r.lineas,
-    cambios: { atributos: r.atributos },
+    cambios: cambios,
     nombre: j.nombre || '',
-    motivo: r.motivo,
+    motivo: motivo,
   };
 }
 function _btnEmparejarHTML(registro){
@@ -1279,17 +1285,16 @@ function _btnEmparejarHTML(registro){
   const info = _emparejarDe(registro);
   let motivo = '';
   if (!equipoTSCActual()) motivo = 'El club no tiene equipo asignado: no se puede registrar el emparejar.';
-  else if (!info.perfil) motivo = info.motivo || 'Este jugador no puede emparejarse.';
-  else if (!info.lineas.length) motivo = 'Ya tiene todos sus atributos en ' + info.max + ' o más.';
-  else if (Object.keys(CAMBIOS_PENDIENTES).length) motivo = 'Hay cambios pendientes en la tool: guardalos o descartalos antes de emparejar.';
+  else if (info.motivo) motivo = info.motivo;
+  else if (Object.keys(CAMBIOS_PENDIENTES).length) motivo = 'Hay cambios pendientes en la tool: guarda o descarta los cambios antes de emparejar.';
   const etiqueta = info.max != null ? 'Emparejar a ' + info.max : 'Emparejar';
   const title = motivo || ('Sube ' + info.lineas.length + ' atributo(s) a ' + info.max + ' sin costo (perfil ' + info.perfil + ')');
   return `<button class="btn btn-sm pt-ed-emparejar" data-onclick="ptEmparejarJugador(${Number(registro)})"${motivo ? ' disabled' : ''} title="${escAttr(title)}"><svg class="icn" viewBox="0 0 24 24"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg> ${escHtml(etiqueta)}</button>`;
 }
 function emparejarJugadorAdmin(registro){
   const info = _emparejarDe(registro);
-  if (!info.perfil || !info.lineas.length){ showToast(info.motivo || 'No hay atributos por debajo del máximo del perfil.', 'error'); return; }
-  if (Object.keys(CAMBIOS_PENDIENTES).length){ showToast('Guardá o descartá los cambios pendientes antes de emparejar.', 'error'); return; }
+  if (info.motivo){ showToast(info.motivo, 'error'); return; }
+  if (Object.keys(CAMBIOS_PENDIENTES).length){ showToast('Guarda o descarta los cambios pendientes antes de emparejar.', 'error'); return; }
   const filas = info.lineas.map(l => `<li><span>${escHtml(l.campo)}</span><span class="pt-emp-de">${Number(l.de)} → <strong>${Number(l.a)}</strong></span></li>`).join('');
   const previo = document.getElementById('pt-emp-overlay');
   if (previo) previo.remove();
@@ -1315,9 +1320,11 @@ function cerrarEmparejar(){
 }
 async function confirmarEmparejar(registro){
   cerrarEmparejar();
+  // Se vuelve a calcular y a validar justo antes de escribir (motivoRechazoEmparejar incluido).
   const info = _emparejarDe(registro);
-  if (!info.perfil || !info.lineas.length){ showToast(info.motivo || 'No hay nada que emparejar.', 'error'); return; }
-  if (Object.keys(CAMBIOS_PENDIENTES).length){ showToast('Guardá o descartá los cambios pendientes antes de emparejar.', 'error'); return; }
+  if (info.motivo){ showToast(info.motivo, 'error'); return; }
+  if (!info.perfil || !info.lineas.length){ showToast('No hay nada que emparejar.', 'error'); return; }
+  if (Object.keys(CAMBIOS_PENDIENTES).length){ showToast('Guarda o descarta los cambios pendientes antes de emparejar.', 'error'); return; }
   await escribirAlSave({ registro: Number(registro), nombre: info.nombre, perfil: info.perfil, nivel: info.max, cambios: info.cambios, lineas: info.lineas });
   cerrarEditorJugador(); // el save cambió: el editor de ese jugador quedó con datos viejos
 }
