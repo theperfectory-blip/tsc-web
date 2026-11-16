@@ -204,7 +204,7 @@ async function main(){
   // El admin guarda los perfiles de Luis: Base 79-80 y Suscriptor 84-85.
   await expect('emparejar: admin guarda el bloque emparejar (Base 79-80, Suscriptor 84-85)', 200,
     await op.create('pes5_config/reglas', { maxPositions: 5, emparejar: {
-      base: { min: 79, max: 80, subir: true }, suscriptor: { min: 84, max: 85, subir: true }, escala8: 4, lesion: 'C' } }, AS.admin));
+      base: { min: 79, max: 80, subir: true, lesion: 'C', escala8: 4 }, suscriptor: { min: 84, max: 85, subir: true, lesion: 'B', escala8: 4 } } }, AS.admin));
   await expect('emparejar: presidente pide Base a 80 (costo 0) de su equipo', 200,
     await op.create(`pedidos_pes5/${nuevoId('emp-ok')}`, emparejar('pres5', 5), AS.pres5));
   await expect('emparejar: presidente pide Suscriptor a 85 (costo 0)', 200,
@@ -234,7 +234,7 @@ async function main(){
   // Luis quita el perfil Suscriptor: ya no se puede pedir a 85.
   await expect('emparejar: Luis vacía el perfil Suscriptor (bloque con maximo null)', 200,
     await op.update('pes5_config/reglas', { emparejar: {
-      base: { min: 79, max: 80, subir: true }, suscriptor: { min: null, max: null, subir: false }, escala8: 4, lesion: 'C' } }, AS.admin));
+      base: { min: 79, max: 80, subir: true, lesion: 'C', escala8: 4 }, suscriptor: { min: null, max: null, subir: false, lesion: null, escala8: null } } }, AS.admin));
   await expect('emparejar: con Suscriptor vacío, NO se pide a 85', 403,
     await op.create(`pedidos_pes5/${nuevoId('emp-susc-vacio')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 85 }), AS.pres5));
   await expect('emparejar: presidente NO guarda reglas', 403,

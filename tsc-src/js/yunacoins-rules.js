@@ -76,7 +76,7 @@
     maxPositions: 5,                        // maximo de posiciones marcadas por jugador (el juego permite hasta 12)
     topesAtributo: [90],                    // tope absoluto de atributos 0-99 por temporada del juego: [0] = 1.ª temporada del juego, [1] = 2.ª, ...; si falta un valor se hereda el último
     // EMP-80-1: sin numeros por defecto. Luis define los perfiles en Reglas (ver validarEmparejar).
-    emparejar: { base: { min: null, max: null, subir: false }, suscriptor: { min: null, max: null, subir: false }, escala8: null, lesion: null },
+    emparejar: { base: { min: null, max: null, subir: false, lesion: null, escala8: null }, suscriptor: { min: null, max: null, subir: false, lesion: null, escala8: null } },
   };
 
   /* techo superior (inclusive) de cada banda de costo, EXACTO del editor */
@@ -464,11 +464,13 @@
   /* ================= EMP-80-1 · Emparejar sin costo ==========================
      Reglas de LUIS: Tool PES5 › Reglas › «Emparejamiento sin costo». No hay numeros en el codigo.
      reglas.emparejar = {
-       base:       { min, max, subir },  // perfil Base: stats entre min y max; se emparejan a max
-       suscriptor: { min, max, subir },  // perfil Suscriptor, igual
-       escala8:    null | 1..8,          // parametros 1-8 exigidos (null = no se exige)
-       lesion:     null | 'A'|'B'|'C',   // resistencia a lesiones exigida (null = no se exige)
+       base:       { min, max, subir, lesion, escala8 },  // perfil Base
+       suscriptor: { min, max, subir, lesion, escala8 },  // perfil Suscriptor, igual
      }
+     min/max: stats entre min y max; se emparejan a max. lesion: null | 'A'|'B'|'C'. escala8: null | 1..8.
+     Cada perfil tiene sus propias condiciones (EMP-80-1b). Un campo vacio = ese chequeo no se aplica
+     para ese perfil. Compatibilidad: lesion y escala8 en la raiz (version anterior) valen como
+     respaldo para el perfil que no tenga el suyo.
      subir=false, o min/max vacios: el perfil no tiene boton. Las funciones reciben esa config tal cual.
      Origen: NO hay un dato de origen guardado todavia (fichajes = slice futuro). El jugador se clasifica
      solo por perfil; `fichaje === true` (si lo trae el llamador) lo excluye.
@@ -479,17 +481,31 @@
 
   function _enteroEmp(v, min, max) { return Number.isInteger(v) && v >= min && v <= max; }
 
-  // Rango {min,max} de un perfil ACTIVO (subir=true y rango valido); null si no tiene boton.
+  // Valor de un campo (lesion / escala8) del perfil. Si el perfil no lo tiene, se usa el de la raiz
+  // (compatibilidad con la version anterior). Vacio o invalido = null = ese chequeo no se aplica.
+  function _valorPerfilEmp(cfg, nombre, campo, valido) {
+    const p = cfg && cfg[nombre];
+    const propio = p ? p[campo] : undefined;
+    if (propio != null && propio !== '') return valido(propio) ? propio : null;
+    const raiz = cfg ? cfg[campo] : undefined;
+    return raiz != null && raiz !== '' && valido(raiz) ? raiz : null;
+  }
+  function _lesionValida(v) { return LESIONES_EMPAREJAR.includes(v); }
+  function _escalaValida(v) { return _enteroEmp(v, 1, 8); }
+
+  // Rango {min,max,lesion,escala8} de un perfil ACTIVO (subir=true y rango valido); null si no tiene boton.
+  // lesion y escala8 son null cuando ese chequeo no se aplica a este perfil.
   function rangoEmparejar(cfg, nombre) {
     const p = cfg && cfg[nombre];
     if (!p || p.subir !== true) return null;
     if (!_enteroEmp(p.min, 1, 99) || !_enteroEmp(p.max, 1, 99) || p.min > p.max) return null;
-    return { min: p.min, max: p.max };
+    return {
+      min: p.min,
+      max: p.max,
+      lesion: _valorPerfilEmp(cfg, nombre, 'lesion', _lesionValida),
+      escala8: _valorPerfilEmp(cfg, nombre, 'escala8', _escalaValida),
+    };
   }
-  // Escala 1-8 exigida, o null si el campo esta vacio/invalido (ese chequeo no se aplica).
-  function _escalaExigida(cfg) { return cfg && _enteroEmp(cfg.escala8, 1, 8) ? cfg.escala8 : null; }
-  // Resistencia a lesiones exigida, o null si esta vacia.
-  function _lesionExigida(cfg) { return cfg && LESIONES_EMPAREJAR.includes(cfg.lesion) ? cfg.lesion : null; }
 
   // Atributos 0-99 numericos (sin metadata '_').
   function _statsNumEmp(atributos) {
@@ -507,6 +523,20 @@
     return Object.keys(habilidades || {}).some(k => k.charAt(0) !== '_' && habilidades[k] === true);
   }
 
+  const LESION_MSG = (l) => 'La resistencia a lesiones no es la exigida (' + l + ').';
+  const ESCALA_MSG = (e) => 'Los parámetros 1-8 no están en el valor exigido (' + e + ').';
+  const LESION_DESCONOCIDA_MSG = 'La resistencia a lesiones del jugador no se reconoce: no se puede emparejar.';
+
+  // Condiciones propias de un perfil (lesion y escala8 de ESE perfil). Devuelve el motivo o null.
+  function _faltaCondicionPerfil(j, r) {
+    if (r.lesion !== null && j.lesiones !== r.lesion) return LESION_MSG(r.lesion);
+    if (r.escala8 !== null) {
+      const vals = _escalaNumEmp(j.escala8);
+      if (!vals.length || vals.some(([, v]) => v !== r.escala8)) return ESCALA_MSG(r.escala8);
+    }
+    return null;
+  }
+
   // Perfil del jugador: 'base', 'suscriptor' o null. Todas las condiciones a la vez.
   function perfilEmparejar(jugador, cfg) {
     const j = jugador || {};
@@ -514,16 +544,12 @@
     const stats = _statsNumEmp(j.atributos);
     if (!stats.length) return null;
     if (_tieneHabilidadEmp(j.habilidades)) return null;
-    const lesion = _lesionExigida(cfg);
-    if (lesion !== null && j.lesiones !== lesion) return null;
-    const esc = _escalaExigida(cfg);
-    if (esc !== null) {
-      const vals = _escalaNumEmp(j.escala8);
-      if (!vals.length || vals.some(([, v]) => v !== esc)) return null;
-    }
+    // Una lesion que no es A, B o C nunca se lee como otra: el jugador no es elegible.
+    if (!_lesionValida(j.lesiones)) return null;
     for (const nombre of PERFILES_EMPAREJAR) {
       const r = rangoEmparejar(cfg, nombre);
-      if (r && stats.every(([, v]) => v >= r.min && v <= r.max)) return nombre;
+      if (!r || !stats.every(([, v]) => v >= r.min && v <= r.max)) continue;
+      if (_faltaCondicionPerfil(j, r) === null) return nombre;
     }
     return null;
   }
@@ -533,16 +559,20 @@
     const j = jugador || {};
     if (!PERFILES_EMPAREJAR.some(n => rangoEmparejar(cfg, n))) return 'No hay perfiles de emparejamiento configurados en Reglas.';
     if (j.fichaje === true) return FICHAJE_EMPAREJAR_MSG;
-    if (!_statsNumEmp(j.atributos).length) return FICHAJE_EMPAREJAR_MSG;
+    const stats = _statsNumEmp(j.atributos);
+    if (!stats.length) return FICHAJE_EMPAREJAR_MSG;
     if (_tieneHabilidadEmp(j.habilidades)) return 'Tiene una habilidad especial activa: no se puede emparejar.';
-    const lesion = _lesionExigida(cfg);
-    if (lesion !== null && j.lesiones !== lesion) return 'La resistencia a lesiones no es la exigida (' + lesion + ').';
-    const esc = _escalaExigida(cfg);
-    if (esc !== null) {
-      const vals = _escalaNumEmp(j.escala8);
-      if (!vals.length || vals.some(([, v]) => v !== esc)) return 'Los parámetros 1-8 no están en el valor exigido (' + esc + ').';
+    if (!_lesionValida(j.lesiones)) return LESION_DESCONOCIDA_MSG;
+    // Motivo del primer perfil cuyo rango de stats sí calza: dice qué condición propia le falta.
+    let primero = null;
+    for (const nombre of PERFILES_EMPAREJAR) {
+      const r = rangoEmparejar(cfg, nombre);
+      if (!r || !stats.every(([, v]) => v >= r.min && v <= r.max)) continue;
+      const m = _faltaCondicionPerfil(j, r);
+      if (m === null) return null;
+      if (primero === null) primero = m;
     }
-    return perfilEmparejar(j, cfg) ? null : FICHAJE_EMPAREJAR_MSG;
+    return primero !== null ? primero : FICHAJE_EMPAREJAR_MSG;
   }
 
   /* Emparejar: sube cada stat del perfil hasta su maximo. Nunca baja nada ni toca habilidades
@@ -599,6 +629,8 @@
     for (const nombre of PERFILES_EMPAREJAR) {
       const p = e[nombre] || {};
       const et = nombre === 'base' ? 'Base' : 'Suscriptor';
+      if (p.escala8 != null && p.escala8 !== '' && !_escalaValida(p.escala8)) errores.push(et + ': parámetros 1-8: entero entre 1 y 8, o vacío');
+      if (p.lesion != null && p.lesion !== '' && !_lesionValida(p.lesion)) errores.push(et + ': resistencia a lesiones: A, B o C, o vacía');
       const hayMin = p.min != null && p.min !== '';
       const hayMax = p.max != null && p.max !== '';
       if (!hayMin && !hayMax) {
@@ -615,8 +647,9 @@
       const a = rangos.base, b = rangos.suscriptor;
       if (a.min <= b.max && b.min <= a.max) errores.push('los rangos Base y Suscriptor no pueden solaparse');
     }
-    if (e.escala8 != null && e.escala8 !== '' && !_enteroEmp(e.escala8, 1, 8)) errores.push('parámetros 1-8: entero entre 1 y 8, o vacío');
-    if (e.lesion != null && e.lesion !== '' && !LESIONES_EMPAREJAR.includes(e.lesion)) errores.push('resistencia a lesiones: A, B o C, o vacía');
+    // Campos comunes de la version anterior (raiz): solo se validan si vienen.
+    if (e.escala8 != null && e.escala8 !== '' && !_escalaValida(e.escala8)) errores.push('parámetros 1-8: entero entre 1 y 8, o vacío');
+    if (e.lesion != null && e.lesion !== '' && !_lesionValida(e.lesion)) errores.push('resistencia a lesiones: A, B o C, o vacía');
     return errores;
   }
 

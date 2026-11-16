@@ -2185,6 +2185,7 @@ function renderReglasTab(){
 function _emparejarReglasHTML(r){
   const e = (r && r.emparejar) || {};
   const val = (x) => (x == null || x === '' ? '' : String(x));
+  // Cada perfil trae sus propias condiciones (lesion y escala 1-8). Vacio = ese chequeo no se aplica.
   const fila = (nombre, etiqueta) => {
     const p = e[nombre] || {};
     return `<div class="pt-field pt-emp-perfil">
@@ -2192,17 +2193,15 @@ function _emparejarReglasHTML(r){
       <label>Mínimo <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-min" value="${escAttr(val(p.min))}" style="width:90px;"></label>
       <label>Máximo <input type="number" min="1" max="99" step="1" id="rg-emp-${nombre}-max" value="${escAttr(val(p.max))}" style="width:90px;"></label>
       <label class="pt-emp-subir"><input type="checkbox" id="rg-emp-${nombre}-subir"${p.subir === true ? ' checked' : ''}> Subir gratis hasta el máximo</label>
+      <label>Resistencia a lesiones <select id="rg-emp-${nombre}-lesion" style="width:90px;">${['', 'A', 'B', 'C'].map(x => `<option value="${x}"${(p.lesion || '') === x ? ' selected' : ''}>${x || '—'}</option>`).join('')}</select></label>
+      <label>Parámetros 1-8 <input type="number" min="1" max="8" step="1" id="rg-emp-${nombre}-escala8" value="${escAttr(val(p.escala8))}" placeholder="4" style="width:70px;"></label>
     </div>`;
   };
   return `<div class="pt-fieldgrp" style="margin-bottom:18px;">
     <div class="pt-fieldgrp-title">Emparejamiento sin costo</div>
-    <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Ejemplo: Base 79–80, Suscriptor 84–85. Es solo una sugerencia: vacío = el perfil no existe. Un perfil sin «Subir gratis» no tiene botón.</div>
+    <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Cada perfil tiene sus condiciones. Vacío = ese chequeo no se aplica a ese perfil. Un perfil sin «Subir gratis» no tiene botón. Ejemplo: Base 79–80 con lesión C; Suscriptor 84–85 con lesión B; parámetros 1-8 en 4.</div>
     ${fila('base', 'Base')}
     ${fila('suscriptor', 'Suscriptor')}
-    <div class="pt-field"><label>Parámetros 1-8 exigidos (todos los perfiles)<br><span style="font-size:11px;color:var(--txt3);">Vacío = no se exige. Ejemplo: 4.</span></label>
-      <input type="number" min="1" max="8" step="1" id="rg-emp-escala8" value="${escAttr(val(e.escala8))}" placeholder="4" style="width:100px;"></div>
-    <div class="pt-field"><label>Resistencia a lesiones exigida (todos los perfiles)<br><span style="font-size:11px;color:var(--txt3);">Vacío = no se exige. Ejemplo: C.</span></label>
-      <select id="rg-emp-lesion" style="width:100px;">${['', 'A', 'B', 'C'].map(x => `<option value="${x}"${(e.lesion || '') === x ? ' selected' : ''}>${x || '—'}</option>`).join('')}</select></div>
   </div>`;
 }
 // Lee el bloque del formulario. Vacio = null (perfil sin rango, o chequeo que no se aplica). Texto no numerico = NaN (lo rechaza validarEmparejar).
@@ -2217,12 +2216,12 @@ function _leerEmparejarForm(){
     min: num('rg-emp-' + nombre + '-min'),
     max: num('rg-emp-' + nombre + '-max'),
     subir: document.getElementById('rg-emp-' + nombre + '-subir').checked,
+    lesion: document.getElementById('rg-emp-' + nombre + '-lesion').value || null,
+    escala8: num('rg-emp-' + nombre + '-escala8'),
   });
   return {
     base: perfil('base'),
     suscriptor: perfil('suscriptor'),
-    escala8: num('rg-emp-escala8'),
-    lesion: document.getElementById('rg-emp-lesion').value || null,
   };
 }
 
@@ -2254,9 +2253,9 @@ function restaurarReglasDefault(){
     document.getElementById('rg-emp-' + n + '-min').value = '';
     document.getElementById('rg-emp-' + n + '-max').value = '';
     document.getElementById('rg-emp-' + n + '-subir').checked = false;
+    document.getElementById('rg-emp-' + n + '-lesion').value = '';
+    document.getElementById('rg-emp-' + n + '-escala8').value = '';
   });
-  document.getElementById('rg-emp-escala8').value = '';
-  document.getElementById('rg-emp-lesion').value = '';
   document.getElementById('rg-topesAtributo').value = d.topesAtributo.join(', ');
   showToast('Valores por defecto cargados en el formulario. Falta Guardar.');
 }
