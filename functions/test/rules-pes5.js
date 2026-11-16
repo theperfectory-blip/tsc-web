@@ -271,6 +271,23 @@ async function main(){
   await expect('plantillas: presidente NO escribe plantillas', 403,
     await op.update('pes5_plantillas/5', { jugadores: [] }, AS.pres5));
 
+  // ---- EMP-80-2 · pes5_perfiles: perfiles fijados por temporada y equipo ----
+  const perfilesDoc = (teamId, perfiles, extra = {}) => Object.assign({ season: 2, teamId: String(teamId), perfiles }, extra);
+  await expect('perfiles: admin fija los perfiles del equipo 5 (temporada 2)', 200,
+    await op.create('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'base', '102': 'suscriptor', '103': 'ninguno' }), AS.admin));
+  await expect('perfiles: presidente lee los perfiles de su equipo', 200, await op.get('pes5_perfiles/2_5', AS.pres5));
+  await expect('perfiles: presidente NO lee los perfiles de otro equipo', 403, await op.get('pes5_perfiles/2_6', AS.pres5));
+  await expect('perfiles: presidente NO escribe perfiles', 403,
+    await op.update('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'suscriptor' }), AS.pres5));
+  await expect('perfiles: admin NO guarda un perfil fuera de base/suscriptor/ninguno', 403,
+    await op.update('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'leyenda' }), AS.admin));
+  await expect('perfiles: admin NO agrega campos extra al documento', 403,
+    await op.update('pes5_perfiles/2_5', perfilesDoc(5, { '101': 'base' }, { hack: 'x' }), AS.admin));
+  await expect('perfiles: admin NO guarda la temporada como texto', 403,
+    await op.update('pes5_perfiles/2_5', { season: '2', teamId: '5', perfiles: { '101': 'base' } }, AS.admin));
+  await expect('perfiles: anonimo no lee', 403, await op.get('pes5_perfiles/2_5', AS.anon));
+  await expect('perfiles: nadie borra (admin)', 403, await op.del('pes5_perfiles/2_5', AS.admin));
+
   // ---- pes5_config: solo el admin escribe ----
   await expect('config: presidente lee pes5_config', 200, await op.get('pes5_config/topes', AS.pres5));
   await expect('config: presidente NO escribe pes5_config', 403,

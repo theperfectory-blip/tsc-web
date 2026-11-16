@@ -438,6 +438,45 @@ assert(EP.motivoRechazoEmparejar(suscC, { atributos: { Ataque: 85 } }, cfgLuis, 
 // La edicion solo toca atributos: lesiones, escala 1-8 y habilidades no entran en los cambios
 const cc = EP.cambiosEmparejar(suscB, cfgLuis);
 assert(Object.keys(cc).sort().join(',') === 'atributos,lineas,motivo,perfil,total' && Object.keys(cc.atributos).every(k => k !== 'lesiones' && k !== 'escala8' && k !== 'habilidades'), 'EMP-80-1b: cambiosEmparejar solo arma atributos (sin lesiones, escala8 ni habilidades)');
+/* ---- EMP-80-2 · tramo gratis dentro del perfil ---- */
+const cfgBS = { base: { min: 79, max: 80, subir: true, lesion: null, escala8: null }, suscriptor: { min: 84, max: 85, subir: true, lesion: null, escala8: null } };
+assert(EP.tramoGratis('Ataque', 79, 80, 'base', cfgBS) === 1, 'tramoGratis: base 79→80 = 1 punto gratis');
+assert(EP.tramoGratis('Ataque', 79, 82, 'base', cfgBS) === 1, 'tramoGratis: base 79→82 = 1 gratis (el 80); 81 y 82 se cobran');
+assert(EP.tramoGratis('Ataque', 80, 81, 'base', cfgBS) === 0, 'tramoGratis: base 80→81 = 0 gratis (sale del rango)');
+assert(EP.tramoGratis('Ataque', 84, 85, 'suscriptor', cfgBS) === 1, 'tramoGratis: suscriptor 84→85 = 1 gratis');
+assert(EP.tramoGratis('Ataque', 84, 87, 'suscriptor', cfgBS) === 1, 'tramoGratis: suscriptor 84→87 = 1 gratis (el 85)');
+assert(EP.tramoGratis('Ataque', 79, 80, null, cfgBS) === 0, 'tramoGratis: perfil null = 0 gratis');
+assert(EP.tramoGratis('Ataque', 79, 80, 'leyenda', cfgBS) === 0, 'tramoGratis: perfil desconocido = 0 gratis');
+assert(EP.tramoGratis('_ancho_bits', 79, 80, 'base', cfgBS) === 0, 'tramoGratis: metadata (_) nunca es gratis');
+assert(EP.costoAtributoConPerfil('Ataque', 79, 80, 'base', cfgBS, EP.DEFAULT_RULES) === 0, 'costo: base 79→80 cuesta 0');
+assert(EP.costoAtributoConPerfil('Ataque', 79, 82, 'base', cfgBS, EP.DEFAULT_RULES) === 200, 'costo: base 79→82 cuesta 200 (80 gratis; 81 y 82 a 100)');
+assert(EP.costoAtributoConPerfil('Ataque', 84, 87, 'suscriptor', cfgBS, EP.DEFAULT_RULES) === 500, 'costo: suscriptor 84→87 cuesta 500 (85 gratis; 86 y 87 a 250)');
+assert(EP.costoAtributoConPerfil('Ataque', 79, 82, null, cfgBS, EP.DEFAULT_RULES) === 300, 'costo: sin perfil, 79→82 cuesta lo de siempre (300)');
+const jBase79 = { atributos: { Ataque: 79, Defensa: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' };
+const cTram = EP.costoCambios(jBase79, { atributos: { Ataque: 82 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS });
+assert(cTram.total === 200 && cTram.lineas[0].costo === 200 && cTram.lineas[0].gratis === 1, 'costoCambios con perfil: 79→82 total 200, línea con 1 gratis');
+assert(EP.costoCambios(jBase79, { atributos: { Ataque: 82 } }, EP.DEFAULT_RULES).total === 300, 'costoCambios sin perfil: 79→82 total 300 (igual que antes)');
+assert(EP.costoCambios(jBase79, { atributos: { Ataque: 80 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS }).total === 0, 'costoCambios con perfil: 79→80 total 0');
+// Escala 1-8, habilidades y lesiones nunca tienen tramo gratis
+const costoEsc = EP.costoCambios({ escala8: { Estabilidad: 1 }, habilidades: {}, atributos: {} }, { escala8: { Estabilidad: 4 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS });
+assert(costoEsc.total === 750, 'escala 1-8 nunca gratis: 1→4 cobra 3 × scale8Cost (750)');
+const costoHab = EP.costoCambios({ atributos: {}, escala8: {}, habilidades: {}, lesiones: 'C' }, { habilidades: { Regate: true } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS });
+assert(costoHab.total === EP.DEFAULT_RULES.abilityCost, 'habilidad nunca gratis: cobra abilityCost');
+const costoLes = EP.costoCambios({ atributos: {}, escala8: {}, habilidades: {}, lesiones: 'C' }, { lesiones: 'B' }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS });
+assert(costoLes.total === EP.DEFAULT_RULES.injuryCost, 'lesiones nunca gratis: C→B cobra injuryCost');
+// Perfil estable: un perfil fijado no se recalcula cuando las stats se mueven
+const jMovido = { atributos: { Ataque: 81, Defensa: 79 }, escala8: {}, habilidades: { Regate: true }, lesiones: 'C' };
+assert(EP.perfilEmparejar(jMovido, cfgBS) === null, 'perfil en vivo: con Ataque 81 y habilidad, deja de calzar Base');
+assert(EP.perfilParaJugador(null, cfgBS, 'base') === 'base', 'perfil fijado: Base se mantiene aunque Ataque sea 81 y tenga habilidad');
+assert(EP.costoCambios(jMovido, { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS }).total === 0, 'perfil fijado: Defensa 79→80 sigue gratis tras la mejora pagada');
+assert(EP.perfilParaJugador(null, cfgBS, 'ninguno') === null, 'perfil fijado «ninguno»: no hay perfil (todo se cobra)');
+assert(EP.perfilParaJugador(null, cfgBS, 'suscriptor') === 'suscriptor', 'perfil fijado suscriptor: activo en la config');
+assert(EP.perfilParaJugador(null, cfgVacia, 'base') === null, 'perfil fijado con el perfil apagado en Reglas: no hay perfil');
+assert(EP.valorPerfilFijado('base') === 'base' && EP.valorPerfilFijado(null) === 'ninguno', 'valorPerfilFijado: base/suscriptor tal cual, null → ninguno');
+// Emparejar con perfil fijado: solo si todas las stats ya están dentro del rango
+const jFueraRango = { atributos: { Ataque: 81, Defensa: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' };
+assert(EP.cambiosEmparejar(jFueraRango, cfgBS, 'base').motivo !== null, 'emparejar con perfil fijado: una stat fuera del rango (81) → no se puede sin costo');
+assert(EP.cambiosEmparejar({ atributos: { Ataque: 79, Defensa: 80 }, escala8: {}, habilidades: {}, lesiones: 'C' }, cfgBS, 'base').lineas.length === 1, 'emparejar con perfil fijado: dentro del rango sube lo que falta');
 console.log('');
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

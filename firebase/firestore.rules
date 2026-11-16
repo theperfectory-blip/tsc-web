@@ -348,6 +348,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- EMP-80-2 · perfiles de emparejar fijados por temporada y equipo: pes5_perfiles/{temporada}_{teamId} ---
+    // Los escribe solo el admin (fijar, al publicar y override). El presidente lee el de su equipo.
+    // Allowlist de campos y valores: base | suscriptor | ninguno. Sin borrar.
+    match /pes5_perfiles/{docId} {
+      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null && resource != null
+                                   && string(me().teamId) == resource.data.teamId);
+      allow create, update: if isAdmin()
+                            && request.resource.data.keys().hasOnly(['season', 'teamId', 'perfiles', 'fijadoEn', 'fijadoPor'])
+                            && request.resource.data.season is int
+                            && request.resource.data.teamId is string
+                            && request.resource.data.perfiles is map
+                            && request.resource.data.perfiles.values().hasOnly(['base', 'suscriptor', 'ninguno']);
+      allow delete: if false;
+    }
+
     // --- Notificaciones push (Fase 8, backend FCM) ---
     // Solo el Admin SDK (Cloud Functions) escribe acá — las reglas de
     // cliente no importan para esas escrituras, pero se dejan explícitas

@@ -196,6 +196,9 @@ async function renderAuthUI(){
       return;
     }
     _gatePlantillaClub = EQUIPO_TSC.pes5ClubIdx;
+    // EMP-80-2: perfiles fijados de la temporada de cobro (si el admin ya los fijo). Sin doc: calculo en vivo.
+    try { PERFILES_FIJADOS = await cargarPerfilesFijados(AUTH.teamId, COBRO_TEMPORADA ?? STATE.season); }
+    catch(e){ console.warn('[mejoras] no se pudieron leer los perfiles fijados', e); PERFILES_FIJADOS = null; }
     APP.playerId = PLAYERS[0].id;
     loadDraft();
   }
@@ -667,6 +670,48 @@ async function _hayAplicadoSinPublicar(){
 const BAND_MAX = YUNACOINS_RULES.BAND_MAX; // ya no se usa aca directo (queda para el modal de reglas si hace falta)
 function bandCost99(dest){ return YUNACOINS_RULES.bandCost99(dest, RULES); }
 function costRange99(from,to){ return YUNACOINS_RULES.costRange99(from, to, RULES); }
+
+/* EMP-80-2 · costo con el perfil del jugador: los puntos dentro de su rango (min..max) son gratis; el
+   resto, la banda normal. El perfil sale de pes5_perfiles (fijado por temporada) o, si no hay, del calculo
+   en vivo. Escala, habilidades y lesiones nunca tienen tramo gratis (no pasan por aca). */
+let PERFILES_FIJADOS = null; // { [registro]: 'base' | 'suscriptor' | 'ninguno' } de pes5_perfiles; null = sin fijar
+function registroPres(p){ return PES5_PLANTILLA.registroDeId(p.id); }
+// Valor fijado del jugador (o null si la temporada no lo tiene fijado).
+function fijadoPres(p){
+  if (!PERFILES_FIJADOS || !p) return null;
+  const v = PERFILES_FIJADOS[String(registroPres(p))];
+  return v == null ? null : v;
+}
+// Perfil del jugador con el que se cobra: fijado si existe, si no el calculo en vivo (sobre el jugador original).
+function perfilPres(p){
+  const cfg = emparejarCfgPres();
+  if (!p || !cfg) return null;
+  const fijado = fijadoPres(p);
+  if (fijado != null) return YUNACOINS_RULES.perfilParaJugador(null, cfg, fijado);
+  return YUNACOINS_RULES.perfilEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+}
+function costoStatPres(campo, from, to){
+  return YUNACOINS_RULES.costoAtributoConPerfil(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres(), RULES);
+}
+function costoPuntoPres(campo, v){ return costoStatPres(campo, v-1, v); }
+function gratisStatPres(campo, from, to){
+  return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres());
+}
+const PERFIL_LABEL = { base: 'Base', suscriptor: 'Suscriptor' };
+// Texto del costo de una linea. Con tramo gratis: «+200 · 1 sin costo (perfil Base)»; sin costo: «sin costo (perfil X)».
+function lineaCostoTexto(l){
+  const g = Number(l.gratis || 0);
+  const etiqueta = l.perfil && PERFIL_LABEL[l.perfil] ? PERFIL_LABEL[l.perfil] : null;
+  if (l.cost > 0 && g > 0) return '+' + Number(l.cost).toLocaleString('es-CL') + ' · ' + g + ' sin costo (perfil ' + etiqueta + ')';
+  if (l.cost > 0) return '+' + Number(l.cost).toLocaleString('es-CL');
+  if (g > 0 && etiqueta) return 'sin costo (perfil ' + etiqueta + ')';
+  return 'gratis';
+}
+async function cargarPerfilesFijados(teamId, season){
+  if (season == null || teamId == null) return null;
+  const snap = await firebase.firestore().collection('pes5_perfiles').doc(season + '_' + teamId).get();
+  return snap.exists && snap.data().perfiles ? snap.data().perfiles : null;
+}
 const INJURY_ORDER = YUNACOINS_RULES.INJURY_ORDER;
 
 function tierClass99(v){
@@ -898,9 +943,9 @@ function pendingCost(){
   const p = currentPlayer(), d = APP.draft;
   if(!p || !d) return 0;
   let total=0;
-  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costRange99(p.stats[s.k], d.stats[s.k]); });
+  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costoStatPres(s.k, p.stats[s.k], d.stats[s.k]); });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costRange99(p.sec[s.k], d.sec[s.k]); }
+    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costoStatPres(s.k, p.sec[s.k], d.sec[s.k]); }
     else if(s.sc===8){ if(d.sec[s.k]>p.sec[s.k]) total += (d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost; }
     else if(s.sc==='inj'){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1053,13 +1098,19 @@ function motivoNoEmparejar(p){
   if (pend.some(x => !x.tipo && Number(x.registro) === Number(registro) && (x.totalCost || 0) > 0)) return 'Este jugador tiene una mejora pagada pendiente: ya no se puede emparejar.';
   if (!APP.pagadosRegistro) return 'No se pudo verificar si el jugador tiene mejoras pagadas (o todavía no cargó). Prueba de nuevo.';
   if (APP.pagadosRegistro.has(Number(registro))) return 'Este jugador ya tiene mejoras pagadas en la temporada de cobro: ya no se puede emparejar.';
+  // EMP-80-2: con perfil fijado para la temporada, el emparejar usa ese perfil (no el calculo en vivo).
+  const fijado = fijadoPres(p);
+  if (fijado != null){
+    const r0 = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), emparejarCfgPres(), fijado);
+    return r0.perfil ? null : r0.motivo;
+  }
   return YUNACOINS_RULES.motivoSinEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), emparejarCfgPres());
 }
 function emparejarBtnHTML(p){
   if (!hayPerfilEmparejarPres()) return '';
   const cfg = emparejarCfgPres();
   const motivo = motivoNoEmparejar(p);
-  const perfil = YUNACOINS_RULES.perfilEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+  const perfil = perfilPres(p);
   const max = perfil ? YUNACOINS_RULES.rangoEmparejar(cfg, perfil).max : null;
   const etiqueta = max != null ? 'Solicitar emparejar a ' + max : 'Solicitar emparejar';
   const title = motivo || ('Sube los atributos del perfil ' + perfil + ' hasta ' + max + ' sin costo. Luis lo revisa.');
@@ -1076,7 +1127,7 @@ function solicitarEmparejar(playerId){
   const motivo = motivoNoEmparejar(p);
   if (motivo){ showMiniToast(motivo); return; }
   const cfg = emparejarCfgPres();
-  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg, fijadoPres(p));
   if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
   const max = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
   const wrap = document.getElementById('ep-confirm-wrap');
@@ -1111,7 +1162,7 @@ async function confirmarSolicitarEmparejar(playerId){
   const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
   if (motivo){ showMiniToast(motivo); return; }
   const cfg = emparejarCfgPres();
-  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg, fijadoPres(p));
   if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
   const nivel = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
   const registro = PES5_PLANTILLA.registroDeId(p.id);
@@ -1367,10 +1418,10 @@ function pendingChangeLines(){
   const p = currentPlayer(), d = APP.draft;
   const lines = [];
   MAIN_STATS.forEach(s=>{
-    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costRange99(p.stats[s.k],d.stats[s.k])});
+    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costoStatPres(s.k, p.stats[s.k], d.stats[s.k]), gratis:(d.stats[s.k]>p.stats[s.k] ? gratisStatPres(s.k, p.stats[s.k], d.stats[s.k]) : 0), perfil:perfilPres(p)});
   });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costRange99(p.sec[s.k],d.sec[s.k])}); }
+    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costoStatPres(s.k, p.sec[s.k], d.sec[s.k]), gratis:(d.sec[s.k]>p.sec[s.k] ? gratisStatPres(s.k, p.sec[s.k], d.sec[s.k]) : 0), perfil:perfilPres(p)}); }
     else if(s.sc===8){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:Math.max(0,d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost}); }
     else if(d.sec.inj!==p.sec.inj){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1432,7 +1483,7 @@ function openApplyConfirm(){
         ${lines.map(l=>`<li class="ep-sheet-line">
           <span class="lbl">${escHtml(p.name)} · ${escHtml(l.label)}</span>
           <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
-          <span class="cost">${l.cost>0? '+'+l.cost.toLocaleString('es-CL') : 'gratis'}</span>
+          <span class="cost">${lineaCostoTexto(l)}</span>
         </li>`).join('')}
       </ul>
       ${ADMIN_EMBED ? '' : `<dl class="ep-sheet-saldo">
@@ -2394,7 +2445,7 @@ function adjustMain(key,delta){
     if(cur>=99){ renderRows(); return; }
     const topeM = motivoTopeSubida(p.stats[key], cur+1);
     if(topeM){ showMiniToast(topeM); renderRows(); return; }
-    if(!canAfford(bandCost99(cur+1))){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
+    if(!canAfford(costoPuntoPres(key, cur+1))){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.stats[key] = cur+1;
   }else{
     if(cur<=(ADMIN_EMBED ? 0 : p.stats[key])){ renderRows(); return; }
@@ -2415,7 +2466,7 @@ function adjustSec(key,delta){
       const topeM = motivoTopeSubida(p.sec[key], cur+1);
       if(topeM){ showMiniToast(topeM); renderRows(); return; }
     }
-    const nextCost = def.sc===99 ? bandCost99(cur+1) : RULES.scale8Cost;
+    const nextCost = def.sc===99 ? costoPuntoPres(key, cur+1) : RULES.scale8Cost;
     if(!canAfford(nextCost)){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.sec[key] = cur+1;
   }else{
@@ -2585,8 +2636,8 @@ function renderRows(){
     html = GRUPOS_PRINCIPALES.map(([titulo, keys]) => `<div class="ep-grp">${titulo}</div>` + keys.map(k => {
       const s = MAIN_BY_KEY[k];
       const v = d.stats[k];
-      const afford = v>=99 || canAfford(bandCost99(v+1));
-      const cost = v>p.stats[k] ? costRange99(p.stats[k], v) : 0;
+      const afford = v>=99 || canAfford(costoPuntoPres(k, v+1));
+      const cost = v>p.stats[k] ? costoStatPres(k, p.stats[k], v) : 0;
       return numericRowHTML(ETIQUETA_FILA[k] || s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
         `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
     }).join('')).join('');
@@ -2595,16 +2646,16 @@ function renderRows(){
   if(APP.page===2){
     html += ECHO_KEYS.map(k=>{
       const s = MAIN_BY_KEY[k]; const v = d.stats[k];
-      const afford = v>=99 || canAfford(bandCost99(v+1));
-      const cost = v>p.stats[k] ? costRange99(p.stats[k], v) : 0;
+      const afford = v>=99 || canAfford(costoPuntoPres(k, v+1));
+      const cost = v>p.stats[k] ? costoStatPres(k, p.stats[k], v) : 0;
       return numericRowHTML(s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
         `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
     }).join('');
     html += SEC_NEW.map(s=>{
       if(s.sc===99){
         const v = d.sec[s.k];
-        const afford = v>=99 || canAfford(bandCost99(v+1));
-        const cost = v>p.sec[s.k] ? costRange99(p.sec[s.k], v) : 0;
+        const afford = v>=99 || canAfford(costoPuntoPres(s.k, v+1));
+        const cost = v>p.sec[s.k] ? costoStatPres(s.k, p.sec[s.k], v) : 0;
         return numericRowHTML(s.l, s.d, v, p.sec[s.k], 99, val=>TIER_COLOR[tierClass99(val)],
           `adjustSec('${s.k}',-1)`, `adjustSec('${s.k}',1)`, false, afford, cost);
       }

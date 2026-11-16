@@ -110,6 +110,30 @@
     return sum;
   }
 
+  /* ---- EMP-80-2 · tramo gratis dentro del perfil ----
+     Los puntos de un atributo 0-99 que caen dentro del rango del perfil (min..max) cuestan 0; el resto
+     se cobra con la banda normal. Solo atributos 0-99: escala 1-8, habilidades y lesiones nunca tienen
+     tramo gratis. Sin perfil (fichaje, leyenda, perfil null) todo se cobra igual que antes. */
+  // Puntos gratis de subir `campo` de `de` a `a` con `perfil` ('base' | 'suscriptor' | null).
+  function tramoGratis(campo, de, a, perfil, cfg) {
+    if (!perfil || typeof campo !== 'string' || campo.charAt(0) === '_') return 0;
+    if (typeof de !== 'number' || typeof a !== 'number' || a <= de) return 0;
+    const r = rangoEmparejar(cfg, perfil);
+    if (!r) return 0;
+    const desde = Math.max(de + 1, r.min), hasta = Math.min(a, r.max);
+    return hasta >= desde ? hasta - desde + 1 : 0;
+  }
+  // Costo de subir `campo` de `de` a `a` con su perfil: cada punto gratis vale 0, los demas la banda.
+  function costoAtributoConPerfil(campo, de, a, perfil, cfg, rules) {
+    if (typeof de !== 'number' || typeof a !== 'number' || a <= de) return 0;
+    let sum = 0;
+    for (let v = de + 1; v <= a; v++) {
+      if (tramoGratis(campo, v - 1, v, perfil, cfg) === 1) continue;
+      sum += bandCost99(v, rules);
+    }
+    return sum;
+  }
+
   /* ---- altura: franja + cupo (Categoria 2) ---- */
   function heightBracket(h) {
     if (h >= 198) return 'hi';
@@ -370,21 +394,28 @@
      (bandCosts, scale8Cost, abilityCost, injuryCost) son exactamente los
      mismos; lo unico que cambia es como se despliega un downgrade.
      ============================================================ */
-  function costoCambios(jugadorOriginal, cambios, rules) {
+  function costoCambios(jugadorOriginal, cambios, rules, ctx) {
     const r = rules || DEFAULT_RULES;
     const lineas = [];
     let total = 0;
     const p = jugadorOriginal || {};
     const c = cambios || {};
+    // ctx (EMP-80-2, opcional): { perfil: 'base'|'suscriptor'|null, cfg: reglas.emparejar }.
+    // Con perfil, el tramo dentro de su rango es gratis. Sin ctx, el costo es el de siempre.
+    const perfil = ctx && ctx.perfil ? ctx.perfil : null;
+    const cfgEmp = ctx ? ctx.cfg : null;
 
     if (c.atributos) {
       Object.keys(c.atributos).forEach(function (campo) {
         const de = (p.atributos || {})[campo];
         const a = c.atributos[campo];
         if (a === de) return;
-        const costo = a > de ? costRange99(de, a, r) : 0;
+        const costo = a > de
+          ? (perfil ? costoAtributoConPerfil(campo, de, a, perfil, cfgEmp, r) : costRange99(de, a, r))
+          : 0;
+        const gratis = a > de && perfil ? tramoGratis(campo, de, a, perfil, cfgEmp) : 0;
         if (costo > 0) total += costo;
-        lineas.push({ campo: campo, de: de, a: a, costo: costo });
+        lineas.push({ campo: campo, de: de, a: a, costo: costo, gratis: gratis });
       });
     }
     if (c.escala8) {
@@ -523,6 +554,18 @@
     return Object.keys(habilidades || {}).some(k => k.charAt(0) !== '_' && habilidades[k] === true);
   }
 
+  /* EMP-80-2 · perfil del jugador. `fijado` es el valor guardado en pes5_perfiles para la temporada:
+     'base' | 'suscriptor' | 'ninguno'. Sin valor fijado (null/undefined), se usa el calculo en vivo
+     (perfilEmparejar). Un perfil fijado no se recalcula aunque cambien las stats. */
+  const PERFIL_FIJADO_VALORES = ['base', 'suscriptor', 'ninguno'];
+  function perfilParaJugador(jugador, cfg, fijado) {
+    if (fijado == null) return perfilEmparejar(jugador, cfg);
+    if (fijado === 'base' || fijado === 'suscriptor') return rangoEmparejar(cfg, fijado) ? fijado : null;
+    return null;
+  }
+  // Valor que se guarda en pes5_perfiles para un perfil calculado (null -> 'ninguno').
+  function valorPerfilFijado(perfil) { return perfil === 'base' || perfil === 'suscriptor' ? perfil : 'ninguno'; }
+
   const LESION_MSG = (l) => 'La resistencia a lesiones no es la exigida (' + l + ').';
   const ESCALA_MSG = (e) => 'Los parámetros 1-8 no están en el valor exigido (' + e + ').';
   const LESION_DESCONOCIDA_MSG = 'La resistencia a lesiones del jugador no se reconoce: no se puede emparejar.';
@@ -579,11 +622,26 @@
      ni parametros 1-8. Costo 0 (no pasa por costoCambios ni genera coins).
      Devuelve { atributos: {campo: max}, lineas: [{campo, de, a}], total: 0, perfil, motivo }.
      Si el jugador no es elegible: atributos vacio y motivo. */
-  function cambiosEmparejar(jugador, cfg) {
+  function cambiosEmparejar(jugador, cfg, fijado) {
     const out = { atributos: {}, lineas: [], total: 0, perfil: null, motivo: null };
-    const perfil = perfilEmparejar(jugador, cfg);
-    if (!perfil) { out.motivo = motivoSinEmparejar(jugador, cfg) || 'No se puede emparejar este jugador.'; return out; }
-    const max = rangoEmparejar(cfg, perfil).max;
+    const fijo = fijado != null;
+    const perfil = fijo ? perfilParaJugador(jugador, cfg, fijado) : perfilEmparejar(jugador, cfg);
+    if (!perfil) {
+      out.motivo = fijo
+        ? (fijado === 'ninguno' ? 'Este jugador no tiene perfil de emparejar fijado.' : 'El perfil fijado no está activo en Reglas.')
+        : (motivoSinEmparejar(jugador, cfg) || 'No se puede emparejar este jugador.');
+      return out;
+    }
+    const rango = rangoEmparejar(cfg, perfil);
+    if (fijo) {
+      // Con perfil fijado, emparejar es costo 0: solo vale si todas las stats ya estan dentro del rango.
+      const fuera = _statsNumEmp(jugador.atributos).filter(([, v]) => v < rango.min || v > rango.max);
+      if (fuera.length) {
+        out.motivo = 'Hay stats fuera del rango del perfil ' + perfil + ' (' + fuera.map(([k, v]) => k + ' ' + v).join(', ') + '): no se puede emparejar sin costo.';
+        return out;
+      }
+    }
+    const max = rango.max;
     _statsNumEmp(jugador.atributos).forEach(([campo, de]) => {
       if (de >= max) return;
       out.atributos[campo] = max;
@@ -598,10 +656,10 @@
      cada valor tiene que ser EXACTAMENTE lo que da cambiosEmparejar sobre el save actual. Si el save
      cambio desde que se armo el pedido, se rechaza (plantilla desactualizada). Nunca supera el maximo
      del perfil ni el tope de la temporada. */
-  function motivoRechazoEmparejar(jugadorActual, cambios, cfg, tope) {
+  function motivoRechazoEmparejar(jugadorActual, cambios, cfg, tope, fijado) {
     const c = cambios || {};
     if (Object.keys(c).some(k => k !== 'atributos')) return 'el emparejar solo puede tocar atributos';
-    const esp = cambiosEmparejar(jugadorActual, cfg);
+    const esp = cambiosEmparejar(jugadorActual, cfg, fijado);
     if (!esp.perfil) return esp.motivo || 'el jugador ya no es elegible para emparejar';
     const atr = c.atributos || {};
     const campos = Object.keys(atr);
@@ -978,6 +1036,11 @@
     motivoSinEmparejar: motivoSinEmparejar,
     motivoRechazoEmparejar: motivoRechazoEmparejar,
     rangoEmparejar: rangoEmparejar,
+    tramoGratis: tramoGratis,
+    costoAtributoConPerfil: costoAtributoConPerfil,
+    perfilParaJugador: perfilParaJugador,
+    valorPerfilFijado: valorPerfilFijado,
+    PERFIL_FIJADO_VALORES: PERFIL_FIJADO_VALORES,
     validarEmparejar: validarEmparejar,
     FICHAJE_EMPAREJAR_MSG: FICHAJE_EMPAREJAR_MSG,
     puedePagar: puedePagar,

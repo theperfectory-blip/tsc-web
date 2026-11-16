@@ -99,6 +99,106 @@ function _nombreTemporadaCobro(){
   return s ? getSeasonName(s) + ' (temporada ' + n + ')' : 'temporada ' + n;
 }
 
+/* EMP-80-2 · perfiles fijados por temporada y jugador: pes5_perfiles/{temporada}_{teamId} = { perfiles: {[registro]: 'base'|'suscriptor'|'ninguno'} }.
+   Solo el admin escribe. Sin valor fijado, el perfil es el calculo en vivo (perfilEmparejar). */
+let PERFILES_TOOL = null; // { [docId]: { [registro]: valor } } cargado desde Firestore; null = todavia no leido
+function _docPerfiles(teamId, season){ return String(season) + '_' + String(teamId); }
+async function _cargarPerfilesTool(){
+  const snap = await firebase.firestore().collection('pes5_perfiles').get();
+  const mapa = {};
+  snap.forEach(d => { mapa[d.id] = (d.data() && d.data().perfiles) || {}; });
+  PERFILES_TOOL = mapa;
+  return mapa;
+}
+function _fijadoTool(teamId, registro){
+  if (!PERFILES_TOOL || teamId == null || registro == null) return null;
+  const m = PERFILES_TOOL[_docPerfiles(teamId, _temporadaCobro())];
+  const v = m ? m[String(registro)] : undefined;
+  return v == null ? null : v;
+}
+// Perfil con el que se cobra un jugador del save del equipo: fijado si existe, si no el calculo en vivo.
+function _perfilTool(teamId, j){
+  const cfg = _emparejarCfg();
+  if (!cfg || !j) return null;
+  const fijado = _fijadoTool(teamId, j.id);
+  if (fijado != null) return YUNACOINS_RULES.perfilParaJugador(null, cfg, fijado);
+  return YUNACOINS_RULES.perfilEmparejar(j, cfg);
+}
+// Costo de una mejora de un jugador del save con su perfil (mismo calculo que el presidente).
+function _costoTool(teamId, j, cambios){
+  return YUNACOINS_RULES.costoCambios(j, cambios, YC_RULES, { perfil: _perfilTool(teamId, j), cfg: _emparejarCfg() });
+}
+// Calcula y guarda el perfil de los jugadores del club que todavia no lo tienen fijado para la temporada de cobro.
+// No pisa los fijados. Jugadores sin perfil (fichaje, leyenda) quedan en 'ninguno'.
+async function _completarPerfilesEquipo(teamId, clubIdx){
+  const cfg = _emparejarCfg();
+  if (!cfg || !PLANO || clubIdx == null || teamId == null) return { agregados: 0 };
+  const season = _temporadaCobro();
+  const id = _docPerfiles(teamId, season);
+  const ref = firebase.firestore().collection('pes5_perfiles').doc(id);
+  const snap = await ref.get();
+  const actual = snap.exists && snap.data().perfiles ? Object.assign({}, snap.data().perfiles) : {};
+  const nuevos = {};
+  PES5_EDITOR.leerPlantillaEquipo(PLANO, clubIdx).forEach(reg => {
+    if (actual[String(reg)] != null) return;
+    const j = PES5_EDITOR.leerJugadorCompleto(PLANO, reg);
+    nuevos[String(reg)] = YUNACOINS_RULES.valorPerfilFijado(YUNACOINS_RULES.perfilEmparejar(j, cfg));
+  });
+  const n = Object.keys(nuevos).length;
+  if (n){
+    const perfiles = Object.assign({}, actual, nuevos);
+    await ref.set({ season: season, teamId: String(teamId), perfiles: perfiles,
+      fijadoEn: firebase.firestore.FieldValue.serverTimestamp(), fijadoPor: AUTH.user ? AUTH.user.email : null }, { merge: true });
+    PERFILES_TOOL = PERFILES_TOOL || {};
+    PERFILES_TOOL[id] = perfiles;
+  }
+  return { agregados: n };
+}
+// Boton «Fijar perfiles de la temporada» (plantilla del club abierto).
+async function ptFijarPerfiles(){
+  const team = equipoTSCActual();
+  if (!team){ showToast('El club no está vinculado a un equipo TSC.', 'error'); return; }
+  try {
+    const r = await _completarPerfilesEquipo(team.id, team.pes5ClubIdx);
+    showToast(r.agregados ? `Perfiles fijados: ${r.agregados} jugador(es) nuevos.` : 'Todos los jugadores ya tenían perfil fijado.');
+    renderPlantillaBody();
+  } catch (e) {
+    console.error('[pes5-tool] fijar perfiles', e);
+    showToast('No se pudieron fijar los perfiles: ' + (e.message || e), 'error');
+  }
+}
+// Override del admin: cambia el perfil fijado de un jugador (base | suscriptor | ninguno).
+async function ptPerfilOverride(registro, el){
+  const team = equipoTSCActual();
+  const valor = el ? el.value : '';
+  if (!team || !YUNACOINS_RULES.PERFIL_FIJADO_VALORES.includes(valor)) return;
+  const season = _temporadaCobro();
+  const id = _docPerfiles(team.id, season);
+  try {
+    await firebase.firestore().collection('pes5_perfiles').doc(id).set({ season: season, teamId: String(team.id),
+      perfiles: { [String(registro)]: valor }, fijadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      fijadoPor: AUTH.user ? AUTH.user.email : null }, { merge: true });
+    PERFILES_TOOL = PERFILES_TOOL || {};
+    PERFILES_TOOL[id] = Object.assign({}, PERFILES_TOOL[id] || {}, { [String(registro)]: valor });
+    showToast('Perfil de emparejar de la temporada: ' + valor);
+    cerrarEditorJugador();
+    renderPlantillaBody();
+  } catch (e) {
+    console.error('[pes5-tool] override perfil', e);
+    showToast('No se pudo guardar el perfil: ' + (e.message || e), 'error');
+  }
+}
+// Select del editor del jugador: perfil fijado para la temporada (o «sin fijar» si no hay).
+function _selectPerfilHTML(registro){
+  if (!_emparejarCfg()) return '';
+  const team = equipoTSCActual();
+  if (!team) return '';
+  const fijado = _fijadoTool(team.id, registro);
+  const opt = (v, t) => `<option value="${v}"${fijado === v ? ' selected' : ''}>${t}</option>`;
+  return `<select class="pt-ed-perfil" data-onchange="ptPerfilOverride(${Number(registro)}, this)" title="Perfil de emparejar fijado para la temporada: corrige el cobro gratis">
+    ${fijado == null ? '<option value="">Perfil: sin fijar</option>' : ''}${opt('base', 'Perfil: Base')}${opt('suscriptor', 'Perfil: Suscriptor')}${opt('ninguno', 'Perfil: ninguno')}</select>`;
+}
+
 async function cargarReglasFirestore(){
   try {
     const snap = await firebase.firestore().collection('pes5_config').doc('reglas').get();
@@ -191,7 +291,7 @@ function repartoPendienteEquipo(){
   const porJugador = {};
   (PLANTILLA_ACTUAL || []).forEach(j => {
     if (!CAMBIOS_PENDIENTES[j.id]) return;
-    const { total, lineas } = YUNACOINS_RULES.costoCambios(j, CAMBIOS_PENDIENTES[j.id], YC_RULES);
+    const { total, lineas } = _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id]);
     if (total <= 0) return;
     const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
     const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
@@ -209,7 +309,7 @@ function repartoPendienteEquipo(){
 // Costo de los cambios pendientes de UN jugador (para la linea a linea del
 // panel). cambios puede no existir todavia (jugador sin tocar) -> costo 0.
 function costoJugador(j){
-  return YUNACOINS_RULES.costoCambios(j, CAMBIOS_PENDIENTES[j.id] || {}, YC_RULES);
+  return _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id] || {});
 }
 // Costo total (sin desglose) de TODOS los jugadores con cambios pendientes
 // — atajo sobre repartoPendienteEquipo() para los lugares que solo
@@ -730,6 +830,10 @@ function renderPlantillaTab(){
       <div class="pt-panel-msg pt-panel-err" id="pl-error-panel" style="display:none;"></div>
       <div class="pt-panel-msg pt-panel-ok" id="pl-success-panel" style="display:none;"></div>
     </div>`;
+  // EMP-80-2: leer los perfiles fijados de la temporada y repintar el cuerpo cuando lleguen.
+  if (!PERFILES_TOOL){
+    _cargarPerfilesTool().then(() => { if (PLANTILLA_ACTUAL) renderPlantillaBody(); }).catch(e => console.warn('[pes5-tool] perfiles fijados', e));
+  }
   // Si ya habia un club abierto (volvimos a esta pestana), restaurarlo con sus cambios pendientes.
   if (PLANTILLA_INDICE != null && PLANTILLA_ACTUAL){
     const sel = document.getElementById('pl-team-select');
@@ -805,7 +909,13 @@ function renderPlantillaBody(){
       </tr>`;
   }).join('');
 
-  el.innerHTML = `
+  // EMP-80-2: boton para fijar los perfiles de emparejar de la temporada (solo si el club es de un equipo TSC).
+  const _eqFijar = equipoTSCActual();
+  const barraPerfiles = (_emparejarCfg() && _eqFijar)
+    ? `<div class="pt-perfiles-bar"><span class="pt-perfiles-txt">Perfiles de emparejar · ${escHtml(_nombreTemporadaCobro())}</span>
+        <button class="btn btn-sm" data-onclick="ptFijarPerfiles()" title="Calcula el perfil de los jugadores que todavía no lo tienen. No pisa los fijados.">Fijar perfiles de la temporada</button></div>`
+    : '';
+  el.innerHTML = barraPerfiles + `
     <div class="tbl-wrap pt-tbl-wrap">
       <table class="tbl pt-plantilla-table">
         <thead><tr>
@@ -897,7 +1007,7 @@ async function abrirEditorJugador(id){
   ov.innerHTML = `
     <div class="pt-ed-box">
       <div class="pt-ed-hd"><span>${escHtml(j.nombre)}</span>
-        ${_btnEmparejarHTML(id)}
+        ${_btnEmparejarHTML(id)}${_selectPerfilHTML(id)}
         <button class="pt-ed-close" data-onclick="ptCerrarEditorJugador()" title="Cerrar">${ICN.x}</button></div>
       ${_casillaGratisHTML(equipoTSCActual(), 'ed')}
       <div id="pt-ed-host" class="pt-ed-host"></div>
@@ -1264,12 +1374,12 @@ function _emparejarDe(registro){
   if (!PLANO || registro == null) return vacio;
   const cfg = _emparejarCfg();
   const j = PES5_EDITOR.leerJugadorCompleto(PLANO, registro);
-  const r = YUNACOINS_RULES.cambiosEmparejar(j, cfg);
+  const r = YUNACOINS_RULES.cambiosEmparejar(j, cfg, _fijadoTool((equipoTSCActual() || {}).id, registro));
   const cambios = { atributos: r.atributos };
   // Defensa previa a escribir: la misma que usa la aprobación de un pedido, con el tope de la temporada.
   // Si no hay perfil, el motivo lo dice cambiosEmparejar; si lo hay, lo dice motivoRechazoEmparejar.
   const motivo = r.perfil
-    ? YUNACOINS_RULES.motivoRechazoEmparejar(j, cambios, cfg, _topeAtributoVigente())
+    ? YUNACOINS_RULES.motivoRechazoEmparejar(j, cambios, cfg, _topeAtributoVigente(), _fijadoTool((equipoTSCActual() || {}).id, registro))
     : (r.motivo || 'Este jugador no puede emparejarse.');
   return {
     perfil: r.perfil,
@@ -1349,6 +1459,11 @@ async function _registrarEmparejarAdminSeguro(team, op){
 
 async function escribirAlSave(op){
   const logEl = document.getElementById('pl-log');
+  // EMP-80-2: el cobro usa los perfiles fijados vigentes (si no se pudieron leer, se usa el calculo en vivo y se avisa).
+  if (!PERFILES_TOOL){
+    try { await _cargarPerfilesTool(); }
+    catch (e) { showToast('No se pudieron leer los perfiles fijados: ' + (e.message || e), 'error'); return; }
+  }
   // Cada intento nuevo arranca limpio de AMBOS paneles — si el intento
   // anterior habia terminado bien y este vuelve a fallar (o viceversa), no
   // deben quedar un exito y un error persistentes superpuestos.
@@ -1601,7 +1716,7 @@ function _costoEstimadoPedidos(pedidos){
     if (!team || team.pes5ClubIdx == null || team.pes5ClubIdx !== p.pes5ClubIdx) continue;
     if (!PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx).includes(p.registro)) continue;
     const j = PES5_EDITOR.leerJugadorCompleto(PLANO, p.registro);
-    total += YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES).total;
+    total += _costoTool(team.id, j, p.cambios).total;
   }
   return total;
 }
@@ -1627,6 +1742,8 @@ async function aplicarPedidosSeleccionados(){
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
+  // EMP-80-2: perfiles fijados al día antes de cobrar (la misma funcion que usa el presidente).
+  try { await _cargarPerfilesTool(); } catch (e) { showToast('No se pudieron leer los perfiles fijados: ' + (e.message || e), 'error'); return; }
   // Slice 2.0-4 (4.D): si aplicar cobra algo, con la lista de Loyalty vencida se pide confirmacion explicita
   if (window.PES5_YUNACOINS && !(await window.PES5_YUNACOINS.guardiaCobro(log, _costoEstimadoPedidos(pedidos)))){ log('Aplicacion cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
   if (!confirm(`Se van a aplicar ${pedidos.length} pedido(s) al save y cobrar a cada equipo. ¿Confirmar?`)) return;
@@ -1726,18 +1843,19 @@ async function aplicarPedidosSeleccionados(){
         // Perfil y maximo se recalculan con las reglas actuales y el save actual (no se confia en el pedido).
         const cfgE = _emparejarCfg();
         const jE = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
-        const perfilE = YUNACOINS_RULES.perfilEmparejar(jE, cfgE);
+        const fijadoE = _fijadoTool(team.id, p.registro);
+        const perfilE = fijadoE != null ? YUNACOINS_RULES.perfilParaJugador(null, cfgE, fijadoE) : YUNACOINS_RULES.perfilEmparejar(jE, cfgE);
         if (!perfilE){ rechazados.push({ pedido: p, motivo: YUNACOINS_RULES.motivoSinEmparejar(jE, cfgE) || 'el jugador ya no es elegible para emparejar' }); continue; }
         const nivelCfg = YUNACOINS_RULES.rangoEmparejar(cfgE, perfilE).max;
         if (p.perfil !== perfilE || p.nivel !== nivelCfg){ rechazados.push({ pedido: p, motivo: 'el perfil o el nivel cambió desde el pedido (pedido ' + (p.perfil || '—') + ' ' + p.nivel + ', ahora ' + perfilE + ' ' + nivelCfg + ')' }); continue; }
-        const motivoE = YUNACOINS_RULES.motivoRechazoEmparejar(jE, p.cambios, cfgE, topeTemporada);
+        const motivoE = YUNACOINS_RULES.motivoRechazoEmparejar(jE, p.cambios, cfgE, topeTemporada, fijadoE);
         if (motivoE){ rechazados.push({ pedido: p, motivo: motivoE }); continue; }
         try {
           PES5_EDITOR.escribirJugadorCompleto(copia, p.registro, p.cambios);
         } catch (e) {
           rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
         }
-        const lineasE = YUNACOINS_RULES.cambiosEmparejar(jE, cfgE).lineas;
+        const lineasE = YUNACOINS_RULES.cambiosEmparejar(jE, cfgE, fijadoE).lineas;
         aplicados.push({ pedido: p, team, info: {
           pedidoId: p._id, playerId: p.registro, playerName: jE.nombre, subscriber: !!jE.subscriber,
           total: 0, lineas: lineasE, fromGeneral: 0, fromSub: 0, emparejar: true, nivel: nivelCfg,
@@ -1758,7 +1876,13 @@ async function aplicarPedidosSeleccionados(){
       const cambioM = PES5_PLANTILLA.cambiosContraSave(jPub, jSave, p.cambios);
       if (cambioM){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioM.campo + ' era ' + cambioM.era + ', ahora ' + cambioM.ahora }); continue; }
       const j = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
-      const { total, lineas } = YUNACOINS_RULES.costoCambios(j, p.cambios, YC_RULES);
+      const { total, lineas } = _costoTool(team.id, j, p.cambios);
+      // EMP-80-2: el pedido tiene que costar lo mismo que hoy con la misma funcion (tramo gratis incluido).
+      // Un pedido armado con otra tarifa se rechaza y el presidente lo arma de nuevo.
+      if (p.totalCost != null && Number(p.totalCost) !== total){
+        rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + total.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
+        continue;
+      }
       const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada);
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
       const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
@@ -1952,6 +2076,11 @@ async function publicarPlantillas(ids){
     const saveHash = await _hashPlano();
     for (const t of equipos){
       const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
+      // EMP-80-2: al publicar, los jugadores nuevos (fichajes) quedan con su perfil; los fijados no se tocan.
+      try {
+        const rp = await _completarPerfilesEquipo(t.id, t.pes5ClubIdx);
+        if (rp.agregados) linea(`${t.name}: ${rp.agregados} perfil(es) de emparejar fijados`, 'ok');
+      } catch (e) { linea(`${t.name}: no se fijaron los perfiles: ${e.message || e}`, 'err'); }
       // 2.0-6.H2: sin cambios no se reescribe (publicadoEn queda igual).
       const refPlantilla = firebase.firestore().collection('pes5_plantillas').doc(String(t.id));
       const previa = await refPlantilla.get();
@@ -2298,6 +2427,8 @@ async function guardarReglas(){
 window.ptOcultarErrorEscritura = _ocultarErrorEscritura;
 window.ptOcultarExitoEscritura = _ocultarExitoEscritura;
 window.ptAbrirEditorJugador = abrirEditorJugador;
+window.ptFijarPerfiles = ptFijarPerfiles;
+window.ptPerfilOverride = ptPerfilOverride;
 window.ptEmparejarJugador = emparejarJugadorAdmin;
 window.ptCerrarEmparejar = cerrarEmparejar;
 window.ptConfirmarEmparejar = confirmarEmparejar;
