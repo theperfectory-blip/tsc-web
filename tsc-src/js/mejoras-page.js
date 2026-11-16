@@ -176,6 +176,7 @@ async function renderAuthUI(){
     const topeExtra = await cargarTopeExtraEquipo(AUTH.teamId); // {extra, motivo}: el aviso lo muestra aparte
     APP.extra = topeExtra.extra; APP.motivo = topeExtra.motivo;
     RULES = YUNACOINS_RULES.reglasConExtra(RULES, topeExtra.extra);
+    TOPE_TEMPORADA = await cargarTopeTemporada();
     // Slice D2: recalcular el presupuesto disponible (topes - gastado - pedidos pendientes)
     await recalcularPresupuestoReal();
   }
@@ -2252,6 +2253,8 @@ function adjustMain(key,delta){
   const cur = APP.draft.stats[key];
   if(delta>0){
     if(cur>=99){ renderRows(); return; }
+    const topeM = motivoTopeSubida(p.stats[key], cur+1);
+    if(topeM){ showMiniToast(topeM); renderRows(); return; }
     if(!canAfford(bandCost99(cur+1))){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.stats[key] = cur+1;
   }else{
@@ -2269,6 +2272,10 @@ function adjustSec(key,delta){
   const max = def.sc===99 ? 99 : 8;
   if(delta>0){
     if(cur>=max){ renderRows(); return; }
+    if(def.sc===99){
+      const topeM = motivoTopeSubida(p.sec[key], cur+1);
+      if(topeM){ showMiniToast(topeM); renderRows(); return; }
+    }
     const nextCost = def.sc===99 ? bandCost99(cur+1) : RULES.scale8Cost;
     if(!canAfford(nextCost)){ showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return; }
     APP.draft.sec[key] = cur+1;
@@ -2365,18 +2372,44 @@ function starSvg(on){
 
 /* ================= render: filas por pagina ================= */
 
+/* PES5-TOPE-1: tope de atributos (0-99) de la temporada actual del juego. null = sin tope. */
+let TOPE_TEMPORADA = null;
+
+async function cargarTopeTemporada(){
+  try {
+    const seasons = await dbGetAll('seasons');
+    const info = YUNACOINS_RULES.temporadaActualDelJuego(seasons, STATE.season);
+    return info ? YUNACOINS_RULES.topeAtributo(info.ordinal, RULES.topesAtributo) : null;
+  } catch(e) {
+    console.warn('[mejoras] no se pudo leer el tope de temporada', e);
+    return null;
+  }
+}
+
+/* Mensaje si subir de `original` a `nuevo` supera el tope de temporada; null si está permitido.
+   Un atributo que ya está por encima del tope (leyenda) conserva su valor, pero no sube. */
+function motivoTopeSubida(original, nuevo){
+  if(TOPE_TEMPORADA==null || typeof original!=='number' || !(nuevo > original) || !(nuevo > TOPE_TEMPORADA)) return null;
+  return original >= TOPE_TEMPORADA
+    ? 'Tope de temporada ' + TOPE_TEMPORADA + ': este atributo ya está en ' + original + ' y no puede subir.'
+    : 'Tope de temporada ' + TOPE_TEMPORADA + ': no puede pasar de ' + TOPE_TEMPORADA + '.';
+}
+
 function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affordNext,costSoFar){
   const color = colorFn(value);
   const pct = Math.round(value/max*100);
   const decDisabled = locked || value<=(ADMIN_EMBED ? (max===8 ? 1 : 0) : min);
-  const incDisabled = locked || value>=max || !affordNext;
+  // PES5-TOPE-1: el tope de temporada bloquea subir (y muestra el motivo en la fila)
+  const topeM = motivoTopeSubida(min, value+1);
+  const incDisabled = locked || value>=max || !affordNext || !!topeM;
   const sel = APP.hint===desc;
   const cambiada = value !== min; // min = valor original del jugador: si cambio, la fila se resalta
   const tono = cambiada ? 'var(--gold)' : color; // fila cambiada: valor y barra en dorado
   const costBadge = costSoFar>0 ? `<span class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</span>` : '';
   const viejo = cambiada ? `<span class="ep-rold">${min}</span>` : '';
   // la descripcion vive dentro de la fila: la del atributo elegido o la de un cambio pendiente
-  const detalle = (sel || cambiada) ? `<div class="ep-rdesc">${escHtml(desc)}</div>` : '';
+  const aviso = topeM ? `<div class="ep-rdesc" style="color:var(--gold);">${escHtml(topeM)}</div>` : '';
+  const detalle = ((sel || cambiada) ? `<div class="ep-rdesc">${escHtml(desc)}</div>` : '') + aviso;
   return `<div class="ep-row ${sel?'sel':''} ${cambiada?'chg':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
     <div class="ep-rmain">
       <div class="ep-rhead"><span class="ep-rlabel">${escHtml(label)}</span>${costBadge}</div>
@@ -2578,6 +2611,7 @@ function renderAdminBar(){
 
 function iniciarModoAdmin(m){
   RULES = m.reglas;
+  TOPE_TEMPORADA = (typeof m.topeAtributo === 'number') ? m.topeAtributo : null;
   EQUIPO_TSC = m.equipo;
   PLAYERS = (m.jugadores || []).map(j => jugadorDesdePlantillaReal(j, { teamName: m.equipo.name }));
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p => [p.id, p]));
