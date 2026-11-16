@@ -1815,7 +1815,7 @@ function _bloqueTopesExtraHTML(){
   }).join('');
   return `
     <div class="pt-fieldgrp" style="margin-bottom:18px;">
-      <div class="pt-fieldgrp-title">Tope extra por equipo · temporada actual</div>
+      <div class="pt-fieldgrp-title">Tope extra por equipo · temporada activa</div>
       <div style="font-size:12px;color:var(--txt3);margin-bottom:10px;">Premio para campeones o equipos con buen desempeño: se suma al tope general solo para ese equipo y solo esta temporada. No da YunaCoins: el equipo paga con su saldo.</div>
       ${filas ? `<table class="tbl" style="width:100%;margin-bottom:12px;">
         <thead><tr><th>Equipo</th><th style="text-align:right;">Extra</th><th style="text-align:right;">Tope total</th><th>Motivo</th><th></th></tr></thead>
