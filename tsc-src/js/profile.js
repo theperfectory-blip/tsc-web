@@ -1440,7 +1440,7 @@ async function _renderClubDossierBody(team, publicView=false){
     // a "si entra sin romper el no-scroll". Compactado también el próximo
     // partido a una sola fila (ver reporte para las medidas exactas).
     bd += `<div class="dossier-section dossier-section-card">
-      <span class="pp-line-label">Temporada actual</span>
+      <span class="pp-line-label">Temporada en vista</span>
       <div class="dossier-spots">
         ${seasonSpots.spots.map(s => `
           <div class="dossier-spot-row">

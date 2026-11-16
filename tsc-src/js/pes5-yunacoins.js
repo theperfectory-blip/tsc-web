@@ -49,9 +49,16 @@ window.PES5_YUNACOINS = (() => {
     return texto && texto.trim() ? R().parsearListaLoyalty(texto) : null;
   }
 
+  // COBRO-1: temporada en la que se registran los saldos de Loyalty (activa no archivada; si no, STATE.season).
+  async function temporadaCobro(){
+    const seasons = await dbGetAll('seasons');
+    const archivadas = seasons.map(s => Number(s.number)).filter(n => dbIsArchivedSeason(n));
+    return { n: R().temporadaDeCobro(seasons, STATE.season, archivadas), seasons, archivadas };
+  }
+
   // Lee todo lo que la vista necesita. No escribe nada.
   async function calcular(){
-    const temporada = STATE.season;
+    const { n: temporada } = await temporadaCobro();
     const [teams, movs, sync] = await Promise.all([
       dbGetAll('teams'),
       dbGetAll('coins', c => c.season === temporada),
@@ -279,8 +286,16 @@ window.PES5_YUNACOINS = (() => {
     const lote = foto.lote;
     const en = new Date().toISOString();
     const por = emailActual();
+    const cobro = await temporadaCobro();
+    const v = R().validarTemporadaCobro(cobro.seasons, cobro.n, cobro.archivadas);
+    if (!v.ok){
+      // COBRO-1: no se escribe nada si la temporada de cobro no admite movimientos
+      showToast(`No se aplicaron los saldos de Loyalty: ${v.motivo}.`, 'error');
+      return;
+    }
+    const temporadaCobroN = cobro.n;
     const teams = await dbGetAll('teams');
-    const movs = await dbGetAll('coins', m => m.season === STATE.season);
+    const movs = await dbGetAll('coins', m => m.season === temporadaCobroN);
     const marca = { estado: 'sincronizado', lote: lote, en: en };
     const aplicados = [];
     const excluidos = [];
@@ -296,7 +311,7 @@ window.PES5_YUNACOINS = (() => {
         ops.push({ type: 'add', store: 'coins', data: {
           teamId: team.id, teamName: team.name, mode: 'sync', amount: Math.abs(saldoNuevo - saldoAntes),
           reason: 'Loyalty', note: 'Saldo sincronizado con Loyalty',
-          before: saldoAntes, after: saldoNuevo, season: STATE.season, date: en, streamlabs: marca,
+          before: saldoAntes, after: saldoNuevo, season: temporadaCobroN, date: en, streamlabs: marca,
         } });
       }
       ops.push({ type: 'set', store: 'teams', data: { ...team, yunacoin: saldoNuevo } });

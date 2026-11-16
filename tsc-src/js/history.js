@@ -174,7 +174,31 @@ async function historyRecordFor(m){
    Resolver dinámicamente los valores de un record (live)
    o devolver tal cual los estáticos (imported).
    ---------------------------------------------------------- */
-async function resolveHistoryRecord(h){
+/* Contexto de lectura en lote para resolver los registros live. Sin él,
+   cada registro hacía dbGet de su match, fase y competición: si el espejo de
+   esas colecciones no estaba abierto, cada dbGet iba directo al servidor
+   (~1.300 lecturas por cambio de filtro). Con dbGetAll el espejo se abre una
+   sola vez y después la resolución es en memoria (0 lecturas). */
+async function _histLoadCtx(){
+  const [matches, phases, competitions, teams, seasons] = await Promise.all([
+    dbGetAll('matches'),
+    dbGetAll('phases'),
+    dbGetAll('competitions'),
+    dbGetAll('teams'),
+    dbGetAll('seasons'),
+  ]);
+  const byId = arr => new Map(arr.map(x => [String(x.id), x]));
+  return {
+    matches: byId(matches),
+    phases: byId(phases),
+    competitions: byId(competitions),
+    teams,
+    teamsById: byId(teams),
+    seasons,
+  };
+}
+
+async function resolveHistoryRecord(h, ctx){
   // Estáticos: salen del JSON ya formateados
   if(h.source==='imported'){
     return {
@@ -193,7 +217,9 @@ async function resolveHistoryRecord(h){
 
   // Live: resolver desde matches/teams/phases
   if(h.source==='live' && h.matchRef){
-    const m = await dbGet('matches', h.matchRef);
+    const m = ctx
+      ? ctx.matches.get(String(h.matchRef))
+      : await dbGet('matches', h.matchRef);
     if(!m){
       return {
         juego: '—', temporada: '—', instancia: '—',
@@ -204,14 +230,23 @@ async function resolveHistoryRecord(h){
       };
     }
 
-    const phase  = m.phaseId ? await dbGet('phases', m.phaseId) : null;
-    const comp   = phase?.compId ? await dbGet('competitions', phase.compId) : null;
+    const phase = m.phaseId
+      ? (ctx ? ctx.phases.get(String(m.phaseId)) : await dbGet('phases', m.phaseId))
+      : null;
+    const comp = phase?.compId
+      ? (ctx ? ctx.competitions.get(String(phase.compId)) : await dbGet('competitions', phase.compId))
+      : null;
     const seasonNumber = m.season ?? comp?.season ?? STATE.season;
     const isCurrentSeason = (seasonNumber === STATE.season);
 
     const resolveTeam = async (ref) => {
       if(Number.isFinite(parseInt(ref))){
-        return await dbGet('teams', parseInt(ref));
+        return ctx
+          ? ctx.teamsById.get(String(parseInt(ref)))
+          : await dbGet('teams', parseInt(ref));
+      }
+      if(ctx){
+        return ctx.teams.find(t => t.name === ref) || null;
       }
       const teams = await dbGetAll('teams', t=>t.name===ref);
       return teams.length ? teams[0] : null;
@@ -219,7 +254,7 @@ async function resolveHistoryRecord(h){
 
     if(isCurrentSeason){
       // Temporada actual: resolver dinámicamente para reflejar renames inmediatamente
-      const seasons = await dbGetAll('seasons');
+      const seasons = ctx ? ctx.seasons : await dbGetAll('seasons');
       const season  = seasons.find(s=>s.number===seasonNumber);
       const teamA   = await resolveTeam(m.teamA);
       const teamB   = await resolveTeam(m.teamB);
@@ -246,7 +281,7 @@ async function resolveHistoryRecord(h){
       };
     }
     // Si no están congelados, resolver una vez y persistir
-    const seasons = await dbGetAll('seasons');
+    const seasons = ctx ? ctx.seasons : await dbGetAll('seasons');
     const season  = seasons.find(s=>s.number===seasonNumber);
     const teamA   = await resolveTeam(m.teamA);
     const teamB   = await resolveTeam(m.teamB);
@@ -404,11 +439,12 @@ function _injectHistHeader(activeIdx){
    Además construye/actualiza window._histTeamLookup con los nombres
    actuales y previousNames de cada equipo, para resolver notas en el render. */
 async function _getResolvedRecords(){
-  const [staticRows, idbLive, allTeams] = await Promise.all([
+  const [staticRows, idbLive, ctx] = await Promise.all([
     loadStaticHistory(),
     dbGetAll('matchHistory', h=>h.source==='live'),
-    dbGetAll('teams'),
+    _histLoadCtx(),
   ]);
+  const allTeams = ctx.teams;
 
   // Lookup teamLowerCaseName → {currentName, previousNames, teamId}
   const lookup = new Map();
@@ -427,7 +463,7 @@ async function _getResolvedRecords(){
   _histTeams = allTeams;   // para resolver los buscadores Equipo A / Equipo B
 
   const all = [...staticRows, ...idbLive];
-  const resolved = await Promise.all(all.map(h => resolveHistoryRecord(h)));
+  const resolved = await Promise.all(all.map(h => resolveHistoryRecord(h, ctx)));
   return resolved.map((r, idx) => ({
     ...r,
     id: all[idx].id,
@@ -1250,12 +1286,13 @@ function _classifyOutcomeFIFA(r){
 }
 
 async function _computeHistoricalStandings(){
-  const [staticRows, idbLive, allTeams, seasons] = await Promise.all([
+  const [staticRows, idbLive, ctx] = await Promise.all([
     loadStaticHistory(),
     dbGetAll('matchHistory', h=>h.source==='live'),
-    dbGetAll('teams'),
-    dbGetAll('seasons'),
+    _histLoadCtx(),
   ]);
+  const allTeams = ctx.teams;
+  const seasons = ctx.seasons;
 
   // Set de números de temporada finalizadas (los lives de seasons activas NO cuentan)
   const finishedSet = new Set(seasons.filter(s=>s.status==='finished').map(s=>s.number));
@@ -1280,7 +1317,7 @@ async function _computeHistoricalStandings(){
   }
 
   // Resolver lives: cada uno con su match/phase/comp/season para extraer juego, temporada, equipoA/B
-  const liveResolved = await Promise.all(idbLive.map(h => resolveHistoryRecord(h)));
+  const liveResolved = await Promise.all(idbLive.map(h => resolveHistoryRecord(h, ctx)));
   const liveWithMeta = liveResolved.map((r, idx) => ({
     ...r,
     seasonRef: idbLive[idx].seasonRef,

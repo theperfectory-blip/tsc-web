@@ -850,7 +850,13 @@ window.addEventListener('load', async ()=>{
   try{
     const savedSeasons = await dbGetAll('seasons');
     const savedSeason = parseInt(localStorage.getItem('tsc_season'));
-    if(Number.isFinite(savedSeason) && savedSeasons.some(s=>s.number===savedSeason)){
+    // TEMP-ACTUAL-1: la temporada actual ES la activa (no archivada). Gana siempre sobre
+    // tsc_season, que puede apuntar a una finalizada (p. ej. la T3). Solo sin activa se
+    // respeta lo guardado, como antes.
+    const activaArranque = savedSeasons.find(s=>s.status==='active' && !(typeof dbIsArchivedSeason==='function' && dbIsArchivedSeason(s.number)));
+    if(activaArranque){
+      STATE.season = activaArranque.number;
+    } else if(Number.isFinite(savedSeason) && savedSeasons.some(s=>s.number===savedSeason)){
       STATE.season = savedSeason;
     } else if(savedSeasons.length && !savedSeasons.some(s=>s.number===STATE.season)){
       // Temporada guardada borrada (o sin guardar) y la por defecto (1) no
