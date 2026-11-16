@@ -282,8 +282,9 @@ service cloud.firestore {
                           && request.resource.data.perfil in ['base', 'suscriptor']
                           && request.resource.data.nivel is int
                           && request.resource.data.nivel >= 1
-                          && ((request.resource.data.perfil == 'base' && request.resource.data.nivel <= emparejarMaxDe('base'))
-                              || (request.resource.data.perfil == 'suscriptor' && request.resource.data.nivel <= emparejarMaxDe('suscriptor')))
+                          // El nivel es EXACTAMENTE el maximo del perfil (el presidente siempre pide al maximo).
+                          && ((request.resource.data.perfil == 'base' && request.resource.data.nivel == emparejarMaxDe('base'))
+                              || (request.resource.data.perfil == 'suscriptor' && request.resource.data.nivel == emparejarMaxDe('suscriptor')))
                           && request.resource.data.cambios.keys().hasOnly(['atributos'])
                           && request.resource.data.cambios.atributos.size() <= 30
                           && request.resource.data.playerName.size() <= 100

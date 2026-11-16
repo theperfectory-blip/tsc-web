@@ -211,6 +211,8 @@ async function main(){
     await op.create(`pedidos_pes5/${nuevoId('emp-susc')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 85, cambios: { atributos: { Ataque: 85 } }, lines: [{ label: 'Ataque', from: 84, to: 85 }] }), AS.pres5));
   await expect('emparejar: NO pide Base por encima de su máximo (81 > 80)', 403,
     await op.create(`pedidos_pes5/${nuevoId('emp-81')}`, emparejar('pres5', 5, { nivel: 81 }), AS.pres5));
+  await expect('emparejar: NO pide Base por debajo de su máximo (79 < 80): el nivel es exactamente el máximo', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-79')}`, emparejar('pres5', 5, { nivel: 79 }), AS.pres5));
   await expect('emparejar: NO pide Suscriptor a 86 (> 85)', 403,
     await op.create(`pedidos_pes5/${nuevoId('emp-86')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 86 }), AS.pres5));
   await expect('emparejar: NO pide con un perfil que no existe', 403,
