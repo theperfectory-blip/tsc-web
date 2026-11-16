@@ -189,6 +189,65 @@ async function main(){
   await expect('pedidos: presidente NO cancela el pedido ajeno', 403,
     await op.update('pedidos_pes5/pm6', { estado: 'cancelado', canceladoEn: '2026-06-02T00:00:00.000Z' }, AS.pres5));
 
+  // ---- EMP-80-1 · pedidos «emparejar a N» (costo 0) ----
+  // Pedido que escribe solicitarEmparejar() en mejoras-page.js.
+  const emparejar = (uid, teamId, extra = {}) => ({
+    uid, teamId: String(teamId), teamName: 'Club', pes5Club: 'Club', tipo: 'emparejar', pes5ClubIdx: teamId,
+    playerId: 'r1', playerName: 'Juan', registro: 1, dorsal: null, subscriber: false, nivel: 80,
+    cambios: { atributos: { Ataque: 80, Salto: 80 } },
+    lines: [{ label: 'Ataque', from: 79, to: 80 }, { label: 'Salto', from: 40, to: 80 }],
+    totalCost: 0, fromGeneral: 0, fromSub: 0, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
+  });
+  // Sin doc pes5_config/reglas, el tope por defecto es 80.
+  await expect('emparejar: presidente pide emparejar a 80 (costo 0) de su equipo (sin doc de reglas: tope 80)', 200,
+    await op.create(`pedidos_pes5/${nuevoId('emp-ok')}`, emparejar('pres5', 5), AS.pres5));
+  await expect('emparejar: NO pide a un nivel por encima del tope por defecto (85 > 80)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-85')}`, emparejar('pres5', 5, { nivel: 85 }), AS.pres5));
+  await expect('emparejar: NO pide con costo distinto de 0', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-costo')}`, emparejar('pres5', 5, { totalCost: 10 }), AS.pres5));
+  await expect('emparejar: NO descuenta saldo (fromGeneral distinto de 0)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-gen')}`, emparejar('pres5', 5, { fromGeneral: 5 }), AS.pres5));
+  await expect('emparejar: NO pide para el equipo ajeno', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-ajeno')}`, emparejar('pres5', 6), AS.pres5));
+  await expect('emparejar: NO toca escala 1-8 (cambios con mas de atributos)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-escala')}`, emparejar('pres5', 5, { cambios: { atributos: { Ataque: 80 }, escala8: { 'Estabilidad': 5 } } }), AS.pres5));
+  await expect('emparejar: NO agrega campos extra al pedido', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-extra')}`, emparejar('pres5', 5, { hack: 'x' }), AS.pres5));
+  await expect('emparejar: NO se crea sin nivel entero', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-sin-nivel')}`, emparejar('pres5', 5, { nivel: 'ochenta' }), AS.pres5));
+  // El tope sale de pes5_config/reglas.nivelEmparejar cuando el admin lo guarda.
+  await expect('emparejar: admin guarda reglas con nivelEmparejar 85', 200,
+    await op.create('pes5_config/reglas', { nivelEmparejar: 85, maxPositions: 5 }, AS.admin));
+  await expect('emparejar: con tope 85, presidente pide a 85', 200,
+    await op.create(`pedidos_pes5/${nuevoId('emp-85-ok')}`, emparejar('pres5', 5, { nivel: 85 }), AS.pres5));
+  await expect('emparejar: con tope 85, NO pide a 90', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-90')}`, emparejar('pres5', 5, { nivel: 90 }), AS.pres5));
+  await op.del('pes5_config/reglas', AS.admin);
+
+  // ---- EMP-80-1 · pes5_mejoras: registro sin costo que escribe el admin ----
+  const registroEmp = (teamId, extra = {}) => ({
+    tipo: 'emparejar', sinCosto: true, nivel: 80, teamId: String(teamId), teamName: 'Club',
+    playerId: 1, playerName: 'Juan', lineas: [{ campo: 'Ataque', de: 79, a: 80 }],
+    totalCost: 0, season: 1, por: 'admin1@test.dev', uid: 'admin1', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
+  });
+  await expect('registro emparejar: admin escribe el registro de su equipo', 200,
+    await op.create('pes5_mejoras/reg-5-1', registroEmp(5), AS.admin));
+  await expect('registro emparejar: presidente NO escribe el registro', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-pres')}`, registroEmp(5), AS.pres5));
+  await expect('registro emparejar: NO se escribe con costo distinto de 0', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-costo')}`, registroEmp(5, { totalCost: 1 }), AS.admin));
+  await expect('registro emparejar: NO se escribe sin sinCosto true', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-sincosto')}`, registroEmp(5, { sinCosto: false }), AS.admin));
+  await expect('registro emparejar: NO se escribe con un campo extra', 403,
+    await op.create(`pes5_mejoras/${nuevoId('reg-extra')}`, registroEmp(5, { hack: 'x' }), AS.admin));
+  await expect('registro emparejar: presidente lee el registro de su equipo', 200,
+    await op.get('pes5_mejoras/reg-5-1', AS.pres5));
+  await expect('registro emparejar: presidente NO lee el registro de otro equipo', 403,
+    await op.get('pes5_mejoras/reg-5-1', AS.pres6));
+  await expect('registro emparejar: no se edita ni se borra desde la app (admin)', 403,
+    await op.update('pes5_mejoras/reg-5-1', { nivel: 90 }, AS.admin));
+  await expect('registro emparejar: anonimo no lee', 403, await op.get('pes5_mejoras/reg-5-1', AS.anon));
+
   // ---- pes5_plantillas: solo el admin escribe; cada presidente lee la de su equipo ----
   await expect('plantillas: presidente lee la plantilla de su equipo', 200, await op.get('pes5_plantillas/5', AS.pres5));
   await expect('plantillas: presidente NO lee la plantilla ajena', 403, await op.get('pes5_plantillas/6', AS.pres5));

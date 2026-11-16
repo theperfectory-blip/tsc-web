@@ -75,6 +75,7 @@
     budgetSubscribers: 25000,               // bono exclusivo de temporada, solo para jugadores suscriptores
     maxPositions: 5,                        // maximo de posiciones marcadas por jugador (el juego permite hasta 12)
     topesAtributo: [90],                    // tope absoluto de atributos 0-99 por temporada del juego: [0] = 1.ª temporada del juego, [1] = 2.ª, ...; si falta un valor se hereda el último
+    nivelEmparejar: 80,                     // EMP-80-1: nivel al que «Emparejar» sube los atributos por debajo (entero 1-99), sin costo
   };
 
   /* techo superior (inclusive) de cada banda de costo, EXACTO del editor */
@@ -459,6 +460,51 @@
     return null;
   }
 
+  /* EMP-80-1 · «Emparejar a N». Sube a `nivel` cada atributo 0-99 que este por debajo.
+     Nunca baja nada ni toca lo que ya esta en `nivel` o mas arriba. Usa el mismo conjunto
+     de atributos que cobra costoCambios (claves de `atributos`, numericas, sin prefijo '_',
+     que es metadata del save). NO toca escala 1-8, habilidades, lesiones, altura, pie ni
+     posiciones. El costo es SIEMPRE 0: no pasa por costoCambios ni genera coins.
+     Devuelve { atributos: {campo: nivel}, lineas: [{campo, de, a}], total: 0 }. */
+  function cambiosEmparejar(jugador, nivel) {
+    const out = { atributos: {}, lineas: [], total: 0 };
+    if (!Number.isInteger(nivel) || nivel < 1 || nivel > 99) return out;
+    const atr = (jugador && jugador.atributos) || {};
+    Object.keys(atr).forEach(function (campo) {
+      const de = atr[campo];
+      if (campo.charAt(0) === '_' || typeof de !== 'number' || !Number.isFinite(de)) return;
+      if (de >= nivel) return;
+      out.atributos[campo] = nivel;
+      out.lineas.push({ campo: campo, de: de, a: nivel });
+    });
+    return out;
+  }
+
+  /* EMP-80-1 · defensa de un pedido o registro «emparejar». La usan aplicarPedidosSeleccionados
+     (pedido del presidente) y el admin antes de escribir. Devuelve el motivo de rechazo o null.
+     Solo `atributos`; cada valor tiene que ser EXACTAMENTE lo que da cambiosEmparejar sobre el
+     save actual. Si el save cambio desde que se armo el pedido, se rechaza (plantilla
+     desactualizada). Nunca supera `nivel` ni el tope de la temporada. */
+  function motivoRechazoEmparejar(jugadorActual, cambios, nivel, tope) {
+    if (!Number.isInteger(nivel) || nivel < 1 || nivel > 99) return 'nivel de emparejar inválido';
+    const c = cambios || {};
+    if (Object.keys(c).some(k => k !== 'atributos')) return 'el emparejar solo puede tocar atributos';
+    const atr = c.atributos || {};
+    const campos = Object.keys(atr);
+    if (!campos.length) return 'no hay atributos para emparejar';
+    const esperado = cambiosEmparejar(jugadorActual, nivel).atributos;
+    for (const campo of campos) {
+      const v = atr[campo];
+      if (typeof v !== 'number' || !Number.isFinite(v)) return campo + ': valor inválido';
+      if (v > nivel) return campo + ' subiría a ' + v + ' y el nivel de emparejar es ' + nivel;
+      if (typeof tope === 'number' && v > tope) return campo + ' subiría a ' + v + ' y el tope de la temporada es ' + tope;
+      if (esperado[campo] !== v) return campo + ' ya no coincide con lo que hay que emparejar (plantilla desactualizada)';
+    }
+    const faltan = Object.keys(esperado).filter(k => !(k in atr));
+    if (faltan.length) return 'faltan atributos por emparejar (plantilla desactualizada): ' + faltan.join(', ');
+    return null;
+  }
+
   function puedePagar(saldo, total) {
     return (saldo || 0) >= total;
   }
@@ -481,6 +527,8 @@
       if (!entero(r[k])) errores.push(k + ': entero >= 0');
     });
     if (!enteroRango(r.maxPositions, 1, 12)) errores.push('maxPositions debe ser un entero entre 1 y 12');
+    // EMP-80-1: si viene, tiene que ser un nivel de atributo válido. Si falta, normalizarReglas pone 80.
+    if (r.nivelEmparejar !== undefined && !enteroRango(r.nivelEmparejar, 1, 99)) errores.push('nivelEmparejar debe ser un entero entre 1 y 99');
     const topes = r.topesAtributo;
     if (!Array.isArray(topes) || topes.length > 50) errores.push('topesAtributo debe ser una lista de hasta 50 valores (puede estar vacía = sin tope)');
     else {
@@ -562,7 +610,7 @@
   function normalizarReglas(data) {
     const base = JSON.parse(JSON.stringify(DEFAULT_RULES));
     if (!data || typeof data !== 'object') return base;
-    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers', 'maxPositions', 'topesAtributo'];
+    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers', 'maxPositions', 'topesAtributo', 'nivelEmparejar'];
     const candidato = Object.assign({}, base);
     campos.forEach((k) => { if (data[k] !== undefined) candidato[k] = Array.isArray(data[k]) ? data[k].slice() : data[k]; });
     return validarReglas(candidato).length ? base : candidato;
@@ -777,6 +825,8 @@
     evaluarPago: evaluarPago,
     costoCambios: costoCambios,
     motivoRechazoMejora: motivoRechazoMejora,
+    cambiosEmparejar: cambiosEmparejar,
+    motivoRechazoEmparejar: motivoRechazoEmparejar,
     puedePagar: puedePagar,
     validarReglas: validarReglas,
     normalizarReglas: normalizarReglas,

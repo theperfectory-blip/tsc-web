@@ -91,6 +91,21 @@
     return Number.isInteger(num) ? num : null;
   }
 
+  /* EMP-80-1: atributos 0-99 de un jugador del editor (stats + sec no escala), con los
+     nombres del save, para cambiosEmparejar. Es el mismo conjunto que cambiosDesdeEditor
+     manda a `atributos` (escala 1-8 y lesiones quedan fuera). Devuelve {campo: numero}. */
+  function atributosDeEditor(p) {
+    const out = {};
+    const ESCALA8 = { cons: true, cond: true, wff: true, wfa: true };
+    if (p && p.stats) for (const [k, campo] of Object.entries(STAT_MAP)) {
+      if (typeof p.stats[k] === 'number') out[campo] = p.stats[k];
+    }
+    if (p && p.sec) for (const [k, campo] of Object.entries(SEC_MAP)) {
+      if (!ESCALA8[k] && typeof p.sec[k] === 'number') out[campo] = p.sec[k];
+    }
+    return out;
+  }
+
   function cambiosDesdeEditor(original, draft) {
     const c = { atributos: {}, escala8: {}, habilidades: {} };
     const ESCALA8 = { cons: 'Regularidad en el juego', cond: 'Estabilidad', wff: 'Frec. pie malo', wfa: 'Prec. pie malo' };
@@ -309,6 +324,7 @@
     plantillaParaEditor: plantillaParaEditor,
     registroDeId: registroDeId,
     cambiosDesdeEditor: cambiosDesdeEditor,
+    atributosDeEditor: atributosDeEditor,
     aplicarCambiosAlJugador: aplicarCambiosAlJugador,
     canonicoJSON: canonicoJSON,
     contenidoDelEquipo: contenidoDelEquipo,

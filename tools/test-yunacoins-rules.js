@@ -291,5 +291,40 @@ assert(/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobr
 assert(!/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 1, [1]).motivo), 'validarTemporadaCobro: con activa, el motivo no lo dice (T3 archivada)');
 console.log('');
 
+/* ---- EMP-80-1 · Emparejar a N (cambiosEmparejar, motivoRechazoEmparejar, nivelEmparejar) ---- */
+assert(R.nivelEmparejar === 80, 'DEFAULT_RULES.nivelEmparejar = 80');
+const jEmp = { atributos: { Ataque: 79, Defensa: 85, Equilibrio: 80, Salto: 40, _ancho_bits: 7 }, escala8: { 'Estabilidad': 3 }, habilidades: { Regate: true } };
+const eCam = YUNACOINS_RULES.cambiosEmparejar(jEmp, 80);
+assert(eCam.atributos.Ataque === 80 && eCam.atributos.Salto === 80, 'cambiosEmparejar: sube los atributos por debajo de 80 (79→80, 40→80)');
+assert(!('Defensa' in eCam.atributos), 'cambiosEmparejar: un atributo en 85 no baja (no aparece)');
+assert(!('Equilibrio' in eCam.atributos), 'cambiosEmparejar: un atributo en exactamente 80 no se toca');
+assert(!('_ancho_bits' in eCam.atributos), 'cambiosEmparejar: ignora la metadata _ancho_bits');
+assert(eCam.total === 0 && eCam.lineas.length === 2, 'cambiosEmparejar: costo 0 y dos líneas');
+assert(eCam.lineas.every(l => l.a === 80 && l.de < 80), 'cambiosEmparejar: lineas de → a van hacia el nivel desde abajo');
+assert(!('escala8' in eCam) && !('habilidades' in eCam) && !('Estabilidad' in eCam.atributos), 'cambiosEmparejar: no toca escala 1-8 ni habilidades');
+assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar({ atributos: { A: 90 } }, 80).atributos).length === 0, 'cambiosEmparejar: todo por encima del nivel → sin cambios');
+assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar(jEmp, 0).atributos).length === 0 && Object.keys(YUNACOINS_RULES.cambiosEmparejar(jEmp, 100).atributos).length === 0, 'cambiosEmparejar: nivel fuera de 1-99 → sin cambios');
+assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar(jEmp, 79.5).atributos).length === 0, 'cambiosEmparejar: nivel no entero → sin cambios');
+assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar(null, 80).atributos).length === 0, 'cambiosEmparejar: jugador nulo → sin cambios (no lanza)');
+const cambiosOk = { atributos: { Ataque: 80, Salto: 80 } };
+assert(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, cambiosOk, 80, null) === null, 'motivoRechazoEmparejar: pedido igual a lo que hay que emparejar → ok');
+assert(/plantilla desactualizada|ya no coincide/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: { Ataque: 80 } }, 80, null) || ''), 'motivoRechazoEmparejar: falta Salto → rechaza (desactualizada)');
+assert(/nivel de emparejar/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: { Ataque: 85, Salto: 80 } }, 80, null) || ''), 'motivoRechazoEmparejar: valor por encima del nivel → rechaza');
+assert(/tope/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, cambiosOk, 80, 79) || ''), 'motivoRechazoEmparejar: supera el tope de temporada → rechaza');
+assert(/solo puede tocar atributos/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: cambiosOk.atributos, escala8: { Estabilidad: 5 } }, 80, null) || ''), 'motivoRechazoEmparejar: toca escala → rechaza');
+assert(/no hay atributos/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: {} }, 80, null) || ''), 'motivoRechazoEmparejar: sin atributos → rechaza');
+assert(/desactualizada/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: { Ataque: 80, Salto: 60 } }, 80, null) || ''), 'motivoRechazoEmparejar: el save cambió (valor distinto de lo esperado) → rechaza');
+assert(/nivel de emparejar inválido/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, cambiosOk, 120, null) || ''), 'motivoRechazoEmparejar: nivel inválido → rechaza');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 85 })).length === 0, 'validarReglas: nivelEmparejar 85 es válido');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 1 })).length === 0 && YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 99 })).length === 0, 'validarReglas: límites 1 y 99 válidos');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 0 })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar 0 → error');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 100 })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar 100 → error');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 80.5 })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar 80.5 (no entero) → error');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: '80' })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar como texto → error');
+assert(YUNACOINS_RULES.normalizarReglas({ maxPositions: 5 }).nivelEmparejar === 80, 'normalizarReglas: sin nivelEmparejar → 80 por defecto');
+assert(YUNACOINS_RULES.normalizarReglas({ nivelEmparejar: 85 }).nivelEmparejar === 85, 'normalizarReglas: respeta nivelEmparejar válido (85)');
+assert(YUNACOINS_RULES.normalizarReglas({ nivelEmparejar: 200 }).nivelEmparejar === 80, 'normalizarReglas: nivelEmparejar inválido → cae al default completo (80)');
+console.log('');
+
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);
