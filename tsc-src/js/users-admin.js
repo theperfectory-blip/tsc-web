@@ -88,6 +88,9 @@ async function renderAdmUsuarios(){
               </td>
               <td style="padding:8px 10px;">
                 <select style="${selStyle}" ${(!u.emailVerified && !isMe)?'title="Email sin verificar: no se puede asignar club"':''} data-onchange="adminSetUserTeam(${escAttr(JSON.stringify(u.uid))}, this.value)">${teamOpts(u.teamId ?? null, u.emailVerified===true || isMe)}</select>
+                ${(u.emailVerified!==true && !isMe)
+                  ? '<div style="margin-top:4px;font-size:11px;color:var(--gold);">Email sin verificar: el usuario debe confirmar el correo y volver a iniciar sesión</div>'
+                  : ''}
               </td>
               <td style="padding:8px 10px;text-align:center;">
                 <input type="checkbox" ${u.lockEdits?'checked':''} title="Marcado = este usuario NO puede editar nombre/logo de su club" data-onchange="adminSetUserLock(${escAttr(JSON.stringify(u.uid))}, this.checked)">
