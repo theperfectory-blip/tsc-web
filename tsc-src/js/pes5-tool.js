@@ -1942,10 +1942,13 @@ function _bloqueTopeAtributoHTML(r){
   let cuenta ='<div style="font-size:12px;color:var(--txt3);margin-top:8px;">No hay temporada actual cargada: sin tope por ahora.</div>';
   if (info){
     const nombre = (n) => { const s = YC_SEASONS.find(x => Number(x.number) === n); return s && s.name ? ' (' + escHtml(s.name) + ')' : ''; };
-    const filas = info.temporadas.map((n, i) => `<div style="font-size:12px;">${i + 1}.ª del juego: temporada ${n}${nombre(n)}${n === STATE.season ? ' <b>(actual)</b>' : ''}</div>`).join('');
+    const activa = (YC_SEASONS || []).find(s => s.status === 'active');
+    const filas = info.temporadas.map((n, i) => `<div style="font-size:12px;">${i + 1}.ª del juego: temporada ${n}${nombre(n)}${activa && n === Number(activa.number) ? ' <b>(activa)</b>' : ''}</div>`).join('');
     const tope = YUNACOINS_RULES.topeAtributo(info.ordinal, r.topesAtributo);
-    cuenta = `<div style="font-size:12px;color:var(--txt2);margin-top:8px;">Juego actual: <b>${escHtml(info.juego)}</b>. La web cuenta así sus temporadas:</div>${filas}
-      <div style="font-size:12px;margin-top:6px;">Tope vigente ahora: <b>${tope == null ? 'sin tope' : tope}</b></div>`;
+    const nombreT = (n) => { const s = YC_SEASONS.find(x => Number(x.number) === n); return s ? escHtml(getSeasonName(s)) : ('T' + n); };
+    const primera = info.temporadas.length ? nombreT(info.temporadas[0]) : '—';
+    cuenta = `<div style="font-size:13px;font-weight:600;margin-top:8px;">${escHtml(info.juego)} · 1.ª temporada = ${primera} · tope ${tope == null ? 'sin tope' : tope}</div>
+      <div style="font-size:12px;color:var(--txt2);margin-top:6px;">La web cuenta así sus temporadas del juego:</div>${filas}`;
   }
   return `<div class="pt-fieldgrp" style="margin-bottom:18px;">
       <div class="pt-fieldgrp-title">Tope de atributos por temporada del juego</div>
