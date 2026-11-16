@@ -1032,10 +1032,15 @@ function posicionEnPlantilla(p){
    flujo normal de pedidos: lo aplica Luis en la Tool (aplicarPedidosSeleccionados, rama tipo 'emparejar').
    Solo antes de empezar a mejorar a ese jugador: se bloquea si ya tiene mejoras pagadas en la
    temporada de cobro o un pedido pagado pendiente. Un solo pedido de emparejar pendiente por jugador. */
-function nivelEmparejarPres(){
-  const n = RULES && RULES.nivelEmparejar;
-  return Number.isInteger(n) && n >= 1 && n <= 99 ? n : 80;
+function emparejarCfgPres(){
+  return (RULES && RULES.emparejar) || null;
 }
+// ¿Hay algun perfil con boton? Si no, el boton no aparece.
+function hayPerfilEmparejarPres(){
+  const cfg = emparejarCfgPres();
+  return !!cfg && ['base', 'suscriptor'].some(n => YUNACOINS_RULES.rangoEmparejar(cfg, n));
+}
+// Motivo por el que NO se puede pedir el emparejar de este jugador (null = se puede).
 function motivoNoEmparejar(p){
   if (!p) return 'Jugador no encontrado.';
   if (ADMIN_EMBED) return 'Lo empareja el admin desde la Tool PES5.';
@@ -1047,19 +1052,21 @@ function motivoNoEmparejar(p){
   if (pend.some(x => x.tipo === 'emparejar' && Number(x.registro) === Number(registro))) return 'Ya hay un pedido de emparejar pendiente para este jugador.';
   if (pend.some(x => !x.tipo && Number(x.registro) === Number(registro) && (x.totalCost || 0) > 0)) return 'Este jugador tiene una mejora pagada pendiente: ya no se puede emparejar.';
   if (!APP.pagadosRegistro) return 'No se pudo verificar si el jugador tiene mejoras pagadas (o todavía no cargó). Probá de nuevo.';
-  if (APP.pagadosRegistro && APP.pagadosRegistro.has(Number(registro))) return 'Este jugador ya tiene mejoras pagadas en la temporada de cobro: ya no se puede emparejar.';
-  const nivel = nivelEmparejarPres();
-  const r = YUNACOINS_RULES.cambiosEmparejar({ atributos: PES5_PLANTILLA.atributosDeEditor(p) }, nivel);
-  if (!r.lineas.length) return 'No hay atributos por debajo de ' + nivel + ' para emparejar.';
-  return '';
+  if (APP.pagadosRegistro.has(Number(registro))) return 'Este jugador ya tiene mejoras pagadas en la temporada de cobro: ya no se puede emparejar.';
+  return YUNACOINS_RULES.motivoSinEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), emparejarCfgPres());
 }
 function emparejarBtnHTML(p){
-  const nivel = nivelEmparejarPres();
+  if (!hayPerfilEmparejarPres()) return '';
+  const cfg = emparejarCfgPres();
   const motivo = motivoNoEmparejar(p);
+  const perfil = YUNACOINS_RULES.perfilEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+  const max = perfil ? YUNACOINS_RULES.rangoEmparejar(cfg, perfil).max : null;
+  const etiqueta = max != null ? 'Solicitar emparejar a ' + max : 'Solicitar emparejar';
+  const title = motivo || ('Sube los atributos del perfil ' + perfil + ' hasta ' + max + ' sin costo. Luis lo revisa.');
   return `<div class="ep-emparejar">
-    <button type="button" class="ep-btn ep-emparejar-btn" data-onclick="solicitarEmparejar('${p.id}')"${motivo ? ' disabled' : ''} title="${escAttr(motivo || 'Sube los atributos por debajo de ' + nivel + ' sin costo. Luis lo revisa.')}">
+    <button type="button" class="ep-btn ep-emparejar-btn" data-onclick="solicitarEmparejar('${p.id}')"${motivo ? ' disabled' : ''} title="${escAttr(title)}">
       <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
-      Solicitar emparejar a ${nivel}
+      ${escHtml(etiqueta)}
     </button>${motivo ? `<span class="ep-emparejar-note">${escHtml(motivo)}</span>` : ''}
   </div>`;
 }
@@ -1068,15 +1075,17 @@ function solicitarEmparejar(playerId){
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);
   if (motivo){ showMiniToast(motivo); return; }
-  const nivel = nivelEmparejarPres();
-  const r = YUNACOINS_RULES.cambiosEmparejar({ atributos: PES5_PLANTILLA.atributosDeEditor(p) }, nivel);
+  const cfg = emparejarCfgPres();
+  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+  if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
+  const max = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
   <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
     <section class="ep-sheet" role="dialog" aria-modal="true" aria-labelledby="ep-sheet-emp">
       <div class="ep-grab" aria-hidden="true"></div>
       <div class="ep-sheet-hd">
-        <h2 id="ep-sheet-emp">Solicitar emparejar a ${nivel}</h2>
+        <h2 id="ep-sheet-emp">Solicitar emparejar a ${Number(max)}</h2>
         <span>Luis lo revisa y lo aplica en el juego. No descuenta saldo ni reserva YunaCoins.</span>
       </div>
       <ul class="ep-sheet-list">
@@ -1101,8 +1110,10 @@ async function confirmarSolicitarEmparejar(playerId){
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
   if (motivo){ showMiniToast(motivo); return; }
-  const nivel = nivelEmparejarPres();
-  const r = YUNACOINS_RULES.cambiosEmparejar({ atributos: PES5_PLANTILLA.atributosDeEditor(p) }, nivel);
+  const cfg = emparejarCfgPres();
+  const r = YUNACOINS_RULES.cambiosEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
+  if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
+  const nivel = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
   const registro = PES5_PLANTILLA.registroDeId(p.id);
   try {
     await firebase.firestore().collection('pedidos_pes5').add({
@@ -1117,6 +1128,7 @@ async function confirmarSolicitarEmparejar(playerId){
       registro,
       dorsal: p.dorsal ?? null,
       subscriber: !!p.subscriber,
+      perfil: r.perfil,
       nivel,
       cambios: { atributos: r.atributos },
       lines: r.lineas.map(l => ({ label: l.campo, from: l.de, to: l.a })),
@@ -1131,7 +1143,7 @@ async function confirmarSolicitarEmparejar(playerId){
     return;
   }
   // presentacion: el pedido ya cuenta como pendiente (boton, aviso y globito). No reserva saldo.
-  APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'emparejar', playerId: p.id, registro, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
+  APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'emparejar', playerId: p.id, registro, perfil: r.perfil, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
   renderCard();
   renderPending();
   showMiniToast('Pedido de emparejar enviado. Luis lo revisa.');

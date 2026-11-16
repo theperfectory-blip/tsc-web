@@ -106,6 +106,22 @@
     return out;
   }
 
+  /* EMP-80-1: jugador del editor en la forma que lee la regla de emparejar (perfilEmparejar):
+     atributos 0-99, habilidades (booleanas), lesiones (A/B/C), parametros 1-8 y fichaje. */
+  function jugadorEmparejarDeEditor(p) {
+    const q = p || {};
+    const hab = {};
+    if (q.abilities) for (const [k, v] of Object.entries(q.abilities)) hab[k] = v === true;
+    const sec = q.sec || {};
+    return {
+      atributos: atributosDeEditor(q),
+      habilidades: hab,
+      lesiones: sec.inj,
+      escala8: { cons: sec.cons, cond: sec.cond, wff: sec.wff, wfa: sec.wfa },
+      fichaje: q.heightFixed === true,
+    };
+  }
+
   function cambiosDesdeEditor(original, draft) {
     const c = { atributos: {}, escala8: {}, habilidades: {} };
     const ESCALA8 = { cons: 'Regularidad en el juego', cond: 'Estabilidad', wff: 'Frec. pie malo', wfa: 'Prec. pie malo' };
@@ -325,6 +341,7 @@
     registroDeId: registroDeId,
     cambiosDesdeEditor: cambiosDesdeEditor,
     atributosDeEditor: atributosDeEditor,
+    jugadorEmparejarDeEditor: jugadorEmparejarDeEditor,
     aplicarCambiosAlJugador: aplicarCambiosAlJugador,
     canonicoJSON: canonicoJSON,
     contenidoDelEquipo: contenidoDelEquipo,

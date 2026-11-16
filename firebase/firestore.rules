@@ -30,8 +30,13 @@ service cloud.firestore {
     }
     function seasonOpen(field) { return notArchived(field, archivedNums()); }
 
-    // EMP-80-1 · tope del nivel de «emparejar» (pes5_config/reglas.nivelEmparejar; 80 si falta el doc o el campo).
-    function nivelEmparejarMax() { return exists(/databases/$(database)/documents/pes5_config/reglas) ? get(/databases/$(database)/documents/pes5_config/reglas).data.get('nivelEmparejar', 80) : 80; }
+    // EMP-80-1 · maximo del perfil de emparejar (pes5_config/reglas.emparejar.<perfil>.max, que define Luis).
+    // Sin doc, sin bloque o sin maximo: 0, o sea nadie puede pedir ese perfil (cierra por defecto).
+    function emparejarMaxDe(nombre) {
+      return exists(/databases/$(database)/documents/pes5_config/reglas)
+        ? get(/databases/$(database)/documents/pes5_config/reglas).data.get('emparejar', {}).get(nombre, {}).get('max', 0)
+        : 0;
+    }
 
     match /archive/{doc} {
       allow read: if true;
@@ -262,21 +267,23 @@ service cloud.firestore {
                           && request.resource.data.formacion.slots.size() <= 11
                           && request.resource.data.formacion.nombre.size() <= 100)
                          ||
-                         // EMP-80-1 · «emparejar a N»: costo SIEMPRE 0 (no descuenta ni reserva saldo). El nivel
-                         // no puede pasar de pes5_config/reglas.nivelEmparejar (80 si falta). Solo atributos.
-                         // Que cada valor sea <= nivel lo revalida quien aprueba (motivoRechazoEmparejar):
-                         // las reglas no recorren los valores del mapa.
+                         // EMP-80-1 · «emparejar»: costo SIEMPRE 0 (no descuenta ni reserva saldo). El perfil es
+                         // 'base' o 'suscriptor', y su nivel no puede pasar del maximo del perfil en reglas.
+                         // Que cada valor sea <= max y exacto lo revalida quien aprueba (motivoRechazoEmparejar):
+                         // las reglas no recorren los valores del mapa. Solo atributos.
                          (request.resource.data.tipo == 'emparejar'
                           && request.resource.data.keys().hasOnly([
                                'uid', 'teamId', 'teamName', 'pes5Club', 'tipo', 'pes5ClubIdx',
-                               'playerId', 'playerName', 'registro', 'dorsal', 'subscriber', 'nivel',
+                               'playerId', 'playerName', 'registro', 'dorsal', 'subscriber', 'perfil', 'nivel',
                                'cambios', 'lines', 'totalCost', 'fromGeneral', 'fromSub', 'estado', 'creadoEn'])
                           && request.resource.data.totalCost == 0
                           && request.resource.data.fromGeneral == 0
                           && request.resource.data.fromSub == 0
+                          && request.resource.data.perfil in ['base', 'suscriptor']
                           && request.resource.data.nivel is int
                           && request.resource.data.nivel >= 1
-                          && request.resource.data.nivel <= nivelEmparejarMax()
+                          && ((request.resource.data.perfil == 'base' && request.resource.data.nivel <= emparejarMaxDe('base'))
+                              || (request.resource.data.perfil == 'suscriptor' && request.resource.data.nivel <= emparejarMaxDe('suscriptor')))
                           && request.resource.data.cambios.keys().hasOnly(['atributos'])
                           && request.resource.data.cambios.atributos.size() <= 30
                           && request.resource.data.playerName.size() <= 100
@@ -324,7 +331,7 @@ service cloud.firestore {
       allow create: if isAdmin()
                     && request.resource.data.keys().hasOnly([
                          'tipo', 'sinCosto', 'nivel', 'teamId', 'teamName', 'playerId', 'playerName',
-                         'lineas', 'totalCost', 'season', 'por', 'uid', 'creadoEn'])
+                         'lineas', 'totalCost', 'season', 'por', 'uid', 'creadoEn', 'perfil'])
                     && request.resource.data.tipo == 'emparejar'
                     && request.resource.data.sinCosto == true
                     && request.resource.data.totalCost == 0

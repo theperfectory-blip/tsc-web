@@ -291,40 +291,99 @@ assert(/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobr
 assert(!/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 1, [1]).motivo), 'validarTemporadaCobro: con activa, el motivo no lo dice (T3 archivada)');
 console.log('');
 
-/* ---- EMP-80-1 · Emparejar a N (cambiosEmparejar, motivoRechazoEmparejar, nivelEmparejar) ---- */
-assert(R.nivelEmparejar === 80, 'DEFAULT_RULES.nivelEmparejar = 80');
-const jEmp = { atributos: { Ataque: 79, Defensa: 85, Equilibrio: 80, Salto: 40, _ancho_bits: 7 }, escala8: { 'Estabilidad': 3 }, habilidades: { Regate: true } };
-const eCam = YUNACOINS_RULES.cambiosEmparejar(jEmp, 80);
-assert(eCam.atributos.Ataque === 80 && eCam.atributos.Salto === 80, 'cambiosEmparejar: sube los atributos por debajo de 80 (79→80, 40→80)');
-assert(!('Defensa' in eCam.atributos), 'cambiosEmparejar: un atributo en 85 no baja (no aparece)');
-assert(!('Equilibrio' in eCam.atributos), 'cambiosEmparejar: un atributo en exactamente 80 no se toca');
-assert(!('_ancho_bits' in eCam.atributos), 'cambiosEmparejar: ignora la metadata _ancho_bits');
-assert(eCam.total === 0 && eCam.lineas.length === 2, 'cambiosEmparejar: costo 0 y dos líneas');
-assert(eCam.lineas.every(l => l.a === 80 && l.de < 80), 'cambiosEmparejar: lineas de → a van hacia el nivel desde abajo');
-assert(!('escala8' in eCam) && !('habilidades' in eCam) && !('Estabilidad' in eCam.atributos), 'cambiosEmparejar: no toca escala 1-8 ni habilidades');
-assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar({ atributos: { A: 90 } }, 80).atributos).length === 0, 'cambiosEmparejar: todo por encima del nivel → sin cambios');
-assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar(jEmp, 0).atributos).length === 0 && Object.keys(YUNACOINS_RULES.cambiosEmparejar(jEmp, 100).atributos).length === 0, 'cambiosEmparejar: nivel fuera de 1-99 → sin cambios');
-assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar(jEmp, 79.5).atributos).length === 0, 'cambiosEmparejar: nivel no entero → sin cambios');
-assert(Object.keys(YUNACOINS_RULES.cambiosEmparejar(null, 80).atributos).length === 0, 'cambiosEmparejar: jugador nulo → sin cambios (no lanza)');
-const cambiosOk = { atributos: { Ataque: 80, Salto: 80 } };
-assert(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, cambiosOk, 80, null) === null, 'motivoRechazoEmparejar: pedido igual a lo que hay que emparejar → ok');
-assert(/plantilla desactualizada|ya no coincide/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: { Ataque: 80 } }, 80, null) || ''), 'motivoRechazoEmparejar: falta Salto → rechaza (desactualizada)');
-assert(/nivel de emparejar/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: { Ataque: 85, Salto: 80 } }, 80, null) || ''), 'motivoRechazoEmparejar: valor por encima del nivel → rechaza');
-assert(/tope/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, cambiosOk, 80, 79) || ''), 'motivoRechazoEmparejar: supera el tope de temporada → rechaza');
-assert(/solo puede tocar atributos/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: cambiosOk.atributos, escala8: { Estabilidad: 5 } }, 80, null) || ''), 'motivoRechazoEmparejar: toca escala → rechaza');
-assert(/no hay atributos/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: {} }, 80, null) || ''), 'motivoRechazoEmparejar: sin atributos → rechaza');
-assert(/desactualizada/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, { atributos: { Ataque: 80, Salto: 60 } }, 80, null) || ''), 'motivoRechazoEmparejar: el save cambió (valor distinto de lo esperado) → rechaza');
-assert(/nivel de emparejar inválido/.test(YUNACOINS_RULES.motivoRechazoEmparejar(jEmp, cambiosOk, 120, null) || ''), 'motivoRechazoEmparejar: nivel inválido → rechaza');
-assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 85 })).length === 0, 'validarReglas: nivelEmparejar 85 es válido');
-assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 1 })).length === 0 && YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 99 })).length === 0, 'validarReglas: límites 1 y 99 válidos');
-assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 0 })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar 0 → error');
-assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 100 })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar 100 → error');
-assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: 80.5 })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar 80.5 (no entero) → error');
-assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { nivelEmparejar: '80' })).some(e => /nivelEmparejar/.test(e)), 'validarReglas: nivelEmparejar como texto → error');
-assert(YUNACOINS_RULES.normalizarReglas({ maxPositions: 5 }).nivelEmparejar === 80, 'normalizarReglas: sin nivelEmparejar → 80 por defecto');
-assert(YUNACOINS_RULES.normalizarReglas({ nivelEmparejar: 85 }).nivelEmparejar === 85, 'normalizarReglas: respeta nivelEmparejar válido (85)');
-assert(YUNACOINS_RULES.normalizarReglas({ nivelEmparejar: 200 }).nivelEmparejar === 80, 'normalizarReglas: nivelEmparejar inválido → cae al default completo (80)');
-console.log('');
+/* ---- EMP-80-1 · Emparejar sin costo: perfiles Base y Suscriptor (los define Luis en Reglas) ---- */
+const EP = YUNACOINS_RULES;
+const esc4 = { 'Regularidad en el juego': 4, 'Estabilidad': 4, 'Prec. pie malo': 4, 'Frec. pie malo': 4 };
+// Jugador: mezcla de stats. Por defecto sin habilidades, lesiones C y escala 4.
+const jug = (atr, extra = {}) => Object.assign({ atributos: Object.assign({ _ancho_bits: 7 }, atr), habilidades: { Regate: false }, lesiones: 'C', escala8: Object.assign({}, esc4) }, extra);
+const cfgVacia = EP.DEFAULT_RULES.emparejar;
+const cfgLuis = { base: { min: 79, max: 80, subir: true }, suscriptor: { min: 84, max: 85, subir: true }, escala8: 4, lesion: 'C' };
+const cfgSinChequeos = { base: { min: 79, max: 80, subir: true }, suscriptor: { min: 84, max: 85, subir: true }, escala8: null, lesion: null };
+const cfgCustom = { base: { min: 75, max: 82, subir: true }, suscriptor: { min: null, max: null, subir: false }, escala8: null, lesion: null };
+const baseJ = jug({ Ataque: 79, Defensa: 80, Salto: 80 });
+const suscJ = jug({ Ataque: 84, Defensa: 85, Salto: 84 });
+const fichJ = jug({ Ataque: 50, Defensa: 50, Salto: 80 });
+assert(EP.DEFAULT_RULES.emparejar.base.min === null && EP.DEFAULT_RULES.emparejar.base.max === null && EP.DEFAULT_RULES.emparejar.base.subir === false, 'DEFAULT_RULES.emparejar: perfil Base vacío, sin números en el código');
+assert(EP.DEFAULT_RULES.emparejar.suscriptor.min === null && EP.DEFAULT_RULES.emparejar.suscriptor.max === null, 'DEFAULT_RULES.emparejar: perfil Suscriptor vacío, sin números en el código');
 
+// Config vacía: nadie es elegible
+assert(EP.perfilEmparejar(baseJ, cfgVacia) === null, 'config vacía: un jugador base no es elegible');
+assert(EP.perfilEmparejar(suscJ, cfgVacia) === null, 'config vacía: un jugador suscriptor no es elegible');
+assert(Object.keys(EP.cambiosEmparejar(baseJ, cfgVacia).atributos).length === 0 && typeof EP.cambiosEmparejar(baseJ, cfgVacia).motivo === 'string', 'config vacía: cambiosEmparejar devuelve vacío y un motivo');
+assert(/configurados/.test(EP.motivoSinEmparejar(baseJ, cfgVacia)), 'config vacía: el motivo dice que no hay perfiles configurados');
+assert(EP.perfilEmparejar(baseJ, null) === null, 'config null: nadie es elegible (no lanza)');
+
+// Perfil Base 79-80
+assert(EP.perfilEmparejar(baseJ, cfgLuis) === 'base', 'Base 79-80: jugador con stats 79/80 es base');
+const cBase = EP.cambiosEmparejar(baseJ, cfgLuis);
+assert(cBase.atributos.Ataque === 80 && cBase.atributos.Defensa === undefined && cBase.atributos.Salto === undefined, 'Base 79-80: sube solo lo que está en 79 (Ataque 79→80); lo que ya está en 80 no se toca');
+assert(cBase.total === 0 && cBase.perfil === 'base' && cBase.lineas.length === 1 && cBase.lineas[0].de === 79 && cBase.lineas[0].a === 80, 'Base 79-80: costo 0, una línea 79→80');
+
+// Perfil Suscriptor 84-85: sube a 85, el punto extra también gratis
+assert(EP.perfilEmparejar(suscJ, cfgLuis) === 'suscriptor', 'Suscriptor 84-85: jugador con stats 84/85 es suscriptor');
+const cSusc = EP.cambiosEmparejar(suscJ, cfgLuis);
+assert(cSusc.atributos.Ataque === 85 && cSusc.atributos.Salto === 85 && cSusc.atributos.Defensa === undefined, 'Suscriptor 84-85: 84→85 gratis; 85 no se toca');
+assert(cSusc.total === 0 && cSusc.perfil === 'suscriptor', 'Suscriptor 84-85: costo 0');
+
+// Rango custom 75-82 (Luis lo puede poner)
+const custom = jug({ Ataque: 76, Defensa: 80, Salto: 82 });
+assert(EP.perfilEmparejar(custom, cfgCustom) === 'base', 'custom 75-82: stats entre 75 y 82 son base');
+assert(EP.cambiosEmparejar(custom, cfgCustom).atributos.Ataque === 82 && EP.cambiosEmparejar(custom, cfgCustom).atributos.Defensa === 82 && EP.cambiosEmparejar(custom, cfgCustom).atributos.Salto === undefined, 'custom 75-82: sube hasta 82; el que ya está en 82 no cambia');
+assert(EP.perfilEmparejar(jug({ Ataque: 74, Defensa: 80 }), cfgCustom) === null, 'custom 75-82: una stat en 74 está fuera del rango → no elegible');
+
+// Fichaje con stats dispares (defensa 50): rechazado en la función y en el motivo
+assert(EP.perfilEmparejar(fichJ, cfgLuis) === null, 'fichaje con stats dispares: no es base ni suscriptor');
+assert(EP.motivoSinEmparejar(fichJ, cfgLuis) === EP.FICHAJE_EMPAREJAR_MSG, 'fichaje: el motivo es el texto de fichaje');
+assert(Object.keys(EP.cambiosEmparejar(fichJ, cfgLuis).atributos).length === 0, 'fichaje: cambiosEmparejar no sube nada');
+assert(EP.motivoRechazoEmparejar(fichJ, { atributos: { Ataque: 80, Defensa: 80 } }, cfgLuis, null) !== null, 'fichaje: un pedido de emparejar se rechaza');
+assert(EP.perfilEmparejar(Object.assign({}, baseJ, { fichaje: true }), cfgLuis) === null, 'jugador marcado como fichaje (flag) no es elegible aunque sus stats estén en rango');
+
+// Condiciones no numericas: habilidad activa, lesiones, escala 1-8
+assert(EP.perfilEmparejar(jug({ Ataque: 79, Defensa: 79 }, { habilidades: { Regate: true } }), cfgLuis) === null, 'base con habilidad activa: no se puede emparejar');
+assert(/habilidad/.test(EP.motivoSinEmparejar(jug({ Ataque: 79 }, { habilidades: { Regate: true } }), cfgLuis)), 'base con habilidad: el motivo lo dice');
+assert(EP.perfilEmparejar(jug({ Ataque: 79 }, { lesiones: 'B' }), cfgLuis) === null, 'lesiones B cuando se exige C: no elegible');
+assert(EP.perfilEmparejar(jug({ Ataque: 79 }, { lesiones: 'B' }), cfgSinChequeos) === 'base', 'lesiones vacías en la config: no se exige, B sirve');
+assert(EP.perfilEmparejar(jug({ Ataque: 79 }, { escala8: Object.assign({}, esc4, { Estabilidad: 1 }) }), cfgLuis) === null, 'parámetro 1-8 en 1 cuando se exige 4: no elegible');
+assert(EP.perfilEmparejar(jug({ Ataque: 79 }, { escala8: Object.assign({}, esc4, { Estabilidad: 1 }) }), cfgSinChequeos) === 'base', 'escala 1-8 vacía en la config: no se exige');
+assert(EP.perfilEmparejar(jug({ Ataque: 79, Defensa: 80 }), cfgLuis) === 'base', 'base con lesiones C y escala 4: elegible');
+
+// Un jugador con stats en 80 y en 85 no encaja en ningún perfil
+assert(EP.perfilEmparejar(jug({ Ataque: 80, Defensa: 85 }), cfgLuis) === null, 'stats en 80 y 85 a la vez: no es ni base ni suscriptor');
+
+// Perfil sin subir: no tiene boton
+const soloSusc = { base: { min: 79, max: 80, subir: false }, suscriptor: { min: 84, max: 85, subir: true }, escala8: null, lesion: null };
+assert(EP.perfilEmparejar(baseJ, soloSusc) === null, 'base con subir=false: no es elegible (no tiene botón)');
+const sinSubir = { base: { min: 79, max: 80, subir: false }, suscriptor: { min: null, max: null, subir: false }, escala8: null, lesion: null };
+assert(/configurados/.test(EP.motivoSinEmparejar(baseJ, sinSubir)), 'ningún perfil con subir: el motivo dice que no hay perfiles');
+
+// Pedido/registro: la defensa compara contra lo que hay que emparejar sobre el save
+assert(EP.motivoRechazoEmparejar(baseJ, { atributos: { Ataque: 80 } }, cfgLuis, null) === null, 'pedido igual a lo que hay que emparejar: ok');
+assert(/máximo/.test(EP.motivoRechazoEmparejar(baseJ, { atributos: { Ataque: 81 } }, cfgLuis, null) || ''), 'pedido que pasa del máximo del perfil: rechazado');
+assert(/desactualizada|ya no coincide/.test(EP.motivoRechazoEmparejar(baseJ, { atributos: { Ataque: 79 } }, cfgLuis, null) || ''), 'pedido que deja el valor sin subir (plantilla distinta): rechazado');
+assert(/tope/.test(EP.motivoRechazoEmparejar(baseJ, { atributos: { Ataque: 80 } }, cfgLuis, 79) || ''), 'pedido por encima del tope de temporada: rechazado');
+assert(/solo puede tocar atributos/.test(EP.motivoRechazoEmparejar(baseJ, { atributos: { Ataque: 80 }, escala8: { Estabilidad: 5 } }, cfgLuis, null) || ''), 'pedido que toca escala 1-8: rechazado');
+assert(/no ya no coincide|faltan|desactualizada/.test(EP.motivoRechazoEmparejar(jug({ Ataque: 79, Defensa: 79 }), { atributos: { Ataque: 80 } }, cfgLuis, null) || ''), 'pedido que falta un atributo por emparejar: rechazado');
+
+// Validacion del bloque de Reglas
+assert(EP.validarEmparejar(cfgLuis).length === 0, 'validarEmparejar: Base 79-80 y Suscriptor 84-85 es válido');
+assert(EP.validarEmparejar(cfgVacia).length === 0, 'validarEmparejar: perfiles vacíos enteros son válidos');
+assert(EP.validarEmparejar(cfgCustom).length === 0, 'validarEmparejar: custom 75-82 con Suscriptor vacío es válido');
+assert(EP.validarEmparejar(null).length === 0, 'validarEmparejar: bloque ausente es válido (todo vacío)');
+assert(EP.validarEmparejar({ base: { min: 80, max: 79, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /mínimo no puede ser mayor/.test(e)), 'validarEmparejar: mínimo mayor que máximo → error');
+assert(EP.validarEmparejar({ base: { min: 79, max: null, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /completá/.test(e)), 'validarEmparejar: perfil a medias (sólo mínimo) → error');
+assert(EP.validarEmparejar({ base: { min: null, max: null, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /vacío/.test(e)), 'validarEmparejar: subir gratis con rango vacío → error');
+assert(EP.validarEmparejar({ base: { min: 79, max: 85, subir: true }, suscriptor: { min: 84, max: 85, subir: true } }).some(e => /solaparse/.test(e)), 'validarEmparejar: rangos que se solapan (79-85 con 84-85) → error');
+assert(EP.validarEmparejar({ base: { min: 79, max: 80, subir: true }, suscriptor: { min: 80, max: 85, subir: true } }).some(e => /solaparse/.test(e)), 'validarEmparejar: rangos que se tocan en 80 → error');
+assert(EP.validarEmparejar({ base: { min: 0, max: 80, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /enteros entre 1 y 99/.test(e)), 'validarEmparejar: mínimo 0 → error');
+assert(EP.validarEmparejar({ base: { min: 79, max: 100, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /enteros entre 1 y 99/.test(e)), 'validarEmparejar: máximo 100 → error');
+assert(EP.validarEmparejar({ base: { min: 79.5, max: 80, subir: true }, suscriptor: { min: null, max: null, subir: false } }).some(e => /enteros/.test(e)), 'validarEmparejar: mínimo no entero → error');
+assert(EP.validarEmparejar({ base: { min: null, max: null, subir: false }, suscriptor: { min: null, max: null, subir: false }, escala8: 9 }).some(e => /1 y 8/.test(e)), 'validarEmparejar: parámetro 1-8 en 9 → error');
+assert(EP.validarEmparejar({ base: { min: null, max: null, subir: false }, suscriptor: { min: null, max: null, subir: false }, lesion: 'D' }).some(e => /A, B o C/.test(e)), 'validarEmparejar: lesión D → error');
+assert(EP.validarEmparejar({ base: { min: null, max: null, subir: false }, suscriptor: { min: null, max: null, subir: false }, escala8: '', lesion: '' }).length === 0, 'validarEmparejar: escala y lesión vacías (texto vacío) son válidas');
+assert(EP.validarReglas(Object.assign({}, EP.DEFAULT_RULES, { emparejar: cfgLuis })).length === 0, 'validarReglas: bloque emparejar válido');
+assert(EP.validarReglas(Object.assign({}, EP.DEFAULT_RULES, { emparejar: { base: { min: 79, max: 85, subir: true }, suscriptor: { min: 84, max: 85, subir: true }, escala8: null, lesion: null } })).some(e => /solaparse/.test(e)), 'validarReglas: propaga el error de solapamiento');
+assert(EP.normalizarReglas({}).emparejar.base.max === null && EP.normalizarReglas({}).emparejar.suscriptor.min === null, 'normalizarReglas sin bloque: perfiles vacíos (no hay defaults)');
+assert(EP.normalizarReglas({ emparejar: cfgLuis }).emparejar.base.max === 80, 'normalizarReglas respeta el bloque de Luis');
+console.log('');
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

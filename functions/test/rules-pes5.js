@@ -189,20 +189,34 @@ async function main(){
   await expect('pedidos: presidente NO cancela el pedido ajeno', 403,
     await op.update('pedidos_pes5/pm6', { estado: 'cancelado', canceladoEn: '2026-06-02T00:00:00.000Z' }, AS.pres5));
 
-  // ---- EMP-80-1 · pedidos «emparejar a N» (costo 0) ----
+  // ---- EMP-80-1 · pedidos «emparejar» (costo 0), perfiles definidos en pes5_config/reglas.emparejar ----
   // Pedido que escribe solicitarEmparejar() en mejoras-page.js.
   const emparejar = (uid, teamId, extra = {}) => ({
     uid, teamId: String(teamId), teamName: 'Club', pes5Club: 'Club', tipo: 'emparejar', pes5ClubIdx: teamId,
-    playerId: 'r1', playerName: 'Juan', registro: 1, dorsal: null, subscriber: false, nivel: 80,
+    playerId: 'r1', playerName: 'Juan', registro: 1, dorsal: null, subscriber: false, perfil: 'base', nivel: 80,
     cambios: { atributos: { Ataque: 80, Salto: 80 } },
     lines: [{ label: 'Ataque', from: 79, to: 80 }, { label: 'Salto', from: 40, to: 80 }],
     totalCost: 0, fromGeneral: 0, fromSub: 0, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
   });
-  // Sin doc pes5_config/reglas, el tope por defecto es 80.
-  await expect('emparejar: presidente pide emparejar a 80 (costo 0) de su equipo (sin doc de reglas: tope 80)', 200,
+  // Sin doc pes5_config/reglas, nadie puede emparejar (el tope de cada perfil es 0).
+  await expect('emparejar: sin reglas en el servidor, presidente NO pide emparejar (cierra por defecto)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-sin-reglas')}`, emparejar('pres5', 5), AS.pres5));
+  // El admin guarda los perfiles de Luis: Base 79-80 y Suscriptor 84-85.
+  await expect('emparejar: admin guarda el bloque emparejar (Base 79-80, Suscriptor 84-85)', 200,
+    await op.create('pes5_config/reglas', { maxPositions: 5, emparejar: {
+      base: { min: 79, max: 80, subir: true }, suscriptor: { min: 84, max: 85, subir: true }, escala8: 4, lesion: 'C' } }, AS.admin));
+  await expect('emparejar: presidente pide Base a 80 (costo 0) de su equipo', 200,
     await op.create(`pedidos_pes5/${nuevoId('emp-ok')}`, emparejar('pres5', 5), AS.pres5));
-  await expect('emparejar: NO pide a un nivel por encima del tope por defecto (85 > 80)', 403,
-    await op.create(`pedidos_pes5/${nuevoId('emp-85')}`, emparejar('pres5', 5, { nivel: 85 }), AS.pres5));
+  await expect('emparejar: presidente pide Suscriptor a 85 (costo 0)', 200,
+    await op.create(`pedidos_pes5/${nuevoId('emp-susc')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 85, cambios: { atributos: { Ataque: 85 } }, lines: [{ label: 'Ataque', from: 84, to: 85 }] }), AS.pres5));
+  await expect('emparejar: NO pide Base por encima de su máximo (81 > 80)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-81')}`, emparejar('pres5', 5, { nivel: 81 }), AS.pres5));
+  await expect('emparejar: NO pide Suscriptor a 86 (> 85)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-86')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 86 }), AS.pres5));
+  await expect('emparejar: NO pide con un perfil que no existe', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-perfil')}`, emparejar('pres5', 5, { perfil: 'leyenda' }), AS.pres5));
+  await expect('emparejar: NO pide a nivel 80 con el perfil Suscriptor (80 no es su máximo)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-susc-80')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 80 }), AS.pres5));
   await expect('emparejar: NO pide con costo distinto de 0', 403,
     await op.create(`pedidos_pes5/${nuevoId('emp-costo')}`, emparejar('pres5', 5, { totalCost: 10 }), AS.pres5));
   await expect('emparejar: NO descuenta saldo (fromGeneral distinto de 0)', 403,
@@ -213,15 +227,16 @@ async function main(){
     await op.create(`pedidos_pes5/${nuevoId('emp-escala')}`, emparejar('pres5', 5, { cambios: { atributos: { Ataque: 80 }, escala8: { 'Estabilidad': 5 } } }), AS.pres5));
   await expect('emparejar: NO agrega campos extra al pedido', 403,
     await op.create(`pedidos_pes5/${nuevoId('emp-extra')}`, emparejar('pres5', 5, { hack: 'x' }), AS.pres5));
-  await expect('emparejar: NO se crea sin nivel entero', 403,
+  await expect('emparejar: NO se crea con nivel que no es entero', 403,
     await op.create(`pedidos_pes5/${nuevoId('emp-sin-nivel')}`, emparejar('pres5', 5, { nivel: 'ochenta' }), AS.pres5));
-  // El tope sale de pes5_config/reglas.nivelEmparejar cuando el admin lo guarda.
-  await expect('emparejar: admin guarda reglas con nivelEmparejar 85', 200,
-    await op.create('pes5_config/reglas', { nivelEmparejar: 85, maxPositions: 5 }, AS.admin));
-  await expect('emparejar: con tope 85, presidente pide a 85', 200,
-    await op.create(`pedidos_pes5/${nuevoId('emp-85-ok')}`, emparejar('pres5', 5, { nivel: 85 }), AS.pres5));
-  await expect('emparejar: con tope 85, NO pide a 90', 403,
-    await op.create(`pedidos_pes5/${nuevoId('emp-90')}`, emparejar('pres5', 5, { nivel: 90 }), AS.pres5));
+  // Luis quita el perfil Suscriptor: ya no se puede pedir a 85.
+  await expect('emparejar: Luis vacía el perfil Suscriptor (bloque con maximo null)', 200,
+    await op.update('pes5_config/reglas', { emparejar: {
+      base: { min: 79, max: 80, subir: true }, suscriptor: { min: null, max: null, subir: false }, escala8: 4, lesion: 'C' } }, AS.admin));
+  await expect('emparejar: con Suscriptor vacío, NO se pide a 85', 403,
+    await op.create(`pedidos_pes5/${nuevoId('emp-susc-vacio')}`, emparejar('pres5', 5, { perfil: 'suscriptor', nivel: 85 }), AS.pres5));
+  await expect('emparejar: presidente NO guarda reglas', 403,
+    await op.update('pes5_config/reglas', { emparejar: null }, AS.pres5));
   await op.del('pes5_config/reglas', AS.admin);
 
   // ---- EMP-80-1 · pes5_mejoras: registro sin costo que escribe el admin ----
