@@ -173,6 +173,7 @@ async function renderAuthUI(){
     _gateTeamId = AUTH.teamId;
     try { EQUIPO_TSC = await dbGet('teams', AUTH.teamId); } catch(e){ EQUIPO_TSC = null; }
     RULES = await cargarReglasFirestore();
+    COBRO_TEMPORADA = await cargarTemporadaCobro();
     const topeExtra = await cargarTopeExtraEquipo(AUTH.teamId); // {extra, motivo}: el aviso lo muestra aparte
     APP.extra = topeExtra.extra; APP.motivo = topeExtra.motivo;
     RULES = YUNACOINS_RULES.reglasConExtra(RULES, topeExtra.extra);
@@ -585,13 +586,26 @@ async function cargarReglasFirestore(){
   }
 }
 
-// Tope extra del equipo en la temporada actual (premio del admin, pes5_config/topesExtra-<temporada>).
+// COBRO-1: temporada en la que se cobran las mejoras (activa no archivada; si no, STATE.season).
+let COBRO_TEMPORADA = null;
+async function cargarTemporadaCobro(){
+  try {
+    const seasons = await dbGetAll('seasons');
+    const archivadas = seasons.map(s => Number(s.number)).filter(n => dbIsArchivedSeason(n));
+    return YUNACOINS_RULES.temporadaDeCobro(seasons, STATE.season, archivadas);
+  } catch(e) {
+    console.warn('[editor] no se pudo leer la temporada de cobro', e);
+    return STATE.season;
+  }
+}
+
+// Tope extra del equipo en la temporada de cobro (premio del admin, pes5_config/topesExtra-<temporada>).
 // Devuelve {extra, motivo}: extra suma al tope general; motivo se muestra en el aviso.
 async function cargarTopeExtraEquipo(teamId){
   const nada = { extra: 0, motivo: '' };
   if (STATE.season == null || teamId == null) return nada;
   try {
-    const snap = await firebase.firestore().collection('pes5_config').doc('topesExtra-' + STATE.season).get();
+    const snap = await firebase.firestore().collection('pes5_config').doc('topesExtra-' + (COBRO_TEMPORADA ?? STATE.season)).get();
     const topes = YUNACOINS_RULES.normalizarTopesExtra(snap.exists ? snap.data() : null);
     const e = topes[String(teamId)];
     return e ? { extra: e.extra, motivo: e.motivo || '' } : nada;
@@ -608,7 +622,7 @@ async function recalcularPresupuestoReal(){
   const wallet = EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0;
   let gastado = { general: 0, sub: 0 };
   try {
-    const tx = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId) && c.season === STATE.season
+    const tx = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId) && c.season === (COBRO_TEMPORADA ?? STATE.season)
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
     gastado = YUNACOINS_RULES.gastoTemporada(tx);
   } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); }

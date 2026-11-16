@@ -85,6 +85,20 @@ function _topeAtributoVigente(){
   return info ? YUNACOINS_RULES.topeAtributo(info.ordinal, YC_RULES.topesAtributo) : null;
 }
 
+/* COBRO-1: temporada en la que se cobran las mejoras (coins, presupuesto y topes
+   extra). Es la activa no archivada; si no hay, STATE.season (la UI). */
+function _temporadasArchivadas(){
+  return (YC_SEASONS || []).map(s => Number(s.number)).filter(n => dbIsArchivedSeason(n));
+}
+function _temporadaCobro(){
+  return YUNACOINS_RULES.temporadaDeCobro(YC_SEASONS, STATE.season, _temporadasArchivadas());
+}
+function _nombreTemporadaCobro(){
+  const n = _temporadaCobro();
+  const s = (YC_SEASONS || []).find(x => Number(x.number) === n);
+  return s ? getSeasonName(s) + ' (temporada ' + n + ')' : 'temporada ' + n;
+}
+
 async function cargarReglasFirestore(){
   try {
     const snap = await firebase.firestore().collection('pes5_config').doc('reglas').get();
@@ -101,7 +115,7 @@ async function cargarReglasFirestore(){
 let YC_TOPES_EXTRA = {};
 let YC_TOPES_EXTRA_META = null;
 function _docTopesExtra(){
-  return firebase.firestore().collection('pes5_config').doc('topesExtra-' + STATE.season);
+  return firebase.firestore().collection('pes5_config').doc('topesExtra-' + _temporadaCobro());
 }
 async function cargarTopesExtra(){
   YC_TOPES_EXTRA = {}; YC_TOPES_EXTRA_META = null;
@@ -130,12 +144,13 @@ let GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
 
 async function _refrescarGastoTemporadaEquipo(team, forzar){
   if (!team){ GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 }; return; }
-  if (!forzar && GASTO_TEMPORADA_CACHE.teamId === team.id && GASTO_TEMPORADA_CACHE.season === STATE.season) return;
+  const temp = _temporadaCobro();
+  if (!forzar && GASTO_TEMPORADA_CACHE.teamId === team.id && GASTO_TEMPORADA_CACHE.season === temp) return;
   const transacciones = await dbGetAll('coins', c =>
-    String(c.teamId) === String(team.id) && c.season === STATE.season &&
+    String(c.teamId) === String(team.id) && c.season === temp &&
     typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
   const gastado = YUNACOINS_RULES.gastoTemporada(transacciones);
-  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: STATE.season, general: gastado.general, sub: gastado.sub };
+  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: temp, general: gastado.general, sub: gastado.sub };
 }
 
 // Equipo TSC (si existe) al que pertenece el club actualmente abierto en la
@@ -233,7 +248,7 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
     await dbAdd('coins', {
       teamId: team.id, teamName: team.name, mode: 'sub', amount: info.total,
       reason, note: _resumenLineas(info.lineas),
-      before: current, after: newTotal, season: STATE.season, date: new Date().toISOString(),
+      before: current, after: newTotal, season: _temporadaCobro(), date: new Date().toISOString(),
       streamlabs: YUNACOINS_RULES.marcaStreamlabsInicial(team),
       pes5: {
         playerId: info.playerId, playerName: info.playerName, subscriber: info.subscriber,
@@ -247,7 +262,7 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
   team.yunacoin = current; // reflejar en el objeto cacheado en EQUIPOS_TSC (mismo patron que vincularEquipo)
   // lo recien cobrado ya cuenta para los topes de temporada de este equipo
   GASTO_TEMPORADA_CACHE = {
-    teamId: team.id, season: STATE.season,
+    teamId: team.id, season: _temporadaCobro(),
     general: GASTO_TEMPORADA_CACHE.general + reparto.fromGeneral,
     sub: GASTO_TEMPORADA_CACHE.sub + reparto.fromSub,
   };
@@ -1199,7 +1214,8 @@ async function confirmarEscribirAlSave(){
     ? 'Se crea backup automático.'
     : 'Se va a descargar el archivo editado (el original de tu carpeta no se toca).';
   const avisoGratis = (EDICION_GRATIS && equipoTSCConfirm && tienePresidente(equipoTSCConfirm)) ? '\nEDICIÓN GRATIS: no se cobran YunaCoins.\n' : '';
-  const ok = confirm(`Equipo: ${nombreEquipo}\nJugadores: ${nombresJugadores}\n${avisoGratis}\n${nota} ¿Confirmar?`);
+  const avisoCobro = (_cobraEquipo(equipoTSCConfirm) && !EDICION_GRATIS) ? `Cobro en: ${_nombreTemporadaCobro()}\n` : '';
+  const ok = confirm(`Equipo: ${nombreEquipo}\nJugadores: ${nombresJugadores}\n${avisoGratis}${avisoCobro}\n${nota} ¿Confirmar?`);
   if (!ok) return;
   await escribirAlSave();
 }
@@ -1210,6 +1226,23 @@ async function confirmarEscribirAlSave(){
 // persistente si termina bien (punto 3), y en modo fallback (sin File
 // System Access, ej. Brave) termina en una DESCARGA del save reescrito en
 // vez de intentar escribir en disco (punto 6a).
+/* COBRO-1: antes de escribir un save con cobro, la temporada de cobro tiene que estar
+   activa y no archivada. Refresca la lista de temporadas (puede haber cambiado en la
+   sesión). Devuelve false (con aviso claro) si no se puede registrar el cobro. */
+async function _validarCobroAntesDeEscribir(log){
+  try { YC_SEASONS = await dbGetAll('seasons'); } catch(e) { console.warn('[pes5-tool] no se pudieron releer las temporadas', e); }
+  const v = YUNACOINS_RULES.validarTemporadaCobro(YC_SEASONS, _temporadaCobro(), _temporadasArchivadas());
+  if (v.ok) return true;
+  const arch = _temporadasArchivadas();
+  const hayActiva = (YC_SEASONS || []).some(s => s.status === 'active' && !arch.includes(Number(s.number)));
+  const accion = hayActiva ? 'elegí la temporada activa en el selector' : 'creá la temporada activa en Temporadas';
+  const msg = `No se escribió el save: ${v.motivo}. Las mejoras con costo se cobran en la temporada activa: ${accion}.`;
+  if (log) log(msg, 'err');
+  _mostrarErrorEscritura({ name: 'TemporadaCobro', message: msg });
+  showToast(msg, 'error');
+  return false;
+}
+
 async function escribirAlSave(){
   const logEl = document.getElementById('pl-log');
   // Cada intento nuevo arranca limpio de AMBOS paneles — si el intento
@@ -1233,6 +1266,11 @@ async function escribirAlSave(){
   // Slice 2.0-4 (4.D): con cobro, la lista de Loyalty tiene que ser reciente (12 h)
   if (debeCobrar && repartoCobro && repartoCobro.totalCosto > 0 && window.PES5_YUNACOINS){
     if (!(await window.PES5_YUNACOINS.guardiaCobro(log, repartoCobro.totalCosto))){ log('Escritura cancelada: el cobro necesita una lista de Loyalty reciente.', 'err'); return; }
+  }
+  // COBRO-1: si la temporada de cobro no admite movimientos, NO se escribe el save
+  // (si no, la mejora quedaría escrita y sin cobrar).
+  if (debeCobrar && repartoCobro && repartoCobro.totalCosto > 0){
+    if (!(await _validarCobroAntesDeEscribir(log))) return;
   }
   async function _aplicarCobroSiCorresponde(){
     if (!debeCobrar || !repartoCobro || repartoCobro.totalCosto <= 0) return;
@@ -1601,6 +1639,8 @@ async function aplicarPedidosSeleccionados(){
 
   // 2) escribir el save (solo si hubo algo aplicado)
   let backup = null;
+  // COBRO-1: con costo, la temporada de cobro tiene que admitir movimientos antes de escribir
+  if (aplicados.some(a => a.info && a.info.total > 0) && !(await _validarCobroAntesDeEscribir(log))) return;
   if (aplicados.length){
     try {
       log('cifrando...');

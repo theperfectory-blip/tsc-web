@@ -24,13 +24,26 @@ async function _coinsRun(fn){
   finally{ _coinsBusy = false; }
 }
 
-async function _coinsSeasonLocked(){
-  const season = (await dbGetAll('seasons')).find(s=>s.number===STATE.season);
-  if(season?.status==='finished'){
-    showToast(`${getSeasonName(season)} está finalizada: elige la temporada activa para mover YuNaCoins`,'error');
-    return true;
+/* COBRO-1: temporada en la que se registran los movimientos de coins. Es la activa
+   no archivada si existe; si no, la seleccionada en la UI (STATE.season). Ver
+   YUNACOINS_RULES.temporadaDeCobro. Devuelve {n, ok, motivo, nombre}. */
+async function _coinsTemporadaInfo(){
+  const seasons = await dbGetAll('seasons');
+  const archivadas = seasons.map(s=>s.number).filter(n=>dbIsArchivedSeason(n));
+  const n = YUNACOINS_RULES.temporadaDeCobro(seasons, STATE.season, archivadas);
+  const v = YUNACOINS_RULES.validarTemporadaCobro(seasons, n, archivadas);
+  const s = seasons.find(x=>Number(x.number)===Number(n));
+  return { n, ok: v.ok, motivo: v.motivo, nombre: s ? getSeasonName(s) : ('T'+n) };
+}
+
+/* Para escribir: null (con aviso) si la temporada de cobro no admite movimientos. */
+async function _coinsTemporadaCobro(){
+  const info = await _coinsTemporadaInfo();
+  if(!info.ok){
+    showToast(`No se mueven YuNaCoins: ${info.motivo}.`,'error');
+    return null;
   }
-  return false;
+  return info;
 }
 
 /* Cantidad de un input: entero de 1 a COINS_MAX, o NaN. parseInt aceptaba
@@ -118,9 +131,17 @@ async function filterCoinsTable(){
   renderCoinsTable(teams, maxCoins);
 }
 
+/* COBRO-1: línea que dice en qué temporada se registra el movimiento (o por qué no se puede). */
+function _coinsCobroLineaHTML(c){
+  return c.ok
+    ? `<div style="font-size:13px;color:var(--txt2);margin-bottom:12px;">Se registra en <strong style="color:var(--txt);">${escHtml(c.nombre)}</strong> (temporada activa).</div>`
+    : `<div style="font-size:13px;color:var(--red,#f87171);margin-bottom:12px;">No se puede mover YuNaCoins: ${escHtml(c.motivo)}.</div>`;
+}
+
 async function openCoinsModal(teamId, mode){
   const team = await dbGet('teams', teamId);
   if(!team){ showToast('El equipo ya no existe','error'); renderAdmCoins(); return; }
+  const cobro = await _coinsTemporadaInfo();
   const wrap = document.getElementById('coins-modal-wrap');
   const isAdd = mode==='add';
   wrap.innerHTML = `
@@ -138,6 +159,7 @@ async function openCoinsModal(teamId, mode){
             <div style="font-size:13px;color:var(--txt2);">Saldo actual: <strong style="color:var(--gold);">${(team.yunacoin||0).toLocaleString('es-CL')} coins</strong></div>
           </div>
         </div>
+        ${_coinsCobroLineaHTML(cobro)}
         <div class="form-group">
           <label>Cantidad</label>
           <input type="number" id="ci-amount" min="1" value="100" style="font-family:'Bebas Neue';font-size:29px;text-align:center;" data-oninput="updateCoinsPreview(${team.yunacoin||0},'${mode}')">
@@ -182,7 +204,8 @@ function saveCoinsTransaction(teamId, mode){
     const reason = document.getElementById('ci-reason')?.value || 'otro';
     const note   = (document.getElementById('ci-note')?.value||'').trim().slice(0,200);
     if(isNaN(amount)){ showToast(_COINS_AMOUNT_MSG,'error'); return; }
-    if(await _coinsSeasonLocked()) return;
+    const cob = await _coinsTemporadaCobro();
+    if(!cob) return;
     const team = await dbGet('teams', teamId);
     if(!team){ showToast('El equipo ya no existe','error'); closeCoinsModal(); renderAdmCoins(); return; }
     const current = Number(team.yunacoin)||0;
@@ -192,7 +215,7 @@ function saveCoinsTransaction(teamId, mode){
     }
     const newTotal = mode==='add' ? current+amount : current-amount;
     await dbWriteBatch([
-      {type:'add', store:'coins', data:{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:STATE.season,date:new Date().toISOString(),streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}},
+      {type:'add', store:'coins', data:{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:cob.n,date:new Date().toISOString(),streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}},
       {type:'set', store:'teams', data:{...team,yunacoin:newTotal}},
     ]);
     showToast(`${mode==='add'?'+':'-'}${amount.toLocaleString('es-CL')} coins a ${team.name}`);
@@ -240,6 +263,7 @@ async function openCoinsHistory(teamId){
 
 async function openBulkCoinsModal(){
   const teams = await dbGetAll('teams', t=>t.status==='ACTIVO');
+  const cobro = await _coinsTemporadaInfo();
   document.getElementById('coins-modal-wrap').innerHTML = `
   <div class="modal-overlay open">
     <div class="modal" style="max-width:400px;">
@@ -258,6 +282,7 @@ async function openBulkCoinsModal(){
         <div class="form-group"><label>Cantidad por equipo</label><input type="number" id="bulk-amount" min="1" value="50" style="font-family:'Bebas Neue';font-size:29px;text-align:center;"></div>
         <div class="form-group"><label>Motivo</label><input type="text" id="bulk-reason" placeholder="Ej: Participación stream viernes..."></div>
         <div style="padding:10px;background:var(--card2);border-radius:var(--r);font-size:14px;color:var(--txt2);">Se aplicará a <strong style="color:var(--txt);">${teams.length} equipos activos</strong>.</div>
+        <div style="margin-top:10px;">${_coinsCobroLineaHTML(cobro)}</div>
       </div>
       <div class="modal-footer">
         <button class="btn" data-onclick="closeCoinsModal()">Cancelar</button>
@@ -282,7 +307,8 @@ function saveBulkCoins(){
     const reason = (document.getElementById('bulk-reason')?.value||'').trim().slice(0,60) || 'Masivo';
     const mode   = window._bulkMode==='sub' ? 'sub' : 'add';
     if(isNaN(amount)){ showToast(_COINS_AMOUNT_MSG,'error'); return; }
-    if(await _coinsSeasonLocked()) return;
+    const cob = await _coinsTemporadaCobro();
+    if(!cob) return;
     const teams = await dbGetAll('teams',t=>t.status==='ACTIVO');
     // Restar nunca deja saldo negativo: a cada equipo se le resta lo que tiene,
     // hasta la cantidad pedida, y el movimiento registra lo restado de verdad.
@@ -303,7 +329,7 @@ function saveBulkCoins(){
       const ops = [];
       for(const {team,cur,delta} of plan){
         const nxt = mode==='add' ? cur+delta : cur-delta;
-        ops.push({type:'add', store:'coins', data:{teamId:team.id,teamName:team.name,mode,amount:delta,reason,note:'Masivo',before:cur,after:nxt,season:STATE.season,date,streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}});
+        ops.push({type:'add', store:'coins', data:{teamId:team.id,teamName:team.name,mode,amount:delta,reason,note:'Masivo',before:cur,after:nxt,season:cob.n,date,streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}});
         ops.push({type:'set', store:'teams', data:{...team,yunacoin:nxt}});
       }
       await dbWriteBatch(ops);

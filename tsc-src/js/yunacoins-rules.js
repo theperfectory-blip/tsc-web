@@ -523,6 +523,32 @@
     return temporadaDelJuego(lista, activa ? activa.number : seasonNumber);
   }
 
+  /* Temporada de COBRO (coins y presupuesto de temporada): la activa NO archivada si
+     existe; si no hay ninguna, `stateSeason` (la que tiene seleccionada la UI, que
+     puede estar finalizada). `archivadas` = números de temporadas archivadas. */
+  function temporadaDeCobro(seasons, stateSeason, archivadas) {
+    const lista = Array.isArray(seasons) ? seasons : [];
+    const arch = new Set((Array.isArray(archivadas) ? archivadas : []).map(Number));
+    const activa = lista.find(s => s && s.status === 'active' && !arch.has(Number(s.number)));
+    return activa ? Number(activa.number) : stateSeason;
+  }
+
+  /* Validación de la temporada de cobro antes de escribir nada. Devuelve {ok, motivo}:
+     ok solo si la temporada existe, está activa (no finalizada) y no está archivada. */
+  function validarTemporadaCobro(seasons, seasonNumber, archivadas) {
+    const lista = Array.isArray(seasons) ? seasons : [];
+    const n = Number(seasonNumber);
+    const arch = new Set((Array.isArray(archivadas) ? archivadas : []).map(Number));
+    const s = lista.find(x => x && Number(x.number) === n);
+    const hayActiva = lista.some(x => x && x.status === 'active' && !arch.has(Number(x.number)));
+    const sinActiva = hayActiva ? '' : 'no hay temporada activa; ';
+    if (!s) return { ok: false, motivo: sinActiva + 'no existe la temporada ' + seasonNumber };
+    const nombre = s.name || ('T' + s.number);
+    if (arch.has(n)) return { ok: false, motivo: sinActiva + 'la temporada ' + nombre + ' está archivada (solo lectura)' };
+    if (s.status !== 'active') return { ok: false, motivo: sinActiva + 'la temporada ' + nombre + ' no está activa (' + (s.status || 'sin estado') + ')' };
+    return { ok: true, motivo: '' };
+  }
+
   // Tope de atributo para la temporada `ordinal` del juego. Si la lista no tiene ese
   // valor se hereda el último cargado. Lista vacía o sin ordinal = sin tope (null).
   function topeAtributo(ordinal, topes) {
@@ -757,6 +783,8 @@
     normalizarJuego: normalizarJuego,
     temporadaDelJuego: temporadaDelJuego,
     temporadaActualDelJuego: temporadaActualDelJuego,
+    temporadaDeCobro: temporadaDeCobro,
+    validarTemporadaCobro: validarTemporadaCobro,
     topeAtributo: topeAtributo,
     LOYALTY_FRESCURA_HORAS: LOYALTY_FRESCURA_HORAS,
     marcaStreamlabsInicial: marcaStreamlabsInicial,

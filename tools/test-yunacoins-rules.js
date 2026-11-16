@@ -264,5 +264,32 @@ assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { topesAtributo: [100]
 assert(YUNACOINS_RULES.normalizarReglas({ topesAtributo: [88, 92] }).topesAtributo.join(',') === '88,92', 'normalizarReglas conserva topesAtributo');
 console.log('');
 
+/* ============================================================
+   TEMPORADA DE COBRO (COBRO-1)
+   ============================================================ */
+console.log('--- Temporada de cobro ---');
+const cobroSeasons = [
+  { number: 1, name: 'T3', game: 'PES 4', status: 'finished' },
+  { number: 2, name: 'T1', game: 'PES 5', status: 'active' },
+];
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSeasons, 1, [1]) === 2, 'temporadaDeCobro: hay activa (2) y la UI tiene 1 → cobra en 2');
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSeasons, 1) === 2, 'temporadaDeCobro: sin lista de archivadas, la activa sigue contando');
+const cobroSinActiva = [{ number: 1, name: 'T3', status: 'finished' }];
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSinActiva, 1, [1]) === 1, 'temporadaDeCobro: no hay activa → stateSeason (1)');
+assert(YUNACOINS_RULES.temporadaDeCobro([], 5) === 5, 'temporadaDeCobro: sin temporadas → stateSeason');
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSeasons, 1, [2]) === 1, 'temporadaDeCobro: la activa está archivada → no cuenta (cae a stateSeason 1)');
+assert(YUNACOINS_RULES.temporadaDeCobro([{ number: 2, status: 'active' }], 2, [2]) === 2, 'temporadaDeCobro: activa archivada y stateSeason también → stateSeason (la guardia lo rechaza)');
+const vOk = YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 2, [1]);
+assert(vOk.ok === true && vOk.motivo === '', 'validarTemporadaCobro: activa no archivada → ok');
+const vFin = YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 1, [1]);
+assert(vFin.ok === false && /archivada/.test(vFin.motivo), 'validarTemporadaCobro: T3 archivada y finalizada → rechazada (archivada)');
+assert(YUNACOINS_RULES.validarTemporadaCobro([{ number: 3, name: 'T2', status: 'finished' }], 3, []).ok === false, 'validarTemporadaCobro: finalizada no archivada → rechazada');
+assert(/no está activa/.test(YUNACOINS_RULES.validarTemporadaCobro([{ number: 3, name: 'T2', status: 'finished' }], 3, []).motivo), 'validarTemporadaCobro: motivo dice que no está activa');
+assert(YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 9, []).ok === false, 'validarTemporadaCobro: temporada inexistente → rechazada');
+assert(YUNACOINS_RULES.validarTemporadaCobro([{ number: 2, name: 'T1', status: 'active' }], 2, [2]).ok === false, 'validarTemporadaCobro: activa archivada → rechazada');
+assert(/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobroSinActiva, 1, [1]).motivo), 'validarTemporadaCobro: sin activa, el motivo lo dice');
+assert(!/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 1, [1]).motivo), 'validarTemporadaCobro: con activa, el motivo no lo dice (T3 archivada)');
+console.log('');
+
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);
