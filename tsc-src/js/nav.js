@@ -135,6 +135,7 @@ function setMode(mode){
   }
   STATE.mode = mode;
   _persistNav();
+  renderAvisoTemporadaVista();
   const isAdmin = mode==='admin';
   document.body.classList.toggle('admin-mode', isAdmin);
   if(!isAdmin) document.body.classList.remove('admin-sidebar-pinned');
@@ -672,12 +673,35 @@ async function loadSeasons(){
   const sel = document.getElementById('season-sel');
   sel.innerHTML = '<option value="">Temporada...</option>' +
     seasons.map(s=>`<option value="${s.number}" ${s.number===STATE.season?'selected':''}>${escHtml(getSeasonName(s))} ${s.status==='active'?'●':''}</option>`).join('');
+  renderAvisoTemporadaVista();
+}
+
+/* TEMP-ACTUAL-1: aviso en el panel admin cuando la temporada que se ve no es la activa.
+   La temporada actual ES la activa; si se está viendo otra (p. ej. una finalizada), se
+   avisa y se ofrece volver a la activa. Solo en modo admin. */
+async function renderAvisoTemporadaVista(){
+  const el = document.getElementById('admin-season-aviso');
+  if(!el) return;
+  if(STATE.mode !== 'admin'){ el.innerHTML = ''; return; }
+  const seasons = await dbGetAll('seasons');
+  const activa = seasons.find(s=>s.status==='active' && !dbIsArchivedSeason(s.number));
+  const vista = seasons.find(s=>s.number===STATE.season);
+  if(!activa || activa.number===STATE.season){ el.innerHTML = ''; return; }
+  const nVista = vista ? getSeasonName(vista) : ('T'+STATE.season);
+  const estado = vista && vista.status==='finished' ? 'finalizada' : 'no activa';
+  const nActiva = getSeasonName(activa);
+  el.innerHTML = `<div class="admin-season-aviso-box" role="status">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <span>Estás viendo <strong>${escHtml(nVista)}</strong> (${estado}). La temporada activa es <strong>${escHtml(nActiva)}</strong>.</span>
+    <button class="btn btn-sm" data-onclick="switchToSeason(${activa.number})">Ir a ${escHtml(nActiva)}</button>
+  </div>`;
 }
 
 async function onSeasonChange(val){
   if(!val) return;
   STATE.season = parseInt(val);
   _persistNav();
+  renderAvisoTemporadaVista();
   window._fwLaunched = {}; // resetear fuegos al cambiar temporada
   await refreshSorteoTabVisibility();
   const page = STATE.mode==='admin' ? STATE.adminPage : STATE.publicPage;

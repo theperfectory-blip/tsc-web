@@ -90,6 +90,14 @@ body.redesign #main{max-width:none;width:100%;box-sizing:border-box;padding:28px
 /* Admin móvil: el sidebar de escritorio pasa a drawer. El botón flotante queda
    semitransparente cuando está desfijado para no competir con la pantalla. */
 .admin-drawer-btn{display:none!important;}
+
+/* TEMP-ACTUAL-1: aviso de «viendo otra temporada» en el panel admin (solo en modo admin) */
+.admin-season-aviso{display:none;}
+body.admin-mode .admin-season-aviso{display:block;margin:0 0 14px;}
+.admin-season-aviso-box{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 12px;background:var(--card2);border:1px solid var(--brd);border-left:3px solid var(--gold);border-radius:var(--r);font-size:13px;color:var(--txt2);}
+.admin-season-aviso-box svg{color:var(--gold);flex-shrink:0;}
+.admin-season-aviso-box strong{color:var(--txt);font-weight:600;}
+.admin-season-aviso-box .btn{margin-left:auto;}
 @media(max-width:768px){
   body.admin-mode #main.with-sidebar{
     margin-left:0!important;

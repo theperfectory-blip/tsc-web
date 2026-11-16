@@ -13,7 +13,7 @@ async function renderAdmSeasons(){
       <div style="flex:1;">
         <div style="display:flex;gap:8px;margin-bottom:4px;">
           <span class="badge ${s.archived?'badge-blue':s.status==='active'?'badge-green':s.status==='finished'?'badge-gold':'badge-gray'}">${s.archived?'Archivada':s.status==='active'?'Activa':s.status==='finished'?'Finalizada':'Borrador'}</span>
-          ${s.number===STATE.season?'<span class="badge badge-blue">Actual</span>':''}
+          ${s.number===STATE.season&&s.status!=='active'?'<span class="badge badge-blue" title="Es la temporada que estás viendo en el panel">Viendo</span>':''}
         </div>
         ${s.game?`<div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--txt3);margin-bottom:6px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
