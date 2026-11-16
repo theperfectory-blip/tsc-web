@@ -305,6 +305,11 @@ async function main(){
     await op.update('pes5_bloqueos/6', bloqueo('pres5', 'Presi Cinco'), AS.pres5));
   await expect('bloqueo: anonimo no lee bloqueos', 403, await op.get('pes5_bloqueos/5', AS.anon));
   await expect('bloqueo: presidente libera su bloqueo', 200, await op.del('pes5_bloqueos/5', AS.pres5));
+  // BLOQ-1: el admin toma el control de un bloqueo vivo de presidente (sobrescribe); el presidente no pisa el del admin
+  await expect('bloqueo: presidente crea su bloqueo', 200, await op.create('pes5_bloqueos/5', bloqueo('pres5', 'Presi Cinco'), AS.pres5));
+  await expect('bloqueo: admin toma el control del bloqueo del presidente (sobrescribe)', 200,
+    await op.update('pes5_bloqueos/5', { por: 'admin', uid: 'admin1', nombre: 'Luis', desde: '2026-06-03T00:00:00.000Z', latido: '2026-06-03T00:00:00.000Z' }, AS.admin));
+  await expect('bloqueo: admin libera el bloqueo que tomó', 200, await op.del('pes5_bloqueos/5', AS.admin));
 
   console.log(`\nrules-pes5: ${total - fallos}/${total} casos OK`);
   if (fallos) { console.log(`${fallos} FALLO(S)`); process.exit(1); }

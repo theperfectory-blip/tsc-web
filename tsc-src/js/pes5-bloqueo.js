@@ -46,6 +46,13 @@ const PES5_BLOQUEO = (() => {
     return tomar(teamId, por, uid, nombre);
   }
 
+  // BLOQ-1: el admin toma el control aunque lo tenga otra persona viva (lo confirma antes con el usuario).
+  // Las reglas lo permiten solo al admin. El dueño anterior ve el bloqueo activo en su pantalla.
+  function tomarControl(teamId, por, uid, nombre) {
+    const ahora = new Date().toISOString();
+    return _ref(teamId).set({ por: por, uid: uid, nombre: nombre || '', desde: ahora, latido: ahora }).then(() => ({ ok: true }));
+  }
+
   // Libera el bloqueo solo si es de este uid.
   async function liberar(teamId, uid) {
     const r = _ref(teamId);
@@ -60,5 +67,5 @@ const PES5_BLOQUEO = (() => {
     return _ref(teamId).onSnapshot((s) => cb(s.exists ? s.data() : null), () => cb(null));
   }
 
-  return { TTL_MS: TTL_MS, LATIDO_MS: LATIDO_MS, vivo: vivo, leer: leer, tomar: tomar, latir: latir, liberar: liberar, observar: observar };
+  return { TTL_MS: TTL_MS, LATIDO_MS: LATIDO_MS, vivo: vivo, leer: leer, tomar: tomar, tomarControl: tomarControl, latir: latir, liberar: liberar, observar: observar };
 })();

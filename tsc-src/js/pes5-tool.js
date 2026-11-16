@@ -949,17 +949,36 @@ let _bloqLatidoAdmin = null;
 
 function _bloqNombreAdmin(){ return (AUTH.profile && AUTH.profile.displayName) || 'Luis'; }
 
-async function asegurarBloqueoEquipo(team){
+// BLOQ-1: si otra persona tiene el bloqueo vivo, el admin decide: confirmacion de la app. Si acepta,
+// toma el control (las reglas le permiten sobrescribir) y se continua la accion `continuar`.
+// Si cancela, no pasa nada y el editor no se abre.
+async function asegurarBloqueoEquipo(team, continuar){
   if (!team || !tienePresidente(team)) return true;      // sin presidente no hay a quien bloquear
   if (BLOQUEO_EQUIPO === team.id) return true;
   let r;
   try { r = await PES5_BLOQUEO.tomar(team.id, 'admin', AUTH.user.uid, _bloqNombreAdmin()); }
   catch (e){ console.warn('[pes5-tool] no se pudo tomar el bloqueo, se sigue sin bloqueo:', e); return true; }
   if (!r.ok){
-    const hora = r.de && r.de.desde ? new Date(r.de.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
-    alert(`${(r.de && r.de.nombre) || 'El presidente'} está mejorando ${team.name} ahora${hora ? ' (desde las ' + hora + ')' : ''}. Esperá a que salga para editarlo.`);
+    const d = r.de || {};
+    const hora = d.desde ? new Date(d.desde).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '';
+    // La hora termina en «p. m.»: si ya trae punto, no se agrega otro.
+    const cierre = hora && /\.$/.test(hora) ? ' ' : '. ';
+    showConfirm('Bloqueo activo',
+      `${d.nombre || 'El presidente'} está editando ${team.name}${hora ? ' desde ' + hora : ''}${cierre}¿Tomar el control? Sus cambios sin enviar se pierden.`,
+      () => _tomarControlEquipo(team, continuar));
     return false;
   }
+  _activarBloqueoAdmin(team);
+  return true;
+}
+async function _tomarControlEquipo(team, continuar){
+  try { await PES5_BLOQUEO.tomarControl(team.id, 'admin', AUTH.user.uid, _bloqNombreAdmin()); }
+  catch (e){ showToast('No se pudo tomar el control: ' + (e.message || e), 'error'); return; }
+  _activarBloqueoAdmin(team);
+  showToast(`Tomaste el control de ${team.name}.`);
+  if (typeof continuar === 'function') continuar();
+}
+function _activarBloqueoAdmin(team){
   BLOQUEO_EQUIPO = team.id;
   if (!_bloqLatidoAdmin){
     _bloqLatidoAdmin = setInterval(() => {
@@ -968,8 +987,9 @@ async function asegurarBloqueoEquipo(team){
     }, PES5_BLOQUEO.LATIDO_MS);
   }
   renderWriteBar();
-  return true;
 }
+// BLOQ-1: antes de cerrar sesion (auth.js) el admin suelta el bloqueo del equipo, mientras las reglas lo dejan.
+window.bloqueoAdminSoltar = async function bloqueoAdminSoltar(){ await liberarBloqueoEquipo(); };
 
 async function liberarBloqueoEquipo(){
   if (_bloqLatidoAdmin){ clearInterval(_bloqLatidoAdmin); _bloqLatidoAdmin = null; }
@@ -1004,7 +1024,7 @@ window.addEventListener('pagehide', () => {
 async function abrirEditorJugador(id){
   const j = PLANTILLA_ACTUAL.find(p => p.id === id);
   if (!j) return;
-  if (!(await asegurarBloqueoEquipo(equipoTSCActual()))) return;
+  if (!(await asegurarBloqueoEquipo(equipoTSCActual(), () => abrirEditorJugador(id)))) return;
   const previo = document.getElementById('pt-ed-overlay');
   if (previo) previo.remove();
   MEJORAS_EDITOR.desmontar();
