@@ -2694,14 +2694,18 @@ function renderRows(){
     }).join('');
   }
 
+  // UI-HAB-1: la fila entera activa la habilidad (un solo handler en la fila: el boton de la estrella
+  // no tiene handler propio, asi que no hay doble disparo). Nombre a la izquierda, costo y estrella a la derecha.
   function abilityRow(a){
     const on = d.abilities[a.k];
     const boughtBefore = p.abilities[a.k];
     const canToggle = boughtBefore || on || canAfford(RULES.abilityCost);
-    return `<div class="ep-row ${APP.hint===a.d?'sel':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="setHint('${jsq(a.d)}')">
-      <div class="ep-rlabel">${escHtml(a.l)}</div>
-      <div class="ep-rcost">${on&&!boughtBefore?'+'+RULES.abilityCost:''}</div>
-      <div class="ep-rstar ${on?'on':''}" data-onclick="event.stopPropagation();toggleAbility('${a.k}')">${starSvg(on)}</div>
+    const costo = RULES.abilityCost;
+    const etiqueta = `${a.l}: ${on ? 'desactivar' : 'activar'} habilidad (+${costo})`;
+    return `<div class="ep-row ep-hab ${APP.hint===a.d?'sel':''} ${on?'on':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="toggleAbility('${a.k}')">
+      <div class="ep-rlabel ep-hab-nombre">${escHtml(a.l)}</div>
+      <div class="ep-rcost ep-hab-costo">${on&&!boughtBefore?'+'+costo:''}</div>
+      <button type="button" class="ep-hab-estrella ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}">${starSvg(on)}</button>
     </div>`;
   }
   function padRow(){ return `<div class="ep-row pad"><div class="ep-rlabel">&mdash;</div></div>`; }
@@ -2745,6 +2749,7 @@ function renderRows(){
       </div>`;
   }
 
+  wrap.classList.toggle('ep-rows-hab', APP.page===3);
   wrap.innerHTML = html;
 }
 
