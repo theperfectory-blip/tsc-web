@@ -1907,7 +1907,7 @@ async function aplicarPedidosSeleccionados(){
         rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + total.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
         continue;
       }
-      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada);
+      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
       const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
@@ -2008,7 +2008,7 @@ async function aplicarPedidosSeleccionados(){
   }
   GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
   showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
-  if (aplicados.some(a => !a.info.formacion)) log('Publicá para que el presidente vea los cambios.');
+  if (aplicados.some(a => !a.info.formacion)) log('Publica para que el presidente vea los cambios.');
   // El save cambió: los equipos tocados quedan desactualizados. El aviso y el bloque Publicar lo muestran.
   const logHtml = logEl ? logEl.innerHTML : '';
   setTimeout(async () => { await revisarPlantillasDesactualizadas(); renderPedidosTab({ logHtml }); }, 1500);

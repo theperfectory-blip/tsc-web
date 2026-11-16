@@ -496,6 +496,29 @@ const perfilDespues = EP.perfilParaJugador(null, cfgBS, fijadoCierre['1']);
 assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: perfilDespues, cfg: cfgBS }).total === 0, 'cierre: otra stat en 79 después de la mejora pagada sigue gratis');
 // Contraste: sin fijar antes, el perfil en vivo ya no calza y ese 79→80 se cobraría (el hueco que cierra el fijado)
 assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: EP.perfilEmparejar(plantelCierre[0], cfgBS), cfg: cfgBS }).total === 100, 'cierre: sin fijar antes, el perfil en vivo cobraría 79→80 (por eso se fija antes)');
+/* ---- EMP-80-2b · pedidos de costo 0 dentro del tramo gratis ---- */
+const ctxBase = { perfil: 'base', cfg: cfgBS };
+const ctxSusc = { perfil: 'suscriptor', cfg: cfgBS };
+const jTadic = { atributos: { Ataque: 79, Defensa: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' };
+const jYuni = { atributos: { Ataque: 84, Defensa: 85 }, escala8: {}, habilidades: {}, lesiones: 'B' };
+const costoTadic81 = EP.costoCambios(jTadic, { atributos: { Ataque: 81 } }, EP.DEFAULT_RULES, ctxBase);
+assert(costoTadic81.total === 100, 'EMP-80-2b · Tadic 79→81 cobra 100 (80 gratis)');
+assert(EP.motivoRechazoMejora(jTadic, { atributos: { Ataque: 81 } }, costoTadic81.total, null, ctxBase) === null, 'EMP-80-2b · Tadic 79→81 con total 100 se acepta');
+const costoTadic80 = EP.costoCambios(jTadic, { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, ctxBase);
+assert(costoTadic80.total === 0, 'EMP-80-2b · Tadic Defensa 79→80 cuesta 0');
+assert(EP.motivoRechazoMejora(jTadic, { atributos: { Defensa: 80 } }, costoTadic80.total, null, ctxBase) === null, 'EMP-80-2b · Tadic Defensa 79→80 con total 0 se acepta (tramo gratis)');
+const costoYuni85 = EP.costoCambios(jYuni, { atributos: { Ataque: 85 } }, EP.DEFAULT_RULES, ctxSusc);
+assert(costoYuni85.total === 0, 'EMP-80-2b · Yunifantino Ataque 84→85 (suscriptor) cuesta 0');
+assert(EP.motivoRechazoMejora(jYuni, { atributos: { Ataque: 85 } }, costoYuni85.total, null, ctxSusc) === null, 'EMP-80-2b · Yunifantino 84→85 con total 0 se acepta');
+// Manipulado: total 0 con un punto pagable (80→81 fuera del rango base) se rechaza
+const jTadic80 = { atributos: { Ataque: 80, Defensa: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' };
+assert(EP.motivoRechazoMejora(jTadic80, { atributos: { Ataque: 81 } }, 0, null, ctxBase) !== null, 'EMP-80-2b · manipulado: 80→81 con total 0 se rechaza');
+assert(EP.motivoRechazoMejora(jTadic, { atributos: { Ataque: 81 } }, 0, null, ctxBase) !== null, 'EMP-80-2b · manipulado: 79→81 con total 0 se rechaza (el 81 es pagable)');
+assert(EP.motivoRechazoMejora(jTadic, { atributos: { Defensa: 80 } }, 0, null, null) !== null, 'EMP-80-2b · sin perfil (ctx null) un total 0 sigue rechazándose como antes');
+assert(EP.motivoRechazoMejora(jTadic, { atributos: { Defensa: 80 } }, 0, null, { perfil: null, cfg: cfgBS }) !== null, 'EMP-80-2b · perfil null: total 0 se rechaza');
+assert(EP.motivoRechazoMejora(jTadic, { escala8: { Estabilidad: 5 } }, 0, null, ctxBase) !== null, 'EMP-80-2b · escala con total 0 se rechaza (nunca tramo gratis)');
+assert(EP.motivoRechazoMejora(jTadic, { habilidades: { Regate: true } }, 0, null, ctxBase) !== null, 'EMP-80-2b · habilidad con total 0 se rechaza (nunca tramo gratis)');
+assert(EP.motivoRechazoMejora(jTadic, { atributos: { Defensa: 80 }, escala8: { Estabilidad: 5 } }, 0, null, ctxBase) !== null, 'EMP-80-2b · pedido mixto gratis + escala con total 0 se rechaza');
 console.log('');
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

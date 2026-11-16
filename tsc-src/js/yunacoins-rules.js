@@ -460,7 +460,10 @@
      de rechazo o null. Nunca baja un atributo ni una habilidad, y un pedido que toca
      atributos, escala u habilidades no puede costar 0. Lesiones, altura, pie, posiciones
      y banda no entran aca: su costo ya lo dice costoCambios. */
-  function motivoRechazoMejora(jugadorActual, cambios, total, tope) {
+  /* EMP-80-2b: `ctx` = { perfil, cfg } (igual que costoCambios). Un total 0 es valido solo si TODO lo que
+     sube es tramo gratis del perfil (cada punto dentro de [min, max]). Escala, habilidades y lesiones con
+     cambios siempre cuestan: si el total da 0 con algo asi, el pedido se rechaza (protege contra pedidos manipulados). */
+  function motivoRechazoMejora(jugadorActual, cambios, total, tope, ctx) {
     const c = cambios || {};
     const j = jugadorActual || {};
     const atr = c.atributos || {}, esc = c.escala8 || {}, hab = c.habilidades || {};
@@ -488,8 +491,27 @@
       if (!!(j.habilidades || {})[campo] && !hab[campo]) return 'la habilidad ' + campo + ' se quitaría';
     }
     const tocaStats = Object.keys(atr).length + Object.keys(esc).length + Object.keys(hab).length > 0;
-    if (tocaStats && !(total > 0)) return 'cambio sin costo: el pedido no sube ningún atributo ni habilidad pagada';
+    if (tocaStats && !(total > 0) && !_soloTramoGratis(j, atr, esc, hab, ctx)) {
+      return 'cambio sin costo: el pedido no sube ningún atributo ni habilidad pagada';
+    }
     return null;
+  }
+  // Un pedido de costo 0 es legitimo solo si sube atributos y cada punto que sube cae en el tramo gratis
+  // del perfil; no hay escala ni habilidades en el pedido.
+  function _soloTramoGratis(j, atr, esc, hab, ctx) {
+    const perfil = ctx && ctx.perfil ? ctx.perfil : null;
+    const cfg = ctx ? ctx.cfg : null;
+    if (!perfil || Object.keys(esc).length || Object.keys(hab).length) return false;
+    let sube = false;
+    for (const campo of Object.keys(atr)) {
+      const de = (j.atributos || {})[campo], a = atr[campo];
+      if (typeof de !== 'number' || typeof a !== 'number') return false;
+      if (a < de) return false;
+      if (a === de) continue;
+      sube = true;
+      if (tramoGratis(campo, de, a, perfil, cfg) !== a - de) return false;
+    }
+    return sube;
   }
 
   /* ================= EMP-80-1 · Emparejar sin costo ==========================

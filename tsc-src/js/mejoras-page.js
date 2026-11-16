@@ -698,6 +698,13 @@ function gratisStatPres(campo, from, to){
   return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres());
 }
 const PERFIL_LABEL = { base: 'Base', suscriptor: 'Suscriptor' };
+// Costo de un pedido en la lista: «sin costo (perfil X)» si todo fue tramo gratis; si no, los YunaCoins.
+function pedidoCostoTexto(p){
+  const total = Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0));
+  const gratisLine = (p.lines || []).find(l => Number(l.gratis || 0) > 0 && PERFIL_LABEL[l.perfil]);
+  if (total === 0 && gratisLine) return 'sin costo (perfil ' + PERFIL_LABEL[gratisLine.perfil] + ')';
+  return total.toLocaleString('es-CL') + ' YunaCoins';
+}
 // Texto del costo de una linea. Con tramo gratis: «+200 · 1 sin costo (perfil Base)»; sin costo: «sin costo (perfil X)».
 function lineaCostoTexto(l){
   const g = Number(l.gratis || 0);
@@ -1666,7 +1673,7 @@ async function openAuditModal(){
       <div class="sum">${(p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)}&rarr;${escHtml(l.to)}`).join(', ')}</div>
       <div class="sum" style="margin-top:4px;">
         <span class="badge">${escHtml(ESTADO[p.estado] || p.estado || '')}</span>
-        &middot; ${Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0)).toLocaleString('es-CL')} YunaCoins
+        &middot; ${pedidoCostoTexto(p)}
         ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${escHtml(p.motivo)}` : ''}
         ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" data-onclick="cancelarPedidoDesdeHistorial('${escHtml(p._id)}')">Cancelar pedido</button>` : ''}
       </div>
