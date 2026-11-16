@@ -86,7 +86,7 @@ Escenario: T3 (temporada 1) archivada y finalizada; T1 (temporada 2) activa; UI 
 | Tool: save verificado y backup, cobro de 50 YC | sí, saldo 5000 → 4950 | sí, saldo 4950 → 4900 |
 | Movimiento de la Tool en la 2 | `season: 2`, antes 5000 / después 4950 | `season: 2` |
 | Gasto de temporada (helper sobre la 2 / la 1) | 50 / 0 | — |
-| Sin temporada activa (season 2 → `finished`): Tool aborta | save idéntico, 0 escrituras nuevas, aviso «no hay temporada activa; la temporada T3 está archivada…» | igual, aviso «creá la temporada activa en Temporadas» |
+| Sin temporada activa (season 2 → `finished`): Tool aborta | save idéntico, 0 escrituras nuevas, aviso «no hay temporada activa; la temporada T3 está archivada…» | igual, aviso «crea la temporada activa en Temporadas» |
 | Sin temporada activa: coins no se mueve | sí, toast «No se mueven YuNaCoins: no hay temporada activa…» | — |
 
 Consola sin errores en ambas variantes. Al final la temporada 2 se restauró a `active`.

@@ -1235,7 +1235,7 @@ async function _validarCobroAntesDeEscribir(log){
   if (v.ok) return true;
   const arch = _temporadasArchivadas();
   const hayActiva = (YC_SEASONS || []).some(s => s.status === 'active' && !arch.includes(Number(s.number)));
-  const accion = hayActiva ? 'elegí la temporada activa en el selector' : 'creá la temporada activa en Temporadas';
+  const accion = hayActiva ? 'elige la temporada activa en el selector' : 'crea la temporada activa en Temporadas';
   const msg = `No se escribió el save: ${v.motivo}. Las mejoras con costo se cobran en la temporada activa: ${accion}.`;
   if (log) log(msg, 'err');
   _mostrarErrorEscritura({ name: 'TemporadaCobro', message: msg });
