@@ -208,5 +208,88 @@ const norm3 = YUNACOINS_RULES.normalizarReglas({bandCosts:[1,2]});
 assert(JSON.stringify(norm3) === JSON.stringify(R), 'normalizarReglas con dato inválido devuelve DEFAULT_RULES');
 console.log('');
 
+/* ============================================================
+   TOPE DE ATRIBUTOS POR TEMPORADA DEL JUEGO (PES5-TOPE-1)
+   ============================================================ */
+console.log('--- Tope de atributos por temporada del juego ---');
+const J = (atr) => ({ atributos: atr, escala8: {}, habilidades: {} });
+const cambioAtr = (campo, a) => ({ atributos: { [campo]: a } });
+// Base 80 -> 90 con tope 90: OK
+assert(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 80 }), cambioAtr('Ataque', 90), 500, 90) === null, 'tope: base 80 -> 90 aprobado (tope 90)');
+// 89 -> 91 con tope 90: rechazado
+assert(/no puede|tope/.test(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 89 }), cambioAtr('Ataque', 91), 500, 90) || ''), 'tope: 89 -> 91 rechazado (tope 90)');
+// Leyenda 95 sin cambios: OK aunque el tope sea 90
+assert(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 95 }), { atributos: {} }, 0, 90) === null, 'tope: leyenda 95 sin cambios aprobada');
+assert(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 95 }), cambioAtr('Ataque', 95), 500, 90) === null, 'tope: leyenda 95 con el mismo valor (y un costo de otra stat) no es un subir: aprobada');
+// Leyenda 95 -> 96: rechazado
+assert(/no puede subir/.test(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 95 }), cambioAtr('Ataque', 96), 500, 90) || ''), 'tope: leyenda 95 -> 96 rechazada (motivo: no puede subir)');
+// Sin tope (null/undefined): no cambia el comportamiento previo
+assert(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 95 }), cambioAtr('Ataque', 99), 500, null) === null, 'tope: sin tope (null) no bloquea');
+// Bajar sigue rechazándose aunque el tope sea alto
+assert(/bajaría/.test(YUNACOINS_RULES.motivoRechazoMejora(J({ Ataque: 80 }), cambioAtr('Ataque', 79), 0, 90) || ''), 'tope: bajar sigue rechazado');
+// Temporada sin valor cargado -> hereda el último tope
+const T = YUNACOINS_RULES.topeAtributo;
+assert(T(1, [90]) === 90, 'topeAtributo: temporada 1 con [90] = 90');
+assert(T(3, [90]) === 90, 'topeAtributo: temporada 3 sin valor hereda el último (90)');
+assert(T(3, [85, 90]) === 90, 'topeAtributo: temporada 3 con [85,90] hereda 90');
+assert(T(2, [85, 90]) === 90, 'topeAtributo: temporada 2 con [85,90] = 90');
+// Lista vacía -> sin tope
+assert(T(1, []) === null, 'topeAtributo: lista vacía = sin tope (null)');
+assert(T(2, []) === null, 'topeAtributo: lista vacía en temporada 2 = sin tope');
+assert(T(null, [90]) === null, 'topeAtributo: sin ordinal = sin tope');
+// Normalización del juego: "PES5" y "PES 5" son el mismo juego
+assert(YUNACOINS_RULES.normalizarJuego(' pes 5 ') === 'PES5' && YUNACOINS_RULES.normalizarJuego('PES5') === 'PES5', 'normalizarJuego: "PES5" y "PES 5" dan lo mismo');
+const temporadas = [
+  { number: 1, game: 'PES 4' },
+  { number: 2, game: 'PES5' },
+  { number: 3, game: 'PES 5' },
+  { number: 4, game: 'pes 5' },
+];
+const tdj = YUNACOINS_RULES.temporadaDelJuego(temporadas, 3);
+assert(tdj && tdj.ordinal === 2 && tdj.temporadas.join(',') === '2,3,4', `temporadaDelJuego: temporada 3 es la 2.ª de PES5 (obtenido: ${tdj && tdj.ordinal})`);
+assert(YUNACOINS_RULES.temporadaDelJuego(temporadas, 2).ordinal === 1, 'temporadaDelJuego: temporada 2 (PES5) es la 1.ª del juego');
+assert(YUNACOINS_RULES.temporadaDelJuego(temporadas, 1).ordinal === 1, 'temporadaDelJuego: temporada 1 (PES 4) es la 1.ª de PES 4');
+assert(YUNACOINS_RULES.temporadaDelJuego(temporadas, 99) === null, 'temporadaDelJuego: temporada inexistente = null');
+// Temporada de referencia: la activa si existe (aunque STATE.season apunte a otra)
+const conActiva = [{ number: 1, game: 'PES 4', status: 'finished' }, { number: 2, game: 'PES 5', status: 'active' }, { number: 3, game: 'PES 5', status: 'finished' }];
+assert(YUNACOINS_RULES.temporadaActualDelJuego(conActiva, 1).juego === 'PES5', 'temporadaActualDelJuego: usa la activa (PES5) aunque STATE.season sea 1');
+assert(YUNACOINS_RULES.temporadaActualDelJuego(conActiva, 1).ordinal === 1, 'temporadaActualDelJuego: la activa es la 1.ª de PES5');
+const sinActiva = [{ number: 1, game: 'PES 4', status: 'finished' }, { number: 2, game: 'PES 5', status: 'finished' }];
+assert(YUNACOINS_RULES.temporadaActualDelJuego(sinActiva, 2).juego === 'PES5', 'temporadaActualDelJuego: sin activa usa STATE.season');
+// validarReglas con topesAtributo
+assert(YUNACOINS_RULES.validarReglas(R).length === 0, 'validarReglas: DEFAULT_RULES (topes [90]) valido');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { topesAtributo: [] })).length === 0, 'validarReglas: lista vacia valida');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { topesAtributo: [90, 85] })).length > 0, 'validarReglas: topes que bajan son invalidos');
+assert(YUNACOINS_RULES.validarReglas(Object.assign({}, R, { topesAtributo: [100] })).length > 0, 'validarReglas: tope 100 es invalido');
+assert(YUNACOINS_RULES.normalizarReglas({ topesAtributo: [88, 92] }).topesAtributo.join(',') === '88,92', 'normalizarReglas conserva topesAtributo');
+console.log('');
+
+/* ============================================================
+   TEMPORADA DE COBRO (COBRO-1)
+   ============================================================ */
+console.log('--- Temporada de cobro ---');
+const cobroSeasons = [
+  { number: 1, name: 'T3', game: 'PES 4', status: 'finished' },
+  { number: 2, name: 'T1', game: 'PES 5', status: 'active' },
+];
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSeasons, 1, [1]) === 2, 'temporadaDeCobro: hay activa (2) y la UI tiene 1 → cobra en 2');
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSeasons, 1) === 2, 'temporadaDeCobro: sin lista de archivadas, la activa sigue contando');
+const cobroSinActiva = [{ number: 1, name: 'T3', status: 'finished' }];
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSinActiva, 1, [1]) === 1, 'temporadaDeCobro: no hay activa → stateSeason (1)');
+assert(YUNACOINS_RULES.temporadaDeCobro([], 5) === 5, 'temporadaDeCobro: sin temporadas → stateSeason');
+assert(YUNACOINS_RULES.temporadaDeCobro(cobroSeasons, 1, [2]) === 1, 'temporadaDeCobro: la activa está archivada → no cuenta (cae a stateSeason 1)');
+assert(YUNACOINS_RULES.temporadaDeCobro([{ number: 2, status: 'active' }], 2, [2]) === 2, 'temporadaDeCobro: activa archivada y stateSeason también → stateSeason (la guardia lo rechaza)');
+const vOk = YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 2, [1]);
+assert(vOk.ok === true && vOk.motivo === '', 'validarTemporadaCobro: activa no archivada → ok');
+const vFin = YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 1, [1]);
+assert(vFin.ok === false && /archivada/.test(vFin.motivo), 'validarTemporadaCobro: T3 archivada y finalizada → rechazada (archivada)');
+assert(YUNACOINS_RULES.validarTemporadaCobro([{ number: 3, name: 'T2', status: 'finished' }], 3, []).ok === false, 'validarTemporadaCobro: finalizada no archivada → rechazada');
+assert(/no está activa/.test(YUNACOINS_RULES.validarTemporadaCobro([{ number: 3, name: 'T2', status: 'finished' }], 3, []).motivo), 'validarTemporadaCobro: motivo dice que no está activa');
+assert(YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 9, []).ok === false, 'validarTemporadaCobro: temporada inexistente → rechazada');
+assert(YUNACOINS_RULES.validarTemporadaCobro([{ number: 2, name: 'T1', status: 'active' }], 2, [2]).ok === false, 'validarTemporadaCobro: activa archivada → rechazada');
+assert(/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobroSinActiva, 1, [1]).motivo), 'validarTemporadaCobro: sin activa, el motivo lo dice');
+assert(!/no hay temporada activa/.test(YUNACOINS_RULES.validarTemporadaCobro(cobroSeasons, 1, [1]).motivo), 'validarTemporadaCobro: con activa, el motivo no lo dice (T3 archivada)');
+console.log('');
+
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

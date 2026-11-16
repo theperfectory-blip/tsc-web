@@ -74,6 +74,7 @@
     budgetGeneral: 50000,                   // tope de temporada: lo maximo que se puede gastar en mejoras generales
     budgetSubscribers: 25000,               // bono exclusivo de temporada, solo para jugadores suscriptores
     maxPositions: 5,                        // maximo de posiciones marcadas por jugador (el juego permite hasta 12)
+    topesAtributo: [90],                    // tope absoluto de atributos 0-99 por temporada del juego: [0] = 1.ª temporada del juego, [1] = 2.ª, ...; si falta un valor se hereda el último
   };
 
   /* techo superior (inclusive) de cada banda de costo, EXACTO del editor */
@@ -426,13 +427,25 @@
      de rechazo o null. Nunca baja un atributo ni una habilidad, y un pedido que toca
      atributos, escala u habilidades no puede costar 0. Lesiones, altura, pie, posiciones
      y banda no entran aca: su costo ya lo dice costoCambios. */
-  function motivoRechazoMejora(jugadorActual, cambios, total) {
+  function motivoRechazoMejora(jugadorActual, cambios, total, tope) {
     const c = cambios || {};
     const j = jugadorActual || {};
     const atr = c.atributos || {}, esc = c.escala8 || {}, hab = c.habilidades || {};
     for (const campo of Object.keys(atr)) {
       const de = (j.atributos || {})[campo], a = atr[campo];
       if (typeof de === 'number' && typeof a === 'number' && a < de) return campo + ' bajaría de ' + de + ' a ' + a;
+    }
+    // Tope de temporada (solo atributos 0-99). Un atributo que sube no puede pasar del
+    // tope. Si el jugador ya está por encima (leyenda), conserva su valor pero no sube.
+    if (typeof tope === 'number') {
+      for (const campo of Object.keys(atr)) {
+        const de = (j.atributos || {})[campo], a = atr[campo];
+        if (typeof de === 'number' && typeof a === 'number' && a > de && a > tope) {
+          return de >= tope
+            ? campo + ' ya está en ' + de + ' y el tope de la temporada es ' + tope + ': no puede subir'
+            : campo + ' subiría a ' + a + ' y el tope de la temporada es ' + tope;
+        }
+      }
     }
     for (const campo of Object.keys(esc)) {
       const de = (j.escala8 || {})[campo], a = esc[campo];
@@ -468,7 +481,80 @@
       if (!entero(r[k])) errores.push(k + ': entero >= 0');
     });
     if (!enteroRango(r.maxPositions, 1, 12)) errores.push('maxPositions debe ser un entero entre 1 y 12');
+    const topes = r.topesAtributo;
+    if (!Array.isArray(topes) || topes.length > 50) errores.push('topesAtributo debe ser una lista de hasta 50 valores (puede estar vacía = sin tope)');
+    else {
+      topes.forEach((v, i) => { if (!enteroRango(v, 0, 99)) errores.push('tope temporada ' + (i + 1) + ': entero entre 0 y 99'); });
+      for (let i = 1; i < topes.length; i++) {
+        if (enteroRango(topes[i], 0, 99) && enteroRango(topes[i - 1], 0, 99) && topes[i] < topes[i - 1]) errores.push('los topes no pueden bajar: temporada ' + (i + 1) + ' < temporada ' + i);
+      }
+    }
     return errores;
+  }
+
+  /* Tope de atributos por temporada del juego (ver DEFAULT_RULES.topesAtributo).
+     Funciones puras: el juego de una temporada se compara normalizado (sin espacios
+     ni distinción de mayúsculas), así «PES5» y «PES 5» cuentan como el mismo juego. */
+  function normalizarJuego(game) {
+    return String(game == null ? '' : game).trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  // Posición (1-based) de la temporada `seasonNumber` entre las temporadas del mismo juego,
+  // ordenadas por número. Devuelve {ordinal, temporadas, juego} o null si no existe.
+  function temporadaDelJuego(seasons, seasonNumber) {
+    const lista = Array.isArray(seasons) ? seasons : [];
+    const n = Number(seasonNumber);
+    const actual = lista.find(s => s && Number(s.number) === n);
+    if (!actual) return null;
+    const juego = normalizarJuego(actual.game);
+    const temporadas = lista
+      .filter(s => s && normalizarJuego(s.game) === juego)
+      .map(s => Number(s.number))
+      .filter(x => Number.isFinite(x))
+      .sort((a, b) => a - b);
+    return { ordinal: temporadas.indexOf(n) + 1, temporadas: temporadas, juego: juego };
+  }
+
+  // Temporada de referencia para el tope: la temporada ACTIVA si existe (es la que se
+  // juega ahora); si no hay ninguna activa, la que diga la app (STATE.season).
+  function temporadaActualDelJuego(seasons, seasonNumber) {
+    const lista = Array.isArray(seasons) ? seasons : [];
+    const activa = lista.find(s => s && s.status === 'active');
+    return temporadaDelJuego(lista, activa ? activa.number : seasonNumber);
+  }
+
+  /* Temporada de COBRO (coins y presupuesto de temporada): la activa NO archivada si
+     existe; si no hay ninguna, `stateSeason` (la que tiene seleccionada la UI, que
+     puede estar finalizada). `archivadas` = números de temporadas archivadas. */
+  function temporadaDeCobro(seasons, stateSeason, archivadas) {
+    const lista = Array.isArray(seasons) ? seasons : [];
+    const arch = new Set((Array.isArray(archivadas) ? archivadas : []).map(Number));
+    const activa = lista.find(s => s && s.status === 'active' && !arch.has(Number(s.number)));
+    return activa ? Number(activa.number) : stateSeason;
+  }
+
+  /* Validación de la temporada de cobro antes de escribir nada. Devuelve {ok, motivo}:
+     ok solo si la temporada existe, está activa (no finalizada) y no está archivada. */
+  function validarTemporadaCobro(seasons, seasonNumber, archivadas) {
+    const lista = Array.isArray(seasons) ? seasons : [];
+    const n = Number(seasonNumber);
+    const arch = new Set((Array.isArray(archivadas) ? archivadas : []).map(Number));
+    const s = lista.find(x => x && Number(x.number) === n);
+    const hayActiva = lista.some(x => x && x.status === 'active' && !arch.has(Number(x.number)));
+    const sinActiva = hayActiva ? '' : 'no hay temporada activa; ';
+    if (!s) return { ok: false, motivo: sinActiva + 'no existe la temporada ' + seasonNumber };
+    const nombre = s.name || ('T' + s.number);
+    if (arch.has(n)) return { ok: false, motivo: sinActiva + 'la temporada ' + nombre + ' está archivada (solo lectura)' };
+    if (s.status !== 'active') return { ok: false, motivo: sinActiva + 'la temporada ' + nombre + ' no está activa (' + (s.status || 'sin estado') + ')' };
+    return { ok: true, motivo: '' };
+  }
+
+  // Tope de atributo para la temporada `ordinal` del juego. Si la lista no tiene ese
+  // valor se hereda el último cargado. Lista vacía o sin ordinal = sin tope (null).
+  function topeAtributo(ordinal, topes) {
+    if (!Array.isArray(topes) || !topes.length) return null;
+    if (!Number.isFinite(ordinal) || ordinal < 1) return null;
+    return topes[Math.min(ordinal, topes.length) - 1];
   }
 
   // Slice R: mezcla lo que venga de Firestore sobre DEFAULT_RULES. Si data es
@@ -476,7 +562,7 @@
   function normalizarReglas(data) {
     const base = JSON.parse(JSON.stringify(DEFAULT_RULES));
     if (!data || typeof data !== 'object') return base;
-    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers', 'maxPositions'];
+    const campos = ['bandCosts', 'scale8Cost', 'abilityCost', 'injuryCost', 'budgetGeneral', 'budgetSubscribers', 'maxPositions', 'topesAtributo'];
     const candidato = Object.assign({}, base);
     campos.forEach((k) => { if (data[k] !== undefined) candidato[k] = Array.isArray(data[k]) ? data[k].slice() : data[k]; });
     return validarReglas(candidato).length ? base : candidato;
@@ -694,6 +780,12 @@
     puedePagar: puedePagar,
     validarReglas: validarReglas,
     normalizarReglas: normalizarReglas,
+    normalizarJuego: normalizarJuego,
+    temporadaDelJuego: temporadaDelJuego,
+    temporadaActualDelJuego: temporadaActualDelJuego,
+    temporadaDeCobro: temporadaDeCobro,
+    validarTemporadaCobro: validarTemporadaCobro,
+    topeAtributo: topeAtributo,
     LOYALTY_FRESCURA_HORAS: LOYALTY_FRESCURA_HORAS,
     marcaStreamlabsInicial: marcaStreamlabsInicial,
     estadoStreamlabs: estadoStreamlabs,
