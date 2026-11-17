@@ -123,6 +123,7 @@
 #page-pes5-admin .pt-cell-changed{color:var(--gold);font-weight:700;}
 #page-pes5-admin .pt-cobro-txt{font-size:12px;color:var(--txt2);}
 #page-pes5-admin .pt-hint-click{margin-top:8px;font-size:12px;color:var(--txt3);}
+#page-pes5-admin .pt-field-hint{flex-basis:100%;margin-top:4px;font-size:12px;color:var(--txt3);}
 #page-pes5-admin #pl-writebar{position:sticky;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--brd);padding:10px 14px;margin-top:10px;}
 #page-pes5-admin #pl-writebar:empty{display:none;}
 #page-pes5-admin #pl-writebar .pt-writebar{border-top:none;padding-top:0;}

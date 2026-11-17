@@ -157,7 +157,7 @@ const transacciones = [
 ];
 const gastado = YUNACOINS_RULES.gastoTemporada(transacciones);
 assert(gastado.general === 1500 && gastado.sub === 200, `gastoTemporada -> general:1500, sub:200 (obtenido: ${JSON.stringify(gastado)})`);
-const topes = YUNACOINS_RULES.topesRestantes(gastado, R);
+const topes = YUNACOINS_RULES.topesRestantes(gastado, R, 1);
 assert(topes.general === 48500 && topes.subscribers === 24800, `topesRestantes -> general:48500, subscribers:24800 (obtenido: ${JSON.stringify(topes)})`);
 console.log('');
 
@@ -166,9 +166,9 @@ console.log('');
    se lee de un numero de regla).
    ============================================================ */
 console.log('--- techoPresupuesto(walletReal, rules) ---');
-const pool1 = YUNACOINS_RULES.techoPresupuesto(400000, R);
+const pool1 = YUNACOINS_RULES.techoPresupuesto(400000, R, 1);
 assert(pool1.general === 50000 && pool1.subscribers === 25000, `wallet 400000 (>> tope) -> general:50000 (capado), subscribers:25000 (obtenido: ${JSON.stringify(pool1)})`);
-const pool2 = YUNACOINS_RULES.techoPresupuesto(30000, R);
+const pool2 = YUNACOINS_RULES.techoPresupuesto(30000, R, 1);
 assert(pool2.general === 30000 && pool2.subscribers === 25000, `wallet 30000 (< tope) -> general:30000 (limitado por el wallet), subscribers:25000 (obtenido: ${JSON.stringify(pool2)})`);
 assert(YUNACOINS_RULES.bonoSuscriptor(pool1, false) === 50000, 'bonoSuscriptor(pool1,false) === 50000 (solo general)');
 assert(YUNACOINS_RULES.bonoSuscriptor(pool1, true) === 75000, 'bonoSuscriptor(pool1,true) === 75000 (general+bono)');
@@ -519,6 +519,46 @@ assert(EP.motivoRechazoMejora(jTadic, { atributos: { Defensa: 80 } }, 0, null, {
 assert(EP.motivoRechazoMejora(jTadic, { escala8: { Estabilidad: 5 } }, 0, null, ctxBase) !== null, 'EMP-80-2b · escala con total 0 se rechaza (nunca tramo gratis)');
 assert(EP.motivoRechazoMejora(jTadic, { habilidades: { Regate: true } }, 0, null, ctxBase) !== null, 'EMP-80-2b · habilidad con total 0 se rechaza (nunca tramo gratis)');
 assert(EP.motivoRechazoMejora(jTadic, { atributos: { Defensa: 80 }, escala8: { Estabilidad: 5 } }, 0, null, ctxBase) !== null, 'EMP-80-2b · pedido mixto gratis + escala con total 0 se rechaza');
+
+/* ============================================================
+   BONO-1 · bono de suscriptores proporcional al plantel
+   bono del equipo = budgetSubscribers (por jugador) × suscriptores del equipo
+   ============================================================ */
+console.log('--- BONO-1 · bonoEquipo (regla por jugador × suscriptores) ---');
+const RB = { budgetGeneral: 50000, budgetSubscribers: 10000 }; // regla de ejemplo: 10.000 por suscriptor
+assert(YUNACOINS_RULES.bonoEquipo(RB, 0) === 0, 'BONO-1 · 0 suscriptores → bono 0');
+assert(YUNACOINS_RULES.bonoEquipo(RB, 1) === 10000, 'BONO-1 · 1 suscriptor → bono 10.000');
+assert(YUNACOINS_RULES.bonoEquipo(RB, 4) === 40000, 'BONO-1 · 4 suscriptores → bono 40.000');
+assert(YUNACOINS_RULES.bonoEquipo(RB, undefined) === 0, 'BONO-1 · sin conteo → 0 (quien llama tiene que pasarlo)');
+assert(YUNACOINS_RULES.bonoEquipo(RB, -3) === 0, 'BONO-1 · conteo negativo → 0');
+assert(YUNACOINS_RULES.bonoEquipo({ budgetSubscribers: 0 }, 4) === 0, 'BONO-1 · regla 0 → bono 0 con cualquier conteo');
+assert(YUNACOINS_RULES.bonoEquipo(null, 1) === 25000, 'BONO-1 · sin reglas usa DEFAULT_RULES (25.000 por suscriptor)');
+
+console.log('--- BONO-1 · techo y resumen responden al conteo ---');
+const tech0 = YUNACOINS_RULES.techoPresupuesto(400000, RB, 0);
+const tech1 = YUNACOINS_RULES.techoPresupuesto(400000, RB, 1);
+const tech4 = YUNACOINS_RULES.techoPresupuesto(400000, RB, 4);
+assert(tech0.subscribers === 0 && tech1.subscribers === 10000 && tech4.subscribers === 40000, 'BONO-1 · techoPresupuesto: bono 0 / 10.000 / 40.000 según el conteo');
+const res4 = YUNACOINS_RULES.resumenPresupuesto({ saldo: 1000000, reglas: RB, extra: 0, gastado: {}, pendientes: {}, nSuscriptores: 4 });
+assert(res4.restanteSub === 40000 && res4.disponibleSuscriptor === 90000, `BONO-1 · resumen con 4 suscriptores: bono 40.000 y disponible para suscriptor 90.000 (obtenido: ${res4.restanteSub} / ${res4.disponibleSuscriptor})`);
+const res0 = YUNACOINS_RULES.resumenPresupuesto({ saldo: 1000000, reglas: RB, extra: 0, gastado: {}, pendientes: {}, nSuscriptores: 0 });
+assert(res0.restanteSub === 0 && res0.disponibleSuscriptor === 50000, 'BONO-1 · resumen sin suscriptores: bono 0 y el suscriptor solo ve el tope general');
+
+console.log('--- BONO-1 · topes ya gastados en la temporada siguen valiendo ---');
+const gastadoSub6k = { general: 0, sub: 6000 };
+assert(YUNACOINS_RULES.topesRestantes(gastadoSub6k, RB, 1).subscribers === 4000, 'BONO-1 · gastado 6.000 con 1 suscriptor → quedan 4.000');
+assert(YUNACOINS_RULES.topesRestantes(gastadoSub6k, RB, 4).subscribers === 34000, 'BONO-1 · el mismo gasto con 4 suscriptores → quedan 34.000 (se recalcula, no se guarda)');
+assert(YUNACOINS_RULES.topesRestantes(gastadoSub6k, RB, 0).subscribers === 0, 'BONO-1 · sin suscriptores no queda bono aunque haya gasto previo');
+const gastadoSub25k = { general: 0, sub: 25000 };
+assert(YUNACOINS_RULES.topesRestantes(gastadoSub25k, RB, 1).subscribers === 0, 'BONO-1 · gastado 25.000 y bono nuevo 10.000 (1 suscriptor) → 0, nunca negativo');
+assert(YUNACOINS_RULES.topesRestantes(gastadoSub25k, RB, 4).subscribers === 15000, 'BONO-1 · con 4 suscriptores el mismo gasto deja 15.000');
+
+console.log('--- BONO-1 · cobro con el bono del equipo ---');
+const cobro1 = YUNACOINS_RULES.distribuirCosto(30000, YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, RB, 1).subscribers, true);
+assert(cobro1.fromSub === 10000 && cobro1.fromGeneral === 20000, 'BONO-1 · cobro 30.000 a suscriptor con 1 suscriptor: 10.000 del bono y 20.000 del general');
+const cobro4 = YUNACOINS_RULES.distribuirCosto(30000, YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, RB, 4).subscribers, true);
+assert(cobro4.fromSub === 30000 && cobro4.fromGeneral === 0, 'BONO-1 · el mismo cobro con 4 suscriptores sale todo del bono');
+
 console.log('');
 console.log(`\n${fallas === 0 ? 'TODO OK' : fallas + ' FALLO(S)'}`);
 process.exit(fallas === 0 ? 0 : 1);

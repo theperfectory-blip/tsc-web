@@ -72,7 +72,7 @@
     abilityCost: 500,                       // habilidad especial (estrella)
     injuryCost: 250,                        // por nivel de Res. lesion (C->B->A)
     budgetGeneral: 50000,                   // tope de temporada: lo maximo que se puede gastar en mejoras generales
-    budgetSubscribers: 25000,               // bono exclusivo de temporada, solo para jugadores suscriptores
+    budgetSubscribers: 25000,               // bono por jugador suscriptor (× suscriptores del equipo, bonoEquipo)
     maxPositions: 5,                        // maximo de posiciones marcadas por jugador (el juego permite hasta 12)
     topesAtributo: [90],                    // tope absoluto de atributos 0-99 por temporada del juego: [0] = 1.ª temporada del juego, [1] = 2.ª, ...; si falta un valor se hereda el último
     // EMP-80-1: sin numeros por defecto. Luis define los perfiles en Reglas (ver validarEmparejar).
@@ -188,13 +188,24 @@
      propio desglose `pes5.fromGeneral`/`pes5.fromSub` para poder
      recomputarlos (punto 5c/5d del macro-slice).
      ============================================================ */
-  function techoPresupuesto(walletReal, rules) {
+  /* BONO-1: bono de suscriptores de UN equipo = regla por jugador suscriptor × cantidad de
+     jugadores suscriptores del equipo (los que tienen «$» delante del nombre, igual que
+     `subscriber`). Ej.: regla 10.000 → 1 suscriptor = 10.000; 4 suscriptores = 40.000.
+     Sin el conteo (undefined) vale 0: quien llama tiene que pasarlo. Es responsivo: se
+     recalcula con cada plantilla o save. */
+  function bonoEquipo(rules, nSuscriptores) {
+    const r = rules || DEFAULT_RULES;
+    const porJugador = Math.max(0, Number(r.budgetSubscribers) || 0);
+    const n = Math.max(0, Math.floor(Number(nSuscriptores) || 0));
+    return porJugador * n;
+  }
+  function techoPresupuesto(walletReal, rules, nSuscriptores) {
     const r = rules || DEFAULT_RULES;
     const saldo = Math.max(0, walletReal || 0);
     return {
       saldo: saldo,
       general: Math.min(saldo, r.budgetGeneral),
-      subscribers: r.budgetSubscribers,
+      subscribers: bonoEquipo(r, nSuscriptores),
     };
   }
   /* 4.F: TECHO de gasto de UN jugador, nunca mayor que el saldo real del equipo.
@@ -284,13 +295,16 @@
     return r;
   }
 
-  function topesRestantes(gastado, rules) {
+  /* BONO-1: nSuscriptores = jugadores suscriptores del equipo AHORA (ver bonoEquipo). Lo ya gastado
+     del bono (libro coins) se descuenta del bono nuevo: si el equipo tenia 1 suscriptor y gasto
+     20.000 y ahora tiene 4 (bono 40.000), quedan 20.000; si baja a 1 (bono 10.000), queda 0. */
+  function topesRestantes(gastado, rules, nSuscriptores) {
     const r = rules || DEFAULT_RULES;
     const g = (gastado && gastado.general) || 0;
     const s = (gastado && gastado.sub) || 0;
     return {
       general: Math.max(0, r.budgetGeneral - g),
-      subscribers: Math.max(0, r.budgetSubscribers - s),
+      subscribers: Math.max(0, bonoEquipo(r, nSuscriptores) - s),
     };
   }
 
@@ -321,7 +335,7 @@
     const gastado = o.gastado || {};
     const pend = o.pendientes || {};
     const topeGeneral = Math.max(0, Number(r.budgetGeneral) || 0);
-    const topeSub = Math.max(0, Number(r.budgetSubscribers) || 0);
+    const topeSub = bonoEquipo(r, o.nSuscriptores); // BONO-1: por jugador suscriptor × suscriptores del equipo
     const topeTotal = topeGeneral + extra;
     const gastadoGeneral = Math.max(0, Number(gastado.general) || 0);
     const gastadoSub = Math.max(0, Number(gastado.sub) || 0);
@@ -1056,6 +1070,7 @@
     heightBracket: heightBracket,
     heightBracketCount: heightBracketCount,
     techoPresupuesto: techoPresupuesto,
+    bonoEquipo: bonoEquipo,
     bonoSuscriptor: bonoSuscriptor,
     distribuirCosto: distribuirCosto,
     gastoTemporada: gastoTemporada,

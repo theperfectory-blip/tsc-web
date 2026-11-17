@@ -196,6 +196,8 @@ async function renderAuthUI(){
       return;
     }
     _gatePlantillaClub = EQUIPO_TSC.pes5ClubIdx;
+    // BONO-1: el bono depende de los suscriptores de la plantilla recien cargada: recalcular ahora.
+    await recalcularPresupuestoReal();
     // EMP-80-2: perfiles fijados de la temporada de cobro (si el admin ya los fijo). Sin doc: calculo en vivo.
     try { PERFILES_FIJADOS = await cargarPerfilesFijados(AUTH.teamId, COBRO_TEMPORADA ?? STATE.season); }
     catch(e){ console.warn('[mejoras] no se pudieron leer los perfiles fijados', e); PERFILES_FIJADOS = null; }
@@ -623,6 +625,11 @@ async function cargarTopeExtraEquipo(teamId){
 // Slice D2: presupuesto disponible = topes de temporada (reglas) menos lo ya
 // cobrado esta temporada (libro coins) menos lo reservado en pedidos
 // pendientes propios; el general nunca supera el saldo real del equipo.
+/* BONO-1: suscriptores del plantel cargado (publicado en el presidente, del save en la Tool).
+   El bono del equipo es la regla por jugador × este numero. */
+function _nSuscriptoresPlantel(){
+  return PLAYERS.filter(p => p.subscriber).length;
+}
 async function recalcularPresupuestoReal(){
   const wallet = EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0;
   let gastado = { general: 0, sub: 0 };
@@ -643,7 +650,7 @@ async function recalcularPresupuestoReal(){
       APP.pendientes.push(Object.assign({ _id: d.id }, p)); // presentacion: aviso y marca «Pedido» (sin lecturas nuevas)
     });
   } catch (e) { console.warn('[editor] no se pudieron leer los pedidos pendientes', e); }
-  const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES);
+  const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES, _nSuscriptoresPlantel());
   // slice 2.1-A: lo que necesita el aviso grande (sin pendientes de la edicion en curso)
   APP.gastado = { general: gastado.general, sub: gastado.sub };
   APP.pend = { total: pendTotal, general: pendG, sub: pendS };
@@ -930,7 +937,7 @@ const APP = {
   // hardcodeado. Aca EQUIPO_TSC todavia no cargo (arranca en null antes de
   // loguearse) — se recalcula con el valor real apenas carga, ver
   // renderAuthUI() > "if (_gateTeamId !== AUTH.teamId)".
-  budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES),
+  budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES, 0), // BONO-1: el conteo llega con recalcularPresupuestoReal
   gastado: { general: 0, sub: 0 },              // slice 2.1-A: gastado de la temporada (libro coins)
   pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
@@ -1337,6 +1344,7 @@ function resumenAviso(){
   return YUNACOINS_RULES.resumenPresupuesto({
     saldo: EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0,
     reglas: { budgetGeneral: (RULES.budgetGeneral || 0) - extra, budgetSubscribers: RULES.budgetSubscribers },
+    nSuscriptores: _nSuscriptoresPlantel(), // BONO-1
     extra: extra,
     gastado: APP.gastado,
     pendientes: APP.pend,

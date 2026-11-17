@@ -283,7 +283,16 @@ function tienePresidente(team){
 // lo ya gastado, cache de GASTO_TEMPORADA_CACHE — ver _refrescarGastoTemporadaEquipo).
 function _restantesTemporada(){
   return YUNACOINS_RULES.topesRestantes(
-    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, _reglasEquipo(GASTO_TEMPORADA_CACHE.teamId));
+    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, _reglasEquipo(GASTO_TEMPORADA_CACHE.teamId),
+    _nSuscriptoresDelEquipo(GASTO_TEMPORADA_CACHE.teamId));
+}
+// BONO-1: suscriptores del equipo en el save abierto (jugador con «$» delante del nombre, el mismo
+// criterio que jugadorParaEditor → subscriber). El bono del equipo = regla por jugador × este numero.
+function _nSuscriptoresDelEquipo(teamId){
+  const team = teamId != null ? EQUIPOS_TSC.find(t => String(t.id) === String(teamId)) : null;
+  if (!team || team.pes5ClubIdx == null || !PLANO) return 0;
+  return PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx)
+    .filter(id => PES5_EDITOR.nombreDeRegistro(PLANO, id).startsWith('$')).length;
 }
 // Reparte TODOS los cambios pendientes del plantel abierto entre bono de
 // suscriptores y tope general, con el orden nuevo (punto 5b): itera
@@ -2321,8 +2330,9 @@ function renderReglasTab(){
           <input type="number" min="0" step="500" id="rg-budgetGeneral" value="${r.budgetGeneral}" style="width:100px;">
         </div>
         <div class="pt-field">
-          <label>Bono suscriptores</label>
+          <label>Bono por jugador suscriptor</label>
           <input type="number" min="0" step="500" id="rg-budgetSubscribers" value="${r.budgetSubscribers}" style="width:100px;">
+          <div class="pt-field-hint">se multiplica por los suscriptores del equipo</div>
         </div>
       </div>
 
