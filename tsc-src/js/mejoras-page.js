@@ -1200,6 +1200,7 @@ function emparejarBtnHTML(p){
   </div>`;
 }
 function solicitarEmparejar(playerId){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (ADMIN_EMBED) return;
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);
@@ -1235,6 +1236,7 @@ function solicitarEmparejar(playerId){
   </div>`;
 }
 async function confirmarSolicitarEmparejar(playerId){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   closeApplyConfirm();
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
@@ -1535,6 +1537,7 @@ function pendingChangeLines(){
 /* ================= modal: confirmar aplicar ================= */
 
 function openApplyConfirm(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   const p = currentPlayer();
   const lines = pendingChangeLines();
   if(lines.length===0){
@@ -1580,6 +1583,7 @@ function openApplyConfirm(){
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
 async function commitChanges(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (ADMIN_EMBED) return commitChangesAdmin();
   if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.'); return; }
   const p = currentPlayer();
@@ -1807,6 +1811,7 @@ let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda e
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
 
 function openFormationModal(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (PLAYERS.length < FORMATION_COORDS.length){
     showMiniToast('El plantel todavía no tiene 11 jugadores para armar la formación.');
     return;
@@ -2414,6 +2419,7 @@ function _nombreFormacionDraft(draft){
 /* Opcion B: el presidente manda la formacion como pedido y la Tool la
    escribe en el save. No cuesta YunaCoins. */
 async function confirmFormation(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
   const error = validarFormacion(FORMATION);
   if (error){ showMiniToast('Formación inválida: ' + error + '.'); return; }
@@ -2597,6 +2603,7 @@ function adjustHeight(delta){
 }
 
 function adjustMain(key,delta){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   const p = currentPlayer();
   APP.hint = MAIN_BY_KEY[key].d;
   document.getElementById('ep-hint').textContent = APP.hint;
@@ -3181,6 +3188,39 @@ let _montado = null;      // contenedor donde esta montado el editor (null = no 
 let _opciones = {};       // opciones de montar(): onAplicar / onCerrar (modo admin)
 let _observers = [];      // MutationObserver de los contenedores de los modales
 
+/* ================= PAUSA-1: pausa de mejoras (lectura en vivo, sin recargar) =================
+   Luis pausa las mejoras mientras edita el save (pes5_config/pausa). Con la pausa: aviso arriba,
+   los botones de enviar, confirmar, emparejar y formacion quedan deshabilitados, y no se arma el carrito.
+   Al reanudar se habilita solo. El servidor tambien rechaza el pedido (regla de create). */
+let PAUSA = null;      // { pausado } de pes5_config/pausa; null hasta leerlo
+let _pausaUnsub = null;
+const MSG_PAUSA = 'Las mejoras están pausadas mientras Luis actualiza el juego. Vuelve más tarde.';
+function _pausadasAhora(){ return !ADMIN_EMBED && !!(PAUSA && PAUSA.pausado); }
+function iniciarPausa(){
+  if (ADMIN_EMBED || _pausaUnsub || typeof firebase === 'undefined') return;
+  try {
+    _pausaUnsub = firebase.firestore().collection('pes5_config').doc('pausa').onSnapshot(
+      s => { PAUSA = { pausado: !!(s.exists && s.data().pausado === true) }; aplicarPausa(); },
+      e => console.warn('[mejoras] pausa', e));
+  } catch (e) { console.warn('[mejoras] pausa', e); }
+}
+function aplicarPausa(){
+  const pausado = _pausadasAhora();
+  const raiz = _raiz();
+  if (raiz) raiz.classList.toggle('ep-pausado', pausado);
+  let av = document.getElementById('ep-pausa-aviso');
+  if (!pausado){ if (av) av.hidden = true; return; }
+  if (!av){
+    av = document.createElement('div');
+    av.id = 'ep-pausa-aviso';
+    av.className = 'ep-pausa-aviso';
+    const pend = document.getElementById('ep-pend');
+    if (pend && pend.parentNode) pend.parentNode.insertBefore(av, pend);
+  }
+  av.hidden = false;
+  av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg><span>${escHtml(MSG_PAUSA)}</span>`;
+}
+
 function _raiz(){ return document.getElementById('mej-root'); }
 
 function _observarWraps(){
@@ -3243,6 +3283,7 @@ function desmontar(){
 /* mejoras.html: monta el editor en #mej-host y arranca la base y la sesion (lo que antes
    hacia el final del script). En el panel no existe #mej-host y no hace nada. */
 function iniciarPagina(){
+  iniciarPausa();
   const host = document.getElementById('mej-host');
   if (!host) return;
   montar(host, { modo: 'presidente' });

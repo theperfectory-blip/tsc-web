@@ -311,6 +311,35 @@ async function main(){
     await op.update('pes5_bloqueos/5', { por: 'admin', uid: 'admin1', nombre: 'Luis', desde: '2026-06-03T00:00:00.000Z', latido: '2026-06-03T00:00:00.000Z' }, AS.admin));
   await expect('bloqueo: admin libera el bloqueo que tomó', 200, await op.del('pes5_bloqueos/5', AS.admin));
 
+  // ---- PAUSA-1 · pes5_config/pausa: pausa de mejoras mientras Luis edita el save ----
+  // Sin documento de pausa: no esta pausado (el create de pedidos sigue igual).
+  await expect('pausa: sin documento, el presidente crea su pedido de mejora', 200,
+    await op.create(`pedidos_pes5/${nuevoId('sin-pausa')}`, mejora('pres5', 5), AS.pres5));
+  await expect('pausa: presidente NO escribe la pausa (crear)', 403,
+    await op.create('pes5_config/pausa', { pausado: true, por: 'pres5', desde: '2026-06-03T00:00:00.000Z' }, AS.pres5));
+  // Un admin que preside un equipo, para el caso «el admin no queda bloqueado por la pausa».
+  await fetch(`${ROOT}/users/admin5`, { method: 'PATCH', headers: headers('owner'), body: JSON.stringify({ fields: toFields({
+    uid: 'admin5', displayName: 'Admin Cinco', role: 'admin', teamId: 5, email: null, username: null, photoURL: null,
+    timezone: 'America/Santiago', createdAt: '2026-06-01T00:00:00.000Z', lockEdits: false }) }) });
+  AS.admin5 = mockToken('admin5', 'admin5@test.dev');
+  await expect('pausa: admin escribe la pausa (crear, pausado true)', 200,
+    await op.create('pes5_config/pausa', { pausado: true, por: 'admin1', desde: '2026-06-03T00:00:00.000Z' }, AS.admin));
+  await expect('pausa: con pausa, el presidente NO crea pedido de mejora', 403,
+    await op.create(`pedidos_pes5/${nuevoId('pausado-mejora')}`, mejora('pres5', 5), AS.pres5));
+  await expect('pausa: con pausa, el presidente NO crea pedido de formacion', 403,
+    await op.create(`pedidos_pes5/${nuevoId('pausado-form')}`, formacion('pres5', 5), AS.pres5));
+  await expect('pausa: con pausa, el admin que preside su equipo SI crea pedido', 200,
+    await op.create(`pedidos_pes5/${nuevoId('admin-pausa')}`, mejora('admin5', 5), AS.admin5));
+  await expect('pausa: un usuario autenticado lee la pausa', 200, await op.get('pes5_config/pausa', AS.pres5));
+  await expect('pausa: anonimo no lee la pausa', 403, await op.get('pes5_config/pausa', AS.anon));
+  await expect('pausa: presidente NO la modifica (update)', 403,
+    await op.update('pes5_config/pausa', { pausado: false }, AS.pres5));
+  await expect('pausa: presidente NO la borra', 403, await op.del('pes5_config/pausa', AS.pres5));
+  await expect('pausa: admin reanuda (pausado false)', 200,
+    await op.update('pes5_config/pausa', { pausado: false }, AS.admin));
+  await expect('pausa: reanudada, el presidente vuelve a crear pedido de mejora', 200,
+    await op.create(`pedidos_pes5/${nuevoId('reanudada')}`, mejora('pres5', 5), AS.pres5));
+
   console.log(`\nrules-pes5: ${total - fallos}/${total} casos OK`);
   if (fallos) { console.log(`${fallos} FALLO(S)`); process.exit(1); }
 }

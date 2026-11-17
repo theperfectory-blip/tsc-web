@@ -398,6 +398,7 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
 const SHELL_HTML = `
 <div class="pt-shell">
   <div class="pt-sub">Lee y edita el save de PES5 directo desde la carpeta del juego — equipos, plantillas, pedidos y publicación en un solo lugar.</div>
+  <div id="pt-pausa"></div>
   <div id="pt-gate"></div>
   <div id="pt-app" style="display:none;">
     <div id="pt-statusbar"></div>
@@ -464,6 +465,7 @@ function render(){
   }
   gate.innerHTML = '';
   app.style.display = '';
+  cargarPausaTool();
   if (!_iniciado){
     _iniciado = true;
     initApp();
@@ -2504,6 +2506,90 @@ async function guardarReglas(){
    onAuthStateChanged. La tool lee AUTH y escucha tsc:auth en montar().
    ============================================================ */
 
+/* ============================================================
+   PAUSA-1 · pausa de mejoras mientras Luis edita el save
+   pes5_config/pausa = { pausado, por, desde }. Lo escribe solo el admin (reglas); los presidentes lo leen en vivo.
+   Los pedidos que llegan con la pausa activa los rechaza el servidor (regla de create de pedidos_pes5).
+   ============================================================ */
+let PAUSA_ESTADO = null; // { pausado, desde: Date|null } · null mientras no se lee
+const PAUSA_REF = () => firebase.firestore().collection('pes5_config').doc('pausa');
+function _fechaPausa(v){ return v && v.toDate ? v.toDate() : (v ? new Date(v) : null); }
+function _horaPausa(d){ return d ? d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }) : ''; }
+
+async function cargarPausaTool(){
+  if (!AUTH.user || AUTH.role !== 'admin') return;
+  try {
+    const s = await PAUSA_REF().get();
+    const d = s.exists ? s.data() : {};
+    PAUSA_ESTADO = { pausado: d.pausado === true, desde: _fechaPausa(d.desde) };
+  } catch (e) {
+    console.warn('[pes5-tool] pausa', e);
+    PAUSA_ESTADO = { pausado: false, desde: null };
+  }
+  renderPausaTool();
+}
+
+function renderPausaTool(){
+  const el = document.getElementById('pt-pausa');
+  if (!el) return;
+  if (!PAUSA_ESTADO){ el.innerHTML = ''; return; }
+  const pausado = PAUSA_ESTADO.pausado;
+  el.innerHTML = `
+    <div class="pt-pausa${pausado ? ' on' : ''}">
+      <span class="pt-pausa-txt">${pausado
+        ? `${ICN.alert} Mejoras pausadas desde ${escHtml(_horaPausa(PAUSA_ESTADO.desde) || '—')}`
+        : 'Mejoras activas: los presidentes pueden pedir cambios'}</span>
+      <button class="btn btn-sm" data-onclick="ptPausaToggle()">${pausado ? 'Reanudar mejoras' : 'Pausar mejoras'}</button>
+    </div>`;
+}
+
+async function ptPausaToggle(){
+  if (!PAUSA_ESTADO) return;
+  if (PAUSA_ESTADO.pausado) return escribirPausaTool(false);
+  let n = 0;
+  try {
+    n = (await firebase.firestore().collection('pedidos_pes5').where('estado', '==', 'pendiente').get()).size;
+  } catch (e) {
+    showToast('No se pudo contar los pedidos pendientes: ' + (e.message || e), 'error');
+    return;
+  }
+  if (n > 0) return mostrarAvisoPausaTool(n);
+  return escribirPausaTool(true);
+}
+
+function mostrarAvisoPausaTool(n){
+  document.getElementById('pt-pausa-ov')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'pt-pausa-ov';
+  ov.className = 'confirm-overlay open';
+  const plural = n === 1 ? 'Hay 1 pedido pendiente' : `Hay ${n} pedidos pendientes`;
+  ov.innerHTML = `
+    <div class="confirm-box">
+      <h4>Pausar mejoras</h4>
+      <p>${plural}. Te recomendamos aprobarlos o rechazarlos antes de pausar.</p>
+      <div class="confirm-actions">
+        <button class="btn" data-onclick="ptPausaVolver()">Volver</button>
+        <button class="btn btn-danger" data-onclick="ptPausaIgual()">Pausar igual</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+async function escribirPausaTool(pausado){
+  document.getElementById('pt-pausa-ov')?.remove();
+  try {
+    await PAUSA_REF().set({
+      pausado: pausado,
+      por: AUTH.user.uid,
+      desde: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    showToast(pausado ? 'Mejoras pausadas. Los presidentes ya no pueden enviar pedidos.' : 'Mejoras reanudadas.');
+    await cargarPausaTool();
+  } catch (e) {
+    showToast('No se pudo cambiar la pausa: ' + (e.message || e), 'error');
+  }
+}
+
 // Handlers de data-on* (events.js solo llama funciones globales, sin puntos).
 // Se exponen con prefijo pt para no pisar globales del panel.
 window.ptOcultarErrorEscritura = _ocultarErrorEscritura;
@@ -2536,6 +2622,9 @@ window.ptReconectarCarpetaClick = reconectarCarpetaClick;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
 window.ptVincularEquipo = vincularEquipo;
+window.ptPausaToggle = ptPausaToggle;
+window.ptPausaVolver = () => document.getElementById('pt-pausa-ov')?.remove();
+window.ptPausaIgual = () => escribirPausaTool(true);
 // Ciclo de vida: lo llaman js/pes5-admin.js (entrar/salir de la seccion).
 window.PES5_TOOL = { montar: montar, salir: salir };
 })();

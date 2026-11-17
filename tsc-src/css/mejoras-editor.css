@@ -562,3 +562,15 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-hab-estrella:hover{color:var(--gold);border-color:var(--gold-b);}
 .ep-root .ep-hab-estrella:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 .ep-root .ep-hab-estrella.on{color:var(--gold);}
+
+/* PAUSA-1: mejoras pausadas (aviso arriba; acciones deshabilitadas) */
+.ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;}
+.ep-root .ep-pausa-aviso[hidden]{display:none;}
+.ep-root .ep-pausa-aviso svg{width:18px;height:18px;flex:none;color:var(--gold);}
+.ep-root.ep-pausado [data-onclick*="openApplyConfirm"],
+.ep-root.ep-pausado [data-onclick*="openFormationModal"],
+.ep-root.ep-pausado [data-onclick*="adjustMain"],
+.ep-root.ep-pausado [data-onclick*="commitChanges"],
+.ep-root.ep-pausado [data-onclick*="confirmFormation"],
+.ep-root.ep-pausado [data-onclick*="solicitarEmparejar"],
+.ep-root.ep-pausado [data-onclick*="confirmarSolicitarEmparejar"]{pointer-events:none;opacity:.45;}
