@@ -3304,7 +3304,13 @@ function _observarWraps(){
   });
 }
 
-function _alCambiarAuthPresidente(){ renderAuthUI(); }
+function _alCambiarAuthPresidente(){ renderAuthUI(); _montarBarraSave(); }
+
+/* SAVE-1: barra «Descargar save» (solo en mejoras.html; en el panel no existe el contenedor). */
+function _montarBarraSave(){
+  if (typeof SAVE_PUBLICADO === 'undefined') return;
+  SAVE_PUBLICADO.montarBarra(document.getElementById('mej-save-pub'));
+}
 
 /* Monta el editor dentro de `contenedor`. opciones.modo: "presidente" (default, mejoras.html)
    o "admin" (Tool PES5): {equipo, reglas, presupuesto, jugadores, jugadorId, pendiente,
@@ -3352,6 +3358,7 @@ function desmontar(){
    hacia el final del script). En el panel no existe #mej-host y no hace nada. */
 function iniciarPagina(){
   iniciarPausa();
+  _montarBarraSave();
   const host = document.getElementById('mej-host');
   if (!host) return;
   montar(host, { modo: 'presidente' });

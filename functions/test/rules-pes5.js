@@ -361,6 +361,22 @@ async function main(){
   await expect('pausa: reanudada, el presidente vuelve a crear pedido de mejora', 200,
     await op.create(`pedidos_pes5/${nuevoId('reanudada')}`, mejora('pres5', 5), AS.pres5));
 
+  // ---- SAVE-1 · pes5_config/save: metadatos del save publicado (lo escribe solo el admin) ----
+  // Las reglas de pes5_config ya cubren este doc (lectura con sesion, escritura de admin); no se
+  // agrega regla nueva. Este bloque lo deja probado, y el archivo en Storage se prueba en rules-storage.js.
+  const metaSave = { subidoPor: 'Admin Uno', subidoEn: '2026-11-17T12:00:00.000Z', tamano: 1250304, nombreArchivo: 'KONAMI-WIN32PES5OPT' };
+  await expect('save-meta: presidente NO escribe pes5_config/save (crear)', 403,
+    await op.create('pes5_config/save', metaSave, AS.pres5));
+  await expect('save-meta: admin escribe pes5_config/save (crear)', 200,
+    await op.create('pes5_config/save', metaSave, AS.admin));
+  await expect('save-meta: presidente lee los metadatos', 200, await op.get('pes5_config/save', AS.pres5));
+  await expect('save-meta: anonimo NO lee los metadatos', 403, await op.get('pes5_config/save', AS.anon));
+  await expect('save-meta: presidente NO reemplaza los metadatos (update)', 403,
+    await op.update('pes5_config/save', { tamano: 1 }, AS.pres5));
+  await expect('save-meta: presidente NO borra los metadatos', 403, await op.del('pes5_config/save', AS.pres5));
+  await expect('save-meta: admin reemplaza los metadatos (nueva subida)', 200,
+    await op.update('pes5_config/save', { subidoEn: '2026-11-18T09:00:00.000Z', tamano: 1250400 }, AS.admin));
+
   console.log(`\nrules-pes5: ${total - fallos}/${total} casos OK`);
   if (fallos) { console.log(`${fallos} FALLO(S)`); process.exit(1); }
 }

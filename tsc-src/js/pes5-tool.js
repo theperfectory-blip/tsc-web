@@ -663,6 +663,7 @@ async function releerPlantillaAbierta(){
 async function cargarSaveDesdeCarpeta(){
   const leido = await PES5_SAVE.leer();
   SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
+  renderPausaTool(); // SAVE-1: el boton «Subir save» se habilita al tener un save abierto
   PLANO = PES5_CRYPT.descifrar(leido.bytes);
   recalcularClubesDelSave();
   await migrarPes5ClubIdx();
@@ -2531,6 +2532,7 @@ async function cargarPausaTool(){
     console.warn('[pes5-tool] pausa', e);
     PAUSA_ESTADO = { pausado: false, desde: null };
   }
+  await cargarSavePublicadoTool();
   renderPausaTool();
 }
 
@@ -2539,13 +2541,62 @@ function renderPausaTool(){
   if (!el) return;
   if (!PAUSA_ESTADO){ el.innerHTML = ''; return; }
   const pausado = PAUSA_ESTADO.pausado;
+  // SAVE-1: «Subir save» va junto a «Pausar mejoras». Sin save abierto queda deshabilitado con un hint.
+  const sinSave = !SAVE_META;
+  const pub = SAVE_PUB_META;
   el.innerHTML = `
     <div class="pt-pausa${pausado ? ' on' : ''}">
       <span class="pt-pausa-txt">${pausado
         ? `${ICN.alert} Mejoras pausadas desde ${escHtml(_horaPausa(PAUSA_ESTADO.desde) || '—')}`
         : 'Mejoras activas: los presidentes pueden pedir cambios'}</span>
-      <button class="btn btn-sm" data-onclick="ptPausaToggle()">${pausado ? 'Reanudar mejoras' : 'Pausar mejoras'}</button>
+      <span class="pt-pausa-acciones">
+        ${sinSave ? '<span class="pt-hint">Abre el save (carpeta del juego) para poder subirlo.</span>' : ''}
+        <button class="btn btn-sm" data-onclick="ptSubirSaveClick()"${sinSave ? ' disabled' : ''}>${ICN.upload} Subir save</button>
+        <button class="btn btn-sm" data-onclick="ptPausaToggle()">${pausado ? 'Reanudar mejoras' : 'Pausar mejoras'}</button>
+      </span>
+    </div>
+    <div class="pt-pausa pt-save-pub">
+      <span class="pt-pausa-txt">${ICN.save} ${pub
+        ? `Save publicado: <b>${escHtml(SAVE_PUBLICADO.fechaCorta(pub.subidoEn))}</b> · por ${escHtml(pub.subidoPor || '—')}`
+        : 'Todavía no hay save publicado'}</span>
     </div>`;
+}
+
+/* SAVE-1 · save publicado (lo baja el presidente desde Mejoras). Metadatos en pes5_config/save. */
+let SAVE_PUB_META = null; // {subidoPor, subidoEn: Date|null, tamano, nombreArchivo}; null = nada publicado
+
+async function cargarSavePublicadoTool(){
+  try {
+    SAVE_PUB_META = await SAVE_PUBLICADO.leerMeta();
+  } catch (e) {
+    console.warn('[pes5-tool] save publicado', e);
+    SAVE_PUB_META = null;
+  }
+}
+
+function _nombreAdminSave(){
+  return (AUTH.profile && AUTH.profile.displayName) || (AUTH.user && AUTH.user.displayName) || 'Admin';
+}
+
+function ptSubirSaveClick(){
+  if (!SAVE_META) return showToast('Abre el save antes de subirlo.', 'error');
+  const msg = SAVE_PUB_META && SAVE_PUB_META.subidoEn
+    ? `Reemplaza el save publicado del ${SAVE_PUBLICADO.fechaCorta(SAVE_PUB_META.subidoEn)}. Los presidentes lo descargan desde Mejoras.`
+    : 'Publica este save para que los presidentes lo descarguen desde Mejoras.';
+  showConfirm('Subir save', msg, ptSubirSaveConfirmado);
+}
+
+// Sube el save que la Tool ya tiene abierto (la carpeta ya esta elegida: no se pide el archivo de nuevo).
+async function ptSubirSaveConfirmado(){
+  try {
+    const leido = await PES5_SAVE.leer();
+    const blob = new Blob([leido.bytes], { type: 'application/octet-stream' });
+    SAVE_PUB_META = await SAVE_PUBLICADO.subirBlob(blob, { subidoPor: _nombreAdminSave(), nombreArchivo: leido.nombre });
+    renderPausaTool();
+    showToast('Save subido. Los presidentes ya pueden descargarlo desde Mejoras.');
+  } catch (e) {
+    showToast('No se pudo subir el save: ' + (e.message || e), 'error');
+  }
 }
 
 async function ptPausaToggle(){
