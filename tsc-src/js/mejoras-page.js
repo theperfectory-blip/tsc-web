@@ -555,7 +555,57 @@ function formacionPorDefecto(){
 }
 /* La guardada solo vale si sus 11 ids siguen existiendo en el plantel
    actual (Luis pudo republicar o cambiar el club vinculado). */
+/* FORM-4: alineacion y formacion. Una sola lectura para la cancha, la lista y la ficha:
+   1) el borrador (modal abierto), 2) el pedido de formacion pendiente, 3) la publicada, 4) la local. */
+function _textoLinea(l){
+  return l.from ? `${l.label}: ${l.from} → ${l.to}` : `${l.label}: ${l.to}`;
+}
+/* Lineas del pedido: un "Cambio de alineacion" por cada cambio de quien juega, y "Formacion" solo si
+   se movieron los puntos o la posicion de un lugar (4-3-3, etc.). */
+function _lineasFormacion(base, nueva, nombreNueva){
+  const nombreDe = id => (PLAYER_BY_ID[id] && PLAYER_BY_ID[id].name) || '—';
+  const lineas = PES5_PLANTILLA.cambiosDeAlineacion(base.map(s => s.id), nueva.map(s => s.id), nombreDe)
+    .map(t => ({ label: 'Cambio de alineación', from: '', to: t }));
+  const puntos = base.some((s, i) => { const n = nueva[i]; return !n || s.x !== n.x || s.y !== n.y || s.pos !== n.pos; });
+  const nombreBase = _nombreFormacionDraft(base);
+  if (puntos || !lineas.length){
+    const igual = nombreNueva === nombreBase;
+    lineas.push({ label: 'Formación', from: igual ? '' : nombreBase, to: igual && puntos ? nombreNueva + ' (puntos movidos)' : nombreNueva });
+  }
+  return lineas;
+}
+/* El pedido de formacion pendiente (el ultimo que aun no aplico Luis), como alineacion. */
+const _tiempoPedido = p => { const m = PES5_PLANTILLA.msDeFecha(p.creadoEn); return m == null ? Number.MAX_SAFE_INTEGER : m; };
+function _formacionPendiente(){
+  const x = (APP.pendientes || []).filter(p => p.tipo === 'formacion' && p.estado === 'pendiente'
+    && p.formacion && Array.isArray(p.formacion.slots)).sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b)).pop();
+  if (!x) return null;
+  const f = formacionDesdePublicada({ slots: x.formacion.slots });
+  return f && f.every(s => PLAYER_BY_ID[s.id]) ? f : null;
+}
+/* Lo que se muestra como 11: con el modal abierto, el borrador; si no, la alineacion vigente. */
+function alineacionVigente(){
+  return (FORM_ABIERTO && FORM.draft) ? FORM.draft : formacionVigente();
+}
+function titularSpot(id){ return alineacionVigente().find(s => s.id === id) || null; }
+/* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
+function _seccionesPlantel(){
+  const sec = {};
+  alineacionVigente().forEach(s => { sec[s.id] = 'titular'; });
+  PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999))
+    .forEach((p, i) => { sec[p.id] = i < 12 ? 'suplente' : 'reserva'; });
+  return sec;
+}
+/* Plantel en el orden que se muestra: el 11 en el orden de la cancha y luego la banca por slot. */
+function plantelOrdenado(){
+  const sec = _seccionesPlantel();
+  const titulares = alineacionVigente().map(s => PLAYER_BY_ID[s.id]).filter(Boolean);
+  const banca = PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+  return [...titulares, ...banca];
+}
 function formacionVigente(){
+  const pendiente = _formacionPendiente();
+  if (pendiente) return pendiente;
   // Opcion B: la verdad es la formacion del save, publicada por la Tool.
   if (FORMACION_PUBLICADA){
     const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
@@ -995,9 +1045,11 @@ function sectionKeyOfSlot(slot){ const s = slot ?? 999; return s < 11 ? 'titular
 function renderRoster(){
   const q = (document.getElementById('ep-search').value||'').toLowerCase();
   const list = document.getElementById('ep-roster-list');
+  const secs = _seccionesPlantel();
+  const ordenPlantel = plantelOrdenado();
   // conteos y estado del segmentado (siempre sobre todo el plantel)
   SQUAD_SECTIONS.forEach(sec=>{
-    const n = PLAYERS.filter(p => sectionKeyOfSlot(p.slot) === sec.key).length;
+    const n = PLAYERS.filter(p => secs[p.id] === sec.key).length;
     const b = document.getElementById('ep-seg-n-' + sec.key);
     if (b) b.textContent = n;
     const tab = document.getElementById('ep-seg-' + sec.key);
@@ -1006,10 +1058,12 @@ function renderRoster(){
 
   function item(p){
     const pos = p.primaryPos || 'CB';
-    const linea = LINEA_POS[pos] || 'mid';
+    const sp = titularSpot(p.id); // en el 11: la etiqueta es el lugar de la cancha
+    const codigo = sp ? (sp.pos || CODIGO_POS[pos] || pos) : (CODIGO_POS[pos] || pos);
+    const linea = sp ? (PITCH_POS_LINEA[sp.pos] || LINEA_POS[pos] || 'mid') : (LINEA_POS[pos] || 'mid');
     const pendiente = (APP.pendientes||[]).some(x => x.playerId === p.id && x.estado === 'pendiente');
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" data-onclick="selectPlayer('${p.id}')">
-      <span class="ep-pitem-pos ep-line-${linea}">${escHtml(CODIGO_POS[pos] || pos)}</span>
+      <span class="ep-pitem-pos ep-line-${linea}">${escHtml(codigo)}</span>
       <span class="ep-pitem-info">
         <span class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</span>
         <span class="ep-pitem-tag">${escHtml((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || '')}</span>
@@ -1023,8 +1077,8 @@ function renderRoster(){
     // sin busqueda se ve el grupo elegido en el segmentado; con busqueda, todos los grupos que coinciden
     if (!q && sec.key !== APP.squadTab) return;
     const players = PLAYERS
-      .filter(p => sectionKeyOfSlot(p.slot) === sec.key && p.name.toLowerCase().includes(q))
-      .sort((a,b) => (a.slot ?? 0) - (b.slot ?? 0)); // orden real del archivo, no alfabetico ni por posicion
+      .filter(p => secs[p.id] === sec.key && p.name.toLowerCase().includes(q))
+      .sort((a,b) => ordenPlantel.indexOf(a) - ordenPlantel.indexOf(b)); // orden de la cancha (11) y luego la banca
     if(!players.length) return;
     if (q) html += `<div class="ep-bkt-hd">${sec.label}</div>`;
     html += players.map(item).join('');
@@ -1040,7 +1094,7 @@ function selectPlayer(id){
   APP.page = 1;
   APP.hint = 'Selecciona un atributo para ver su descripcion.';
   const jugador = PLAYER_BY_ID[id];
-  if (jugador) APP.squadTab = sectionKeyOfSlot(jugador.slot); // el segmentado sigue al jugador elegido
+  if (jugador) APP.squadTab = _seccionesPlantel()[id] || 'titular'; // el segmentado sigue al jugador elegido
   loadDraft();
   renderAll();
   // Telefono (<860 px): tocar un jugador abre el editor como vista propia. El scroll de la
@@ -1291,13 +1345,13 @@ function renderPending(){
     box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${avisoBloqueo}</span>`;
     return;
   }
-  const x = pend[0];
+  const x = pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a))[0]; // el mas reciente
   const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
   const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
   // pedido de formacion: no tiene jugador, va con el nombre de la formacion
   const nombreForm = x.tipo === 'formacion' ? ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '') : '';
   const frase = x.tipo === 'formacion'
-    ? `Formación ${escHtml(nombreForm)} espera que Luis la aplique.`
+    ? `${(x.lines || []).map(l => escHtml(_textoLinea(l))).join(' · ') || 'Formación ' + escHtml(nombreForm)} espera que Luis la aplique.`
     : `${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.`;
   box.hidden = false;
   box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${bloqueo ? avisoBloqueo + ' ' : ''}${frase}${mas} Puedes cancelarlo desde Pedidos mientras siga pendiente.</span>`;
@@ -1740,6 +1794,8 @@ function clearAuditLog(){
 
 const FORM = { draft:null, sel:0, motivo:null };
 let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
+let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (base del pedido)
+let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
 
 function openFormationModal(){
@@ -1753,6 +1809,7 @@ function openFormationModal(){
   // Si la formacion publicada es vieja y no trae posiciones, se completan
   // con la primera opcion valida de cada bloque (asi las reglas tienen datos).
   completarPosiciones();
+  FORM_BASE = JSON.parse(JSON.stringify(FORM.draft)); FORM_ABIERTO = true;
   FORM.sel = 0;
   FORM.motivo = null;
   FORM_DRAG = null;
@@ -1841,6 +1898,8 @@ function _montarModalCancha(){
   _formObservarAlto();
 }
 function closeFormationModal(){
+  FORM_ABIERTO = false;
+  renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
   document.getElementById('ep-pitch-wrap').innerHTML='';
@@ -1950,11 +2009,11 @@ function _formRenderBancaYPanel(){
   const bancaEl = document.getElementById('ep-form-bench');
   const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
   if (bancaEl){
-    const plantel = PLAYERS.slice().sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+    const plantel = plantelOrdenado(); const secs = _seccionesPlantel();
     bancaEl.innerHTML = plantel.map(p => {
       const i = _formIdxDeId(p.id);
       const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
-      const etiqueta = i >= 0 ? 'En el 11' : (sectionKeyOfSlot(p.slot) === 'reserva' ? 'Reserva' : 'Suplente');
+      const etiqueta = i >= 0 ? 'En el 11' : (secs[p.id] === 'reserva' ? 'Reserva' : 'Suplente');
       const cls = ['ep-form-subbtn', i >= 0 ? 'en11' : '', p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : ''].filter(Boolean).join(' ');
       return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
         <span class="ep-form-subname">${escHtml(p.name)}</span>
@@ -1974,12 +2033,12 @@ function _formRenderBancaYPanel(){
    SEC_NEW, POSITIONS y ALL_ABILITIES. Solo esta panel tiene scroll vertical propio. */
 function _formFichaCompleta(p){
   const val = (v) => (v === undefined || v === null || v === '') ? '—' : escHtml(String(v));
+  const valor99 = (v) => typeof v === 'number' ? `<span style="color:${TIER_COLOR[tierClass99(v)]};">${v}</span>` : val(v);
   const fila = (lab, v) => `<div class="ep-fs-row"><span>${escHtml(lab)}</span><b>${v}</b></div>`;
-  const atributos = MAIN_STATS.map(s => fila(s.l, val((p.stats || {})[s.k]))).join('');
+  const atributos = MAIN_STATS.map(s => fila(s.l, valor99((p.stats || {})[s.k]))).join('');
   const secundarios = SEC_NEW.map(s => {
     const raw = (p.sec || {})[s.k];
-    const extra = s.sc === 8 ? ' <small>escala 1-8</small>' : s.sc === 'inj' ? ' <small>C · B · A</small>' : ' <small>0-99</small>';
-    return fila(s.l, val(raw) + extra);
+    return fila(s.l, s.sc === 99 ? valor99(raw) : val(raw));
   }).join('');
   const posiciones = POSITIONS.map(ps => {
     const on = !!(p.positions || {})[ps.k];
@@ -2361,6 +2420,7 @@ async function confirmFormation(){
     lat: i === 0 ? null : Math.max(6, Math.min(99, Math.round(6 + (s.y - 1) * 93 / 46))),
     posNombre: s.pos || null,
   }));
+  const lineasPedido = _lineasFormacion(FORM_BASE || FORMATION, FORMATION, nombre);
   try {
     await firebase.firestore().collection('pedidos_pes5').add({
       uid: AUTH.user.uid,
@@ -2370,7 +2430,7 @@ async function confirmFormation(){
       tipo: 'formacion',
       pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
       formacion: { nombre, slots },
-      lines: [{ label: 'Formación', from: FORMATION_NAME, to: nombre }],
+      lines: lineasPedido,
       totalCost: 0,
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2378,7 +2438,7 @@ async function confirmFormation(){
     try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
     FORMATION_NAME = nombre;
     // presentacion: la formacion recien enviada ya cuenta como pendiente (aviso y globito)
-    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre }, lines: [{ label: 'Formación', from: '', to: nombre }], estado: 'pendiente' });
+    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente' });
     renderPending();
     closeFormationModal();
     showMiniToast('Formación enviada. La Tool la aplica al save.');

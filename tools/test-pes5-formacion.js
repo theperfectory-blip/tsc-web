@@ -123,5 +123,20 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   assert(igual(ED.leerPlantillaEquipo(bytes, CLUB), PLANTEL), 'tras el fallo el roster sigue en su orden original');
 }
 
+// 9) FORM-4: que cambio en quien juega entre dos 11 (texto de los pedidos)
+{
+  const P = require('../tsc-src/js/pes5-plantilla.js');
+  const nom = id => ({ 1: 'Boot', 12: 'Starke', 5: 'Juan', 9: '$Yunifantino' })[id] || ('J' + id);
+  const base = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const iguales = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  assert(iguales(P.cambiosDeAlineacion(base, [12, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], nom), ['Entra Starke por Boot']),
+    'FORM-4 · arquero suplente por el titular: "Entra Starke por Boot"');
+  assert(iguales(P.cambiosDeAlineacion(base, [1, 2, 3, 4, 9, 6, 7, 8, 5, 10, 11], nom), ['Juan ↔ $Yunifantino']),
+    'FORM-4 · intercambio entre titulares: "Juan ↔ $Yunifantino"');
+  assert(iguales(P.cambiosDeAlineacion(base, [12, 2, 3, 4, 9, 6, 7, 8, 5, 10, 11], nom), ['Entra Starke por Boot', 'Juan ↔ $Yunifantino']),
+    'FORM-4 · arquero y un intercambio a la vez: dos textos');
+  assert(P.cambiosDeAlineacion(base, base, nom).length === 0, 'FORM-4 · mismo 11: sin cambios de alineacion');
+}
+
 console.log(fallas ? `\n${fallas} FALLO(S)` : '\nTODO OK');
 process.exit(fallas ? 1 : 0);

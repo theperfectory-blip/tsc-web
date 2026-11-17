@@ -1654,13 +1654,15 @@ async function renderPedidosTab(opts){
     const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
     const esFormacion = p.tipo === 'formacion';
     const lineas = esFormacion
-      ? `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`
+      ? ((p.lines && p.lines.length)
+          ? p.lines.map(l => l.from ? `${escHtml(l.label)}: ${escHtml(l.from)} → ${escHtml(l.to)}` : `${escHtml(l.label)}: ${escHtml(l.to)}`).join('<br>')
+          : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
       : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
     const aplicable = esFormacion
       ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
       : !!(p.cambios && p.registro != null);
     const jugador = esFormacion
-      ? '<i>Formación</i>'
+      ? ((p.lines || []).some(l => l.label === 'Cambio de alineación') ? '<i>Alineación</i>' : '<i>Formación</i>')
       : `${escHtml(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
     // En PC la casilla elige que pedidos aplicar. En el telefono no se aplica nada (3.B).
     const celdaSel = movil ? '' : `<td data-label="Aplicar"><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>`;
@@ -1900,9 +1902,10 @@ async function aplicarPedidosSeleccionados(){
         }
         aplicados.push({ pedido: p, team, info: {
           total: 0, fromGeneral: 0, fromSub: 0, formacion: true,
-          lineas: [{ label: 'Formación', from: '—', to: p.formacion.nombre || '' }],
+          lineas: (p.lines && p.lines.length) ? p.lines.map(l => ({ label: l.label, from: l.from || '—', to: l.to || '' })) : [{ label: 'Formación', from: '—', to: p.formacion.nombre || '' }],
         } });
-        log(`${team.name}: formación ${p.formacion.nombre || ''} aplicada (gratis)${cambiosTitulares ? ` · ${cambiosTitulares} cambio(s) de titulares` : ''}`, 'ok');
+        const esAlin = (p.lines || []).some(l => l.label === 'Cambio de alineación');
+        log(`${team.name}: ${esAlin ? 'cambio de alineación' : 'formación'} ${p.formacion.nombre || ''} aplicado (gratis)${cambiosTitulares ? ` · ${cambiosTitulares} cambio(s) de titulares` : ''}`, 'ok');
         continue;
       }
       if (p.tipo === 'emparejar'){
