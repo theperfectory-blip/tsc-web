@@ -80,8 +80,37 @@ Hubo dos huecos, y los dos explican el fallo:
 - Por eso **no se hizo el click real de «Publicar save» ni de «Actualizar save»**. Lo que sí se verificó: el código está en `window` (sección 1a en 0) y `node --check` pasa.
 - Pendiente: repetir el click real con un navegador que sí alcance los emuladores (p. ej. Chrome de Claude en Chrome, si Jimbo lo autoriza), o en la PC de Jimbo.
 
+## SYNC-1b · auditor de cableado: IIFE y comentarios
+
+Encargo del coordinador: que `audit-wiring` marque `ptSubirSaveClick` como roto con el código de antes de SYNC-1, y dé 0 rotos con el actual.
+
+**Qué cambió en `scripts/audit-wiring.mjs`:**
+- **IIFE por región, no por archivo.** Un IIFE de primer nivel va de `(function(){` o `(() =>` en columna 0 hasta el `})();` siguiente. Una `function`/`var` de primer nivel cuenta como global solo si está **fuera** de esos rangos (en `bracket.js` hay código de primer nivel después del IIFE, y eso sí es global). Solo `window.X =` cuenta siempre.
+- **Sección 1a «sin window»** (ya existía desde SYNC-1): un `data-on*` cuyo nombre no es propiedad de `window`. `events.js` resuelve con `window[fn]`, así que esa función no se ejecuta.
+- **Comentarios ignorados:** un `on…="…"` dentro de una línea de comentario (`//`, `/*`, `*`) no es un handler. Antes marcaba `mejoras-page.js:110`, que es texto de un comentario.
+- **Placeholders de sentencia:** un `${…}` al inicio o tras `;` se toma como llamada, no como `0`. Así `event.stopPropagation();${onDec}` (`mejoras-page.js:2845-2846`) se parsea como lo que es en runtime (`adjustMain('k',-1)`). Antes daba un error falso «se esperaba id».
+- **El total «rotos» suma las dos clases** (no definidas + sin window) y el desglose va entre paréntesis.
+
+**Verificación:**
+
+| Código | Resultado |
+|---|---|
+| Antes de SYNC-1 (`git show 8791eb5:tsc-src/js/pes5-tool.js` en un temporal, resto del código actual) | `rotos 1 (no definidas 0 · sin window 1)`. Marca **`ptSubirSaveClick`** en `js/pes5-tool.js:2554` |
+| Actual (`2e3c191` + este cambio) | `rotos 0 (no definidas 0 · sin window 0) · fuera de gramática 0` |
+| `node scripts/smoke-parity.mjs` | PARIDAD: OK |
+
+**Hallazgos reales que salieron:** ninguno de tipo «roto» en el código actual. Los dos falsos positivos de `mejoras-page.js` (comentario y placeholder) ya no salen.
+
+**Lo que el auditor sigue reportando, sin tocar (no es «roto» para el encargo):**
+- Muertas (sección 2, 9): `costoJugador`, `costoTotalPendienteEquipo` y `_cambiosDe` en `pes5-tool.js`; `isPresident`, `liveAvailable`, `_formationKey`, `sectionKeyOfSlot`, `clearAuditLog`, `setPalmaresMedia`. Pueden usarse por nombre dinámico: verificar antes de borrar.
+- Duplicados entre archivos (sección 3, 7): `showToast`, `openModal`, `closeModal`, `toggleTheme`, `renderAuthUI` en `mejoras-page.js` contra `ui-utils.js`/`auth.js`. Si `mejoras-page.js` carga después, pisa la versión global. Pendiente confirmar en el panel admin. `cargarReglasFirestore` y `montar` también aparecen dos veces, pero uno de los dos está dentro de un IIFE: falso positivo de la sección 3 (no usa la región).
+- IDs (sección 4, 3): `bulk-${m}-btn` en `coins.js`, `mej-save-pub` y `mej-host` en `mejoras-page.js`. Heurística; no confirmado.
+
+**Reporte generado:** `docs/reportes/MS-2.3-cableado.md` es la salida de esta corrida, así que va en el mismo commit.
+
 ## Archivos que no son de este cambio
-- `android/app/capacitor.build.gradle`, `android/capacitor.settings.gradle` y `docs/reportes/MS-2.3-cableado.md` ya estaban modificados (sin commitear) al entrar al worktree. **`scripts/audit-wiring.mjs` reescribió `docs/reportes/MS-2.3-cableado.md`** (fecha y conteos). Ese archivo no se commitea en este encargo.
+- `android/app/capacitor.build.gradle` y `android/capacitor.settings.gradle` ya estaban modificados (sin commitear) al entrar al worktree. No son de SYNC-1 y no se commitean.
+- `docs/reportes/MS-2.3-cableado.md` es ahora la salida del auditor en el último commit (ver SYNC-1b).
 
 ## Para decidir o hacer a mano
 - Probar en una PC con el save real: Actualizar save, Publicar save (con y sin cambios), la casilla de reanudar, y el aviso de save viejo.

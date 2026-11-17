@@ -55,12 +55,20 @@ for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) {
 for (const { f, code } of files.filter(x => x.f !== 'index.html'))
   for (const m of code.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)\s*=[^=]/g)) if (!defs.has(m[1])) addDef(m[1], f, lineOf(code, m.index), 'window');
 
+// Un match en una línea de comentario (empieza con //, /* o *) no es un handler real: se ignora.
+const enComentario = (code, idx) => {
+  const ini = code.lastIndexOf('\n', idx - 1) + 1;
+  const l = code.slice(ini, idx).trimStart();
+  return l.startsWith('//') || l.startsWith('/*') || l.startsWith('*');
+};
+
 /* ---------- 1. handlers rotos ---------- */
 const HANDLER = /\bon(?:click|change|input|submit|keydown|keyup|keypress|focus|blur|load|error|mouseover|mouseout|mouseenter|mouseleave|dblclick|contextmenu|pointerdown|touchstart|scroll|dragstart|dragover|dragleave|dragend|drop)\s*=\s*(?:"([^"]*)"|'([^']*)'|\\"([^"]*)\\")/g;
 const broken = [];
 const handlerCalls = new Set();
 for (const { f, code } of files) {
   for (const m of code.matchAll(HANDLER)) {
+    if (enComentario(code, m.index)) continue;
     const body = (m[1] ?? m[2] ?? m[3] ?? '').replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'|\\'[^']*\\'/g, "''");
     for (const c of body.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
       const name = c[1];
@@ -103,6 +111,7 @@ for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))
 const noWindow = [];
 for (const { f, code } of files) {
   for (const m of code.matchAll(HANDLER)) {
+    if (enComentario(code, m.index)) continue;
     const body = (m[1] ?? m[2] ?? m[3] ?? '').replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'|\\'[^']*\\'/g, "''");
     for (const c of body.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
       const name = c[1];
@@ -121,9 +130,11 @@ const unparsable = [];
 for (const { f, code } of files) {
   if (f === 'js/events.js') continue;
   for (const m of code.matchAll(HANDLER)) {
+    if (enComentario(code, m.index)) continue;
     let body = m[1] ?? m[2] ?? m[3] ?? '';
     if (/^\s*(\$\{[^}]*\}|'\+\w+\+')\s*$/.test(body)) continue; // handler entero armado en otra variable
-    body = body.replace(/\$\{[^}]*\}/g, '0').replace(/'\+[^']*?\+'/g, '0').replace(/\\'/g, "'")
+    // Un ${…} en posición de sentencia (inicio o tras «;») es una llamada (p. ej. ${onDec}); el resto, un valor.
+    body = body.replace(/(^|;)\s*\$\{[^}]*\}/g, '$1f()').replace(/\$\{[^}]*\}/g, '0').replace(/'\+[^']*?\+'/g, '0').replace(/\\'/g, "'")
       .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
     try { _onParse(body); }
     catch (e) { unparsable.push({ f, line: lineOf(code, m.index), snippet: (m[1] ?? m[2] ?? m[3]).slice(0, 80), err: e.message }); }
@@ -196,4 +207,4 @@ for (const [id, w] of missingIds) md.push(`- \`${id}\` · ${w.slice(0, 4).join('
 md.push('');
 mkdirSync(join(ROOT, 'docs', 'reportes'), { recursive: true });
 writeFileSync(join(ROOT, 'docs', 'reportes', 'MS-2.3-cableado.md'), md.join('\n'));
-console.log(`[audit-wiring] rotos ${broken.length} · sin window ${noWindow.length} · fuera de gramática ${unparsable.length} · muertas ${dead.length} · duplicados ${dups.length} · IDs ${missingIds.size}`);
+console.log(`[audit-wiring] rotos ${broken.length + noWindow.length} (no definidas ${broken.length} · sin window ${noWindow.length}) · fuera de gramática ${unparsable.length} · muertas ${dead.length} · duplicados ${dups.length} · IDs ${missingIds.size}`);

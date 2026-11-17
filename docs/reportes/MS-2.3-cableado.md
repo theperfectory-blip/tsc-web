@@ -12,13 +12,9 @@ _Ninguno._
 
 _Ninguno._
 
-## 1b. Handlers data-on* fuera de la gramática de js/events.js (3)
+## 1b. Handlers data-on* fuera de la gramática de js/events.js (0)
 
-| Dónde | Handler | Error |
-|---|---|---|
-| js/mejoras-page.js:110 | `if(event.target===this)...` | carácter inesperado «=» |
-| js/mejoras-page.js:2845 | `event.stopPropagation();${onDec}` | se esperaba «id» |
-| js/mejoras-page.js:2846 | `event.stopPropagation();${onInc}` | se esperaba «id» |
+_Ninguno._
 
 ## 2. Funciones sin ninguna referencia (9) — candidatas a código muerto para 7.2
 
