@@ -426,9 +426,9 @@
 .ep-root .ep-form-subbtn.armado{background:var(--card3);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-b);}
 .ep-root .ep-form-subname{font-family:'Bebas Neue';font-size:15px;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 .ep-root .ep-form-subtag{font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-/* ficha completa: su propio scroll vertical (cabe en telefono chico y notebook con poca altura) */
+/* ficha completa: fluye dentro del scroll del modal (un solo scroll; FIX-HAB: no hay scroll anidado) */
 .ep-root .ep-form-stats{margin-top:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);
-  max-height:min(44vh, 380px);overflow-y:auto;overscroll-behavior:contain;padding:10px 12px;}
+  padding:10px 12px;}
 .ep-root .ep-form-stats[hidden]{display:none;}
 .ep-root .ep-fs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
 .ep-root .ep-fs-name{font-family:'Bebas Neue';font-size:18px;color:var(--txt);}
@@ -464,6 +464,12 @@
 .ep-root .ep-modal-body{scrollbar-width:none;padding:14px 16px calc(14px + env(safe-area-inset-bottom));}
 .ep-root .ep-modal-body::-webkit-scrollbar{display:none;}
 .ep-root .ep-modal-close{min-width:44px;min-height:44px;font-size:26px;}
+.ep-root .ep-modal-foot{padding-bottom:calc(12px + env(safe-area-inset-bottom));}
+/* FIX-HAB: alto del overlay y del modal con el viewport dinamico (sin la barra del navegador) */
+@supports (height:100dvh){
+.ep-root .ep-overlay{height:100dvh;}
+.ep-root .ep-modal,.ep-root .ep-modal.wide{height:100dvh;}
+}
 }
 @media (min-width:860px){
 .ep-root .ep-grab{display:none;}
