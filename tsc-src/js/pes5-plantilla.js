@@ -322,6 +322,16 @@
     return !(previa.teamHash === teamHash && previa.pes5ClubIdx === pes5ClubIdx);
   }
 
+  /* FIX-CANCEL: el pedido de formacion pendiente mas reciente (o null). Solo manda lo que aun no aplico Luis:
+     un pedido cancelado o aplicado no cuenta. Sin fecha (pedido local recien enviado) es el mas nuevo. */
+  function formacionPendienteMasReciente(pedidos, msDe) {
+    const ms = typeof msDe === 'function' ? msDe : (p => msDeFecha(p.creadoEn));
+    const tiempo = p => { const m = ms(p); return m == null ? Number.MAX_SAFE_INTEGER : m; };
+    const lista = (pedidos || []).filter(p => p && p.tipo === 'formacion' && p.estado === 'pendiente'
+      && p.formacion && Array.isArray(p.formacion.slots));
+    if (!lista.length) return null;
+    return lista.slice().sort((a, b) => tiempo(a) - tiempo(b)).pop();
+  }
   /* FORM-4: que cambio en QUIEN juega, entre dos 11 (ids de jugador en orden de slot 0-10).
      Devuelve textos: "Juan ↔ $Yuni" (dos titulares intercambian lugar) o "Entra X por Y" (quien entra
      toma el lugar de quien sale). nombreDe(id) da el nombre. [] si el 11 es el mismo. */
@@ -345,6 +355,7 @@
 
   return {
     cambiosDeAlineacion: cambiosDeAlineacion,
+    formacionPendienteMasReciente: formacionPendienteMasReciente,
     debeReescribirPublicacion: debeReescribirPublicacion,
     msDeFecha: msDeFecha,
     vistaDelPedido: vistaDelPedido,

@@ -138,5 +138,27 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   assert(P.cambiosDeAlineacion(base, base, nom).length === 0, 'FORM-4 · mismo 11: sin cambios de alineacion');
 }
 
+// 10) FIX-CANCEL: el pedido de formacion pendiente que manda (cancelado o aplicado no cuenta)
+{
+  const P = require('../tsc-src/js/pes5-plantilla.js');
+  const slots = [{ slot: 0, jugador: 101 }];
+  const pedidos = [
+    { _id: 'a', tipo: 'formacion', estado: 'pendiente', formacion: { slots }, creadoEn: '2026-11-16T10:00:00Z' },
+    { _id: 'b', tipo: 'formacion', estado: 'cancelado', formacion: { slots }, creadoEn: '2026-11-16T12:00:00Z' },
+    { _id: 'c', tipo: 'formacion', estado: 'aplicado', formacion: { slots }, creadoEn: '2026-11-16T13:00:00Z' },
+    { _id: 'd', tipo: 'mejora', estado: 'pendiente', creadoEn: '2026-11-16T14:00:00Z' },
+  ];
+  const r = P.formacionPendienteMasReciente(pedidos);
+  assert(r && r._id === 'a', 'FIX-CANCEL · solo manda el pendiente: el cancelado, el aplicado y la mejora no cuentan');
+  assert(P.formacionPendienteMasReciente([pedidos[1], pedidos[2], pedidos[3]]) === null,
+    'FIX-CANCEL · sin pendientes de formacion: null (vuelve la publicada)');
+  const dos = [pedidos[0], { _id: 'e', tipo: 'formacion', estado: 'pendiente', formacion: { slots }, creadoEn: '2026-11-16T11:00:00Z' }];
+  assert(P.formacionPendienteMasReciente(dos)._id === 'e', 'FIX-CANCEL · con dos pendientes manda el mas reciente');
+  const local = [pedidos[0], { _id: 'local-1', tipo: 'formacion', estado: 'pendiente', formacion: { slots } }];
+  assert(P.formacionPendienteMasReciente(local)._id === 'local-1', 'FIX-CANCEL · el pedido local (sin fecha) es el mas nuevo');
+  assert(P.formacionPendienteMasReciente([{ _id: 'f', tipo: 'formacion', estado: 'pendiente' }]) === null,
+    'FIX-CANCEL · un pedido sin slots no cuenta');
+}
+
 console.log(fallas ? `\n${fallas} FALLO(S)` : '\nTODO OK');
 process.exit(fallas ? 1 : 0);

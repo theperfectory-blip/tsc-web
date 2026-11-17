@@ -577,8 +577,7 @@ function _lineasFormacion(base, nueva, nombreNueva){
 /* El pedido de formacion pendiente (el ultimo que aun no aplico Luis), como alineacion. */
 const _tiempoPedido = p => { const m = PES5_PLANTILLA.msDeFecha(p.creadoEn); return m == null ? Number.MAX_SAFE_INTEGER : m; };
 function _formacionPendiente(){
-  const x = (APP.pendientes || []).filter(p => p.tipo === 'formacion' && p.estado === 'pendiente'
-    && p.formacion && Array.isArray(p.formacion.slots)).sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b)).pop();
+  const x = PES5_PLANTILLA.formacionPendienteMasReciente(APP.pendientes);
   if (!x) return null;
   const f = formacionDesdePublicada({ slots: x.formacion.slots });
   return f && f.every(s => PLAYER_BY_ID[s.id]) ? f : null;
@@ -625,11 +624,6 @@ function formacionVigente(){
     const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
     if (pub && pub.every(s => s && PLAYER_BY_ID[s.id])) return pub;
   }
-  try{
-    const saved = JSON.parse(localStorage.getItem(_formationKey())||'null');
-    if (Array.isArray(saved) && saved.length === FORMATION_COORDS.length
-        && saved.every(s => s && PLAYER_BY_ID[s.id]) && new Set(saved.map(s => s.id)).size === saved.length) return saved;
-  }catch(e){}
   return formacionPorDefecto();
 }
 let FORMATION = null; // se arma al abrir el modal, cuando ya hay plantel
@@ -2449,7 +2443,6 @@ async function confirmFormation(){
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
     FORMATION_NAME = nombre;
     // presentacion: la formacion recien enviada ya cuenta como pendiente (aviso y globito)
     APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente' });
@@ -2942,6 +2935,15 @@ async function cancelarPedido(pedidoId){
     estado: 'cancelado', canceladoEn: new Date().toISOString(),
   });
   await recalcularPresupuestoReal();
+  if (!ADMIN_EMBED) await _volverAPlantillaPublicada();
+}
+/* FIX-CANCEL: lo que se mostro al enviar (valores del jugador, alineacion) salia de la copia en memoria.
+   Al cancelar se vuelve a leer la plantilla publicada, se rehace el borrador y se redibuja, sin recargar. */
+async function _volverAPlantillaPublicada(){
+  try { await cargarPlantillaReal(AUTH.teamId, EQUIPO_TSC.pes5ClubIdx); }
+  catch(e){ console.warn('[mejoras] plantilla publicada', e); }
+  loadDraft();
+  renderAll();
 }
 
 /* ================= Slice Q2: modo admin embebido ================= */
