@@ -138,5 +138,127 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   assert(P.cambiosDeAlineacion(base, base, nom).length === 0, 'FORM-4 · mismo 11: sin cambios de alineacion');
 }
 
-console.log(fallas ? `\n${fallas} FALLO(S)` : '\nTODO OK');
+// 10) FIX-CANCEL: el pedido de formacion pendiente que manda (cancelado o aplicado no cuenta)
+{
+  const P = require('../tsc-src/js/pes5-plantilla.js');
+  const slots = [{ slot: 0, jugador: 101 }];
+  const pedidos = [
+    { _id: 'a', tipo: 'formacion', estado: 'pendiente', formacion: { slots }, creadoEn: '2026-11-16T10:00:00Z' },
+    { _id: 'b', tipo: 'formacion', estado: 'cancelado', formacion: { slots }, creadoEn: '2026-11-16T12:00:00Z' },
+    { _id: 'c', tipo: 'formacion', estado: 'aplicado', formacion: { slots }, creadoEn: '2026-11-16T13:00:00Z' },
+    { _id: 'd', tipo: 'mejora', estado: 'pendiente', creadoEn: '2026-11-16T14:00:00Z' },
+  ];
+  const r = P.formacionPendienteMasReciente(pedidos);
+  assert(r && r._id === 'a', 'FIX-CANCEL · solo manda el pendiente: el cancelado, el aplicado y la mejora no cuentan');
+  assert(P.formacionPendienteMasReciente([pedidos[1], pedidos[2], pedidos[3]]) === null,
+    'FIX-CANCEL · sin pendientes de formacion: null (vuelve la publicada)');
+  const dos = [pedidos[0], { _id: 'e', tipo: 'formacion', estado: 'pendiente', formacion: { slots }, creadoEn: '2026-11-16T11:00:00Z' }];
+  assert(P.formacionPendienteMasReciente(dos)._id === 'e', 'FIX-CANCEL · con dos pendientes manda el mas reciente');
+  const local = [pedidos[0], { _id: 'local-1', tipo: 'formacion', estado: 'pendiente', formacion: { slots } }];
+  assert(P.formacionPendienteMasReciente(local)._id === 'local-1', 'FIX-CANCEL · el pedido local (sin fecha) es el mas nuevo');
+  assert(P.formacionPendienteMasReciente([{ _id: 'f', tipo: 'formacion', estado: 'pendiente' }]) === null,
+    'FIX-CANCEL · un pedido sin slots no cuenta');
+}
+
+// 11) ORD-2: lee el roster antes y despues. Solo cambian los slots del intercambio, y la banca que muestra
+// Mejoras (rosterTrasTitulares) coincide con el roster real que deja ordenarTitulares.
+{
+  const P = require('../tsc-src/js/pes5-plantilla.js');
+  const casos = [
+    ['un suplente (12) por el titular del slot 10 (11)', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12], [11]],
+    ['dos suplentes (13, 14) por los slots 8 y 9', [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 11], [9, 10]],
+    ['intercambio de titulares 5 y 7 (slots 4 y 6)', [1, 2, 3, 4, 7, 6, 5, 8, 9, 10, 11], [5, 7]],
+    ['arquero suplente (12) por el 1', [12, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [1, 12]],
+  ];
+  for (const [titulo, nuevo, _sueltos] of casos) {
+    const bytes = bufferConPlantel(PLANTEL);
+    const antes = ED.leerPlantillaEquipo(bytes, CLUB).slice();
+    ED.ordenarTitulares(bytes, CLUB, nuevo);
+    const tras = ED.leerPlantillaEquipo(bytes, CLUB);
+    const cambian = tras.map((id, s) => (id !== antes[s] ? s : -1)).filter(s => s >= 0);
+    const esperado = P.rosterTrasTitulares(antes, nuevo);
+    assert(igual(tras, esperado), `ORD-2 · ${titulo}: la banca de Mejoras coincide con el roster del save`);
+    assert(tras.length === antes.length && antes.every(id => tras.includes(id)), `ORD-2 · ${titulo}: el plantel conserva a todos, una vez`);
+    assert(cambian.every(s => s <= 10 || nuevo.includes(antes[s])) && cambian.length <= 2 * (nuevo.filter((id, s) => id !== antes[s]).length),
+      `ORD-2 · ${titulo}: cambian ${cambian.length} slots (${cambian.join(',')}), ninguno fuera del intercambio`);
+  }
+  // caso exacto de Jimbo: el 11 (titular del slot 10) sale y el suplente 12 entra; el 11 cae en el slot 11, el lugar del 12
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    ED.ordenarTitulares(bytes, CLUB, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+    const tras = ED.leerPlantillaEquipo(bytes, CLUB);
+    assert(igual(tras, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 11, 13, 14]),
+      'ORD-2 · el titular que sale (11) cae exacto en el slot del suplente (12); la banca 13, 14 no se mueve');
+  }
+  // dos suplentes: cada saliente toma el slot del entrante, sin reordenar la banca restante
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    ED.ordenarTitulares(bytes, CLUB, [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 11]);
+    const tras = ED.leerPlantillaEquipo(bytes, CLUB);
+    assert(igual(tras.slice(11), [12, 9, 10]), 'ORD-2 · dos suplentes: el 9 y el 10 caen en los slots 12 y 13 de los que salen el 13 y el 14; el 12 no se mueve');
+  }
+}
+
+// 12) ORD-4: la banca viaja como pares de intercambio (bancaSwaps). ordenarBancaSwaps aplica cada par como un
+// swap exacto de sus dos slots; si alguno ya no esta en la banca, rechaza el pedido entero sin tocar el buffer.
+{
+  const off = ROSTER_BASE + CLUB * ROSTER_STRIDE;
+  const u16 = (bytes, s) => bytes[off + s * 2] | (bytes[off + s * 2 + 1] << 8);
+  const codigo = (f) => { const e = lanza(f); return e ? e.codigo : null; };
+  // a) swaps aplicados con la banca intacta: en orden, cada par es un swap exacto; el 11 no se toca
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    const n = ED.ordenarBancaSwaps(bytes, CLUB, [12, 14, 13, 14]);
+    assert(n === 2 && igual(ED.leerPlantillaEquipo(bytes, CLUB), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 12]),
+      'ORD-4 · dos pares con la banca intacta: se aplican en orden (12<->14, luego 13<->14) y el 11 no cambia');
+  }
+  // b) entro un jugador ajeno al par: el 12 entra por el 10 y el 11 cae en la banca; el par (13, 14) sigue valiendo
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    ED.ordenarTitulares(bytes, CLUB, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+    ED.ordenarBancaSwaps(bytes, CLUB, [13, 14]);
+    assert(igual(ED.leerPlantillaEquipo(bytes, CLUB), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 11, 14, 13]),
+      'ORD-4 · entro un jugador ajeno al par: el par se aplica igual y el que sale (11) queda donde estaba la banca');
+  }
+  // c) falta uno del par (el 12 entro al 11): rechazo del pedido entero, buffer igual byte a byte
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    const antes = Array.from(bytes);
+    const registros = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12];
+    const e = lanza(() => ED.aplicarFormacionPedido(bytes, CLUB, registros, [], [13, 14, 12, 11]));
+    assert(e && e.codigo === 'banca' && e.registro === 12 && igual(Array.from(bytes), antes),
+      'ORD-4 · falta uno del par (el 12 ya esta en el 11): se rechaza con codigo banca y el buffer queda byte a byte igual');
+    const e2 = lanza(() => ED.ordenarBancaSwaps(bytes, CLUB, [13, 99]));
+    assert(e2 && e2.codigo === 'banca' && e2.registro === 99 && igual(Array.from(bytes), antes),
+      'ORD-4 · un registro que no esta en el plantel: se rechaza, buffer igual');
+  }
+  // d) formato invalido: impar, mas de 32, no lista, par repetido, cero: se rechaza y el buffer queda igual
+  {
+    const invalidos = [
+      ['impar', [12, 13, 14]],
+      ['mas de 32', Array.from({ length: 34 }, (_, i) => 12 + (i % 3))],
+      ['no es una lista', '12,13'],
+      ['un par repite al jugador', [13, 13]],
+      ['un valor cero', [13, 0]],
+    ];
+    for (const [nombre, pares] of invalidos) {
+      const bytes = bufferConPlantel(PLANTEL);
+      const antes = Array.from(bytes);
+      assert(codigo(() => ED.ordenarBancaSwaps(bytes, CLUB, pares)) === 'banca-formato' && igual(Array.from(bytes), antes),
+        `ORD-4 · formato invalido (${nombre}): codigo banca-formato y buffer igual`);
+    }
+  }
+  // e) lista vacia: no cambia nada; hueco en la banca: el slot vacio se conserva
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    const antes = Array.from(bytes);
+    assert(ED.ordenarBancaSwaps(bytes, CLUB, []) === 0 && igual(Array.from(bytes), antes), 'ORD-4 · sin pares: no cambia nada');
+    const conHueco = bufferConPlantel([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 13, 14]);
+    ED.ordenarBancaSwaps(conHueco, CLUB, [12, 14]);
+    assert(u16(conHueco, 11) === 14 && u16(conHueco, 12) === 0 && u16(conHueco, 13) === 13 && u16(conHueco, 14) === 12,
+      'ORD-4 · intercambio con un hueco en la banca: el slot vacio se conserva');
+  }
+}
+
+console.log(fallas ?`\n${fallas} FALLO(S)` : '\nTODO OK');
 process.exit(fallas ? 1 : 0);

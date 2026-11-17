@@ -322,6 +322,16 @@
     return !(previa.teamHash === teamHash && previa.pes5ClubIdx === pes5ClubIdx);
   }
 
+  /* FIX-CANCEL: el pedido de formacion pendiente mas reciente (o null). Solo manda lo que aun no aplico Luis:
+     un pedido cancelado o aplicado no cuenta. Sin fecha (pedido local recien enviado) es el mas nuevo. */
+  function formacionPendienteMasReciente(pedidos, msDe) {
+    const ms = typeof msDe === 'function' ? msDe : (p => msDeFecha(p.creadoEn));
+    const tiempo = p => { const m = ms(p); return m == null ? Number.MAX_SAFE_INTEGER : m; };
+    const lista = (pedidos || []).filter(p => p && p.tipo === 'formacion' && p.estado === 'pendiente'
+      && p.formacion && Array.isArray(p.formacion.slots));
+    if (!lista.length) return null;
+    return lista.slice().sort((a, b) => tiempo(a) - tiempo(b)).pop();
+  }
   /* FORM-4: que cambio en QUIEN juega, entre dos 11 (ids de jugador en orden de slot 0-10).
      Devuelve textos: "Juan ↔ $Yuni" (dos titulares intercambian lugar) o "Entra X por Y" (quien entra
      toma el lugar de quien sale). nombreDe(id) da el nombre. [] si el 11 es el mismo. */
@@ -343,8 +353,25 @@
     return out;
   }
 
+  /* ORD-2: el roster (por slot) tal como queda tras aplicar un 11 nuevo. Es el mismo calculo que
+     ordenarTitulares de pes5-editor.js: cada titular que entra intercambia su slot con el que sale.
+     Mejoras lo usa para ordenar la banca, asi se ve lo que la Tool va a escribir. */
+  function rosterTrasTitulares(baseIds, titularesIds) {
+    const r = (baseIds || []).slice(), t = titularesIds || [];
+    for (let s = 0; s <= 10 && s < t.length; s++) {
+      const quiere = t[s];
+      if (r[s] === quiere) continue;
+      const k = r.indexOf(quiere);
+      if (k < 0) continue;
+      [r[s], r[k]] = [r[k], r[s]];
+    }
+    return r;
+  }
+
   return {
+    rosterTrasTitulares: rosterTrasTitulares,
     cambiosDeAlineacion: cambiosDeAlineacion,
+    formacionPendienteMasReciente: formacionPendienteMasReciente,
     debeReescribirPublicacion: debeReescribirPublicacion,
     msDeFecha: msDeFecha,
     vistaDelPedido: vistaDelPedido,

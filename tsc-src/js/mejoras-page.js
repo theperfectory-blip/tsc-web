@@ -577,8 +577,7 @@ function _lineasFormacion(base, nueva, nombreNueva){
 /* El pedido de formacion pendiente (el ultimo que aun no aplico Luis), como alineacion. */
 const _tiempoPedido = p => { const m = PES5_PLANTILLA.msDeFecha(p.creadoEn); return m == null ? Number.MAX_SAFE_INTEGER : m; };
 function _formacionPendiente(){
-  const x = (APP.pendientes || []).filter(p => p.tipo === 'formacion' && p.estado === 'pendiente'
-    && p.formacion && Array.isArray(p.formacion.slots)).sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b)).pop();
+  const x = PES5_PLANTILLA.formacionPendienteMasReciente(APP.pendientes);
   if (!x) return null;
   const f = formacionDesdePublicada({ slots: x.formacion.slots });
   return f && f.every(s => PLAYER_BY_ID[s.id]) ? f : null;
@@ -603,18 +602,47 @@ function _tagLugar(spotPos, natural){
   return `${lugar} · natural: ${nat}`;
 }
 /* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
+/* ORD-2: el roster en el orden que deja el save al aplicar el 11 que se ve (slot 0-10 = titulares, 11 en adelante
+   = banca). Cada titular que entra toma el slot del suplente y el que sale va a ese mismo slot, igual que la Tool
+   (ordenarTitulares). Antes la banca se ordenaba por slot y el que salia caia siempre al principio. */
+/* ORD-2/ORD-3: el roster en el orden que deja el save (slot 0-10 = titulares, 11 en adelante = banca).
+   Con el modal abierto manda el borrador (FORM.bancaOrden). Si no, el pedido pendiente (con su banca si la tiene)
+   o el save. */
+function _rosterVisible(){
+  if (FORM_ABIERTO && FORM.bancaOrden) return [...alineacionVigente().map(s => s.id), ...FORM.bancaOrden];
+  return _rosterVigente();
+}
+function _rosterVigente(){
+  const tit = formacionVigente().map(s => s.id);
+  const base = PLAYERS.filter(p => p.slot != null).slice().sort((a, b) => a.slot - b.slot).map(p => p.id);
+  const banca = PES5_PLANTILLA.rosterTrasTitulares(base, tit).slice(11);
+  // ORD-4: el pedido pendiente que manda lleva sus intercambios de banca (pares): se replican en el mismo orden
+  // que aplicara la Tool, asi el aviso y la banca muestran lo que Luis va a escribir.
+  const pend = PES5_PLANTILLA.formacionPendienteMasReciente(APP.pendientes);
+  if (pend && Array.isArray(pend.bancaSwaps) && _formacionPendiente()){
+    for (let k = 0; k + 1 < pend.bancaSwaps.length; k += 2){
+      const a = banca.indexOf('r' + pend.bancaSwaps[k]), b = banca.indexOf('r' + pend.bancaSwaps[k + 1]);
+      if (a >= 0 && b >= 0) [banca[a], banca[b]] = [banca[b], banca[a]];
+    }
+  }
+  const usados = new Set(tit);
+  const bancaSinRepetir = [...new Set(banca.filter(id => !usados.has(id)))];
+  const resto = PLAYERS.map(p => p.id).filter(id => !usados.has(id) && !bancaSinRepetir.includes(id));
+  return [...tit, ...bancaSinRepetir, ...resto];
+}
+/* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
 function _seccionesPlantel(){
   const sec = {};
   alineacionVigente().forEach(s => { sec[s.id] = 'titular'; });
-  PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999))
-    .forEach((p, i) => { sec[p.id] = i < 12 ? 'suplente' : 'reserva'; });
+  _rosterVisible().filter(id => sec[id] !== 'titular' && PLAYER_BY_ID[id])
+    .forEach((id, i) => { sec[id] = i < 12 ? 'suplente' : 'reserva'; });
   return sec;
 }
-/* Plantel en el orden que se muestra: el 11 en el orden de la cancha y luego la banca por slot. */
+/* Plantel en el orden que se muestra: el 11 en el orden de la cancha y luego la banca en el orden del save. */
 function plantelOrdenado(){
   const sec = _seccionesPlantel();
   const titulares = alineacionVigente().map(s => PLAYER_BY_ID[s.id]).filter(Boolean);
-  const banca = PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+  const banca = _rosterVisible().filter(id => sec[id] !== 'titular' && PLAYER_BY_ID[id]).map(id => PLAYER_BY_ID[id]);
   return [...titulares, ...banca];
 }
 function formacionVigente(){
@@ -625,11 +653,6 @@ function formacionVigente(){
     const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
     if (pub && pub.every(s => s && PLAYER_BY_ID[s.id])) return pub;
   }
-  try{
-    const saved = JSON.parse(localStorage.getItem(_formationKey())||'null');
-    if (Array.isArray(saved) && saved.length === FORMATION_COORDS.length
-        && saved.every(s => s && PLAYER_BY_ID[s.id]) && new Set(saved.map(s => s.id)).size === saved.length) return saved;
-  }catch(e){}
   return formacionPorDefecto();
 }
 let FORMATION = null; // se arma al abrir el modal, cuando ya hay plantel
@@ -1206,6 +1229,7 @@ function emparejarBtnHTML(p){
   </div>`;
 }
 function solicitarEmparejar(playerId){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (ADMIN_EMBED) return;
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);
@@ -1241,6 +1265,7 @@ function solicitarEmparejar(playerId){
   </div>`;
 }
 async function confirmarSolicitarEmparejar(playerId){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   closeApplyConfirm();
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
@@ -1541,6 +1566,7 @@ function pendingChangeLines(){
 /* ================= modal: confirmar aplicar ================= */
 
 function openApplyConfirm(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   const p = currentPlayer();
   const lines = pendingChangeLines();
   if(lines.length===0){
@@ -1586,6 +1612,7 @@ function openApplyConfirm(){
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
 async function commitChanges(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (ADMIN_EMBED) return commitChangesAdmin();
   if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.'); return; }
   const p = currentPlayer();
@@ -1810,9 +1837,11 @@ const FORM = { draft:null, sel:0, motivo:null };
 let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
 let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (base del pedido)
 let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
+// ORD-4: los intercambios de banca del borrador van en FORM.bancaPares (pares de ids, en el orden en que se hicieron).
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
 
 function openFormationModal(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (PLAYERS.length < FORMATION_COORDS.length){
     showMiniToast('El plantel todavía no tiene 11 jugadores para armar la formación.');
     return;
@@ -1828,6 +1857,7 @@ function openFormationModal(){
   FORM.motivo = null;
   FORM_DRAG = null;
   FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
+  FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = [];
   _pitchSyncOrientation();
   _montarModalCancha();
 }
@@ -1913,6 +1943,7 @@ function _montarModalCancha(){
 }
 function closeFormationModal(){
   FORM_ABIERTO = false;
+  FORM.bancaOrden = null;
   renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
@@ -1949,7 +1980,7 @@ function _formIdxDeId(id){ return FORM.draft ? FORM.draft.findIndex(s => s.id ==
 function _formEsArqueroSlot(i){ return i === 0 || isKeeperSlot(FORM.draft[i]); }
 /* Un jugador puede ocupar el lugar i del 11 si ambos son porteros o ninguno lo es. */
 function _formLegalEntrada(id, i){
-  if (!FORM.draft[i]) return false;
+  if (!FORM.draft[i] || _formEnParBanca(id)) return false;
   return _formEsPortero(id) === _formEsArqueroSlot(i);
 }
 /* Dos titulares del 11 se intercambian si ambos son porteros o ninguno lo es. */
@@ -1964,16 +1995,22 @@ function intercambiarTitulares(a, b){
 }
 /* El jugador id ocupa el lugar i; el que estaba en ese lugar queda fuera del 11 (banca). */
 function _formEntrar(id, i){
+  _formCambiarEnBanca(id, FORM.draft[i].id);
   FORM.draft[i].id = id;
   FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
 }
-function _formMensajeIlegal(){ showMiniToast('El arquero solo se cambia por otro arquero.'); }
+/* ORD-4: un jugador con un intercambio de banca en este pedido no entra al 11 hasta deshacerlo. */
+function _formEnParBanca(id){ return (FORM.bancaPares || []).some(p => p[0] === id || p[1] === id); }
+function _formMensajeIlegal(id){
+  if (id && _formEnParBanca(id)){ showMiniToast('Tiene un intercambio de banca en este pedido: deshazlo antes de ponerlo en el 11.'); return; }
+  showMiniToast('El arquero solo se cambia por otro arquero.');
+}
 /* Toque en un jugador del 11 (cancha o lista). Devuelve true si cambio la formacion. */
 function formacionTocarTitular(i){
   if (!FORM.draft[i]) return false;
   // 1) hay un suplente armado: entra en este lugar
   if (FORM.banca){
-    if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(); FORM.verId = FORM.banca; renderFormationModal(); return false; }
+    if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(FORM.banca); FORM.verId = FORM.banca; renderFormationModal(); return false; }
     _formEntrar(FORM.banca, i); renderFormationModal(); return true;
   }
   // 2) hay un titular armado: se intercambian
@@ -1992,14 +2029,36 @@ function formacionTocarBanca(el){
   if (!id || !PLAYER_BY_ID[id]) return;
   const i = _formIdxDeId(id);
   if (i >= 0){ formacionTocarTitular(i); return; }
+  // ORD-3: con un suplente o reserva armado, otro suplente o reserva lo intercambia de lugar en la banca
+  if (FORM.banca && FORM.banca !== id){ _formSwapBanca(FORM.banca, id); renderFormationModal(); return; }
   if (FORM.banca === id){ FORM.verId = id; renderFormationModal(); return; }
   // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
   if (FORM.armado && !FORM.banca){
     if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
-    _formMensajeIlegal();
+    _formMensajeIlegal(id);
   }
   FORM.banca = id; FORM.armado = true; FORM.verId = id; FORM.motivo = null;
   renderFormationModal();
+}
+/* ORD-4: intercambio exacto de dos suplentes o reservas en la banca. Cada intercambio es un par [a, b] en
+   FORM.bancaPares, en el orden en que se hizo; el pedido lo manda como bancaSwaps y cada par es una linea
+   «Banca: X ↔ Y». Deshacer: si el par es el ultimo intercambio hecho, se quita (un swap repetido es su propia
+   inversa, asi que la banca vuelve a como estaba). Un par anterior no se quita: quitarlo cambiaria el orden de los
+   demas intercambios que se aplican despues. */
+function _formSwapBanca(a, b){
+  const ia = FORM.bancaOrden.indexOf(a), ib = FORM.bancaOrden.indexOf(b);
+  if (ia < 0 || ib < 0 || ia === ib) return;
+  const ultimo = FORM.bancaPares[FORM.bancaPares.length - 1];
+  if (ultimo && ((ultimo[0] === a && ultimo[1] === b) || (ultimo[0] === b && ultimo[1] === a))) FORM.bancaPares.pop();
+  else FORM.bancaPares.push([a, b]);
+  [FORM.bancaOrden[ia], FORM.bancaOrden[ib]] = [FORM.bancaOrden[ib], FORM.bancaOrden[ia]];
+  FORM.banca = null; FORM.armado = false; FORM.verId = b; FORM.motivo = null;
+}
+/* Cuando un suplente entra al 11, el que sale ocupa su lugar en la banca (igual que la Tool). */
+function _formCambiarEnBanca(entra, sale){
+  if (!FORM.bancaOrden || !sale) return;
+  const i = FORM.bancaOrden.indexOf(entra);
+  if (i >= 0) FORM.bancaOrden[i] = sale;
 }
 function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
@@ -2404,6 +2463,7 @@ function moveFormationScreen(dir){
 }
 function resetFormationDraft(){
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
+  FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
   completarPosiciones();
   renderFormationModal();
   showMiniToast('Formación restablecida a la del save.');
@@ -2420,6 +2480,7 @@ function _nombreFormacionDraft(draft){
 /* Opcion B: el presidente manda la formacion como pedido y la Tool la
    escribe en el save. No cuesta YunaCoins. */
 async function confirmFormation(){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
   const error = validarFormacion(FORMATION);
   if (error){ showMiniToast('Formación inválida: ' + error + '.'); return; }
@@ -2434,7 +2495,13 @@ async function confirmFormation(){
     lat: i === 0 ? null : Math.max(6, Math.min(99, Math.round(6 + (s.y - 1) * 93 / 46))),
     posNombre: s.pos || null,
   }));
-  const lineasPedido = _lineasFormacion(FORM_BASE || FORMATION, FORMATION, nombre);
+  // ORD-4: sin cambio de titulares no sale la linea «Formacion»; la banca viaja como pares (bancaSwaps) y sus lineas
+  const base = FORM_BASE || FORMATION;
+  const titularesCambian = base.some((s, i) => !FORMATION[i] || s.id !== FORMATION[i].id || s.x !== FORMATION[i].x || s.y !== FORMATION[i].y || s.pos !== FORMATION[i].pos);
+  const lineasBanca = FORM.bancaPares.map(([a, b]) => ({ label: 'Banca', from: '', to: `${PLAYER_BY_ID[a].name} ↔ ${PLAYER_BY_ID[b].name}` }));
+  const lineasPedido = [...(titularesCambian ? _lineasFormacion(base, FORMATION, nombre) : []), ...lineasBanca];
+  const bancaSwaps = FORM.bancaPares.flatMap(([a, b]) => [PES5_PLANTILLA.registroDeId(a), PES5_PLANTILLA.registroDeId(b)]);
+  const extraBanca = bancaSwaps.length ? { bancaSwaps } : {};
   try {
     await firebase.firestore().collection('pedidos_pes5').add({
       uid: AUTH.user.uid,
@@ -2448,11 +2515,11 @@ async function confirmFormation(){
       totalCost: 0,
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      ...extraBanca,
     });
-    try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
     FORMATION_NAME = nombre;
     // presentacion: la formacion recien enviada ya cuenta como pendiente (aviso y globito)
-    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente' });
+    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente', ...extraBanca });
     renderPending();
     closeFormationModal();
     showMiniToast('Formación enviada. La Tool la aplica al save.');
@@ -2604,6 +2671,7 @@ function adjustHeight(delta){
 }
 
 function adjustMain(key,delta){
+  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   const p = currentPlayer();
   APP.hint = MAIN_BY_KEY[key].d;
   document.getElementById('ep-hint').textContent = APP.hint;
@@ -2942,6 +3010,15 @@ async function cancelarPedido(pedidoId){
     estado: 'cancelado', canceladoEn: new Date().toISOString(),
   });
   await recalcularPresupuestoReal();
+  if (!ADMIN_EMBED) await _volverAPlantillaPublicada();
+}
+/* FIX-CANCEL: lo que se mostro al enviar (valores del jugador, alineacion) salia de la copia en memoria.
+   Al cancelar se vuelve a leer la plantilla publicada, se rehace el borrador y se redibuja, sin recargar. */
+async function _volverAPlantillaPublicada(){
+  try { await cargarPlantillaReal(AUTH.teamId, EQUIPO_TSC.pes5ClubIdx); }
+  catch(e){ console.warn('[mejoras] plantilla publicada', e); }
+  loadDraft();
+  renderAll();
 }
 
 /* ================= Slice Q2: modo admin embebido ================= */
@@ -3179,6 +3256,39 @@ let _montado = null;      // contenedor donde esta montado el editor (null = no 
 let _opciones = {};       // opciones de montar(): onAplicar / onCerrar (modo admin)
 let _observers = [];      // MutationObserver de los contenedores de los modales
 
+/* ================= PAUSA-1: pausa de mejoras (lectura en vivo, sin recargar) =================
+   Luis pausa las mejoras mientras edita el save (pes5_config/pausa). Con la pausa: aviso arriba,
+   los botones de enviar, confirmar, emparejar y formacion quedan deshabilitados, y no se arma el carrito.
+   Al reanudar se habilita solo. El servidor tambien rechaza el pedido (regla de create). */
+let PAUSA = null;      // { pausado } de pes5_config/pausa; null hasta leerlo
+let _pausaUnsub = null;
+const MSG_PAUSA = 'Las mejoras están pausadas mientras Luis actualiza el juego. Vuelve más tarde.';
+function _pausadasAhora(){ return !ADMIN_EMBED && !!(PAUSA && PAUSA.pausado); }
+function iniciarPausa(){
+  if (ADMIN_EMBED || _pausaUnsub || typeof firebase === 'undefined') return;
+  try {
+    _pausaUnsub = firebase.firestore().collection('pes5_config').doc('pausa').onSnapshot(
+      s => { PAUSA = { pausado: !!(s.exists && s.data().pausado === true) }; aplicarPausa(); },
+      e => console.warn('[mejoras] pausa', e));
+  } catch (e) { console.warn('[mejoras] pausa', e); }
+}
+function aplicarPausa(){
+  const pausado = _pausadasAhora();
+  const raiz = _raiz();
+  if (raiz) raiz.classList.toggle('ep-pausado', pausado);
+  let av = document.getElementById('ep-pausa-aviso');
+  if (!pausado){ if (av) av.hidden = true; return; }
+  if (!av){
+    av = document.createElement('div');
+    av.id = 'ep-pausa-aviso';
+    av.className = 'ep-pausa-aviso';
+    const pend = document.getElementById('ep-pend');
+    if (pend && pend.parentNode) pend.parentNode.insertBefore(av, pend);
+  }
+  av.hidden = false;
+  av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg><span>${escHtml(MSG_PAUSA)}</span>`;
+}
+
 function _raiz(){ return document.getElementById('mej-root'); }
 
 function _observarWraps(){
@@ -3241,6 +3351,7 @@ function desmontar(){
 /* mejoras.html: monta el editor en #mej-host y arranca la base y la sesion (lo que antes
    hacia el final del script). En el panel no existe #mej-host y no hace nada. */
 function iniciarPagina(){
+  iniciarPausa();
   const host = document.getElementById('mej-host');
   if (!host) return;
   montar(host, { modo: 'presidente' });

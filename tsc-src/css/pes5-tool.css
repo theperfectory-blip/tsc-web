@@ -124,6 +124,10 @@
 #page-pes5-admin .pt-cobro-txt{font-size:12px;color:var(--txt2);}
 #page-pes5-admin .pt-hint-click{margin-top:8px;font-size:12px;color:var(--txt3);}
 #page-pes5-admin .pt-field-hint{flex-basis:100%;margin-top:4px;font-size:12px;color:var(--txt3);}
+/* PAUSA-1: cabecera de pausa de mejoras */
+#page-pes5-admin .pt-pausa{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 14px;margin-bottom:14px;border:1px solid var(--brd);border-radius:12px;background:var(--card2);}
+#page-pes5-admin .pt-pausa.on{border-color:var(--gold-b);background:var(--gold-l);}
+#page-pes5-admin .pt-pausa-txt{font-size:14px;color:var(--txt);display:flex;align-items:center;gap:8px;}
 #page-pes5-admin #pl-writebar{position:sticky;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--brd);padding:10px 14px;margin-top:10px;}
 #page-pes5-admin #pl-writebar:empty{display:none;}
 #page-pes5-admin #pl-writebar .pt-writebar{border-top:none;padding-top:0;}

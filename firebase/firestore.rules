@@ -15,6 +15,15 @@ service cloud.firestore {
     function isAdmin()     { return signedIn() && meExists() && me().role == 'admin'; }
     function isPresident() { return signedIn() && meExists() && me().role == 'president'; }
 
+    // --- PAUSA-1 · mejoras pausadas mientras Luis edita el save ---
+    // pes5_config/pausa = { pausado: bool, por: uid, desde: timestamp, motivo?: string }. Lo escribe solo el admin
+    // (pes5_config/{id}); lo leen los usuarios autenticados. Si el documento no existe, no esta pausado.
+    // Costo: exists() y get() son lecturas de documento; por cada create de pedido, 1 (sin documento) o 2 (con documento).
+    function _mejorasPausadas() {
+      return exists(/databases/$(database)/documents/pes5_config/pausa)
+          && get(/databases/$(database)/documents/pes5_config/pausa).data.pausado == true;
+    }
+
     // --- Temporadas archivadas (D8, MS-5.16) ---
     // archive/seasons = { numbers: [n…], compIds: [id…] }: temporadas cuyo
     // archivo fijo (tsc-src/data/temporadas) ya reemplazó a Firestore. Nadie
@@ -243,6 +252,7 @@ service cloud.firestore {
       // formas: pedido de mejora (sin campo tipo) o pedido de formacion (tipo 'formacion').
       // Limites: lines <= 150, formacion.slots <= 11, strings <= 100.
       allow create: if signedIn() && meExists()
+                    && (isAdmin() || !_mejorasPausadas())
                     && me().teamId != null
                     && request.resource.data.uid == request.auth.uid
                     && string(me().teamId) == request.resource.data.teamId
@@ -262,10 +272,11 @@ service cloud.firestore {
                          (request.resource.data.tipo == 'formacion'
                           && request.resource.data.keys().hasOnly([
                                'uid', 'teamId', 'teamName', 'pes5Club', 'tipo', 'pes5ClubIdx',
-                               'formacion', 'lines', 'totalCost', 'estado', 'creadoEn'])
+                               'formacion', 'lines', 'totalCost', 'estado', 'creadoEn', 'bancaSwaps'])
                           && request.resource.data.formacion.keys().hasOnly(['nombre', 'slots'])
                           && request.resource.data.formacion.slots.size() <= 11
-                          && request.resource.data.formacion.nombre.size() <= 100)
+                          && request.resource.data.formacion.nombre.size() <= 100
+                          && (!request.resource.data.keys().hasAny(['bancaSwaps']) || (request.resource.data.bancaSwaps is list && request.resource.data.bancaSwaps.size() <= 32 && request.resource.data.bancaSwaps.size() % 2 == 0)))
                          ||
                          // EMP-80-1 · «emparejar»: costo SIEMPRE 0 (no descuenta ni reserva saldo). El perfil es
                          // 'base' o 'suscriptor', y su nivel no puede pasar del maximo del perfil en reglas.
