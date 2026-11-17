@@ -1888,10 +1888,11 @@ async function aplicarPedidosSeleccionados(){
           const faltaLinea = Object.entries(MIN_LINEA).find(([l, n]) => porLinea[l] < n);
           if (faltaLinea){ rechazados.push({ pedido: p, motivo: 'faltan jugadores en ' + NOMBRE_LINEA[faltaLinea[0]] }); continue; }
         }
+        // Atomico: aplicarFormacionPedido trabaja sobre una copia y solo pasa el resultado a `copia`
+        // si el orden de titulares Y la formacion salen bien (si no, el roster queda como estaba).
         let cambiosTitulares = 0;
         try {
-          cambiosTitulares = PES5_EDITOR.ordenarTitulares(copia, team.pes5ClubIdx, titularesPedido.map(x => x.jugador));
-          PES5_EDITOR.escribirFormacionEquipo(copia, team.pes5ClubIdx, p.formacion.slots);
+          cambiosTitulares = PES5_EDITOR.aplicarFormacionPedido(copia, team.pes5ClubIdx, titularesPedido.map(x => x.jugador), p.formacion.slots);
         } catch (e) {
           rechazados.push({ pedido: p, motivo: 'no se pudo escribir la formación: ' + (e.message || e) }); continue;
         }

@@ -34,3 +34,6 @@ El presidente manda el cambio como pedido. La regla de `formacion` ya acepta `sl
 ## Pendiente de prueba real (Jimbo)
 - **La Tool aplicando el pedido** (`aplicarPedidosSeleccionados`) necesita la carpeta del save, así que no se probó en navegador. Prueba: con un presidente que haya enviado un cambio de suplente, aplicar en la Tool; abrir el save en el juego y confirmar el titular nuevo y la banca; luego publicar y mirar la cancha del presidente.
 - Revisar con un equipo real la validación de líneas (mín. 2 defensas, 2 medios, 1 delantero) tras un intercambio.
+
+## Corrección tras auditoría: aplicación atómica
+La tanda de pedidos comparte un solo buffer (`copia`). Antes, `ordenarTitulares` escribía directo en `copia` y después `escribirFormacionEquipo` podía fallar: el roster reordenado quedaba en la copia y se escribía al save junto con el resto. Ahora `PES5_EDITOR.aplicarFormacionPedido` trabaja sobre una copia temporal y pasa el resultado al buffer solo si los dos pasos salen bien. Caso de prueba (`tools/test-pes5-formacion.js`, sección 8): con un buffer sin registro de formación, el fallo deja el buffer y el orden del roster intactos. El flujo anterior sí dejaba el roster reordenado (verificado).

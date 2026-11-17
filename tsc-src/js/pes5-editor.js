@@ -340,6 +340,17 @@ const PES5_EDITOR = (() => {
     if (cambios) _escribirSlots(bytes, indiceEquipo, slots);
     return cambios;
   }
+  // FORM-1 (atomico): aplica el orden de titulares y la formacion de un pedido sobre una COPIA
+  // del buffer. Solo si los dos pasos salen bien se pasa el resultado a `bytes`. Si cualquiera
+  // lanza, `bytes` queda intacto (la tanda comparte un solo buffer: un roster reordenado a medias
+  // se escribiria al save junto con el resto). Devuelve los intercambios de titulares.
+  function aplicarFormacionPedido(bytes, indiceEquipo, registros, slots) {
+    const trabajo = Uint8Array.from(bytes);
+    const cambios = ordenarTitulares(trabajo, indiceEquipo, registros);
+    escribirFormacionEquipo(trabajo, indiceEquipo, slots);
+    bytes.set(trabajo);
+    return cambios;
+  }
   // 4-4-2 / 4-3-3 / etc. contando los 10 jugadores de campo por franja de
   // profundidad (mismas franjas que la grilla: defensa 1-15, medio 16-34, ataque 35-47).
   function nombreFormacion(slots) {
@@ -620,7 +631,7 @@ const PES5_EDITOR = (() => {
     leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
-    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares,
+    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares, aplicarFormacionPedido,
     POS_CODIGO, POS_POR_CODIGO, nomPosicion, codPosicion,
     leerJugadorCompleto, escribirJugadorCompleto,
     leerPlantillaCompleta, equiposDelJugador,

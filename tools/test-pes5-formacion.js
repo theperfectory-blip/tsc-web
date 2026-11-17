@@ -108,5 +108,20 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   assert(igual(Array.from(bytes), antes), 'ninguna entrada invalida toca el buffer');
 }
 
+// 8) atomico: si escribirFormacion falla despues de reordenar, el roster queda INTACTO.
+// El buffer no tiene registro de formacion, asi que escribirFormacionEquipo lanza tras ordenarTitulares
+// (que si reordenaria: el suplente 12 entra por el 11). La tanda comparte un solo buffer, asi que
+// un reorden a medias no puede salir al save.
+{
+  const bytes = bufferConPlantel(PLANTEL);
+  const antes = Array.from(bytes);
+  const entra = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12];          // cambia de verdad el roster
+  const slotsForm = entra.map((jugador, slot) => ({ slot, jugador, prof: 10, lat: 20, pos: 0, posNombre: 'CT' }));
+  const e = lanza(() => ED.aplicarFormacionPedido(bytes, CLUB, entra, slotsForm));
+  assert(e && /registro de formacion/.test(e.message), 'sin registro de formacion, aplicarFormacionPedido lanza');
+  assert(igual(Array.from(bytes), antes), 'tras el fallo el buffer queda byte a byte igual (el reorden no sale)');
+  assert(igual(ED.leerPlantillaEquipo(bytes, CLUB), PLANTEL), 'tras el fallo el roster sigue en su orden original');
+}
+
 console.log(fallas ? `\n${fallas} FALLO(S)` : '\nTODO OK');
 process.exit(fallas ? 1 : 0);
