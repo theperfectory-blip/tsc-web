@@ -16,13 +16,14 @@ const SAVE_PUBLICADO = (() => {
   const RUTA = 'pes5_save/actual';
   const TAMANO_MAX = 4 * 1024 * 1024;   // igual que storage.rules (el save real pesa 1.250.304 b)
   const NOMBRE_JUEGO = 'KONAMI-WIN32PES5OPT';
+  // Cabecera que hace que la descarga se guarde con el nombre del juego (no necesita CORS).
+  const DISPOSICION = `attachment; filename="${NOMBRE_JUEGO}"`;
   const SDK_STORAGE = 'https://www.gstatic.com/firebasejs/12.14.0/firebase-storage-compat.js';
   const EMU_STORAGE_PORT = 9199;        // emulador de Storage (sandbox / tests); no toca 8080 ni 9099
 
   let _storage = null;                  // promesa del SDK de Storage (una sola carga)
   let _emuListo = false;
   let _suscripcion = null;              // onSnapshot de la barra de Mejoras
-  let _metaBarra = null;                // metadatos que muestra la barra (para el click)
 
   const _docRef = () => firebase.firestore().collection('pes5_config').doc('save');
 
@@ -79,7 +80,8 @@ const SAVE_PUBLICADO = (() => {
     if (blob.size > TAMANO_MAX) throw new Error('el save pesa más de 4 MB');
     const st = await asegurarStorage();
     // Primero el archivo: si falla aca, los metadatos siguen apuntando al save anterior.
-    await st.ref(RUTA).put(blob, { contentType: 'application/octet-stream' });
+    // contentDisposition: al abrir la URL de descarga, el navegador la guarda ya con el nombre del juego.
+    await st.ref(RUTA).put(blob, { contentType: 'application/octet-stream', contentDisposition: DISPOSICION });
     await _docRef().set({
       subidoPor: String(datos.subidoPor || 'Admin').slice(0, 64),
       subidoEn: firebase.firestore.FieldValue.serverTimestamp(),
@@ -89,47 +91,38 @@ const SAVE_PUBLICADO = (() => {
     return leerMeta();
   }
 
-  // Nombre de la descarga: TSC-save-AAAA-MM-DD_HHMM (el juego espera KONAMI-WIN32PES5OPT, sin extension).
-  function nombreDescarga(fecha){
-    const d = fecha instanceof Date && !isNaN(fecha) ? fecha : new Date();
-    const p = n => String(n).padStart(2, '0');
-    return `TSC-save-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
-  }
-
   function fechaCorta(d){
     return d ? d.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
   }
 
-  // Descarga el save publicado: URL firmada, luego el archivo como Blob con nombre con fecha.
-  async function descargar(meta){
-    const st = await asegurarStorage();
-    const url = await st.ref(RUTA).getDownloadURL();
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const blob = await resp.blob();
-    const obj = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = obj;
-    a.download = nombreDescarga(meta && meta.subidoEn);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(obj), 1000);
-  }
-
-  /* ---------- barra de Mejoras (presidente) ---------- */
+  /* ---------- barra de Mejoras (presidente) ----------
+     La descarga es un <a href> a la URL de getDownloadURL: es una navegacion, no un fetch, asi que
+     no necesita CORS en el bucket. El nombre con que se guarda sale de contentDisposition (subirBlob). */
   const ICN_DESCARGA = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+  let _turnoBarra = 0;   // descarta respuestas viejas si la barra se repinta mientras se pide la URL
 
-  function _pintarBarra(el, meta){
-    _metaBarra = meta;
+  async function _pintarBarra(el, meta){
+    const turno = ++_turnoBarra;
     if (!meta){
       el.innerHTML = `<button type="button" class="btn btn-sm" disabled>Aún no hay save publicado</button>`;
       return;
     }
-    el.innerHTML = `<span class="msp-txt">Último save publicado: <b>${escHtml(fechaCorta(meta.subidoEn))}</b>
+    const info = `<span class="msp-txt">Último save publicado: <b>${escHtml(fechaCorta(meta.subidoEn))}</b>
         · por ${escHtml(meta.subidoPor || '—')}
-        <small>Para usarlo, ponlo en la carpeta del juego con el nombre ${NOMBRE_JUEGO}.</small></span>
-      <button type="button" class="btn btn-sm btn-primary" data-onclick="saveDescargarClick()">${ICN_DESCARGA} Descargar save</button>`;
+        <small>Se descarga como ${NOMBRE_JUEGO}: reemplaza el de la carpeta del juego (haz una copia del tuyo antes).</small></span>`;
+    let url = null;
+    try {
+      const st = await asegurarStorage();
+      url = await st.ref(RUTA).getDownloadURL();
+    } catch (e) {
+      console.warn('[save-publicado] URL de descarga', e);
+    }
+    if (turno !== _turnoBarra) return;
+    if (!url){
+      el.innerHTML = `${info}<button type="button" class="btn btn-sm" disabled>No se pudo preparar la descarga</button>`;
+      return;
+    }
+    el.innerHTML = `${info}<a class="btn btn-sm btn-primary" href="${escAttr(url)}">${ICN_DESCARGA} Descargar save</a>`;
   }
 
   // Muestra la barra en `el` y la mantiene al día. Sin sesion (o sin permiso) la oculta.
@@ -150,18 +143,8 @@ const SAVE_PUBLICADO = (() => {
     }
   }
 
-  // Handler de data-onclick de la barra (events.js llama funciones globales).
-  window.saveDescargarClick = async function(){
-    try {
-      await descargar(_metaBarra);
-    } catch (e) {
-      if (typeof showToast === 'function') showToast('No se pudo descargar el save: ' + (e.message || e), 'error');
-      else console.error('[save-publicado] descarga', e);
-    }
-  };
-
   return {
     RUTA, TAMANO_MAX, NOMBRE_JUEGO,
-    asegurarStorage, leerMeta, suscribir, subirBlob, descargar, nombreDescarga, fechaCorta, montarBarra,
+    asegurarStorage, leerMeta, suscribir, subirBlob, fechaCorta, montarBarra,
   };
 })();

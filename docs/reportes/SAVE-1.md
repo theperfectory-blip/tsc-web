@@ -68,8 +68,30 @@ Solo en modo emulador (sandbox) hace falta que `connect-src` acepte `localhost:9
 - **Sandbox (UI):** no se levantó, porque depende del emulador de Firestore (el mismo problema). La subida de la Tool no es probable en automático (usa `showDirectoryPicker`). La descarga de Mejoras y la barra no se probaron en el navegador.
 - **Descarga desde `firebasestorage.googleapis.com` con `fetch`:** no se probó contra el servicio real. Si Storage no devuelve CORS a ese origen, `fetch` fallará. En ese caso el fallback es abrir `getDownloadURL` directamente.
 
+## SAVE-1b · ajustes de la auditoría
+
+Cambios pedidos por el coordinador. Reemplazan lo descrito arriba sobre la descarga; lo demás sigue igual.
+
+**1. Descarga sin `fetch` ni blob.** Antes, la descarga usaba `getDownloadURL` + `fetch` + blob. Eso necesita CORS en el bucket de Storage, y no lo vamos a configurar (`gsutil cors set`). Ahora:
+
+- `subirBlob` sube con `contentType: 'application/octet-stream'` y `contentDisposition: 'attachment; filename="KONAMI-WIN32PES5OPT"'`. Esa cabecera hace que el navegador guarde el archivo ya con el nombre del juego.
+- En Mejoras, la barra resuelve la URL con `getDownloadURL` y muestra un `<a href>` a esa URL. Es una navegación, así que no necesita CORS.
+- Si `getDownloadURL` falla (por ejemplo, todavía no hay archivo), el botón queda deshabilitado con «No se pudo preparar la descarga».
+- Texto de la barra: «Se descarga como KONAMI-WIN32PES5OPT: reemplaza el de la carpeta del juego (haz una copia del tuyo antes)».
+- Eliminados `nombreDescarga`, `descargar`, `window.saveDescargarClick` y el código de blob. Ya no queda ningún `fetch` ni `Blob` de descarga en `save-publicado.js`.
+- CSP: sin cambios. La navegación a la URL no pasa por `connect-src`.
+- Consecuencia: el archivo que ya esté en Storage sin `contentDisposition` (si se subió antes de este cambio) no tendrá el nombre. Hay que volver a subirlo. SAVE-1 no está desplegado, así que no hay archivos viejos en producción.
+
+**2. Tests de reglas: intento de levantar el emulador.**
+
+- Configuración temporal en el scratchpad: Firestore en 8190 y Storage en 9199. No se usaron 8080 ni 9099.
+- Desde el shell de este entorno (Bash y PowerShell) el emulador de Firestore vuelve a fallar. `java.lang.IllegalStateException: failed to create a child event loop` → `Unable to establish loopback connection` → `SocketException: Invalid argument: connect` en `UnixDomainSockets.connect`. Confirmado en aislamiento: un `Pipe.open()` de Java funciona, pero `Selector.open()` falla con el mismo mensaje. Es el selector de Netty/JDK, no el código del proyecto.
+- En la terminal del usuario (fuera del sandbox) el CLI intentó descargar el emulador v1.22.0 (137 MB). La descarga iba al 9 % cuando la cancelé: es demasiado lenta para esperarla aquí. Por eso no pude correr `rules-storage.js` ni el bloque SAVE-1 de `rules-pes5.js`.
+- **Estado: sin resultado de tests.** No hay PASS que reportar para `rules-storage.js` ni para el bloque SAVE-1 de `rules-pes5.js`. El coordinador puede correrlos con la configuración temporal de arriba.
+
 ## Pendientes
 
-- Confirmar en el CI que `test:rules:storage` y `test:rules` pasan con el bloque nuevo.
+- Correr en un entorno donde arranque el emulador de Firestore (CI o la terminal del usuario): `rules-storage.js` y el bloque SAVE-1 de `rules-pes5.js`. Estos tests no tienen resultado todavía.
+- Confirmar en el CI que `test:rules:storage` y `test:rules` pasan.
 - Desplegar `firebase deploy --only storage` antes de probar con Jimbo.
-- Jimbo prueba con el save real: subir desde la Tool y descargar desde Mejoras con un presidente.
+- Jimbo prueba con el save real: subir desde la Tool y descargar desde Mejoras con un presidente. Hay que comprobar que el navegador guarda el archivo como `KONAMI-WIN32PES5OPT`.
