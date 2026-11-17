@@ -1,5 +1,7 @@
 # ORD-3 · Intercambio de suplentes y reservas (banca)
 
+> **Reemplazado por ORD-4** (`docs/reportes/ORD-4.md`): la Tool ya no tiene «Ordenar banca», y la banca viaja como pares `bancaSwaps` en lugar del orden completo `banca`. Lo de abajo describe el estado de ORD-3 y ya no aplica.
+
 Pedido del coordinador: el pedido de alineación lleva la banca en un campo propio; tocar un suplente o reserva y luego otro hace un intercambio exacto; la Tool valida y escribe el orden de la banca en la misma operación atómica.
 
 ## Reglas (`firebase/firestore.rules`)

@@ -343,37 +343,32 @@ const PES5_EDITOR = (() => {
   // del buffer. Solo si los dos pasos salen bien se pasa el resultado a `bytes`. Si cualquiera
   // lanza, `bytes` queda intacto (la tanda comparte un solo buffer: un roster reordenado a medias
   // se escribiria al save junto con el resto). Devuelve los intercambios de titulares.
-  /* ORD-3: la banca (slots 11 en adelante) en el orden que pidio el presidente. Solo reordena: tiene que ser
-     exactamente el plantel que queda fuera del 11 (mismos registros, sin repetidos ni ajenos). Escribe en los
-     slots ocupados, asi los huecos del save se conservan. Lanza con codigo 'banca' si no coincide. */
-  function ordenarBanca(bytes, indiceEquipo, banca) {
+  /* ORD-4: la banca viaja como intercambios: pares [a1,b1,a2,b2,...] en el orden en que los hizo el presidente.
+     Cada par es un swap exacto de sus dos slots. Si alguno de los dos ya no esta en la banca (slots 11 en
+     adelante, despues de los titulares) lanza con codigo 'banca' y el registro en e.registro; un formato
+     invalido lanza con codigo 'banca-formato'. Los demas cambios de la banca (fichajes, bajas) no lo impiden.
+     Trabaja sobre `bytes`: quien llama usa una copia, asi que si lanza no queda nada a medias. */
+  function ordenarBancaSwaps(bytes, indiceEquipo, pares) {
+    const fallo = (codigo, m, registro) => { const e = new Error(m); e.codigo = codigo; if (registro != null) e.registro = registro; return e; };
+    if (!Array.isArray(pares) || pares.length % 2 !== 0 || pares.length > 32) throw fallo('banca-formato', 'formato invalido');
+    for (let k = 0; k < pares.length; k += 2) {
+      if (!Number.isInteger(pares[k]) || !Number.isInteger(pares[k + 1]) || pares[k] <= 0 || pares[k + 1] <= 0) throw fallo('banca-formato', 'valor invalido');
+      if (pares[k] === pares[k + 1]) throw fallo('banca-formato', 'un par repite al mismo jugador');
+    }
     const slots = _leerSlots(bytes, indiceEquipo);
-    const fallo = (m) => { const e = new Error(m); e.codigo = 'banca'; return e; };
-    const ocupados = [];
-    for (let s = 11; s < SLOTS; s++) if (slots[s]) ocupados.push(s);
-    if (!Array.isArray(banca) || banca.length !== ocupados.length) throw fallo('la banca no tiene los jugadores del save');
-    if (new Set(banca).size !== banca.length) throw fallo('la banca repite jugadores');
-    const enBanca = new Set(ocupados.map(s => slots[s]));
-    for (const r of banca) if (!enBanca.has(r)) throw fallo('el jugador ' + r + ' no esta en la banca');
-    ocupados.forEach((s, k) => { slots[s] = banca[k]; });
+    const banca = slots.slice(11);
+    for (const r of pares) if (!banca.includes(r)) throw fallo('banca', 'ya no esta en la banca', r);
+    for (let k = 0; k < pares.length; k += 2) {
+      const a = slots.indexOf(pares[k]), b = slots.indexOf(pares[k + 1]);
+      [slots[a], slots[b]] = [slots[b], slots[a]];
+    }
     _escribirSlots(bytes, indiceEquipo, slots);
-    return ocupados.length;
+    return pares.length / 2;
   }
-  /* ORD-3: intercambio exacto de dos jugadores de la banca (slots 11 en adelante), directo en el roster.
-     Lanza si alguno no esta en la banca. Devuelve true si cambio algo. */
-  function intercambiarBanca(bytes, indiceEquipo, regA, regB) {
-    const slots = _leerSlots(bytes, indiceEquipo);
-    const a = slots.indexOf(regA), b = slots.indexOf(regB);
-    if (a < 11 || b < 11) throw new Error('solo se intercambian jugadores de la banca');
-    if (a === b) return false;
-    [slots[a], slots[b]] = [slots[b], slots[a]];
-    _escribirSlots(bytes, indiceEquipo, slots);
-    return true;
-  }
-  function aplicarFormacionPedido(bytes, indiceEquipo, registros, slots, banca) {
+  function aplicarFormacionPedido(bytes, indiceEquipo, registros, slots, bancaSwaps) {
     const trabajo = Uint8Array.from(bytes);
     const cambios = ordenarTitulares(trabajo, indiceEquipo, registros);
-    if (banca !== undefined && banca !== null) ordenarBanca(trabajo, indiceEquipo, banca); // despues de los titulares
+    if (bancaSwaps !== undefined && bancaSwaps !== null) ordenarBancaSwaps(trabajo, indiceEquipo, bancaSwaps); // despues de los titulares
     escribirFormacionEquipo(trabajo, indiceEquipo, slots);
     bytes.set(trabajo);
     return cambios;
@@ -658,7 +653,7 @@ const PES5_EDITOR = (() => {
     leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
-    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares, ordenarBanca, intercambiarBanca, aplicarFormacionPedido,
+    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares, ordenarBancaSwaps, aplicarFormacionPedido,
     POS_CODIGO, POS_POR_CODIGO, nomPosicion, codPosicion,
     leerJugadorCompleto, escribirJugadorCompleto,
     leerPlantillaCompleta, equiposDelJugador,

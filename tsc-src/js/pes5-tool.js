@@ -55,7 +55,6 @@ let JUGADOR_SELECCIONADO = null; // id de registro seleccionado en el panel late
 // Se apaga sola al cambiar de club y despues de escribir el save.
 let EDICION_GRATIS = false;
 let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habilidades:{},edad,altura,pieDominante,lesiones} }
-let BANCA_SNAPSHOT = null;      // ORD-3: copia del save antes del primer intercambio de banca sin escribir (null si no hay)
 
 /* ============================================================
    Slice D.R — cobro condicional (mismas reglas que el editor del
@@ -883,14 +882,13 @@ function onTeamSelectPorIndice(idxStr){
   const nuevo = idxStr === '' ? null : parseInt(idxStr, 10);
   // Los cambios pendientes pertenecen al club abierto: cambiar de club los perderia
   // (y el cobro solo se aplica al club abierto), asi que se pide confirmacion.
-  if ((Object.keys(CAMBIOS_PENDIENTES).length || BANCA_SNAPSHOT) && nuevo !== PLANTILLA_INDICE){
+  if (Object.keys(CAMBIOS_PENDIENTES).length && nuevo !== PLANTILLA_INDICE){
     if (!confirm('Hay cambios sin escribir en el club actual. Si cambias de club se descartan. ¿Descartarlos y cambiar?')){
       const sel = document.getElementById('pl-team-select');
       if (sel) sel.value = PLANTILLA_INDICE != null ? String(PLANTILLA_INDICE) : '';
       return;
     }
     CAMBIOS_PENDIENTES = {};
-    BANCA_SNAPSHOT = null;
     liberarBloqueoEquipo();
   }
   // BLOQ-1: al cambiar de equipo, el admin suelta el bloqueo del anterior (aunque no tuviera cambios pendientes).
@@ -907,7 +905,6 @@ function onTeamSelectPorIndice(idxStr){
 
 async function onTeamSelect(indiceClub){
   PLANTILLA_INDICE = indiceClub;
-  BANCA_ARMADA = null; BANCA_MODO = false;
   PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, indiceClub);
   JUGADOR_SELECCIONADO = null;
   // Slice D.R punto 5c: refrescar lo ya gastado esta temporada por el
@@ -923,24 +920,6 @@ const COLS_ATTR = ['Ataque','Defensa','Equilibrio','Resistencia','Vel. maxima','
   'Precision','Potencia','Tecnica de disparo','Prec. saq. falta','Efecto','Cabezazo','Salto','Tecnica','Agresividad',
   'Mentalidad','Cualidades de portero','Trabajo en equipo'];
 
-// ORD-3: ordenar la banca a mano en la vista de plantilla. Tocar un suplente o reserva y luego otro los
-// intercambia de lugar en el roster (exacto). Queda sin escribir hasta «Escribir al save», como cualquier cambio.
-let BANCA_MODO = false;    // modo «ordenar banca» activo
-let BANCA_ARMADA = null;   // registro del suplente o reserva armado, esperando el otro
-function ptBancaModo(){ BANCA_MODO = !BANCA_MODO; BANCA_ARMADA = null; renderPlantillaBody(); }
-function ptBancaTocar(registro){
-  if (!PLANO || PLANTILLA_INDICE == null) return;
-  if (BANCA_ARMADA == null){ BANCA_ARMADA = registro; renderPlantillaBody(); return; }
-  if (BANCA_ARMADA === registro){ BANCA_ARMADA = null; renderPlantillaBody(); return; }
-  const otro = BANCA_ARMADA; BANCA_ARMADA = null;
-  const copiaPrevia = BANCA_SNAPSHOT ? null : PLANO.slice();
-  try { PES5_EDITOR.intercambiarBanca(PLANO, PLANTILLA_INDICE, otro, registro); }
-  catch (e) { showToast('No se intercambió: ' + (e.message || e), 'error'); renderPlantillaBody(); return; }
-  if (copiaPrevia) BANCA_SNAPSHOT = copiaPrevia;
-  PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
-  renderWriteBar();
-  renderPlantillaBody();
-}
 function renderPlantillaBody(){
   const el = document.getElementById('pl-body');
   if (!el) return;
@@ -952,7 +931,7 @@ function renderPlantillaBody(){
     const cols = COLS_ATTR.map(c => celda(c, _valorActual(j, 'atributos', c), j.atributos[c])).join('');
     const pieV = _valorActual(j, 'simple', 'pieDominante');
     return `
-      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}${BANCA_ARMADA===j.id?' selected':''}${BANCA_MODO&&slot>=11?' pt-banca-cand':''}" data-jugador="${j.id}" ${!BANCA_MODO ? `data-onclick="ptAbrirEditorJugador(${j.id})"` : (slot>=11 ? `data-onclick="ptBancaTocar(${j.id})"` : '')}>
+      <tr class="pt-row-jugador${JUGADOR_SELECCIONADO===j.id?' selected':''}" data-jugador="${j.id}" data-onclick="ptAbrirEditorJugador(${j.id})">
         <td>${slot+1}</td>
         <td>${escHtml(j.nombre)}${badge}<span data-marca-editado>${marcaCambio}</span></td>
         <td>${escHtml(j.posicionRegistrada||'—')}</td>
@@ -969,8 +948,7 @@ function renderPlantillaBody(){
     ? `<div class="pt-perfiles-bar"><span class="pt-perfiles-txt">Perfiles de emparejar · ${escHtml(_nombreTemporadaCobro())}</span>
         <button class="btn btn-sm" data-onclick="ptFijarPerfiles()" title="Calcula el perfil de los jugadores que todavía no lo tienen. No pisa los fijados.">Fijar perfiles de la temporada</button></div>`
     : '';
-  const barraBanca = `<div class="pt-banca-bar"><button class="btn btn-sm" data-onclick="ptBancaModo()">${BANCA_MODO ? 'Terminar de ordenar banca' : 'Ordenar banca'}</button>${BANCA_MODO ? '<span class="pt-hint-click">Toca un suplente o reserva y luego otro para intercambiarlos.</span>' : ''}</div>`;
-  el.innerHTML = barraPerfiles + barraBanca + `
+  el.innerHTML = barraPerfiles + `
     <div class="tbl-wrap pt-tbl-wrap">
       <table class="tbl pt-plantilla-table">
         <thead><tr>
@@ -1215,7 +1193,7 @@ function renderWriteBar(){
   const equipoTSC = equipoTSCActual();
   const presidente = tienePresidente(equipoTSC);
   const cobra = _cobraEquipo(equipoTSC);
-  const total = Object.keys(CAMBIOS_PENDIENTES).length + (BANCA_SNAPSHOT ? 1 : 0);
+  const total = Object.keys(CAMBIOS_PENDIENTES).length;
   const modoDescarga = !PES5_SAVE.tieneSoporte();
   let cobroHtml;
   if (!equipoTSC){
@@ -1248,9 +1226,8 @@ function renderWriteBar(){
   actualizarBotonEscritura();
 }
 function descartarTodo(){
-  if (!Object.keys(CAMBIOS_PENDIENTES).length && !BANCA_SNAPSHOT) return;
+  if (!Object.keys(CAMBIOS_PENDIENTES).length) return;
   if (!confirm('¿Descartar todos los cambios sin escribir?')) return;
-  if (BANCA_SNAPSHOT){ PLANO = BANCA_SNAPSHOT; BANCA_SNAPSHOT = null; PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE); }
   CAMBIOS_PENDIENTES = {};
   liberarBloqueoEquipo();
   renderPlantillaBody();
@@ -1287,7 +1264,7 @@ function _limpiarSiVacio(id){
 function actualizarBotonEscritura(){
   const btn = document.getElementById('btn-escribir-save');
   const cerrado = document.getElementById('pes5-cerrado')?.checked;
-  const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length + (BANCA_SNAPSHOT ? 1 : 0);
+  const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
   const countEl = document.querySelector('.pt-changes-count');
   if (countEl) countEl.textContent = `${totalPendientes} jugador(es) con cambios`;
   // Slice D.R punto 5: si el equipo del club abierto tiene presidente, el
@@ -1353,7 +1330,7 @@ async function _recargarPlantillaTrasEscritura(){
 // (clase `changed`).
 async function confirmarEscribirAlSave(){
   const ids = Object.keys(CAMBIOS_PENDIENTES);
-  if (!ids.length && !BANCA_SNAPSHOT) return;
+  if (!ids.length) return;
   const nombreEquipo = PLANTILLA_INDICE != null ? PES5_EDITOR.nombreEquipo(PLANO, PLANTILLA_INDICE) : '(equipo desconocido)';
   const nombresJugadores = ids.map(id => {
     const j = PLANTILLA_ACTUAL.find(p => p.id == id);
@@ -1618,7 +1595,6 @@ async function escribirAlSave(op){
       await _aplicarCobroSiCorresponde();
       if (op) await _registrarEmparejarAdminSeguro(equipoCobro, op);
       PLANO = copia;
-      BANCA_SNAPSHOT = null; // ORD-3: lo escrito ya incluye el orden de banca
       if (!op){ CAMBIOS_PENDIENTES = {}; EDICION_GRATIS = false; }
       await _publicarEquipoTrasEscritura(equipoCobro);
       if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
@@ -1640,7 +1616,6 @@ async function escribirAlSave(op){
     await _aplicarCobroSiCorresponde();
     if (op) await _registrarEmparejarAdminSeguro(equipoCobro, op);
     PLANO = copia;
-    BANCA_SNAPSHOT = null; // ORD-3: lo escrito ya incluye el orden de banca
     if (!op){ CAMBIOS_PENDIENTES = {}; EDICION_GRATIS = false; }
     await _publicarEquipoTrasEscritura(equipoCobro);
     if (PLANTILLA_INDICE != null) await _recargarPlantillaTrasEscritura();
@@ -1923,10 +1898,13 @@ async function aplicarPedidosSeleccionados(){
         // si el orden de titulares Y la formacion salen bien (si no, el roster queda como estaba).
         let cambiosTitulares = 0;
         try {
-          // ORD-3: si trae banca, se escribe el orden de la banca en la misma operacion (o no se escribe nada)
-          cambiosTitulares = PES5_EDITOR.aplicarFormacionPedido(copia, team.pes5ClubIdx, titularesPedido.map(x => x.jugador), p.formacion.slots, p.banca);
+          // ORD-4: los intercambios de banca (pares) se aplican en la misma operacion, en orden, o no se aplica nada
+          cambiosTitulares = PES5_EDITOR.aplicarFormacionPedido(copia, team.pes5ClubIdx, titularesPedido.map(x => x.jugador), p.formacion.slots, p.bancaSwaps);
         } catch (e) {
-          if (e && e.codigo === 'banca'){ rechazados.push({ pedido: p, motivo: 'el plantel cambió; el presidente debe pedir la alineación de nuevo' }); continue; }
+          if (e && e.codigo === 'banca'){
+            const nombre = PES5_EDITOR.nombreDeRegistro(copia, e.registro) || ('el jugador ' + e.registro);
+            rechazados.push({ pedido: p, motivo: `${nombre} ya no está en la banca; el presidente debe pedir la alineación de nuevo` }); continue;
+          }
           rechazados.push({ pedido: p, motivo: 'no se pudo escribir la formación: ' + (e.message || e) }); continue;
         }
         aplicados.push({ pedido: p, team, info: {
@@ -2623,8 +2601,6 @@ window.ptOcultarErrorEscritura = _ocultarErrorEscritura;
 window.ptOcultarExitoEscritura = _ocultarExitoEscritura;
 window.ptAbrirEditorJugador = abrirEditorJugador;
 window.ptFijarPerfiles = ptFijarPerfiles;
-window.ptBancaModo = ptBancaModo;
-window.ptBancaTocar = ptBancaTocar;
 window.ptPerfilOverride = ptPerfilOverride;
 window.ptEmparejarJugador = emparejarJugadorAdmin;
 window.ptCerrarEmparejar = cerrarEmparejar;

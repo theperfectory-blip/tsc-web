@@ -614,12 +614,16 @@ function _rosterVisible(){
 }
 function _rosterVigente(){
   const tit = formacionVigente().map(s => s.id);
-  let banca = null;
+  const base = PLAYERS.filter(p => p.slot != null).slice().sort((a, b) => a.slot - b.slot).map(p => p.id);
+  const banca = PES5_PLANTILLA.rosterTrasTitulares(base, tit).slice(11);
+  // ORD-4: el pedido pendiente que manda lleva sus intercambios de banca (pares): se replican en el mismo orden
+  // que aplicara la Tool, asi el aviso y la banca muestran lo que Luis va a escribir.
   const pend = PES5_PLANTILLA.formacionPendienteMasReciente(APP.pendientes);
-  if (pend && Array.isArray(pend.banca) && _formacionPendiente()) banca = pend.banca.map(r => 'r' + r).filter(id => PLAYER_BY_ID[id]);
-  if (!banca){
-    const base = PLAYERS.filter(p => p.slot != null).slice().sort((a, b) => a.slot - b.slot).map(p => p.id);
-    banca = PES5_PLANTILLA.rosterTrasTitulares(base, tit).slice(11);
+  if (pend && Array.isArray(pend.bancaSwaps) && _formacionPendiente()){
+    for (let k = 0; k + 1 < pend.bancaSwaps.length; k += 2){
+      const a = banca.indexOf('r' + pend.bancaSwaps[k]), b = banca.indexOf('r' + pend.bancaSwaps[k + 1]);
+      if (a >= 0 && b >= 0) [banca[a], banca[b]] = [banca[b], banca[a]];
+    }
   }
   const usados = new Set(tit);
   const bancaSinRepetir = [...new Set(banca.filter(id => !usados.has(id)))];
@@ -1833,7 +1837,7 @@ const FORM = { draft:null, sel:0, motivo:null };
 let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
 let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (base del pedido)
 let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
-let FORM_BANCA_BASE = null; // ORD-3: banca (slots 11 en adelante) con la que se abrio el modal
+// ORD-4: los intercambios de banca del borrador van en FORM.bancaPares (pares de ids, en el orden en que se hicieron).
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
 
 function openFormationModal(){
@@ -1853,7 +1857,7 @@ function openFormationModal(){
   FORM.motivo = null;
   FORM_DRAG = null;
   FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
-  FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaCambios = []; FORM_BANCA_BASE = FORM.bancaOrden.slice();
+  FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = [];
   _pitchSyncOrientation();
   _montarModalCancha();
 }
@@ -1976,7 +1980,7 @@ function _formIdxDeId(id){ return FORM.draft ? FORM.draft.findIndex(s => s.id ==
 function _formEsArqueroSlot(i){ return i === 0 || isKeeperSlot(FORM.draft[i]); }
 /* Un jugador puede ocupar el lugar i del 11 si ambos son porteros o ninguno lo es. */
 function _formLegalEntrada(id, i){
-  if (!FORM.draft[i]) return false;
+  if (!FORM.draft[i] || _formEnParBanca(id)) return false;
   return _formEsPortero(id) === _formEsArqueroSlot(i);
 }
 /* Dos titulares del 11 se intercambian si ambos son porteros o ninguno lo es. */
@@ -1995,13 +1999,18 @@ function _formEntrar(id, i){
   FORM.draft[i].id = id;
   FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
 }
-function _formMensajeIlegal(){ showMiniToast('El arquero solo se cambia por otro arquero.'); }
+/* ORD-4: un jugador con un intercambio de banca en este pedido no entra al 11 hasta deshacerlo. */
+function _formEnParBanca(id){ return (FORM.bancaPares || []).some(p => p[0] === id || p[1] === id); }
+function _formMensajeIlegal(id){
+  if (id && _formEnParBanca(id)){ showMiniToast('Tiene un intercambio de banca en este pedido: deshazlo antes de ponerlo en el 11.'); return; }
+  showMiniToast('El arquero solo se cambia por otro arquero.');
+}
 /* Toque en un jugador del 11 (cancha o lista). Devuelve true si cambio la formacion. */
 function formacionTocarTitular(i){
   if (!FORM.draft[i]) return false;
   // 1) hay un suplente armado: entra en este lugar
   if (FORM.banca){
-    if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(); FORM.verId = FORM.banca; renderFormationModal(); return false; }
+    if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(FORM.banca); FORM.verId = FORM.banca; renderFormationModal(); return false; }
     _formEntrar(FORM.banca, i); renderFormationModal(); return true;
   }
   // 2) hay un titular armado: se intercambian
@@ -2026,18 +2035,23 @@ function formacionTocarBanca(el){
   // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
   if (FORM.armado && !FORM.banca){
     if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
-    _formMensajeIlegal();
+    _formMensajeIlegal(id);
   }
   FORM.banca = id; FORM.armado = true; FORM.verId = id; FORM.motivo = null;
   renderFormationModal();
 }
-/* ORD-3: intercambio exacto de dos suplentes o reservas en la banca. Cada uno queda como una linea
-   «Banca: X ↔ Y» en el pedido. */
+/* ORD-4: intercambio exacto de dos suplentes o reservas en la banca. Cada intercambio es un par [a, b] en
+   FORM.bancaPares, en el orden en que se hizo; el pedido lo manda como bancaSwaps y cada par es una linea
+   «Banca: X ↔ Y». Deshacer: si el par es el ultimo intercambio hecho, se quita (un swap repetido es su propia
+   inversa, asi que la banca vuelve a como estaba). Un par anterior no se quita: quitarlo cambiaria el orden de los
+   demas intercambios que se aplican despues. */
 function _formSwapBanca(a, b){
   const ia = FORM.bancaOrden.indexOf(a), ib = FORM.bancaOrden.indexOf(b);
   if (ia < 0 || ib < 0 || ia === ib) return;
+  const ultimo = FORM.bancaPares[FORM.bancaPares.length - 1];
+  if (ultimo && ((ultimo[0] === a && ultimo[1] === b) || (ultimo[0] === b && ultimo[1] === a))) FORM.bancaPares.pop();
+  else FORM.bancaPares.push([a, b]);
   [FORM.bancaOrden[ia], FORM.bancaOrden[ib]] = [FORM.bancaOrden[ib], FORM.bancaOrden[ia]];
-  FORM.bancaCambios.push([PLAYER_BY_ID[a].name, PLAYER_BY_ID[b].name]);
   FORM.banca = null; FORM.armado = false; FORM.verId = b; FORM.motivo = null;
 }
 /* Cuando un suplente entra al 11, el que sale ocupa su lugar en la banca (igual que la Tool). */
@@ -2045,11 +2059,6 @@ function _formCambiarEnBanca(entra, sale){
   if (!FORM.bancaOrden || !sale) return;
   const i = FORM.bancaOrden.indexOf(entra);
   if (i >= 0) FORM.bancaOrden[i] = sale;
-}
-/* La banca del borrador es distinta de la de partida (por intercambio o porque entro un suplente). */
-function _bancaCambiada(){
-  const b = FORM_BANCA_BASE || [];
-  return !!FORM.bancaOrden && (FORM.bancaOrden.length !== b.length || FORM.bancaOrden.some((id, i) => id !== b[i]));
 }
 function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
@@ -2454,7 +2463,7 @@ function moveFormationScreen(dir){
 }
 function resetFormationDraft(){
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
-  FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaCambios = []; FORM.banca = null; FORM.armado = false;
+  FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
   completarPosiciones();
   renderFormationModal();
   showMiniToast('Formación restablecida a la del save.');
@@ -2486,14 +2495,13 @@ async function confirmFormation(){
     lat: i === 0 ? null : Math.max(6, Math.min(99, Math.round(6 + (s.y - 1) * 93 / 46))),
     posNombre: s.pos || null,
   }));
-  // ORD-3: solo la banca cambio → sin linea de «Formacion»; la banca va en su campo y en sus lineas «Banca: X ↔ Y»
+  // ORD-4: sin cambio de titulares no sale la linea «Formacion»; la banca viaja como pares (bancaSwaps) y sus lineas
   const base = FORM_BASE || FORMATION;
   const titularesCambian = base.some((s, i) => !FORMATION[i] || s.id !== FORMATION[i].id || s.x !== FORMATION[i].x || s.y !== FORMATION[i].y || s.pos !== FORMATION[i].pos);
-  const lineasPedido = [
-    ...(titularesCambian ? _lineasFormacion(base, FORMATION, nombre) : []),
-    ...FORM.bancaCambios.map(([x, y]) => ({ label: 'Banca', from: '', to: `${x} ↔ ${y}` })),
-  ];
-  const banca = _bancaCambiada() ? FORM.bancaOrden.map(id => PES5_PLANTILLA.registroDeId(id)) : null;
+  const lineasBanca = FORM.bancaPares.map(([a, b]) => ({ label: 'Banca', from: '', to: `${PLAYER_BY_ID[a].name} ↔ ${PLAYER_BY_ID[b].name}` }));
+  const lineasPedido = [...(titularesCambian ? _lineasFormacion(base, FORMATION, nombre) : []), ...lineasBanca];
+  const bancaSwaps = FORM.bancaPares.flatMap(([a, b]) => [PES5_PLANTILLA.registroDeId(a), PES5_PLANTILLA.registroDeId(b)]);
+  const extraBanca = bancaSwaps.length ? { bancaSwaps } : {};
   try {
     await firebase.firestore().collection('pedidos_pes5').add({
       uid: AUTH.user.uid,
@@ -2507,11 +2515,11 @@ async function confirmFormation(){
       totalCost: 0,
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
-      ...(banca ? { banca } : {}),
+      ...extraBanca,
     });
     FORMATION_NAME = nombre;
     // presentacion: la formacion recien enviada ya cuenta como pendiente (aviso y globito)
-    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente', ...(banca ? { banca } : {}) });
+    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente', ...extraBanca });
     renderPending();
     closeFormationModal();
     showMiniToast('Formación enviada. La Tool la aplica al save.');

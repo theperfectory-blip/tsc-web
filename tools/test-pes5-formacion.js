@@ -199,63 +199,64 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   }
 }
 
-// 12) ORD-3: la banca va en el pedido. ordenarBanca solo reordena la banca (mismos registros, exactos);
-// intercambiarBanca hace un swap exacto; una banca invalida se rechaza antes de escribir nada.
+// 12) ORD-4: la banca viaja como pares de intercambio (bancaSwaps). ordenarBancaSwaps aplica cada par como un
+// swap exacto de sus dos slots; si alguno ya no esta en la banca, rechaza el pedido entero sin tocar el buffer.
 {
-  const codigoBanca = (f) => { const e = lanza(f); return !!e && e.codigo === 'banca'; };
   const off = ROSTER_BASE + CLUB * ROSTER_STRIDE;
   const u16 = (bytes, s) => bytes[off + s * 2] | (bytes[off + s * 2 + 1] << 8);
-  const ORDEN_BANCA_CAMBIADA = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 12, 14];
-  // a) banca valida: reordena solo la banca; el 11 no cambia
+  const codigo = (f) => { const e = lanza(f); return e ? e.codigo : null; };
+  // a) swaps aplicados con la banca intacta: en orden, cada par es un swap exacto; el 11 no se toca
   {
     const bytes = bufferConPlantel(PLANTEL);
-    const n = ED.ordenarBanca(bytes, CLUB, [13, 12, 14]);
-    assert(n === 3 && igual(ED.leerPlantillaEquipo(bytes, CLUB), ORDEN_BANCA_CAMBIADA), 'ORD-3 · banca valida: reordena la banca y el 11 queda igual');
+    const n = ED.ordenarBancaSwaps(bytes, CLUB, [12, 14, 13, 14]);
+    assert(n === 2 && igual(ED.leerPlantillaEquipo(bytes, CLUB), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 12]),
+      'ORD-4 · dos pares con la banca intacta: se aplican en orden (12<->14, luego 13<->14) y el 11 no cambia');
   }
-  // b) banca invalida: repetida, ajena, de otro tamano, no lista, con un titular: se rechaza y no toca el buffer
-  const invalidas = [
-    ['repite jugadores', [12, 12, 14]],
-    ['trae un jugador ajeno', [12, 13, 99]],
-    ['tiene otro tamano', [12, 13]],
-    ['no es una lista', '12,13,14'],
-    ['trae un titular', [1, 13, 14]],
-  ];
-  for (const [nombre, banca] of invalidas) {
-    const bytes = bufferConPlantel(PLANTEL);
-    const antes = Array.from(bytes);
-    assert(codigoBanca(() => ED.ordenarBanca(bytes, CLUB, banca)) && igual(Array.from(bytes), antes),
-      `ORD-3 · banca que ${nombre}: se rechaza (codigo banca) y el buffer queda igual`);
-  }
-  // c) titular que entra y banca nueva a la vez: el que sale cae en el lugar del que entra; la banca sigue el orden pedido
+  // b) entro un jugador ajeno al par: el 12 entra por el 10 y el 11 cae en la banca; el par (13, 14) sigue valiendo
   {
     const bytes = bufferConPlantel(PLANTEL);
     ED.ordenarTitulares(bytes, CLUB, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
-    ED.ordenarBanca(bytes, CLUB, [14, 11, 13]);
-    assert(igual(ED.leerPlantillaEquipo(bytes, CLUB), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 11, 13]),
-      'ORD-3 · titular que entra + banca nueva: el 11 sale al lugar del 12 y la banca queda en el orden pedido');
+    ED.ordenarBancaSwaps(bytes, CLUB, [13, 14]);
+    assert(igual(ED.leerPlantillaEquipo(bytes, CLUB), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 11, 14, 13]),
+      'ORD-4 · entro un jugador ajeno al par: el par se aplica igual y el que sale (11) queda donde estaba la banca');
   }
-  // d) atomico: aplicarFormacionPedido con banca invalida no escribe los titulares tampoco
+  // c) falta uno del par (el 12 entro al 11): rechazo del pedido entero, buffer igual byte a byte
   {
     const bytes = bufferConPlantel(PLANTEL);
     const antes = Array.from(bytes);
     const registros = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12];
-    assert(codigoBanca(() => ED.aplicarFormacionPedido(bytes, CLUB, registros, [], [12, 13, 99])) && igual(Array.from(bytes), antes),
-      'ORD-3 · aplicarFormacionPedido con banca invalida: no se escribe ni el 11 (atomico)');
+    const e = lanza(() => ED.aplicarFormacionPedido(bytes, CLUB, registros, [], [13, 14, 12, 11]));
+    assert(e && e.codigo === 'banca' && e.registro === 12 && igual(Array.from(bytes), antes),
+      'ORD-4 · falta uno del par (el 12 ya esta en el 11): se rechaza con codigo banca y el buffer queda byte a byte igual');
+    const e2 = lanza(() => ED.ordenarBancaSwaps(bytes, CLUB, [13, 99]));
+    assert(e2 && e2.codigo === 'banca' && e2.registro === 99 && igual(Array.from(bytes), antes),
+      'ORD-4 · un registro que no esta en el plantel: se rechaza, buffer igual');
   }
-  // e) intercambio exacto por toque (dos suplentes o reservas); con un titular no
+  // d) formato invalido: impar, mas de 32, no lista, par repetido, cero: se rechaza y el buffer queda igual
+  {
+    const invalidos = [
+      ['impar', [12, 13, 14]],
+      ['mas de 32', Array.from({ length: 34 }, (_, i) => 12 + (i % 3))],
+      ['no es una lista', '12,13'],
+      ['un par repite al jugador', [13, 13]],
+      ['un valor cero', [13, 0]],
+    ];
+    for (const [nombre, pares] of invalidos) {
+      const bytes = bufferConPlantel(PLANTEL);
+      const antes = Array.from(bytes);
+      assert(codigo(() => ED.ordenarBancaSwaps(bytes, CLUB, pares)) === 'banca-formato' && igual(Array.from(bytes), antes),
+        `ORD-4 · formato invalido (${nombre}): codigo banca-formato y buffer igual`);
+    }
+  }
+  // e) lista vacia: no cambia nada; hueco en la banca: el slot vacio se conserva
   {
     const bytes = bufferConPlantel(PLANTEL);
-    assert(ED.intercambiarBanca(bytes, CLUB, 12, 14) === true && igual(ED.leerPlantillaEquipo(bytes, CLUB), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 13, 12]),
-      'ORD-3 · intercambiarBanca: el 12 y el 14 cambian de lugar, el resto no');
-    assert(lanza(() => ED.intercambiarBanca(bytes, CLUB, 1, 12)) !== null, 'ORD-3 · intercambiarBanca rechaza un titular');
-    assert(ED.intercambiarBanca(bytes, CLUB, 13, 13) === false, 'ORD-3 · intercambiarBanca con el mismo jugador no cambia nada');
-  }
-  // f) hueco en la banca (slot vacio en el save): se conserva en su lugar
-  {
-    const bytes = bufferConPlantel([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 13, 14]);
-    ED.ordenarBanca(bytes, CLUB, [13, 12, 14]);
-    assert(u16(bytes, 11) === 13 && u16(bytes, 12) === 0 && u16(bytes, 13) === 12 && u16(bytes, 14) === 14,
-      'ORD-3 · banca con un hueco: el slot vacio se conserva y los jugadores siguen en sus slots ocupados');
+    const antes = Array.from(bytes);
+    assert(ED.ordenarBancaSwaps(bytes, CLUB, []) === 0 && igual(Array.from(bytes), antes), 'ORD-4 · sin pares: no cambia nada');
+    const conHueco = bufferConPlantel([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 0, 13, 14]);
+    ED.ordenarBancaSwaps(conHueco, CLUB, [12, 14]);
+    assert(u16(conHueco, 11) === 14 && u16(conHueco, 12) === 0 && u16(conHueco, 13) === 13 && u16(conHueco, 14) === 12,
+      'ORD-4 · intercambio con un hueco en la banca: el slot vacio se conserva');
   }
 }
 
