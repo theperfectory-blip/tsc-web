@@ -1757,6 +1757,7 @@ function openFormationModal(){
   FORM.motivo = null;
   FORM_DRAG = null;
   FORM.resumen = 'mejores';
+  FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
   _pitchSyncOrientation();
   _montarModalCancha();
 }
@@ -1813,7 +1814,14 @@ function _montarModalCancha(){
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
-        <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Suplentes y reserva"></div>
+        <div class="ep-form-bancawrap">
+          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(-1)" title="Jugadores anteriores" aria-label="Jugadores anteriores">
+            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Plantel: toca un jugador para verlo"></div>
+          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(1)" title="Jugadores siguientes" aria-label="Jugadores siguientes">
+            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <div class="ep-form-stats" id="ep-form-stats" hidden></div>
         <div class="ep-pitch-ficha" id="ep-pitch-ficha"${PITCH_VERTICAL ? '' : ' hidden'}>
           <div class="ep-casillas" id="ep-form-casillas"></div>
         </div>
@@ -1826,19 +1834,8 @@ function _montarModalCancha(){
             </div>
             <div class="ep-res-body" id="ep-res-body"></div>
         </div>
-        <div class="ep-pitch-nudge" role="group" aria-label="Ajuste fino de la posicion">
-          <button class="ep-nudge up" data-onclick="moveFormationScreen('up')" title="Subir" aria-label="Subir">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
-          <button class="ep-nudge left" data-onclick="moveFormationScreen('left')" title="Atrás" aria-label="Atrás">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
-          <span class="ep-nudge-c" aria-hidden="true"></span>
-          <button class="ep-nudge right" data-onclick="moveFormationScreen('right')" title="Adelante" aria-label="Adelante">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-          <button class="ep-nudge down" data-onclick="moveFormationScreen('down')" title="Bajar" aria-label="Bajar">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
-        </div>
         <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Tocá un titular y luego otro para intercambiarlos, o un suplente para ponerlo en su lugar. También podés arrastrar un punto.' : 'Clic en un titular y luego en otro para intercambiarlos, o en un suplente para ponerlo en su lugar. Flechas para mover el punto.'}</span>
+          <span>${toqueFino ? 'Toca un jugador para ver su ficha. Toca otro para cambiarlo de lugar (titular con titular, o suplente con titular).' : 'Clic en un jugador para ver su ficha; clic en otro para cambiarlo de lugar (titular con titular, o suplente con titular). Flechas: mueven el punto del teclado.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1852,6 +1849,8 @@ function _montarModalCancha(){
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
+  const bancaWheel = document.getElementById('ep-form-bench');
+  if (bancaWheel) bancaWheel.addEventListener('wheel', _formBancaRueda, { passive: false });
   _formObservarAlto();
 }
 function closeFormationModal(){
@@ -1875,34 +1874,155 @@ function _centroPunto(campo, slot){
     y: r.top + campo.clientTop + pitchPctY(slot.x, slot.y) / 100 * campo.clientHeight,
   };
 }
-/* FORM-1: se intercambian dos titulares de campo. El arquero (indice 0) no entra en el intercambio.
-   Cada punto conserva su lugar en la cancha y su posicion: cambian los jugadores. */
+/* ================= FORM-2: seleccion, intercambio y ficha completa =================
+   Reglas:
+   - Tocar un jugador (cancha o lista) lo selecciona y muestra su ficha completa.
+   - Con uno seleccionado, tocar otro lo cambia de lugar si la combinacion es valida:
+       titular con titular: intercambian lugares (si son porteros, solo entre porteros);
+       suplente con titular: el suplente entra en el lugar del titular y este pasa a la banca.
+   - El arquero (slot 0) solo se cambia por otro arquero (la Tool valida que el que entra sea portero).
+   - Tocar el mismo jugador otra vez no hace nada. «Cancelar» quita la seleccion.
+   Estado: FORM.armado (hay un jugador esperando companero), FORM.banca (id del suplente armado
+   cuando el primer toque fue en la lista), FORM.verId (jugador de la ficha). */
+function _formEsPortero(id){ const p = PLAYER_BY_ID[id]; return !!p && p.primaryPos === 'GK'; }
+function _formIdxDeId(id){ return FORM.draft ? FORM.draft.findIndex(s => s.id === id) : -1; }
+function _formEsArqueroSlot(i){ return i === 0 || isKeeperSlot(FORM.draft[i]); }
+/* Un jugador puede ocupar el lugar i del 11 si ambos son porteros o ninguno lo es. */
+function _formLegalEntrada(id, i){
+  if (!FORM.draft[i]) return false;
+  return _formEsPortero(id) === _formEsArqueroSlot(i);
+}
+/* Dos titulares del 11 se intercambian si ambos son porteros o ninguno lo es. */
 function _formPuedeIntercambiar(a, b){
-  return a !== b && a > 0 && b > 0 && !!FORM.draft[a] && !!FORM.draft[b]
-    && !isKeeperSlot(FORM.draft[a]) && !isKeeperSlot(FORM.draft[b]);
+  return a !== b && !!FORM.draft[a] && !!FORM.draft[b] && _formEsArqueroSlot(a) === _formEsArqueroSlot(b);
 }
 function intercambiarTitulares(a, b){
   const tmp = FORM.draft[a].id;
   FORM.draft[a].id = FORM.draft[b].id;
   FORM.draft[b].id = tmp;
-  FORM.sel = b;
-  FORM.motivo = null;
-  renderFormationModal();
+  FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[b].id; FORM.motivo = null;
 }
-/* FORM-1: un suplente o de reserva toma el lugar del titular elegido; ese titular pasa a la banca
-   (la banca se arma con los que no estan en el 11). */
-function formacionElegirSuplente(el){
+/* El jugador id ocupa el lugar i; el que estaba en ese lugar queda fuera del 11 (banca). */
+function _formEntrar(id, i){
+  FORM.draft[i].id = id;
+  FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
+}
+function _formMensajeIlegal(){ showMiniToast('El arquero solo se cambia por otro arquero.'); }
+/* Toque en un jugador del 11 (cancha o lista). Devuelve true si cambio la formacion. */
+function formacionTocarTitular(i){
+  if (!FORM.draft[i]) return false;
+  // 1) hay un suplente armado: entra en este lugar
+  if (FORM.banca){
+    if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(); FORM.verId = FORM.banca; renderFormationModal(); return false; }
+    _formEntrar(FORM.banca, i); renderFormationModal(); return true;
+  }
+  // 2) hay un titular armado: se intercambian
+  if (FORM.armado && FORM.sel !== i){
+    if (_formPuedeIntercambiar(FORM.sel, i)){ intercambiarTitulares(FORM.sel, i); renderFormationModal(); return true; }
+    _formMensajeIlegal();
+  }
+  // 3) seleccionar: muestra la ficha y queda armado
+  FORM.sel = i; FORM.armado = true; FORM.banca = null; FORM.verId = FORM.draft[i].id; FORM.motivo = null;
+  renderFormationModal();
+  return false;
+}
+/* Toque en un jugador de la lista (data-jugador). Los que estan en el 11 van por formacionTocarTitular. */
+function formacionTocarBanca(el){
   const id = el && el.dataset ? el.dataset.jugador : null;
-  const titular = FORM.draft[FORM.sel];
-  if (!id || !titular) return;
-  if (FORM.sel === 0 || isKeeperSlot(titular)){ showMiniToast('Primero elegí un titular de campo: el arquero no se cambia.'); return; }
-  const entra = PLAYER_BY_ID[id];
-  if (!entra) return;
-  if (entra.primaryPos === 'GK'){ showMiniToast('Un arquero solo puede ir al arco.'); return; }
-  titular.id = id;
-  FORM.motivo = null;
+  if (!id || !PLAYER_BY_ID[id]) return;
+  const i = _formIdxDeId(id);
+  if (i >= 0){ formacionTocarTitular(i); return; }
+  if (FORM.banca === id){ FORM.verId = id; renderFormationModal(); return; }
+  // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
+  if (FORM.armado && !FORM.banca){
+    if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
+    _formMensajeIlegal();
+  }
+  FORM.banca = id; FORM.armado = true; FORM.verId = id; FORM.motivo = null;
   renderFormationModal();
 }
+function formacionCancelarArmado(){
+  FORM.armado = false; FORM.banca = null; FORM.motivo = null;
+  renderFormationModal();
+}
+/* Desplaza la lista de jugadores un paso (botones de 44 px). */
+function formacionBancaDesplazar(dir){
+  const el = document.getElementById('ep-form-bench');
+  if (!el) return;
+  el.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.8), behavior: 'smooth' });
+}
+/* Rueda del mouse sobre la lista: se desplaza en horizontal. */
+function _formBancaRueda(e){
+  const el = e.currentTarget;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ el.scrollLeft += e.deltaY; e.preventDefault(); }
+}
+const _FORM_ICO_SI = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const _FORM_ICO_NO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+/* Lista completa del plantel (todos, con su nombre) y la ficha del jugador elegido. */
+function _formRenderBancaYPanel(){
+  const bancaEl = document.getElementById('ep-form-bench');
+  const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
+  if (bancaEl){
+    const plantel = PLAYERS.slice().sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+    bancaEl.innerHTML = plantel.map(p => {
+      const i = _formIdxDeId(p.id);
+      const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
+      const etiqueta = i >= 0 ? 'En el 11' : (sectionKeyOfSlot(p.slot) === 'reserva' ? 'Reserva' : 'Suplente');
+      const cls = ['ep-form-subbtn', i >= 0 ? 'en11' : '', p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : ''].filter(Boolean).join(' ');
+      return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
+        <span class="ep-form-subname">${escHtml(p.name)}</span>
+        <span class="ep-form-subtag">${escHtml(etiqueta)} · ${escHtml(cod)}</span>
+      </button>`;
+    }).join('') || '<span class="ep-form-subnone">Sin jugadores en el plantel.</span>';
+  }
+  const panel = document.getElementById('ep-form-stats');
+  if (panel){
+    const p = FORM.verId ? PLAYER_BY_ID[FORM.verId] : null;
+    if (!p){ panel.hidden = true; panel.innerHTML = ''; }
+    else { panel.hidden = false; panel.innerHTML = _formFichaCompleta(p); }
+  }
+}
+/* Ficha con todo: atributos 0-99, secundarios (0-99, escala 1-8 y resistencia a lesiones), posiciones,
+   habilidades especiales (si tiene o no). Usa las mismas definiciones que el editor: MAIN_STATS,
+   SEC_NEW, POSITIONS y ALL_ABILITIES. Solo esta panel tiene scroll vertical propio. */
+function _formFichaCompleta(p){
+  const val = (v) => (v === undefined || v === null || v === '') ? '—' : escHtml(String(v));
+  const fila = (lab, v) => `<div class="ep-fs-row"><span>${escHtml(lab)}</span><b>${v}</b></div>`;
+  const atributos = MAIN_STATS.map(s => fila(s.l, val((p.stats || {})[s.k]))).join('');
+  const secundarios = SEC_NEW.map(s => {
+    const raw = (p.sec || {})[s.k];
+    const extra = s.sc === 8 ? ' <small>escala 1-8</small>' : s.sc === 'inj' ? ' <small>C · B · A</small>' : ' <small>0-99</small>';
+    return fila(s.l, val(raw) + extra);
+  }).join('');
+  const posiciones = POSITIONS.map(ps => {
+    const on = !!(p.positions || {})[ps.k];
+    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(ps.l)}</span></li>`;
+  }).join('');
+  const habil = ALL_ABILITIES.map(a => {
+    const on = !!(p.abilities || {})[a.k];
+    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(a.l)}</span><b>${on ? 'Sí' : 'No'}</b></li>`;
+  }).join('');
+  const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
+  const cuerpo = `${escHtml(cod)} · ${escHtml((POS_BY_KEY[p.primaryPos] && POS_BY_KEY[p.primaryPos].l) || p.tag || '')}`
+    + (p.dorsal && p.dorsal !== '?' ? ` · #${escHtml(p.dorsal)}` : '');
+  const ayuda = FORM.banca ? 'Toca un titular para que entre en su lugar.'
+    : FORM.armado ? 'Toca otro jugador para intercambiarlo con este.' : '';
+  return `
+    <div class="ep-fs-head">
+      <div class="ep-fs-id">
+        <div class="ep-fs-name">${escHtml(p.name)}</div>
+        <div class="ep-fs-sub">${cuerpo}</div>
+        <div class="ep-fs-sub">Altura ${val(p.height)} cm · Edad ${val(p.age)} · Pie ${val(p.foot)} · Banda ${val(p.side)}</div>
+      </div>
+      ${FORM.armado ? `<button type="button" class="ep-fs-cancel" data-onclick="formacionCancelarArmado()">Cancelar</button>` : ''}
+    </div>
+    ${ayuda ? `<div class="ep-fs-ayuda">${escHtml(ayuda)}</div>` : ''}
+    <div class="ep-fs-sec"><h4>Atributos</h4><div class="ep-fs-grid">${atributos}</div></div>
+    <div class="ep-fs-sec"><h4>Secundarios y lesiones</h4><div class="ep-fs-grid">${secundarios}</div></div>
+    <div class="ep-fs-sec"><h4>Posiciones</h4><ul class="ep-fs-list">${posiciones}</ul></div>
+    <div class="ep-fs-sec"><h4>Habilidades especiales</h4><ul class="ep-fs-list">${habil}</ul></div>`;
+}
+
 function _formProgramarRender(){
   if (_formRaf) return;
   _formRaf = requestAnimationFrame(() => { _formRaf = 0; renderFormationModal(); });
@@ -1917,11 +2037,10 @@ function _formPointerDown(e){
     if (d < mejorDist){ mejorDist = d; mejor = i; }
   });
   if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
-  // FORM-1: con un titular de campo ya elegido, tocar otro titular de campo lo intercambia.
-  if (_formPuedeIntercambiar(FORM.sel, mejor)){ intercambiarTitulares(FORM.sel, mejor); return; }
+  // FORM-2: el toque decide (seleccionar, intercambiar o entrar). Si cambio la formacion, no hay arrastre.
+  if (formacionTocarTitular(mejor)) return;
   const slot = FORM.draft[mejor];
   const c = _centroPunto(campo, slot);
-  selectFormationPlayer(mejor);
   // Captura en todos los tipos de puntero: si se suelta fuera de la cancha, el clic
   // se entrega al campo y no al overlay (que cerraria el modal al soltar sobre el fondo).
   try { campo.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1988,18 +2107,7 @@ function renderFormationModal(){
   }).join('');
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
-  // FORM-1: banca con los que no estan en el 11 (suplentes y reserva), botones de 44 px.
-  const bancaEl = document.getElementById('ep-form-bench');
-  if (bancaEl){
-    const enCancha = new Set(FORM.draft.map(s => s.id));
-    const banca = PLAYERS.filter(p => !enCancha.has(p.id)).sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
-    bancaEl.innerHTML = banca.length
-      ? banca.map(p => `<button type="button" class="ep-form-subbtn" data-onclick="formacionElegirSuplente(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}">
-          <span class="ep-form-subname">${escHtml(p.name)}</span>
-          <span class="ep-form-subtag">${sectionKeyOfSlot(p.slot) === 'reserva' ? 'Reserva' : 'Suplente'}${p.tag ? ' · ' + escHtml(p.tag) : ''}</span>
-        </button>`).join('')
-      : '<span class="ep-form-subnone">No hay suplentes en la banca.</span>';
-  }
+  _formRenderBancaYPanel();
 
   // Alineacion en vivo (defensas-mediocampistas-delanteros segun las franjas).
   const lineupEl = document.getElementById('ep-form-lineup');
@@ -3176,7 +3284,9 @@ window.solicitarEmparejar = solicitarEmparejar;
 window.selectPlayer = selectPlayer;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
-window.formacionElegirSuplente = formacionElegirSuplente;
+window.formacionTocarBanca = formacionTocarBanca;
+window.formacionCancelarArmado = formacionCancelarArmado;
+window.formacionBancaDesplazar = formacionBancaDesplazar;
 window.moveFormationScreen = moveFormationScreen;
 window.setFormResumen = setFormResumen;
 window.setHint = setHint;

@@ -395,18 +395,6 @@
 .ep-root .ep-pitch-dot.dragging{transform:translate(-50%,-50%) scale(1.4);z-index:4;cursor:grabbing;}
 /* Arrastre (2.0-2): la cancha no hace scroll ni zoom con el dedo ni selecciona texto */
 .ep-root .ep-pitch-field{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
-/* Ajuste fino sin teclado (2.0-2): cruz de 4 botones, toque >= 44 px */
-.ep-root .ep-pitch-nudge{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);
-  gap:4px;justify-content:center;margin:12px auto 0;}
-.ep-root .ep-nudge{display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
-  background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--gold);}
-.ep-root .ep-nudge:hover{border-color:var(--gold-b);}
-.ep-root .ep-nudge svg{width:20px;height:20px;}
-.ep-root .ep-nudge.up{grid-column:2;grid-row:1;}
-.ep-root .ep-nudge.left{grid-column:1;grid-row:2;}
-.ep-root .ep-nudge.right{grid-column:3;grid-row:2;}
-.ep-root .ep-nudge.down{grid-column:2;grid-row:3;}
-.ep-root .ep-nudge-c{grid-column:2;grid-row:2;align-self:center;justify-self:center;width:8px;height:8px;border-radius:50%;background:var(--brd2);}
 .ep-root .ep-pitch-selctl{display:flex;align-items:center;gap:8px;}
 .ep-root .ep-pitch-tag{position:absolute;top:-26px;left:50%;transform:translateX(-50%);white-space:nowrap;
   background:rgba(10,14,20,0.92);border:1px solid var(--gold-b);color:var(--gold);font-family:'Bebas Neue';
@@ -422,13 +410,42 @@
 .ep-root .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 
 /* ---- FORM-1: banca de suplentes y reserva (botones de 44 px de alto, toque y mouse) ---- */
-.ep-root .ep-form-bench{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px;}
-.ep-root .ep-form-subbtn{flex:0 0 auto;min-height:44px;min-width:132px;max-width:200px;display:flex;flex-direction:column;
+/* FORM-2 · lista completa del plantel (desplazable, con botones de 44 px) y ficha del jugador */
+.ep-root .ep-form-bancawrap{display:flex;align-items:stretch;gap:6px;margin-top:10px;}
+.ep-root .ep-form-scrollbtn{flex:0 0 44px;width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
+  background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--gold);}
+.ep-root .ep-form-scrollbtn:hover{border-color:var(--gold-b);}
+.ep-root .ep-form-scrollbtn svg{width:20px;height:20px;}
+.ep-root .ep-form-bench{flex:1 1 auto;min-width:0;display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding:2px 2px 6px;}
+.ep-root .ep-form-subbtn{flex:0 0 auto;scroll-snap-align:start;min-height:44px;min-width:132px;max-width:200px;display:flex;flex-direction:column;
   justify-content:center;align-items:flex-start;gap:2px;padding:6px 10px;background:var(--card2);border:1px solid var(--brd);
   border-radius:var(--r);color:var(--txt);cursor:pointer;text-align:left;font-family:inherit;}
 .ep-root .ep-form-subbtn:hover,.ep-root .ep-form-subbtn:focus-visible{border-color:var(--gold-b);outline:none;}
+.ep-root .ep-form-subbtn.en11{box-shadow:inset 3px 0 0 var(--gold);}
+.ep-root .ep-form-subbtn.ver{border-color:var(--gold);}
+.ep-root .ep-form-subbtn.armado{background:var(--card3);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-b);}
 .ep-root .ep-form-subname{font-family:'Bebas Neue';font-size:15px;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 .ep-root .ep-form-subtag{font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+/* ficha completa: su propio scroll vertical (cabe en telefono chico y notebook con poca altura) */
+.ep-root .ep-form-stats{margin-top:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);
+  max-height:min(44vh, 380px);overflow-y:auto;overscroll-behavior:contain;padding:10px 12px;}
+.ep-root .ep-form-stats[hidden]{display:none;}
+.ep-root .ep-fs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.ep-root .ep-fs-name{font-family:'Bebas Neue';font-size:18px;color:var(--txt);}
+.ep-root .ep-fs-sub{font-size:12px;color:var(--txt3);}
+.ep-root .ep-fs-cancel{flex:none;min-height:44px;padding:0 14px;background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--txt);cursor:pointer;font-family:inherit;}
+.ep-root .ep-fs-ayuda{margin-top:6px;font-size:12px;color:var(--gold);}
+.ep-root .ep-fs-sec h4{margin:12px 0 6px;font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);font-weight:600;}
+.ep-root .ep-fs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px 14px;}
+.ep-root .ep-fs-row{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--txt2);border-bottom:1px solid var(--brd);padding:3px 0;}
+.ep-root .ep-fs-row b{color:var(--txt);font-weight:600;}
+.ep-root .ep-fs-row small{color:var(--txt3);font-weight:400;font-size:11px;}
+.ep-root .ep-fs-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 14px;}
+.ep-root .ep-fs-list li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--txt3);min-height:24px;}
+.ep-root .ep-fs-list li.on{color:var(--txt);}
+.ep-root .ep-fs-list li svg{width:14px;height:14px;flex:none;color:var(--txt3);}
+.ep-root .ep-fs-list li.on svg{color:var(--gold);}
+.ep-root .ep-fs-list li b{margin-left:auto;font-size:12px;color:var(--txt3);}
 .ep-root .ep-form-subnone{font-size:12px;color:var(--txt3);padding:10px 0;}
 
 /* ---- hoja «Revisar pedido»: encima de la barra, centrada en escritorio ---- */
@@ -470,10 +487,6 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.admin-libre .ep-cart-tot{display:none;}
 
 /* ---- Slice 3d: formacion vertical en el telefono (< 860 px), ficha y resumen, cruz solo con puntero fino ---- */
-.ep-root .ep-pitch-nudge{display:none;}
-@media (pointer: fine){
-.ep-root .ep-pitch-nudge{display:grid;}
-}
 .ep-root .ep-pitch-field.vertical{height:var(--campo-h, 420px);width:calc(var(--campo-h, 420px) / 1.5);max-width:100%;margin:0 auto;flex:none;}
 .ep-root .ep-pitch-field.vertical::after{background:repeating-linear-gradient(180deg, rgba(255,255,255,0.045) 0 4.4%, rgba(0,0,0,0.045) 4.4% 8.8%);}
 .ep-root .ep-pitch-field.vertical .ep-pitch-halfline{left:0;right:0;top:50%;bottom:auto;width:auto;height:2px;}

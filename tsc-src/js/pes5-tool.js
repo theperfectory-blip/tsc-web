@@ -1857,7 +1857,9 @@ async function aplicarPedidosSeleccionados(){
         for (let s = 0; s <= 10; s++) titularesPedido.push((p.formacion.slots || []).find(x => x && x.slot === s) || null);
         const idsOk = titularesPedido.every(x => x && x.jugador != null && roster.includes(x.jugador))
           && new Set(titularesPedido.map(x => x.jugador)).size === 11
-          && titularesPedido[0].jugador === roster[0];
+          // FORM-2: el arquero (slot 0) puede cambiar, pero solo por otro portero del plantel
+          && (titularesPedido[0].jugador === roster[0]
+            || PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, titularesPedido[0].jugador, 0).primaryPos === 'GK');
         if (!idsOk){ rechazados.push({ pedido: p, motivo: 'el plantel cambió; el presidente debe pedir la formación de nuevo' }); continue; }
         // reglas del juego: una sola posición por banda, topes y mínimos por línea
         const LINEA = { CT:'def', DI:'def', DD:'def', CIZ:'mid', CDR:'mid', CCD:'mid', CC:'mid', MP:'mid', EI:'att', ED:'att', SD:'att', DC:'att' };

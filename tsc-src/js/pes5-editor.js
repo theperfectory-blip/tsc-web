@@ -328,9 +328,8 @@ const PES5_EDITOR = (() => {
     if (new Set(registros).size !== 11) throw new Error('hay titulares repetidos');
     const slots = _leerSlots(bytes, indiceEquipo);
     for (const r of registros) if (!slots.includes(r)) throw new Error('el jugador ' + r + ' no esta en el plantel');
-    if (slots[0] !== registros[0]) throw new Error('el arquero no se cambia desde la formacion');
     let cambios = 0;
-    for (let s = 1; s <= 10; s++) {
+    for (let s = 0; s <= 10; s++) {
       const quiere = registros[s];
       if (slots[s] === quiere) continue;
       const k = slots.indexOf(quiere); // k > s: los slots 0..s-1 ya tienen su titular

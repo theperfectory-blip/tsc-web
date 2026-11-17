@@ -83,13 +83,13 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   assert(tras.length === PLANTEL.length && PLANTEL.every(id => tras.includes(id)), 'tras reordenar siguen los mismos jugadores, una sola vez');
 }
 
-// 6) el arquero no se cambia
+// 6) el arquero (slot 0) cambia por otro arquero: el orden lo reordena (la Tool valida que quien entra sea portero)
 {
   const bytes = bufferConPlantel(PLANTEL);
-  const antes = Array.from(bytes);
-  const e = lanza(() => ED.ordenarTitulares(bytes, CLUB, [2, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11]));
-  assert(e && /arquero/.test(e.message), 'cambiar el arquero se rechaza');
-  assert(igual(Array.from(bytes), antes), 'si se rechaza, el buffer no cambia');
+  const n = ED.ordenarTitulares(bytes, CLUB, [12, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  const r = ED.leerPlantillaEquipo(bytes, CLUB);
+  assert(r[0] === 12 && r.length === PLANTEL.length, 'el arquero puede cambiar por un suplente: el 12 queda en el slot 0');
+  assert(n === 1, 'el cambio de arquero cuenta como un intercambio');
 }
 
 // 7) entradas invalidas: se rechazan sin tocar el buffer
