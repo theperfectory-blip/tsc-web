@@ -343,9 +343,37 @@ const PES5_EDITOR = (() => {
   // del buffer. Solo si los dos pasos salen bien se pasa el resultado a `bytes`. Si cualquiera
   // lanza, `bytes` queda intacto (la tanda comparte un solo buffer: un roster reordenado a medias
   // se escribiria al save junto con el resto). Devuelve los intercambios de titulares.
-  function aplicarFormacionPedido(bytes, indiceEquipo, registros, slots) {
+  /* ORD-3: la banca (slots 11 en adelante) en el orden que pidio el presidente. Solo reordena: tiene que ser
+     exactamente el plantel que queda fuera del 11 (mismos registros, sin repetidos ni ajenos). Escribe en los
+     slots ocupados, asi los huecos del save se conservan. Lanza con codigo 'banca' si no coincide. */
+  function ordenarBanca(bytes, indiceEquipo, banca) {
+    const slots = _leerSlots(bytes, indiceEquipo);
+    const fallo = (m) => { const e = new Error(m); e.codigo = 'banca'; return e; };
+    const ocupados = [];
+    for (let s = 11; s < SLOTS; s++) if (slots[s]) ocupados.push(s);
+    if (!Array.isArray(banca) || banca.length !== ocupados.length) throw fallo('la banca no tiene los jugadores del save');
+    if (new Set(banca).size !== banca.length) throw fallo('la banca repite jugadores');
+    const enBanca = new Set(ocupados.map(s => slots[s]));
+    for (const r of banca) if (!enBanca.has(r)) throw fallo('el jugador ' + r + ' no esta en la banca');
+    ocupados.forEach((s, k) => { slots[s] = banca[k]; });
+    _escribirSlots(bytes, indiceEquipo, slots);
+    return ocupados.length;
+  }
+  /* ORD-3: intercambio exacto de dos jugadores de la banca (slots 11 en adelante), directo en el roster.
+     Lanza si alguno no esta en la banca. Devuelve true si cambio algo. */
+  function intercambiarBanca(bytes, indiceEquipo, regA, regB) {
+    const slots = _leerSlots(bytes, indiceEquipo);
+    const a = slots.indexOf(regA), b = slots.indexOf(regB);
+    if (a < 11 || b < 11) throw new Error('solo se intercambian jugadores de la banca');
+    if (a === b) return false;
+    [slots[a], slots[b]] = [slots[b], slots[a]];
+    _escribirSlots(bytes, indiceEquipo, slots);
+    return true;
+  }
+  function aplicarFormacionPedido(bytes, indiceEquipo, registros, slots, banca) {
     const trabajo = Uint8Array.from(bytes);
     const cambios = ordenarTitulares(trabajo, indiceEquipo, registros);
+    if (banca !== undefined && banca !== null) ordenarBanca(trabajo, indiceEquipo, banca); // despues de los titulares
     escribirFormacionEquipo(trabajo, indiceEquipo, slots);
     bytes.set(trabajo);
     return cambios;
@@ -630,7 +658,7 @@ const PES5_EDITOR = (() => {
     leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
-    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares, aplicarFormacionPedido,
+    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares, ordenarBanca, intercambiarBanca, aplicarFormacionPedido,
     POS_CODIGO, POS_POR_CODIGO, nomPosicion, codPosicion,
     leerJugadorCompleto, escribirJugadorCompleto,
     leerPlantillaCompleta, equiposDelJugador,

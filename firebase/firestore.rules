@@ -272,10 +272,11 @@ service cloud.firestore {
                          (request.resource.data.tipo == 'formacion'
                           && request.resource.data.keys().hasOnly([
                                'uid', 'teamId', 'teamName', 'pes5Club', 'tipo', 'pes5ClubIdx',
-                               'formacion', 'lines', 'totalCost', 'estado', 'creadoEn'])
+                               'formacion', 'lines', 'totalCost', 'estado', 'creadoEn', 'banca'])
                           && request.resource.data.formacion.keys().hasOnly(['nombre', 'slots'])
                           && request.resource.data.formacion.slots.size() <= 11
-                          && request.resource.data.formacion.nombre.size() <= 100)
+                          && request.resource.data.formacion.nombre.size() <= 100
+                          && (!request.resource.data.keys().hasAny(['banca']) || (request.resource.data.banca is list && request.resource.data.banca.size() <= 32)))
                          ||
                          // EMP-80-1 · «emparejar»: costo SIEMPRE 0 (no descuenta ni reserva saldo). El perfil es
                          // 'base' o 'suscriptor', y su nivel no puede pasar del maximo del perfil en reglas.

@@ -172,6 +172,25 @@ async function main(){
     await op.create(`pedidos_pes5/${nuevoId('largo')}`, mejora('pres5', 5, { playerName: 'x'.repeat(101) }), AS.pres5));
   await expect('pedidos: NO crea un pedido con tipo distinto de formacion', 403,
     await op.create(`pedidos_pes5/${nuevoId('tipo')}`, formacion('pres5', 5, { tipo: 'otro' }), AS.pres5));
+  // ORD-3: campo opcional `banca` (orden de los slots 11 en adelante, registros enteros, <= 32)
+  await expect('ORD-3 · formacion con banca valida (lista de 12) se crea', 200,
+    await op.create(`pedidos_pes5/${nuevoId('banca-ok')}`, formacion('pres5', 5, { banca: Array.from({ length: 12 }, (_, i) => 101 + i) }), AS.pres5));
+  await expect('ORD-3 · formacion con banca de 32 elementos se crea (limite)', 200,
+    await op.create(`pedidos_pes5/${nuevoId('banca-32')}`, formacion('pres5', 5, { banca: Array.from({ length: 32 }, (_, i) => 101 + i) }), AS.pres5));
+  await expect('ORD-3 · formacion con banca vacia se crea', 200,
+    await op.create(`pedidos_pes5/${nuevoId('banca-vacia')}`, formacion('pres5', 5, { banca: [] }), AS.pres5));
+  await expect('ORD-3 · NO crea formacion con banca de 33 elementos', 403,
+    await op.create(`pedidos_pes5/${nuevoId('banca-33')}`, formacion('pres5', 5, { banca: Array.from({ length: 33 }, (_, i) => 101 + i) }), AS.pres5));
+  await expect('ORD-3 · NO crea formacion con banca que no es lista (texto)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('banca-texto')}`, formacion('pres5', 5, { banca: 'r101,r102' }), AS.pres5));
+  await expect('ORD-3 · NO crea formacion con banca que no es lista (objeto)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('banca-mapa')}`, formacion('pres5', 5, { banca: { a: 1 } }), AS.pres5));
+  await expect('ORD-3 · formacion sin banca sigue creandose (compatibilidad)', 200,
+    await op.create(`pedidos_pes5/${nuevoId('sin-banca')}`, formacion('pres5', 5), AS.pres5));
+  await expect('ORD-3 · la banca no abre campos nuevos: formacion con banca y campo extra, 403', 403,
+    await op.create(`pedidos_pes5/${nuevoId('banca-extra')}`, formacion('pres5', 5, { banca: [101], hack: 'x' }), AS.pres5));
+  await expect('ORD-3 · mejora con campo banca NO se crea (la banca es solo de formacion)', 403,
+    await op.create(`pedidos_pes5/${nuevoId('mejora-banca')}`, mejora('pres5', 5, { banca: [101] }), AS.pres5));
   await expect('pedidos: anonimo no crea pedidos', 403,
     await op.create(`pedidos_pes5/${nuevoId('anon')}`, mejora('pres5', 5), AS.anon));
 
