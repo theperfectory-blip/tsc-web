@@ -160,5 +160,44 @@ const TITULARES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
     'FIX-CANCEL · un pedido sin slots no cuenta');
 }
 
-console.log(fallas ? `\n${fallas} FALLO(S)` : '\nTODO OK');
+// 11) ORD-2: lee el roster antes y despues. Solo cambian los slots del intercambio, y la banca que muestra
+// Mejoras (rosterTrasTitulares) coincide con el roster real que deja ordenarTitulares.
+{
+  const P = require('../tsc-src/js/pes5-plantilla.js');
+  const casos = [
+    ['un suplente (12) por el titular del slot 10 (11)', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12], [11]],
+    ['dos suplentes (13, 14) por los slots 8 y 9', [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 11], [9, 10]],
+    ['intercambio de titulares 5 y 7 (slots 4 y 6)', [1, 2, 3, 4, 7, 6, 5, 8, 9, 10, 11], [5, 7]],
+    ['arquero suplente (12) por el 1', [12, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [1, 12]],
+  ];
+  for (const [titulo, nuevo, _sueltos] of casos) {
+    const bytes = bufferConPlantel(PLANTEL);
+    const antes = ED.leerPlantillaEquipo(bytes, CLUB).slice();
+    ED.ordenarTitulares(bytes, CLUB, nuevo);
+    const tras = ED.leerPlantillaEquipo(bytes, CLUB);
+    const cambian = tras.map((id, s) => (id !== antes[s] ? s : -1)).filter(s => s >= 0);
+    const esperado = P.rosterTrasTitulares(antes, nuevo);
+    assert(igual(tras, esperado), `ORD-2 · ${titulo}: la banca de Mejoras coincide con el roster del save`);
+    assert(tras.length === antes.length && antes.every(id => tras.includes(id)), `ORD-2 · ${titulo}: el plantel conserva a todos, una vez`);
+    assert(cambian.every(s => s <= 10 || nuevo.includes(antes[s])) && cambian.length <= 2 * (nuevo.filter((id, s) => id !== antes[s]).length),
+      `ORD-2 · ${titulo}: cambian ${cambian.length} slots (${cambian.join(',')}), ninguno fuera del intercambio`);
+  }
+  // caso exacto de Jimbo: el 11 (titular del slot 10) sale y el suplente 12 entra; el 11 cae en el slot 11, el lugar del 12
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    ED.ordenarTitulares(bytes, CLUB, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+    const tras = ED.leerPlantillaEquipo(bytes, CLUB);
+    assert(igual(tras, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 11, 13, 14]),
+      'ORD-2 · el titular que sale (11) cae exacto en el slot del suplente (12); la banca 13, 14 no se mueve');
+  }
+  // dos suplentes: cada saliente toma el slot del entrante, sin reordenar la banca restante
+  {
+    const bytes = bufferConPlantel(PLANTEL);
+    ED.ordenarTitulares(bytes, CLUB, [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 11]);
+    const tras = ED.leerPlantillaEquipo(bytes, CLUB);
+    assert(igual(tras.slice(11), [12, 9, 10]), 'ORD-2 · dos suplentes: el 9 y el 10 caen en los slots 12 y 13 de los que salen el 13 y el 14; el 12 no se mueve');
+  }
+}
+
+console.log(fallas ?`\n${fallas} FALLO(S)` : '\nTODO OK');
 process.exit(fallas ? 1 : 0);

@@ -353,7 +353,23 @@
     return out;
   }
 
+  /* ORD-2: el roster (por slot) tal como queda tras aplicar un 11 nuevo. Es el mismo calculo que
+     ordenarTitulares de pes5-editor.js: cada titular que entra intercambia su slot con el que sale.
+     Mejoras lo usa para ordenar la banca, asi se ve lo que la Tool va a escribir. */
+  function rosterTrasTitulares(baseIds, titularesIds) {
+    const r = (baseIds || []).slice(), t = titularesIds || [];
+    for (let s = 0; s <= 10 && s < t.length; s++) {
+      const quiere = t[s];
+      if (r[s] === quiere) continue;
+      const k = r.indexOf(quiere);
+      if (k < 0) continue;
+      [r[s], r[k]] = [r[k], r[s]];
+    }
+    return r;
+  }
+
   return {
+    rosterTrasTitulares: rosterTrasTitulares,
     cambiosDeAlineacion: cambiosDeAlineacion,
     formacionPendienteMasReciente: formacionPendienteMasReciente,
     debeReescribirPublicacion: debeReescribirPublicacion,

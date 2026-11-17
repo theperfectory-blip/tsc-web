@@ -602,18 +602,27 @@ function _tagLugar(spotPos, natural){
   return `${lugar} · natural: ${nat}`;
 }
 /* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
+/* ORD-2: el roster en el orden que deja el save al aplicar el 11 que se ve (slot 0-10 = titulares, 11 en adelante
+   = banca). Cada titular que entra toma el slot del suplente y el que sale va a ese mismo slot, igual que la Tool
+   (ordenarTitulares). Antes la banca se ordenaba por slot y el que salia caia siempre al principio. */
+function _rosterVisible(){
+  const base = PLAYERS.filter(p => p.slot != null).slice().sort((a, b) => a.slot - b.slot).map(p => p.id);
+  const sinSlot = PLAYERS.filter(p => p.slot == null).map(p => p.id);
+  return [...PES5_PLANTILLA.rosterTrasTitulares(base, alineacionVigente().map(s => s.id)), ...sinSlot];
+}
+/* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
 function _seccionesPlantel(){
   const sec = {};
   alineacionVigente().forEach(s => { sec[s.id] = 'titular'; });
-  PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999))
-    .forEach((p, i) => { sec[p.id] = i < 12 ? 'suplente' : 'reserva'; });
+  _rosterVisible().filter(id => sec[id] !== 'titular' && PLAYER_BY_ID[id])
+    .forEach((id, i) => { sec[id] = i < 12 ? 'suplente' : 'reserva'; });
   return sec;
 }
-/* Plantel en el orden que se muestra: el 11 en el orden de la cancha y luego la banca por slot. */
+/* Plantel en el orden que se muestra: el 11 en el orden de la cancha y luego la banca en el orden del save. */
 function plantelOrdenado(){
   const sec = _seccionesPlantel();
   const titulares = alineacionVigente().map(s => PLAYER_BY_ID[s.id]).filter(Boolean);
-  const banca = PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+  const banca = _rosterVisible().filter(id => sec[id] !== 'titular' && PLAYER_BY_ID[id]).map(id => PLAYER_BY_ID[id]);
   return [...titulares, ...banca];
 }
 function formacionVigente(){
