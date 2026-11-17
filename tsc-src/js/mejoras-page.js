@@ -588,6 +588,15 @@ function alineacionVigente(){
   return (FORM_ABIERTO && FORM.draft) ? FORM.draft : formacionVigente();
 }
 function titularSpot(id){ return alineacionVigente().find(s => s.id === id) || null; }
+/* Posicion de cada lugar de la cancha en el vocabulario de posiciones del editor (mismo codigo que CODIGO_POS:
+   CT=Central, CC=Centrocampista central, MP=Mediapunta, DC=Delantero centro, SD=Segundo delantero...). */
+const PITCH_POS_NATURAL = { PT:'GK', CT:'CB', DI:'WB', DD:'WB', CIZ:'SB', CDR:'SB', CCD:'DMF', CC:'CMF', MP:'AMF', EI:'WG', ED:'WG', SD:'SS', DC:'CF' };
+/* Etiqueta de un titular: el lugar de la cancha; si su posicion natural es otra, va aparte y corta. */
+function _tagLugar(spotPos, natural){
+  const lugar = (POS_BY_KEY[PITCH_POS_NATURAL[spotPos]] && POS_BY_KEY[PITCH_POS_NATURAL[spotPos]].l) || spotPos;
+  if (!natural || natural === PITCH_POS_NATURAL[spotPos]) return lugar;
+  return `${lugar} · natural ${CODIGO_POS[natural] || natural}`;
+}
 /* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
 function _seccionesPlantel(){
   const sec = {};
@@ -1066,7 +1075,7 @@ function renderRoster(){
       <span class="ep-pitem-pos ep-line-${linea}">${escHtml(codigo)}</span>
       <span class="ep-pitem-info">
         <span class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</span>
-        <span class="ep-pitem-tag">${escHtml((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || '')}</span>
+        <span class="ep-pitem-tag">${escHtml(sp ? _tagLugar(sp.pos, p.primaryPos) : ((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || ''))}</span>
       </span>
       ${pendiente ? '<span class="ep-pitem-pedido">Pedido</span>' : ''}
     </div>`;
@@ -2012,7 +2021,7 @@ function _formRenderBancaYPanel(){
     const plantel = plantelOrdenado(); const secs = _seccionesPlantel();
     bancaEl.innerHTML = plantel.map(p => {
       const i = _formIdxDeId(p.id);
-      const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
+      const cod = (i >= 0 && FORM.draft[i].pos) ? FORM.draft[i].pos : (CODIGO_POS[p.primaryPos] || p.primaryPos || '');
       const etiqueta = i >= 0 ? 'En el 11' : (secs[p.id] === 'reserva' ? 'Reserva' : 'Suplente');
       const cls = ['ep-form-subbtn', i >= 0 ? 'en11' : '', p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : ''].filter(Boolean).join(' ');
       return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
