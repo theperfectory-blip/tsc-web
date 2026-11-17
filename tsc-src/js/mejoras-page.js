@@ -588,14 +588,19 @@ function alineacionVigente(){
   return (FORM_ABIERTO && FORM.draft) ? FORM.draft : formacionVigente();
 }
 function titularSpot(id){ return alineacionVigente().find(s => s.id === id) || null; }
-/* Posicion de cada lugar de la cancha en el vocabulario de posiciones del editor (mismo codigo que CODIGO_POS:
-   CT=Central, CC=Centrocampista central, MP=Mediapunta, DC=Delantero centro, SD=Segundo delantero...). */
-const PITCH_POS_NATURAL = { PT:'GK', CT:'CB', DI:'WB', DD:'WB', CIZ:'SB', CDR:'SB', CCD:'DMF', CC:'CMF', MP:'AMF', EI:'WG', ED:'WG', SD:'SS', DC:'CF' };
-/* Etiqueta de un titular: el lugar de la cancha; si su posicion natural es otra, va aparte y corta. */
+/* Nombre de cada lugar de la cancha: solo expande la sigla de la cancha (no es una posicion del juego). */
+const PITCH_LUGAR_NOMBRE = {
+  PT:'Portero', CT:'Central', DI:'Defensa izquierdo', DD:'Defensa derecho',
+  CCD:'Centrocampista defensivo', CC:'Centrocampista central', CIZ:'Centrocampista izquierdo', CDR:'Centrocampista derecho',
+  MP:'Mediapunta', EI:'Extremo izquierdo', ED:'Extremo derecho', SD:'Segundo delantero', DC:'Delantero centro',
+};
+/* Etiqueta de un titular: el nombre del lugar. La posicion principal del jugador va aparte solo si su
+   etiqueta de POSITIONS es distinta del nombre del lugar (comparacion de texto, sin mapeo). */
 function _tagLugar(spotPos, natural){
-  const lugar = (POS_BY_KEY[PITCH_POS_NATURAL[spotPos]] && POS_BY_KEY[PITCH_POS_NATURAL[spotPos]].l) || spotPos;
-  if (!natural || natural === PITCH_POS_NATURAL[spotPos]) return lugar;
-  return `${lugar} · natural ${CODIGO_POS[natural] || natural}`;
+  const lugar = PITCH_LUGAR_NOMBRE[spotPos] || spotPos;
+  const nat = (POS_BY_KEY[natural] && POS_BY_KEY[natural].l) || '';
+  if (!nat || nat === lugar) return lugar;
+  return `${lugar} · natural: ${nat}`;
 }
 /* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
 function _seccionesPlantel(){

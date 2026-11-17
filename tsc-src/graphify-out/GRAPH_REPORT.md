@@ -195,12 +195,12 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dbGetAll()` connect `Bracket` to `pes5-tool.js`, `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `Sorteo en vivo`, `Navegacion`, `Sonido`, `Push y Ajustes y arranque`, `Capa de datos`, `Equipos`, `Calendario`, `pes5-yunacoins.js`?**
-  _High betweenness centrality (0.240) - this node is a cross-community bridge._
-- **Why does `showToast()` connect `Bracket` to `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `Sorteo en vivo`, `Navegacion`, `Sonido`, `Perfil del presidente`, `Push y Ajustes y arranque`, `Capa de datos`, `Equipos`, `Calendario`, `pes5-yunacoins.js`, `Tablas de posiciones`, `Generador de fechas`?**
-  _High betweenness centrality (0.170) - this node is a cross-community bridge._
 - **Why does `escHtml()` connect `Historial y H2H` to `Bracket`, `pes5-tool.js`, `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `Sorteo en vivo`, `Navegacion`, `Sonido`, `Perfil del presidente`, `Push y Ajustes y arranque`, `Equipos`, `Calendario`, `pes5-yunacoins.js`, `Tablas de posiciones`?**
-  _High betweenness centrality (0.162) - this node is a cross-community bridge._
+  _High betweenness centrality (0.226) - this node is a cross-community bridge._
+- **Why does `dbGetAll()` connect `Bracket` to `pes5-tool.js`, `mejoras-page.js`, `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `Sorteo en vivo`, `Navegacion`, `Sonido`, `Push y Ajustes y arranque`, `Capa de datos`, `Equipos`, `Calendario`, `pes5-yunacoins.js`?**
+  _High betweenness centrality (0.189) - this node is a cross-community bridge._
+- **Why does `showToast()` connect `Bracket` to `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Historial y H2H`, `Sorteo en vivo`, `Navegacion`, `Sonido`, `Perfil del presidente`, `Push y Ajustes y arranque`, `Capa de datos`, `Equipos`, `Calendario`, `pes5-yunacoins.js`, `Tablas de posiciones`, `Generador de fechas`?**
+  _High betweenness centrality (0.177) - this node is a cross-community bridge._
 - **Are the 135 inferred relationships involving `dbGetAll()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
   _`dbGetAll()` has 135 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 103 inferred relationships involving `showToast()` (e.g. with `authForgotPassword()` and `authSignOut()`) actually correct?**
