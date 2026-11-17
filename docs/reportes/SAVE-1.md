@@ -91,7 +91,7 @@ Cambios pedidos por el coordinador. Reemplazan lo descrito arriba sobre la desca
 
 ## Pendientes
 
-- Correr en un entorno donde arranque el emulador de Firestore (CI o la terminal del usuario): `rules-storage.js` y el bloque SAVE-1 de `rules-pes5.js`. Estos tests no tienen resultado todavía.
-- Confirmar en el CI que `test:rules:storage` y `test:rules` pasan.
+- **Tests de reglas, resultados:** corridos por el coordinador (no por mí). `test:rules:storage` (incluye `rules-storage.js`): **24/24**. `test:rules` (incluye el bloque SAVE-1 de `rules-pes5.js`): **99/99**.
+- **Cómo correrlos en esta máquina:** el emulador de Firestore necesita el directorio de sockets AF_UNIX. Antes de correr los tests, exportar `JAVA_TOOL_OPTIONS="-Djdk.net.unixdomain.tmpdir=C:/Users/Administrator/.cache/firebase"` (igual que `scripts/emu-start.mjs`).
 - Desplegar `firebase deploy --only storage` antes de probar con Jimbo.
 - Jimbo prueba con el save real: subir desde la Tool y descargar desde Mejoras con un presidente. Hay que comprobar que el navegador guarda el archivo como `KONAMI-WIN32PES5OPT`.
