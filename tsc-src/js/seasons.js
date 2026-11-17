@@ -1,6 +1,9 @@
 async function renderAdmSeasons(){
   const el=document.getElementById('adm-seasons-content');
   const seasons=await dbGetAll('seasons');
+  // FIX-LIB: temporadas cuyos datos ya se borraron de Firestore (archive/seasons.numbers).
+  // Una sola lectura por render. Si falla, null: se muestra el boton «Liberar Firestore» como antes.
+  const liberadas=await _leerTemporadasLiberadas();
   el.innerHTML=`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div style="font-size:14px;color:var(--txt2);">${seasons.length} temporada(s)</div>
@@ -29,7 +32,7 @@ async function renderAdmSeasons(){
       </div>
       <div style="display:flex;gap:6px;">
         ${s.number!==STATE.season?`<button class="btn btn-sm" data-onclick="switchToSeason(${s.number})">Ir</button>`:''}
-        ${s.archived?_seasonArchivedActions(s):`
+        ${s.archived?_seasonArchivedActions(s, !!liberadas && liberadas.has(Number(s.number))):`
         <button class="btn btn-sm" data-onclick="openSeasonModal(${s.number})" ${s.status==='finished'?'disabled':''} style="display:inline-flex;align-items:center;gap:4px;${s.status==='finished'?'opacity:0.5;cursor:not-allowed;':''}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Editar</button>
         ${s.status==='active'?`<button class="btn btn-sm btn-danger" data-onclick="confirmFinalizeSeason(${s.number})">Finalizar</button>`:''}
         ${s.status==='finished'?`<button class="btn btn-sm" data-onclick="confirmReactivateSeason(${s.number})" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Reactivar</button>`:''}
@@ -375,9 +378,21 @@ function _seasonArchivedBlock(number){
   return true;
 }
 
-function _seasonArchivedActions(s){
-  return `${s.number!==STATE.season?`<button class="btn btn-sm" data-onclick="switchToSeason(${s.number})">Ir</button>`:''}
-    <button class="btn btn-sm" data-onclick="purgeArchivedSeason(${s.number})" title="Borrar de Firestore los datos de esta temporada (ya están en el archivo)" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>Liberar Firestore</button>`;
+/* FIX-LIB: lee archive/seasons una vez. Devuelve Set de numeros liberados, o null si no se pudo leer. */
+async function _leerTemporadasLiberadas(){
+  try{
+    const snap=await firebase.firestore().collection('archive').doc('seasons').get();
+    const nums=(snap.exists && snap.data() && snap.data().numbers) || [];
+    return new Set(nums.map(Number));
+  }catch(e){
+    console.warn('[seasons] no se pudo leer archive/seasons',e);
+    return null;
+  }
+}
+
+function _seasonArchivedActions(s, liberada){
+  if(liberada) return `<span title="Sus datos ya se borraron de Firestore; se lee del archivo" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--txt3);border:1px solid var(--brd);border-radius:999px;padding:3px 9px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Firestore liberado</span>`;
+  return `<button class="btn btn-sm" data-onclick="purgeArchivedSeason(${s.number})" title="Borrar de Firestore los datos de esta temporada (ya están en el archivo)" style="display:inline-flex;align-items:center;gap:4px;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>Liberar Firestore</button>`;
 }
 
 let _seasonPurging = false;

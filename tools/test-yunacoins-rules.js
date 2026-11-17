@@ -13,8 +13,8 @@
 // que no alcanza el saldo) mas cobertura extra de las funciones nuevas
 // (distribuirCosto, gastoTemporada, topesRestantes, evaluarPago,
 // techoPresupuesto con wallet real). Todos calculados A MANO con:
-//   BAND_MAX    = [79, 85, 90, 95, 99]
-//   bandCosts   = [50, 100, 250, 500, 1000]   (<80, 80-85, 86-90, 91-95, 96-99)
+//   BAND_MAX    = [80, 85, 90, 95, 99]   (BAND-1: antes 79)
+//   bandCosts   = [50, 100, 250, 500, 1000]   (hasta 80, 81-85, 86-90, 91-95, 96-99)
 //   scale8Cost  = 250, abilityCost = 500, injuryCost = 250
 //   budgetGeneral = 50000, budgetSubscribers = 25000
 //   HEIGHT_CAPS = { hi:2, mid:7, lo:8 }
@@ -43,10 +43,24 @@ console.log('');
    ============================================================ */
 console.log('--- Regresion: bandCost99, bordes de banda ---');
 assert(YUNACOINS_RULES.bandCost99(79) === 50, 'bandCost99(79) === 50');
-assert(YUNACOINS_RULES.bandCost99(80) === 100, 'bandCost99(80) === 100');
+assert(YUNACOINS_RULES.bandCost99(80) === 50, 'BAND-1: bandCost99(80) === 50 (el 80 entra en el primer tramo)');
+assert(YUNACOINS_RULES.bandCost99(81) === 100, 'BAND-1: bandCost99(81) === 100');
 assert(YUNACOINS_RULES.bandCost99(85) === 100, 'bandCost99(85) === 100');
 assert(YUNACOINS_RULES.bandCost99(86) === 250, 'bandCost99(86) === 250');
 assert(YUNACOINS_RULES.bandCost99(96) === 1000, 'bandCost99(96) === 1000');
+console.log('');
+
+/* ============================================================
+   BAND-1 — el punto que llega a 80 cuesta como el primer tramo (50), no 100.
+   79→80 = 50; 80→81 = 100; 78→81 = 50 + 50 + 100 = 200. Sin perfil.
+   ============================================================ */
+console.log('--- BAND-1: el 80 cuesta 50 (primer tramo) ---');
+assert(YUNACOINS_RULES.costRange99(79, 80, R) === 50, 'BAND-1: costRange99(79→80) === 50');
+assert(YUNACOINS_RULES.costRange99(80, 81, R) === 100, 'BAND-1: costRange99(80→81) === 100');
+assert(YUNACOINS_RULES.costRange99(78, 81, R) === 200, 'BAND-1: costRange99(78→81) === 200 (50+50+100)');
+const jBand1 = { atributos: { Ataque: 79 }, escala8: {}, habilidades: {}, lesiones: 'C', altura: 180, edad: 24, pieDominante: 'der' };
+assert(YUNACOINS_RULES.costoCambios(jBand1, { atributos: { Ataque: 80 } }, R).total === 50, 'BAND-1: costoCambios 79→80 total === 50');
+assert(YUNACOINS_RULES.costoCambios(jBand1, { atributos: { Ataque: 81 } }, R).total === 150, 'BAND-1: costoCambios 79→81 total === 150 (50+100)');
 console.log('');
 
 /* ============================================================
@@ -64,13 +78,14 @@ console.log('');
 
 /* ============================================================
    CASO 2 (pedido del supervisor) — costo de subir un atributo CRUZANDO
-   BANDA. Ataque 78 -> 83: 79 (banda <80, 50) + 80,81,82,83 (banda 80-85,
-   100 c/u = 400) = 450.
+   BANDA. Ataque 78 -> 83: 79 y 80 (banda hasta 80, 50 c/u = 100) +
+   81,82,83 (banda 81-85, 100 c/u = 300) = 400. (BAND-1: antes 450, el 80
+   estaba en la banda de 100.)
    ============================================================ */
 console.log('--- Caso 2: atributo cruzando banda (Ataque 78->83) ---');
 const j2 = { atributos: { Ataque: 78 }, escala8: {}, habilidades: {}, lesiones: 'C', altura: 180, edad: 24, pieDominante: 'der' };
 const r2 = YUNACOINS_RULES.costoCambios(j2, { atributos: { Ataque: 83 } }, R);
-assert(r2.total === 450, `costoCambios total === 450 (obtenido: ${r2.total})`);
+assert(r2.total === 400, `costoCambios total === 400 (obtenido: ${r2.total})`);
 console.log('');
 
 /* ============================================================
@@ -186,11 +201,13 @@ const j6 = {
 };
 const cambios6 = { atributos: { Ataque: 82 }, habilidades: { Regate: true, Pase: false }, lesiones: 'A', altura: 182 };
 const r6 = YUNACOINS_RULES.costoCambios(j6, cambios6, R);
-// Ataque 75->82 = costRange99(75,82) = 500; Regate ganada = 500; Pase perdida = 0;
-// lesiones C->A (indices 0->2) = 2*250 = 500; altura sin costo = 0. total = 1500.
-assert(r6.total === 1500, `costoCambios total === 1500 (obtenido: ${r6.total})`);
-assert(YUNACOINS_RULES.puedePagar(1500, r6.total) === true, 'puedePagar(1500,1500) === true');
-assert(YUNACOINS_RULES.puedePagar(1499, r6.total) === false, 'puedePagar(1499,1500) === false');
+// BAND-1: Ataque 75->82 = costRange99(75,82) = 450 (76..80 a 50 c/u = 250;
+// 81 y 82 a 100 c/u = 200; antes 500, el 80 estaba en la banda de 100);
+// Regate ganada = 500; Pase perdida = 0; lesiones C->A (indices 0->2) = 2*250 = 500;
+// altura sin costo = 0. total = 1450 (antes 1500).
+assert(r6.total === 1450, `costoCambios total === 1450 (obtenido: ${r6.total})`);
+assert(YUNACOINS_RULES.puedePagar(1450, r6.total) === true, 'puedePagar(1450,1450) === true');
+assert(YUNACOINS_RULES.puedePagar(1449, r6.total) === false, 'puedePagar(1449,1450) === false');
 console.log('');
 
 /* ============================================================
@@ -451,11 +468,11 @@ assert(EP.tramoGratis('_ancho_bits', 79, 80, 'base', cfgBS) === 0, 'tramoGratis:
 assert(EP.costoAtributoConPerfil('Ataque', 79, 80, 'base', cfgBS, EP.DEFAULT_RULES) === 0, 'costo: base 79→80 cuesta 0');
 assert(EP.costoAtributoConPerfil('Ataque', 79, 82, 'base', cfgBS, EP.DEFAULT_RULES) === 200, 'costo: base 79→82 cuesta 200 (80 gratis; 81 y 82 a 100)');
 assert(EP.costoAtributoConPerfil('Ataque', 84, 87, 'suscriptor', cfgBS, EP.DEFAULT_RULES) === 500, 'costo: suscriptor 84→87 cuesta 500 (85 gratis; 86 y 87 a 250)');
-assert(EP.costoAtributoConPerfil('Ataque', 79, 82, null, cfgBS, EP.DEFAULT_RULES) === 300, 'costo: sin perfil, 79→82 cuesta lo de siempre (300)');
+assert(EP.costoAtributoConPerfil('Ataque', 79, 82, null, cfgBS, EP.DEFAULT_RULES) === 250, 'costo: sin perfil, 79→82 cuesta 250 (80 a 50 por BAND-1; 81 y 82 a 100)');
 const jBase79 = { atributos: { Ataque: 79, Defensa: 79 }, escala8: {}, habilidades: {}, lesiones: 'C' };
 const cTram = EP.costoCambios(jBase79, { atributos: { Ataque: 82 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS });
 assert(cTram.total === 200 && cTram.lineas[0].costo === 200 && cTram.lineas[0].gratis === 1, 'costoCambios con perfil: 79→82 total 200, línea con 1 gratis');
-assert(EP.costoCambios(jBase79, { atributos: { Ataque: 82 } }, EP.DEFAULT_RULES).total === 300, 'costoCambios sin perfil: 79→82 total 300 (igual que antes)');
+assert(EP.costoCambios(jBase79, { atributos: { Ataque: 82 } }, EP.DEFAULT_RULES).total === 250, 'costoCambios sin perfil: 79→82 total 250 (BAND-1: 80 cuesta 50)');
 assert(EP.costoCambios(jBase79, { atributos: { Ataque: 80 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS }).total === 0, 'costoCambios con perfil: 79→80 total 0');
 // Escala 1-8, habilidades y lesiones nunca tienen tramo gratis
 const costoEsc = EP.costoCambios({ escala8: { Estabilidad: 1 }, habilidades: {}, atributos: {} }, { escala8: { Estabilidad: 4 } }, EP.DEFAULT_RULES, { perfil: 'base', cfg: cfgBS });
@@ -495,7 +512,7 @@ plantelCierre[0].atributos.Ataque = 81; // se escribe el cambio en el save
 const perfilDespues = EP.perfilParaJugador(null, cfgBS, fijadoCierre['1']);
 assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: perfilDespues, cfg: cfgBS }).total === 0, 'cierre: otra stat en 79 después de la mejora pagada sigue gratis');
 // Contraste: sin fijar antes, el perfil en vivo ya no calza y ese 79→80 se cobraría (el hueco que cierra el fijado)
-assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: EP.perfilEmparejar(plantelCierre[0], cfgBS), cfg: cfgBS }).total === 100, 'cierre: sin fijar antes, el perfil en vivo cobraría 79→80 (por eso se fija antes)');
+assert(EP.costoCambios(plantelCierre[0], { atributos: { Defensa: 80 } }, EP.DEFAULT_RULES, { perfil: EP.perfilEmparejar(plantelCierre[0], cfgBS), cfg: cfgBS }).total === 50, 'cierre: sin fijar antes, el perfil en vivo cobraría 79→80 (por eso se fija antes; BAND-1: 50)');
 /* ---- EMP-80-2b · pedidos de costo 0 dentro del tramo gratis ---- */
 const ctxBase = { perfil: 'base', cfg: cfgBS };
 const ctxSusc = { perfil: 'suscriptor', cfg: cfgBS };

@@ -16,6 +16,18 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // SAVE-1 · save de PES5 publicado por el admin: una sola ruta, cada subida reemplaza a la anterior.
+    // Metadatos en Firestore (pes5_config/save). Escritura: solo admin, tope 4 MiB (el save pesa
+    // ~1,25 MB). Lectura: cualquier cuenta con rol presidente o admin; anónimo no.
+    // El rol se lee de users/{uid} (cross-service). Sin documento de usuario, la regla deniega.
+    match /pes5_save/actual {
+      allow read: if request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['president', 'admin'];
+      allow write: if request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        && request.resource.size <= 4 * 1024 * 1024;
+    }
+
     // Todo lo demás: denegado
     match /{allPaths=**} {
       allow read, write: if false;

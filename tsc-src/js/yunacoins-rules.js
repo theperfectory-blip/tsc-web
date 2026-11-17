@@ -16,9 +16,11 @@
        que un pedido del presidente (ver macro-slice D.R).
 
    Referencias de linea = mejoras.html ANTES de este
-   slice (ver commit previo a este cambio):
+   slice (ver commit previo a este cambio). OJO: BAND-1 corrigio el tramo
+   de 80 (ver `BAND_MAX` abajo): el editor ya no tiene su copia propia y las
+   bandas quedan SOLO aca; los numeros de linea son historicos:
      - DEFAULT_RULES      ~linea 630
-     - BAND_MAX            linea 639
+     - BAND_MAX            linea 639 (antes [79,85,90,95,99]; ahora [80,...])
      - bandCost99          linea 652
      - costRange99         linea 656
      - HEIGHT_CAPS          linea 691
@@ -67,7 +69,7 @@
      real de un equipo es siempre `teams.yunacoin`, nunca un numero fijo de
      regla. Se pasa explicito a `techoPresupuesto(walletReal, rules)`. */
   const DEFAULT_RULES = {
-    bandCosts: [50, 100, 250, 500, 1000],   // <80, 80-85, 86-90, 91-95, 96-99
+    bandCosts: [50, 100, 250, 500, 1000],   // hasta 80, 81-85, 86-90, 91-95, 96-99 (BAND-1: el 80 cuesta 50)
     scale8Cost: 250,                        // Consistency/Condition/Weak foot (escala 4-8, o 1-8 en el save real)
     abilityCost: 500,                       // habilidad especial (estrella)
     injuryCost: 250,                        // por nivel de Res. lesion (C->B->A)
@@ -79,8 +81,10 @@
     emparejar: { base: { min: null, max: null, subir: false, lesion: null, escala8: null }, suscriptor: { min: null, max: null, subir: false, lesion: null, escala8: null } },
   };
 
-  /* techo superior (inclusive) de cada banda de costo, EXACTO del editor */
-  const BAND_MAX = [79, 85, 90, 95, 99];
+  /* techo superior (inclusive) de cada banda de costo. BAND-1: el primer
+     tramo llega hasta 80 inclusive (el punto de 79 a 80 cuesta 50, no 100).
+     Desde 81 en adelante no cambia nada. */
+  const BAND_MAX = [80, 85, 90, 95, 99];
 
   /* cupos por franja de altura (Categoria 2, MD seccion 2), EXACTOS */
   const HEIGHT_CAPS = { hi: 2, mid: 7, lo: 8 };
@@ -92,7 +96,8 @@
   /* ---- costo de atributos 0-99 (bandas) ---- */
   // bandCost99(dest): costo de UN punto que hace que el atributo llegue a
   // `dest`. Recorre BAND_MAX y devuelve rules.bandCosts[i] de la primera
-  // banda que cubre a `dest` — IDENTICO a la linea 652-655 del editor.
+  // banda que cubre a `dest`. Antes era copia de la linea 652-655 del editor;
+  // desde BAND-1 la fuente unica es esta (el editor la importa de aca).
   function bandCost99(dest, rules) {
     const r = rules || DEFAULT_RULES;
     for (let i = 0; i < BAND_MAX.length; i++) {
@@ -103,7 +108,7 @@
 
   // costRange99(from,to): suma bandCost99 para cada punto entre from+1 y to
   // (si to<=from, el bucle no corre y devuelve 0 — subir cuesta, bajar es
-  // gratis). IDENTICO a la linea 656-660 del editor.
+  // gratis). Antes copia de la linea 656-660 del editor (ver BAND-1).
   function costRange99(from, to, rules) {
     let sum = 0;
     for (let v = from + 1; v <= to; v++) sum += bandCost99(v, rules);

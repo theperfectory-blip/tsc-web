@@ -182,6 +182,10 @@ Fuera de `tsc-src/`: `functions/` (Cloud Functions: `notifyStreamToday`,
 índices), `android/` (proyecto Capacitor), `scripts/` (builds y
 utilidades), `docs/` (protocolo, planes, reportes).
 
+## Subsesiones (coordinador y ejecutores)
+
+Si trabajas como ejecutor de otra sesión, lee [`docs/SUBSESIONES.md`](docs/SUBSESIONES.md): al terminar cada encargo hay que avisarle al coordinador, y ahí está qué se puede ejecutar sin confirmación y qué no.
+
 ## Plan de debugging (cerrado)
 
 [`docs/MACRO_SLICE_DEBUGGING.md`](docs/MACRO_SLICE_DEBUGGING.md) se cerró
