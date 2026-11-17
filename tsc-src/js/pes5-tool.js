@@ -2355,7 +2355,7 @@ function renderReglasTab(){
 
       <div class="pt-fieldgrp" style="margin-bottom:18px;">
         <div class="pt-fieldgrp-title">Costo por punto (atributos 0-99)</div>
-        ${['Menos de 80','80 a 85','86 a 90','91 a 95','96 a 99'].map((label, i) => `
+        ${['Hasta 80','81 a 85','86 a 90','91 a 95','96 a 99'].map((label, i) => `
           <div class="pt-field">
             <label>${label}</label>
             <input type="number" min="0" step="10" id="rg-band-${i}" value="${r.bandCosts[i]}" style="width:100px;">
