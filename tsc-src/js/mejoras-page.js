@@ -1756,7 +1756,6 @@ function openFormationModal(){
   FORM.sel = 0;
   FORM.motivo = null;
   FORM_DRAG = null;
-  FORM.resumen = 'mejores';
   FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
   _pitchSyncOrientation();
   _montarModalCancha();
@@ -1822,18 +1821,6 @@ function _montarModalCancha(){
             <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
         </div>
         <div class="ep-form-stats" id="ep-form-stats" hidden></div>
-        <div class="ep-pitch-ficha" id="ep-pitch-ficha"${PITCH_VERTICAL ? '' : ' hidden'}>
-          <div class="ep-casillas" id="ep-form-casillas"></div>
-        </div>
-        <div class="ep-res" id="ep-res"${PITCH_VERTICAL ? '' : ' hidden'}>
-            <div class="ep-res-tabs" role="tablist" aria-label="Resumen del jugador">
-              <button role="tab" id="ep-res-t-mejores" data-onclick="setFormResumen('mejores')">Mejores</button>
-              <button role="tab" id="ep-res-t-peores" data-onclick="setFormResumen('peores')">Peores</button>
-              <button role="tab" id="ep-res-t-habilidades" data-onclick="setFormResumen('habilidades')">Habilid.</button>
-              <button role="tab" id="ep-res-t-posiciones" data-onclick="setFormResumen('posiciones')">Posic.</button>
-            </div>
-            <div class="ep-res-body" id="ep-res-body"></div>
-        </div>
         <div class="ep-pitch-hint">
           <span>${toqueFino ? 'Toca un jugador para ver su ficha. Toca otro para cambiarlo de lugar (titular con titular, o suplente con titular).' : 'Clic en un jugador para ver su ficha; clic en otro para cambiarlo de lugar (titular con titular, o suplente con titular). Flechas: mueven el punto del teclado.'}</span>
           <span id="ep-form-coords"></span>
@@ -2150,60 +2137,12 @@ function renderFormationModal(){
     ).join('');
     sel.disabled = keeper;
   }
-  _renderFichaFormacion();
   _formAjustarAlto();
 }
 
-/* ================= Slice 3d: ficha y resumen del jugador seleccionado (solo vertical) ================= */
+/* ================= Slice 3d: alto de la cancha (solo vertical; la ficha va debajo, dentro del scroll) ================= */
 const FORM_CAMPO_MAX = 520;      // px: la cancha no crece mas que esto
-const FORM_RESUMEN_ALTO = 150;   // px libres que pide el resumen (spec 3d): se reservan aunque la pestana sea corta
-const FORM_CAMPO_MIN = 230;      // la cancha no baja de aca: con resumen, lo que sobra tras el resumen; sin el, se oculta el resumen
-const FORM_ESCALA_CHICA = new Set(['cons','cond','wff','wfa','inj']); // escala 1-8 o lesion: fuera de mejores/peores
-function _formValoresJugador(p){
-  const out = [];
-  for (const s of MAIN_STATS) out.push({ label: ETIQUETA_FILA[s.k] || s.l, value: p.stats[s.k] });
-  for (const s of SEC_NEW) if (s.sc === 99 && !FORM_ESCALA_CHICA.has(s.k)) out.push({ label: s.l, value: p.sec[s.k] });
-  return out.filter(x => typeof x.value === 'number');
-}
-/* chips que entran en el contenedor (2 lineas, overflow oculto); el resto se resume con «+N» */
-function _formChipsQueEntran(cont, chips){
-  let n = chips.length;
-  const html = k => chips.slice(0, k).join('') + (k < chips.length ? `<span class="ep-chip ep-chip-mas">+${chips.length - k}</span>` : '');
-  cont.innerHTML = html(n);
-  while (n > 0 && cont.scrollHeight > cont.clientHeight + 1){ n--; cont.innerHTML = html(n); }
-}
-function _renderFichaFormacion(){
-  if (!PITCH_VERTICAL || !document.getElementById('ep-pitch-ficha')) return;
-  const slot = FORM.draft[FORM.sel];
-  const p = slot && PLAYER_BY_ID[slot.id];
-  if (!p) return;
-  const banda = p.side !== undefined ? (SIDE_LABEL[p.side] || '—') : '—';
-  const pie = FOOT_LABEL[p.favfoot] || p.foot;
-  document.getElementById('ep-form-casillas').innerHTML = `
-    <div class="ep-casilla"><span>Edad</span><b>${escHtml(p.age)}</b></div>
-    <div class="ep-casilla"><span>Altura</span><b>${escHtml(p.height)} cm</b></div>
-    <div class="ep-casilla"><span>Pie</span><b>${escHtml(pie)}</b></div>
-    <div class="ep-casilla"><span>Banda</span><b>${escHtml(banda)}</b></div>`;
-  const tab = FORM.resumen || 'mejores';
-  for (const t of ['mejores','peores','habilidades','posiciones']){
-    const b = document.getElementById('ep-res-t-' + t);
-    if (b){ b.setAttribute('aria-selected', String(t === tab)); b.classList.toggle('on', t === tab); }
-  }
-  const body = document.getElementById('ep-res-body');
-  if (tab === 'mejores' || tab === 'peores'){
-    const orden = _formValoresJugador(p).sort((a,b) => tab === 'mejores' ? b.value - a.value : a.value - b.value).slice(0, 4);
-    body.className = 'ep-res-body ep-res-list';
-    body.innerHTML = orden.map(s => `<div class="ep-res-item"><span>${escHtml(s.label)}</span><b style="color:${TIER_COLOR[tierClass99(s.value)]};">${s.value}</b></div>`).join('');
-  } else if (tab === 'habilidades'){
-    body.className = 'ep-res-body ep-chips';
-    _formChipsQueEntran(body, ALL_ABILITIES.filter(a => p.abilities[a.k]).map(a => `<span class="ep-chip">${escHtml(a.l)}</span>`));
-  } else {
-    body.className = 'ep-res-body ep-chips';
-    const pos = POSITIONS.filter(q => p.positions[q.k]).sort((a,b) => (b.k === p.primaryPos) - (a.k === p.primaryPos));
-    _formChipsQueEntran(body, pos.map(q => `<span class="ep-chip${q.k === p.primaryPos ? ' nat' : ''}">${escHtml(POS_BY_KEY[q.k]?.l || q.k)}</span>`));
-  }
-}
-function setFormResumen(tab){ FORM.resumen = tab; _renderFichaFormacion(); _formAjustarAlto(); }
+const FORM_CAMPO_MIN = 230;      // la cancha no baja de aca; si el modal es mas bajo, el modal se desplaza
 
 /* Orientacion: una sola fuente (la media query). Al cambiar con el modal abierto se
    cancela un arrastre en curso y se redibuja con el mismo borrador. */
@@ -2229,38 +2168,23 @@ function _formObservarAlto(){
   _formAjustarAlto();
 }
 function _formDejarDeObservar(){ if (FORM_RO){ FORM_RO.disconnect(); FORM_RO = null; } }
-/* Alto de la cancha vertical: toma el alto que sobra. Muestra el resumen solo si la cancha
-   queda FORM_CAMPO_MIN de cancha; si no, solo la ficha; si tampoco entra, ninguna. Horizontal: como antes. */
+/* Alto de la cancha vertical: toma el alto que sobra del modal. La ficha del jugador (#ep-form-stats)
+   va debajo de la cancha, dentro del scroll del modal, y no le resta alto. Horizontal: sin alto fijo. */
 function _formAjustarAlto(){
   const wrap = document.getElementById('ep-pitch-wrap');
   const body = wrap && wrap.querySelector('.ep-modal-body');
   const campo = document.getElementById('ep-pitch-field');
-  const fic = document.getElementById('ep-pitch-ficha');
-  const res = document.getElementById('ep-res');
   if (!body || !campo) return;
-  if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); if (fic) fic.hidden = true; return; }
-  // Medir con ficha y resumen visibles; luego decidir cuanto entra cada uno.
+  if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); return; }
   campo.style.removeProperty('--campo-h');
-  if (fic) fic.hidden = false;
-  if (res) res.hidden = false;
   const cs = getComputedStyle(body);
   const gap = parseFloat(cs.rowGap) || 10;
   const libreTot = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const fijosEls = [...body.children].filter(el => el !== campo && el !== fic && el !== res && el.offsetHeight > 0);
+  // lo que no es la cancha ni la ficha ocupa su alto; cada bloque suma un espacio
+  const fijosEls = [...body.children].filter(el => el !== campo && el.id !== 'ep-form-stats' && el.offsetHeight > 0);
   const fijos = fijosEls.reduce((s, el) => s + el.offsetHeight, 0);
-  const ficAlto = fic ? fic.offsetHeight : 0;
-  const resAlto = res ? res.offsetHeight : 0;
-  // altura de la cancha si quedan visibles la ficha y/o el resumen (cada bloque suma un espacio)
-  const alto = (conFic, conRes) => libreTot - fijos - (conFic ? ficAlto : 0) - (conRes ? resAlto : 0)
-    - (fijosEls.length + 1 + (conFic ? 1 : 0) + (conRes ? 1 : 0) - 1) * gap;
-  let conFicha = true;
-  // el resumen se muestra solo si, reservando FORM_RESUMEN_ALTO, la cancha conserva FORM_CAMPO_MIN
-  const conResumen = alto(true, false) - FORM_RESUMEN_ALTO - gap >= FORM_CAMPO_MIN;
-  let h = alto(true, conResumen);
-  if (h < FORM_CAMPO_MIN){ conFicha = false; h = alto(false, false); }
-  if (res) res.hidden = !conResumen;
-  if (fic) fic.hidden = !conFicha;
-  campo.style.setProperty('--campo-h', Math.max(160, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
+  const h = libreTot - fijos - fijosEls.length * gap;
+  campo.style.setProperty('--campo-h', Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
 }
 
 function opcionesPosicion(slot){
@@ -3288,7 +3212,6 @@ window.formacionTocarBanca = formacionTocarBanca;
 window.formacionCancelarArmado = formacionCancelarArmado;
 window.formacionBancaDesplazar = formacionBancaDesplazar;
 window.moveFormationScreen = moveFormationScreen;
-window.setFormResumen = setFormResumen;
 window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;
 window.setSide = setSide;
