@@ -322,6 +322,23 @@
     return !(previa.teamHash === teamHash && previa.pes5ClubIdx === pes5ClubIdx);
   }
 
+  /* SYNC-1: el save abierto es mas viejo que el publicado? Compara la fecha de modificacion del
+     archivo local con la que guardo la ultima subida (pes5_config/save.lastModified). Si la subida
+     no la trae (anterior a SYNC-1), compara con subidoEn. Sin publicado o sin fecha local, no avisa. */
+  function saveMasViejoQuePublicado(localLM, pub) {
+    if (localLM == null || !pub) return false;
+    let ref = null;
+    if (typeof pub.lastModified === 'number') ref = pub.lastModified;
+    else if (pub.subidoEn instanceof Date) ref = pub.subidoEn.getTime();
+    else if (typeof pub.subidoEn === 'number') ref = pub.subidoEn;
+    return ref != null && Number(localLM) < ref;
+  }
+  /* SYNC-1: los pedidos cuyo equipo esta en teamIds (teamId se compara como texto). */
+  function pedidosDeEquipos(pedidos, teamIds) {
+    const ids = new Set((teamIds || []).map(String));
+    return (pedidos || []).filter(p => p && ids.has(String(p.teamId)));
+  }
+
   /* FIX-CANCEL: el pedido de formacion pendiente mas reciente (o null). Solo manda lo que aun no aplico Luis:
      un pedido cancelado o aplicado no cuenta. Sin fecha (pedido local recien enviado) es el mas nuevo. */
   function formacionPendienteMasReciente(pedidos, msDe) {
@@ -373,6 +390,8 @@
     cambiosDeAlineacion: cambiosDeAlineacion,
     formacionPendienteMasReciente: formacionPendienteMasReciente,
     debeReescribirPublicacion: debeReescribirPublicacion,
+    saveMasViejoQuePublicado: saveMasViejoQuePublicado,
+    pedidosDeEquipos: pedidosDeEquipos,
     msDeFecha: msDeFecha,
     vistaDelPedido: vistaDelPedido,
     cambiosContraSave: cambiosContraSave,

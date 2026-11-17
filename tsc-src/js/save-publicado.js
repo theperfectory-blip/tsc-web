@@ -33,6 +33,8 @@ const SAVE_PUBLICADO = (() => {
       subidoEn: d.subidoEn && typeof d.subidoEn.toDate === 'function' ? d.subidoEn.toDate() : null,
       tamano: Number(d.tamano) || 0,
       nombreArchivo: d.nombreArchivo || NOMBRE_JUEGO,
+      // SYNC-1: fecha de modificacion del archivo que se subio (null en subidas anteriores).
+      lastModified: typeof d.lastModified === 'number' ? d.lastModified : null,
     };
   }
 
@@ -87,6 +89,7 @@ const SAVE_PUBLICADO = (() => {
       subidoEn: firebase.firestore.FieldValue.serverTimestamp(),
       tamano: blob.size,
       nombreArchivo: String(datos.nombreArchivo || NOMBRE_JUEGO).slice(0, 128),
+      lastModified: typeof datos.lastModified === 'number' ? datos.lastModified : null,
     });
     return leerMeta();
   }
