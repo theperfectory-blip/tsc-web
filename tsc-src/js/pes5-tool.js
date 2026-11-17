@@ -636,9 +636,18 @@ async function reconectarCarpetaClick(){
 async function recargarSaveClick(){
   await cargarSaveDesdeCarpeta();
   renderStatusBar();
-  if (TAB === 'plantilla' && PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+  await releerPlantillaAbierta();
   if (TAB === 'equipos') renderEquiposTab();
   showToast('Save recargado');
+}
+/* ORD-1: el orden del plantel es el del save (bloque 5: slot 0 = arquero, 1-10 titulares...).
+   Cada vez que cambia PLANO (recarga o cambio hecho en el juego) hay que releer el club abierto,
+   estés en la pestaña Plantilla o no. Antes solo se releía con TAB === 'plantilla', y al volver a
+   la pestaña se pintaba la copia vieja del orden. */
+async function releerPlantillaAbierta(){
+  if (PLANTILLA_INDICE == null || !PLANO) return;
+  if (TAB === 'plantilla') { await onTeamSelect(PLANTILLA_INDICE); return; }
+  PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
 }
 async function cargarSaveDesdeCarpeta(){
   const leido = await PES5_SAVE.leer();
@@ -690,7 +699,7 @@ function iniciarObservador(){
     showToast('El juego volvió a guardar — recargando...');
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
-    if (TAB === 'plantilla' && PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+    await releerPlantillaAbierta();
     if (TAB === 'equipos') renderEquiposTab();
   }, 3000);
 }
@@ -845,6 +854,8 @@ function renderPlantillaTab(){
   }
   // Si ya habia un club abierto (volvimos a esta pestana), restaurarlo con sus cambios pendientes.
   if (PLANTILLA_INDICE != null && PLANTILLA_ACTUAL){
+    // ORD-1: releer del save (no usar la copia de cuando se entró antes): el orden pudo cambiar en el juego.
+    PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
     const sel = document.getElementById('pl-team-select');
     if (sel) sel.value = String(PLANTILLA_INDICE);
     renderPlantillaBody();
