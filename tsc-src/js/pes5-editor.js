@@ -319,6 +319,27 @@ const PES5_EDITOR = (() => {
     }
     return rec;
   }
+  // FORM-1: pone los 11 titulares (slots 0-10 del roster) en el orden pedido. Quien entra de
+  // suplente ocupa el slot del titular que sale, y ese titular pasa al lugar que dejó el
+  // suplente (intercambio de slots: el resto del plantel no cambia). El arquero (slot 0) no se
+  // mueve: registros[0] tiene que ser el del slot 0. Devuelve cuantos intercambios hizo (0 = ya estaba).
+  function ordenarTitulares(bytes, indiceEquipo, registros) {
+    if (!Array.isArray(registros) || registros.length !== 11) throw new Error('hacen falta 11 titulares');
+    if (new Set(registros).size !== 11) throw new Error('hay titulares repetidos');
+    const slots = _leerSlots(bytes, indiceEquipo);
+    for (const r of registros) if (!slots.includes(r)) throw new Error('el jugador ' + r + ' no esta en el plantel');
+    if (slots[0] !== registros[0]) throw new Error('el arquero no se cambia desde la formacion');
+    let cambios = 0;
+    for (let s = 1; s <= 10; s++) {
+      const quiere = registros[s];
+      if (slots[s] === quiere) continue;
+      const k = slots.indexOf(quiere); // k > s: los slots 0..s-1 ya tienen su titular
+      [slots[s], slots[k]] = [slots[k], slots[s]];
+      cambios++;
+    }
+    if (cambios) _escribirSlots(bytes, indiceEquipo, slots);
+    return cambios;
+  }
   // 4-4-2 / 4-3-3 / etc. contando los 10 jugadores de campo por franja de
   // profundidad (mismas franjas que la grilla: defensa 1-15, medio 16-34, ataque 35-47).
   function nombreFormacion(slots) {
@@ -599,7 +620,7 @@ const PES5_EDITOR = (() => {
     leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
-    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion,
+    codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares,
     POS_CODIGO, POS_POR_CODIGO, nomPosicion, codPosicion,
     leerJugadorCompleto, escribirJugadorCompleto,
     leerPlantillaCompleta, equiposDelJugador,

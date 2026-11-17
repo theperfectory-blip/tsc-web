@@ -1805,6 +1805,7 @@ function _montarModalCancha(){
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
+        <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Suplentes y reserva"></div>
         <div class="ep-pitch-ficha" id="ep-pitch-ficha"${PITCH_VERTICAL ? '' : ' hidden'}>
           <div class="ep-casillas" id="ep-form-casillas"></div>
         </div>
@@ -1829,7 +1830,7 @@ function _montarModalCancha(){
             <svg class="icn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
         </div>
         <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Arrastrá un punto para moverlo.' : 'Clic en un punto para elegirlo · flechas (en pantalla o del teclado) para moverlo.'}</span>
+          <span>${toqueFino ? 'Tocá un titular y luego otro para intercambiarlos, o un suplente para ponerlo en su lugar. También podés arrastrar un punto.' : 'Clic en un titular y luego en otro para intercambiarlos, o en un suplente para ponerlo en su lugar. Flechas para mover el punto.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1866,6 +1867,34 @@ function _centroPunto(campo, slot){
     y: r.top + campo.clientTop + pitchPctY(slot.x, slot.y) / 100 * campo.clientHeight,
   };
 }
+/* FORM-1: se intercambian dos titulares de campo. El arquero (indice 0) no entra en el intercambio.
+   Cada punto conserva su lugar en la cancha y su posicion: cambian los jugadores. */
+function _formPuedeIntercambiar(a, b){
+  return a !== b && a > 0 && b > 0 && !!FORM.draft[a] && !!FORM.draft[b]
+    && !isKeeperSlot(FORM.draft[a]) && !isKeeperSlot(FORM.draft[b]);
+}
+function intercambiarTitulares(a, b){
+  const tmp = FORM.draft[a].id;
+  FORM.draft[a].id = FORM.draft[b].id;
+  FORM.draft[b].id = tmp;
+  FORM.sel = b;
+  FORM.motivo = null;
+  renderFormationModal();
+}
+/* FORM-1: un suplente o de reserva toma el lugar del titular elegido; ese titular pasa a la banca
+   (la banca se arma con los que no estan en el 11). */
+function formacionElegirSuplente(el){
+  const id = el && el.dataset ? el.dataset.jugador : null;
+  const titular = FORM.draft[FORM.sel];
+  if (!id || !titular) return;
+  if (FORM.sel === 0 || isKeeperSlot(titular)){ showMiniToast('Primero elegí un titular de campo: el arquero no se cambia.'); return; }
+  const entra = PLAYER_BY_ID[id];
+  if (!entra) return;
+  if (entra.primaryPos === 'GK'){ showMiniToast('Un arquero solo puede ir al arco.'); return; }
+  titular.id = id;
+  FORM.motivo = null;
+  renderFormationModal();
+}
 function _formProgramarRender(){
   if (_formRaf) return;
   _formRaf = requestAnimationFrame(() => { _formRaf = 0; renderFormationModal(); });
@@ -1880,6 +1909,8 @@ function _formPointerDown(e){
     if (d < mejorDist){ mejorDist = d; mejor = i; }
   });
   if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
+  // FORM-1: con un titular de campo ya elegido, tocar otro titular de campo lo intercambia.
+  if (_formPuedeIntercambiar(FORM.sel, mejor)){ intercambiarTitulares(FORM.sel, mejor); return; }
   const slot = FORM.draft[mejor];
   const c = _centroPunto(campo, slot);
   selectFormationPlayer(mejor);
@@ -1948,6 +1979,19 @@ function renderFormationModal(){
     </div>`;
   }).join('');
   document.getElementById('ep-pitch-dots').innerHTML = dots;
+
+  // FORM-1: banca con los que no estan en el 11 (suplentes y reserva), botones de 44 px.
+  const bancaEl = document.getElementById('ep-form-bench');
+  if (bancaEl){
+    const enCancha = new Set(FORM.draft.map(s => s.id));
+    const banca = PLAYERS.filter(p => !enCancha.has(p.id)).sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+    bancaEl.innerHTML = banca.length
+      ? banca.map(p => `<button type="button" class="ep-form-subbtn" data-onclick="formacionElegirSuplente(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}">
+          <span class="ep-form-subname">${escHtml(p.name)}</span>
+          <span class="ep-form-subtag">${sectionKeyOfSlot(p.slot) === 'reserva' ? 'Reserva' : 'Suplente'}${p.tag ? ' · ' + escHtml(p.tag) : ''}</span>
+        </button>`).join('')
+      : '<span class="ep-form-subnone">No hay suplentes en la banca.</span>';
+  }
 
   // Alineacion en vivo (defensas-mediocampistas-delanteros segun las franjas).
   const lineupEl = document.getElementById('ep-form-lineup');
@@ -3124,6 +3168,7 @@ window.solicitarEmparejar = solicitarEmparejar;
 window.selectPlayer = selectPlayer;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
+window.formacionElegirSuplente = formacionElegirSuplente;
 window.moveFormationScreen = moveFormationScreen;
 window.setFormResumen = setFormResumen;
 window.setHint = setHint;

@@ -421,6 +421,16 @@
 .ep-root .ep-pitch-possel:disabled{opacity:0.6;cursor:default;}
 .ep-root .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 
+/* ---- FORM-1: banca de suplentes y reserva (botones de 44 px de alto, toque y mouse) ---- */
+.ep-root .ep-form-bench{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px;}
+.ep-root .ep-form-subbtn{flex:0 0 auto;min-height:44px;min-width:132px;max-width:200px;display:flex;flex-direction:column;
+  justify-content:center;align-items:flex-start;gap:2px;padding:6px 10px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:var(--r);color:var(--txt);cursor:pointer;text-align:left;font-family:inherit;}
+.ep-root .ep-form-subbtn:hover,.ep-root .ep-form-subbtn:focus-visible{border-color:var(--gold-b);outline:none;}
+.ep-root .ep-form-subname{font-family:'Bebas Neue';font-size:15px;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.ep-root .ep-form-subtag{font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.ep-root .ep-form-subnone{font-size:12px;color:var(--txt3);padding:10px 0;}
+
 /* ---- hoja «Revisar pedido»: encima de la barra, centrada en escritorio ---- */
 .ep-root .ep-sheet{max-height:88vh;overflow-y:auto;}
 

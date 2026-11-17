@@ -1840,8 +1840,15 @@ async function aplicarPedidosSeleccionados(){
           ? PES5_PLANTILLA.formacionContraPublicada(pub.data.formacion.slots, formSave.slots)
           : { slot: '—', campo: 'formación', era: 'publicada', ahora: 'no existe en el save' };
         if (cambioF){ rechazados.push({ pedido: p, motivo: _motivoCambioFormacion(cambioF) }); continue; }
+        // FORM-1: el pedido trae los 11 titulares por slot. Pueden ser otros que los del save (un suplente
+        // que entra): se reordena el roster antes de escribir. Lo que tiene que valer: los 11 están en el
+        // plantel, son distintos, y el arquero (slot 0) no cambia.
         const roster = PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx);
-        const idsOk = p.formacion.slots.every(s => s && s.slot >= 0 && s.slot <= 10 && roster[s.slot] === s.jugador);
+        const titularesPedido = [];
+        for (let s = 0; s <= 10; s++) titularesPedido.push((p.formacion.slots || []).find(x => x && x.slot === s) || null);
+        const idsOk = titularesPedido.every(x => x && x.jugador != null && roster.includes(x.jugador))
+          && new Set(titularesPedido.map(x => x.jugador)).size === 11
+          && titularesPedido[0].jugador === roster[0];
         if (!idsOk){ rechazados.push({ pedido: p, motivo: 'el plantel cambió; el presidente debe pedir la formación de nuevo' }); continue; }
         // reglas del juego: una sola posición por banda, topes y mínimos por línea
         const LINEA = { CT:'def', DI:'def', DD:'def', CIZ:'mid', CDR:'mid', CCD:'mid', CC:'mid', MP:'mid', EI:'att', ED:'att', SD:'att', DC:'att' };
@@ -1872,7 +1879,9 @@ async function aplicarPedidosSeleccionados(){
           const faltaLinea = Object.entries(MIN_LINEA).find(([l, n]) => porLinea[l] < n);
           if (faltaLinea){ rechazados.push({ pedido: p, motivo: 'faltan jugadores en ' + NOMBRE_LINEA[faltaLinea[0]] }); continue; }
         }
+        let cambiosTitulares = 0;
         try {
+          cambiosTitulares = PES5_EDITOR.ordenarTitulares(copia, team.pes5ClubIdx, titularesPedido.map(x => x.jugador));
           PES5_EDITOR.escribirFormacionEquipo(copia, team.pes5ClubIdx, p.formacion.slots);
         } catch (e) {
           rechazados.push({ pedido: p, motivo: 'no se pudo escribir la formación: ' + (e.message || e) }); continue;
@@ -1881,7 +1890,7 @@ async function aplicarPedidosSeleccionados(){
           total: 0, fromGeneral: 0, fromSub: 0, formacion: true,
           lineas: [{ label: 'Formación', from: '—', to: p.formacion.nombre || '' }],
         } });
-        log(`${team.name}: formación ${p.formacion.nombre || ''} aplicada (gratis)`, 'ok');
+        log(`${team.name}: formación ${p.formacion.nombre || ''} aplicada (gratis)${cambiosTitulares ? ` · ${cambiosTitulares} cambio(s) de titulares` : ''}`, 'ok');
         continue;
       }
       if (p.tipo === 'emparejar'){
