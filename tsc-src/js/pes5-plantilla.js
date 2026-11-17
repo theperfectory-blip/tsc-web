@@ -322,7 +322,29 @@
     return !(previa.teamHash === teamHash && previa.pes5ClubIdx === pes5ClubIdx);
   }
 
+  /* FORM-4: que cambio en QUIEN juega, entre dos 11 (ids de jugador en orden de slot 0-10).
+     Devuelve textos: "Juan ↔ $Yuni" (dos titulares intercambian lugar) o "Entra X por Y" (quien entra
+     toma el lugar de quien sale). nombreDe(id) da el nombre. [] si el 11 es el mismo. */
+  function cambiosDeAlineacion(baseIds, nuevaIds, nombreDe) {
+    const b = baseIds || [], n = nuevaIds || [];
+    const txt = typeof nombreDe === 'function' ? nombreDe : (id => String(id));
+    const out = [], hecho = new Set();
+    for (let i = 0; i < n.length; i++) {
+      if (hecho.has(i) || b[i] === n[i]) continue;
+      const j = b.indexOf(n[i]);
+      if (j >= 0 && j !== i && n[j] === b[i]) {
+        out.push(txt(b[i]) + ' ↔ ' + txt(b[j]));
+        hecho.add(i); hecho.add(j);
+      } else {
+        out.push('Entra ' + txt(n[i]) + ' por ' + txt(b[i]));
+        hecho.add(i);
+      }
+    }
+    return out;
+  }
+
   return {
+    cambiosDeAlineacion: cambiosDeAlineacion,
     debeReescribirPublicacion: debeReescribirPublicacion,
     msDeFecha: msDeFecha,
     vistaDelPedido: vistaDelPedido,

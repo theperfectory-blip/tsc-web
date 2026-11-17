@@ -283,7 +283,16 @@ function tienePresidente(team){
 // lo ya gastado, cache de GASTO_TEMPORADA_CACHE — ver _refrescarGastoTemporadaEquipo).
 function _restantesTemporada(){
   return YUNACOINS_RULES.topesRestantes(
-    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, _reglasEquipo(GASTO_TEMPORADA_CACHE.teamId));
+    { general: GASTO_TEMPORADA_CACHE.general, sub: GASTO_TEMPORADA_CACHE.sub }, _reglasEquipo(GASTO_TEMPORADA_CACHE.teamId),
+    _nSuscriptoresDelEquipo(GASTO_TEMPORADA_CACHE.teamId));
+}
+// BONO-1: suscriptores del equipo en el save abierto (jugador con «$» delante del nombre, el mismo
+// criterio que jugadorParaEditor → subscriber). El bono del equipo = regla por jugador × este numero.
+function _nSuscriptoresDelEquipo(teamId){
+  const team = teamId != null ? EQUIPOS_TSC.find(t => String(t.id) === String(teamId)) : null;
+  if (!team || team.pes5ClubIdx == null || !PLANO) return 0;
+  return PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx)
+    .filter(id => PES5_EDITOR.nombreDeRegistro(PLANO, id).startsWith('$')).length;
 }
 // Reparte TODOS los cambios pendientes del plantel abierto entre bono de
 // suscriptores y tope general, con el orden nuevo (punto 5b): itera
@@ -444,7 +453,7 @@ function render(){
   const app = document.getElementById('pt-app');
   if (!gate || !app) return;
   if (!AUTH.user){
-    gate.innerHTML = `<div class="gate">${ICN.lock}<div>Iniciá sesión como admin para usar la Tool PES5.</div></div>`;
+    gate.innerHTML = `<div class="gate">${ICN.lock}<div>Inicia sesión como admin para usar la Tool PES5.</div></div>`;
     app.style.display = 'none';
     return;
   }
@@ -536,13 +545,13 @@ function renderStatusBar(){
     if (_esTactilOApk()){
       el.innerHTML = `
         <div class="pt-statusbar">
-          <div class="pt-status-item"><span class="pt-dot off"></span> Modo móvil: pedidos y reglas. Para leer o escribir el save, abrí esta sección en Chrome o Edge en la PC.</div>
+          <div class="pt-status-item"><span class="pt-dot off"></span> Modo móvil: pedidos y reglas. Para leer o escribir el save, abre esta sección en Chrome o Edge en la PC.</div>
         </div>`;
       return;
     }
     el.innerHTML = `
       <div class="pt-statusbar">
-        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no da acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usás <b>Brave</b>, suele venir desactivado: activalo en <code>brave://flags/#file-system-access-api</code> (Enabled), reiniciá el navegador y volvé a entrar. Sin eso no se puede leer ni escribir el save.</div>
+        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no da acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usas <b>Brave</b>, suele venir desactivado: actívalo en <code>brave://flags/#file-system-access-api</code> (Enabled), reinicia el navegador y vuelve a entrar. Sin eso no se puede leer ni escribir el save.</div>
         <div class="pt-status-item" style="font-size:12px;">Mientras tanto funciona el modo móvil: pedidos y reglas.</div>
       </div>`;
     return;
@@ -552,7 +561,7 @@ function renderStatusBar(){
     el.innerHTML = `
       <div class="pt-statusbar">
         <div class="pt-status-item"><span class="pt-dot off"></span> Sin carpeta elegida — sugerido: <code>Documents\\KONAMI\\Pro Evolution Soccer 5\\save\\folder1</code></div>
-        <div class="pt-status-item pt-status-note">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abrí esto en <b>Chrome o Edge</b>.</div>
+        <div class="pt-status-item pt-status-note">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abre esto en <b>Chrome o Edge</b>.</div>
         <div class="pt-status-actions">
           <button class="btn btn-sm btn-primary" data-onclick="ptElegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
         </div>
@@ -608,7 +617,7 @@ function publicarDesactualizadasClick(){
   const ids = (PLANTILLAS_DESACTUALIZADAS || []).map(x => x.teamId);
   if (!ids.length) return;
   showConfirm('Publicar plantillas',
-    `Se publican ${ids.length} plantilla(s) desde el save que está abierto. Confirmá que no hay cambios a medio hacer: el presidente va a ver esos datos.`,
+    `Se publican ${ids.length} plantilla(s) desde el save que está abierto. Confirma que no hay cambios a medio hacer: el presidente va a ver esos datos.`,
     () => publicarPlantillas(ids));
 }
 window.ptPublicarDesactualizadas = publicarDesactualizadasClick;
@@ -617,7 +626,7 @@ async function elegirCarpetaClick(){
   try {
     const r = await PES5_SAVE.elegirCarpeta();
     if (!r.ok){
-      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Probá en Chrome o Edge.', 'error');
+      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Prueba en Chrome o Edge.', 'error');
       return; // el admin cancelo el picker (o no se abrio)
     }
     await cargarSaveDesdeCarpeta();
@@ -628,7 +637,7 @@ async function elegirCarpetaClick(){
 async function reconectarCarpetaClick(){
   try {
     const r = await PES5_SAVE.recuperarCarpeta();
-    if (!r || !r.ok){ showToast('No se pudo reconectar — elegí la carpeta de nuevo.', 'error'); return; }
+    if (!r || !r.ok){ showToast('No se pudo reconectar — elige la carpeta de nuevo.', 'error'); return; }
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
   } catch(e) { showToast('Error: ' + (e.message||e), 'error'); }
@@ -636,9 +645,18 @@ async function reconectarCarpetaClick(){
 async function recargarSaveClick(){
   await cargarSaveDesdeCarpeta();
   renderStatusBar();
-  if (TAB === 'plantilla' && PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+  await releerPlantillaAbierta();
   if (TAB === 'equipos') renderEquiposTab();
   showToast('Save recargado');
+}
+/* ORD-1: el orden del plantel es el del save (bloque 5: slot 0 = arquero, 1-10 titulares...).
+   Cada vez que cambia PLANO (recarga o cambio hecho en el juego) hay que releer el club abierto,
+   estés en la pestaña Plantilla o no. Antes solo se releía con TAB === 'plantilla', y al volver a
+   la pestaña se pintaba la copia vieja del orden. */
+async function releerPlantillaAbierta(){
+  if (PLANTILLA_INDICE == null || !PLANO) return;
+  if (TAB === 'plantilla') { await onTeamSelect(PLANTILLA_INDICE); return; }
+  PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
 }
 async function cargarSaveDesdeCarpeta(){
   const leido = await PES5_SAVE.leer();
@@ -690,7 +708,7 @@ function iniciarObservador(){
     showToast('El juego volvió a guardar — recargando...');
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
-    if (TAB === 'plantilla' && PLANTILLA_INDICE != null) await onTeamSelect(PLANTILLA_INDICE);
+    await releerPlantillaAbierta();
     if (TAB === 'equipos') renderEquiposTab();
   }, 3000);
 }
@@ -749,7 +767,7 @@ function renderEquiposTab(){
     const repetido = PES5_CLUBES.repetidoDe(t, EQUIPOS_TSC);
     const selectorHtml = hayClubes
       ? `<select data-onchange="ptVincularEquipo(${t.id}, this.value)">${opcionesDe(t)}</select>`
-      : `<select disabled><option>Cargá el save para ver los clubes</option></select>${
+      : `<select disabled><option>Carga el save para ver los clubes</option></select>${
           t.pes5Club ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px;">vinculado: ${escHtml(t.pes5Club)}</div>` : ''
         }`;
     return `
@@ -757,7 +775,7 @@ function renderEquiposTab(){
         <td>${t.logo ? `<img class="pt-escudo" src="${escHtml(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
         <td>${escHtml(t.name)}</td>
         <td>${pres ? escHtml(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
-        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revinculá</span>` : ''}${repetido ? ` <span class="pt-badge-repetido" title="Dos equipos tienen este club: corregilo a mano">${ICN.alert} club repetido con ${escHtml(repetido.name)}</span>` : ''}</td>
+        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revincula</span>` : ''}${repetido ? ` <span class="pt-badge-repetido" title="Dos equipos tienen este club: corregilo a mano">${ICN.alert} club repetido con ${escHtml(repetido.name)}</span>` : ''}</td>
         <td class="pt-cupo${cupoLleno?' full':''}">${cupo}</td>
       </tr>`;
   }).join('');
@@ -765,7 +783,7 @@ function renderEquiposTab(){
   cont.innerHTML = `
     <div class="pt-toolbar">
       <input class="pt-search" id="eq-filtro" placeholder="Filtrar equipo...">
-      ${!hayClubes ? `<div class="pt-status-item" style="color:var(--txt3);">${ICN.alert} Cargá el save para ver los clubes</div>` : ''}
+      ${!hayClubes ? `<div class="pt-status-item" style="color:var(--txt3);">${ICN.alert} Carga el save para ver los clubes</div>` : ''}
     </div>
     <div class="tbl-wrap">
       <table class="tbl" id="eq-tabla">
@@ -792,7 +810,7 @@ async function vincularEquipo(teamId, idxStr){
     const frescos = await dbGetAll('teams');
     const otro = PES5_CLUBES.otroEquipoConClub(frescos, idx, teamId);
     if (otro){
-      showToast(`${CLUBES_PES5[idx]} ya lo tiene ${otro.name}. Elegí otro club.`, 'error');
+      showToast(`${CLUBES_PES5[idx]} ya lo tiene ${otro.name}. Elige otro club.`, 'error');
       renderEquiposTab();
       return;
     }
@@ -815,7 +833,7 @@ function renderPlantillaTab(){
   const cont = document.getElementById('pt-tabcontent');
   // Slice C1.2: sin save cargado, la pestaña Plantilla no lista nada.
   if (!PLANO || !CLUBES_PES5.length){
-    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elegí la carpeta del save (o subí el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
+    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elige la carpeta del save (o sube el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
     return;
   }
   // Slice C1.1 + C1.3: "Equipos TSC vinculados" = solo equipos activos con
@@ -845,6 +863,8 @@ function renderPlantillaTab(){
   }
   // Si ya habia un club abierto (volvimos a esta pestana), restaurarlo con sus cambios pendientes.
   if (PLANTILLA_INDICE != null && PLANTILLA_ACTUAL){
+    // ORD-1: releer del save (no usar la copia de cuando se entró antes): el orden pudo cambiar en el juego.
+    PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
     const sel = document.getElementById('pl-team-select');
     if (sel) sel.value = String(PLANTILLA_INDICE);
     renderPlantillaBody();
@@ -861,7 +881,7 @@ function onTeamSelectPorIndice(idxStr){
   // Los cambios pendientes pertenecen al club abierto: cambiar de club los perderia
   // (y el cobro solo se aplica al club abierto), asi que se pide confirmacion.
   if (Object.keys(CAMBIOS_PENDIENTES).length && nuevo !== PLANTILLA_INDICE){
-    if (!confirm('Hay cambios sin escribir en el club actual. Si cambiás de club se descartan. ¿Descartarlos y cambiar?')){
+    if (!confirm('Hay cambios sin escribir en el club actual. Si cambias de club se descartan. ¿Descartarlos y cambiar?')){
       const sel = document.getElementById('pl-team-select');
       if (sel) sel.value = PLANTILLA_INDICE != null ? String(PLANTILLA_INDICE) : '';
       return;
@@ -936,7 +956,7 @@ function renderPlantillaBody(){
         <tbody>${filas || `<tr><td colspan="${6+COLS_ATTR.length}" style="text-align:center;color:var(--txt3);padding:20px;">Plantel vacío.</td></tr>`}</tbody>
       </table>
     </div>
-    <div class="pt-hint-click">Tocá un jugador para editarlo con el mismo editor que usan los presidentes.</div>`;
+    <div class="pt-hint-click">Toca un jugador para editarlo con el mismo editor que usan los presidentes.</div>`;
 }
 
 // ============================================================
@@ -1348,7 +1368,7 @@ async function confirmarEscribirAlSave(){
   // permiso para generar una descarga.
   const permitido = await PES5_SAVE.asegurarEscritura();
   if (!permitido){
-    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconectá la carpeta (botón "Reconectar" en la barra de arriba) o elegila de nuevo.' });
+    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconecta la carpeta (botón "Reconectar" en la barra de arriba) o elegila de nuevo.' });
     return;
   }
 
@@ -1634,13 +1654,15 @@ async function renderPedidosTab(opts){
     const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
     const esFormacion = p.tipo === 'formacion';
     const lineas = esFormacion
-      ? `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`
+      ? ((p.lines && p.lines.length)
+          ? p.lines.map(l => l.from ? `${escHtml(l.label)}: ${escHtml(l.from)} → ${escHtml(l.to)}` : `${escHtml(l.label)}: ${escHtml(l.to)}`).join('<br>')
+          : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
       : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
     const aplicable = esFormacion
       ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
       : !!(p.cambios && p.registro != null);
     const jugador = esFormacion
-      ? '<i>Formación</i>'
+      ? ((p.lines || []).some(l => l.label === 'Cambio de alineación') ? '<i>Alineación</i>' : '<i>Formación</i>')
       : `${escHtml(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
     // En PC la casilla elige que pedidos aplicar. En el telefono no se aplica nada (3.B).
     const celdaSel = movil ? '' : `<td data-label="Aplicar"><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>`;
@@ -1661,7 +1683,7 @@ async function renderPedidosTab(opts){
     ? `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes.</div>
        <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
     : `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
-       ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Cargá el save para poder aplicar.</div>`}`;
+       ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Carga el save para poder aplicar.</div>`}`;
   const aplicar = movil ? '' : `
     <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
       <input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado
@@ -1690,7 +1712,7 @@ function _despuesDeRenderPedidos(movil, opts){
    en PC y en el telefono. Cancelar no escribe nada; Rechazar exige un motivo no vacio. */
 function rechazarPedido(id){
   const p = PEDIDOS_PENDIENTES.find(x => x._id === id);
-  if (!p){ showToast('No se encontró el pedido. Recargá la lista.', 'error'); return; }
+  if (!p){ showToast('No se encontró el pedido. Recarga la lista.', 'error'); return; }
   cerrarRechazo();
   RECHAZO_ID = id;
   const equipo = p.teamName || String(p.teamId);
@@ -1776,7 +1798,7 @@ async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
   if (logEl) logEl.innerHTML = '';
-  if (!PLANO){ showToast('Cargá el save primero.', 'error'); return; }
+  if (!PLANO){ showToast('Carga el save primero.', 'error'); return; }
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
@@ -1829,8 +1851,17 @@ async function aplicarPedidosSeleccionados(){
           ? PES5_PLANTILLA.formacionContraPublicada(pub.data.formacion.slots, formSave.slots)
           : { slot: '—', campo: 'formación', era: 'publicada', ahora: 'no existe en el save' };
         if (cambioF){ rechazados.push({ pedido: p, motivo: _motivoCambioFormacion(cambioF) }); continue; }
+        // FORM-1: el pedido trae los 11 titulares por slot. Pueden ser otros que los del save (un suplente
+        // que entra): se reordena el roster antes de escribir. Lo que tiene que valer: los 11 están en el
+        // plantel, son distintos, y el arquero (slot 0) no cambia.
         const roster = PES5_EDITOR.leerPlantillaEquipo(copia, team.pes5ClubIdx);
-        const idsOk = p.formacion.slots.every(s => s && s.slot >= 0 && s.slot <= 10 && roster[s.slot] === s.jugador);
+        const titularesPedido = [];
+        for (let s = 0; s <= 10; s++) titularesPedido.push((p.formacion.slots || []).find(x => x && x.slot === s) || null);
+        const idsOk = titularesPedido.every(x => x && x.jugador != null && roster.includes(x.jugador))
+          && new Set(titularesPedido.map(x => x.jugador)).size === 11
+          // FORM-2: el arquero (slot 0) puede cambiar, pero solo por otro portero del plantel
+          && (titularesPedido[0].jugador === roster[0]
+            || PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, titularesPedido[0].jugador, 0).primaryPos === 'GK');
         if (!idsOk){ rechazados.push({ pedido: p, motivo: 'el plantel cambió; el presidente debe pedir la formación de nuevo' }); continue; }
         // reglas del juego: una sola posición por banda, topes y mínimos por línea
         const LINEA = { CT:'def', DI:'def', DD:'def', CIZ:'mid', CDR:'mid', CCD:'mid', CC:'mid', MP:'mid', EI:'att', ED:'att', SD:'att', DC:'att' };
@@ -1861,16 +1892,20 @@ async function aplicarPedidosSeleccionados(){
           const faltaLinea = Object.entries(MIN_LINEA).find(([l, n]) => porLinea[l] < n);
           if (faltaLinea){ rechazados.push({ pedido: p, motivo: 'faltan jugadores en ' + NOMBRE_LINEA[faltaLinea[0]] }); continue; }
         }
+        // Atomico: aplicarFormacionPedido trabaja sobre una copia y solo pasa el resultado a `copia`
+        // si el orden de titulares Y la formacion salen bien (si no, el roster queda como estaba).
+        let cambiosTitulares = 0;
         try {
-          PES5_EDITOR.escribirFormacionEquipo(copia, team.pes5ClubIdx, p.formacion.slots);
+          cambiosTitulares = PES5_EDITOR.aplicarFormacionPedido(copia, team.pes5ClubIdx, titularesPedido.map(x => x.jugador), p.formacion.slots);
         } catch (e) {
           rechazados.push({ pedido: p, motivo: 'no se pudo escribir la formación: ' + (e.message || e) }); continue;
         }
         aplicados.push({ pedido: p, team, info: {
           total: 0, fromGeneral: 0, fromSub: 0, formacion: true,
-          lineas: [{ label: 'Formación', from: '—', to: p.formacion.nombre || '' }],
+          lineas: (p.lines && p.lines.length) ? p.lines.map(l => ({ label: l.label, from: l.from || '—', to: l.to || '' })) : [{ label: 'Formación', from: '—', to: p.formacion.nombre || '' }],
         } });
-        log(`${team.name}: formación ${p.formacion.nombre || ''} aplicada (gratis)`, 'ok');
+        const esAlin = (p.lines || []).some(l => l.label === 'Cambio de alineación');
+        log(`${team.name}: ${esAlin ? 'cambio de alineación' : 'formación'} ${p.formacion.nombre || ''} aplicado (gratis)${cambiosTitulares ? ` · ${cambiosTitulares} cambio(s) de titulares` : ''}`, 'ok');
         continue;
       }
       if (p.tipo === 'emparejar'){
@@ -2045,7 +2080,7 @@ function _equiposPublicables(){
 }
 function _bloquePublicarHTML(){
   const abre = '<section class="pt-pub-block"><h3 class="pt-pub-title">Publicar plantillas</h3>';
-  if (!PLANO) return `${abre}<div class="pt-empty">${ICN.upload}<div>Cargá el save para publicar plantillas.</div></div></section>`;
+  if (!PLANO) return `${abre}<div class="pt-empty">${ICN.upload}<div>Carga el save para publicar plantillas.</div></div></section>`;
   const objetivo = _equiposPublicables();
   const filas = objetivo.map(t => {
     const clubNombre = CLUBES_PES5[t.pes5ClubIdx] || '?';
@@ -2113,7 +2148,7 @@ function publicarPlantillaDeEquipo(id){ return publicarPlantillas([id]); }
 async function publicarPlantillas(ids){
   const log = document.getElementById('pub-log');
   const linea = (msg, cls) => { if (!log) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; log.appendChild(d); };
-  if (!PLANO){ showToast('Cargá el save primero.', 'error'); return; }
+  if (!PLANO){ showToast('Carga el save primero.', 'error'); return; }
   const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null && (!ids || ids.includes(t.id)));
   if (!equipos.length){ showToast('No hay equipos para publicar.', 'error'); return; }
   const btn = document.getElementById('btn-publicar-todos'); if (btn) btn.disabled = true;
@@ -2190,7 +2225,7 @@ function _bloqueTopesExtraHTML(){
         <tbody>${filas}</tbody></table>` : `<div style="font-size:12px;color:var(--txt3);margin-bottom:12px;">Ningún equipo tiene tope extra.</div>`}
       <div class="pt-field">
         <label>Equipo</label>
-        <select id="te-equipo"><option value="">Elegí un equipo</option>${activos.map(t => `<option value="${escAttr(t.id)}">${escHtml(t.name)}</option>`).join('')}</select>
+        <select id="te-equipo"><option value="">Elige un equipo</option>${activos.map(t => `<option value="${escAttr(t.id)}">${escHtml(t.name)}</option>`).join('')}</select>
       </div>
       <div class="pt-field">
         <label>Extra (YunaCoins)<br><span style="font-size:11px;color:var(--txt3);">0 lo quita.</span></label>
@@ -2223,7 +2258,7 @@ async function guardarTopeExtra(){
   const extra = parseInt(document.getElementById('te-extra').value, 10);
   const motivo = String(document.getElementById('te-motivo').value || '').trim().slice(0, 100);
   const err = msg => { box.innerHTML = `<div style="color:var(--red,#f87171);font-size:12px;">${escHtml(msg)}</div>`; };
-  if (!id) return err('Elegí un equipo.');
+  if (!id) return err('Elige un equipo.');
   if (!Number.isFinite(extra) || extra < 0) return err('El extra tiene que ser un número mayor o igual a 0.');
   const nuevo = Object.assign({}, YC_TOPES_EXTRA);
   if (extra === 0) delete nuevo[id]; else nuevo[id] = { extra, motivo };
@@ -2301,8 +2336,9 @@ function renderReglasTab(){
           <input type="number" min="0" step="500" id="rg-budgetGeneral" value="${r.budgetGeneral}" style="width:100px;">
         </div>
         <div class="pt-field">
-          <label>Bono suscriptores</label>
+          <label>Bono por jugador suscriptor</label>
           <input type="number" min="0" step="500" id="rg-budgetSubscribers" value="${r.budgetSubscribers}" style="width:100px;">
+          <div class="pt-field-hint">se multiplica por los suscriptores del equipo</div>
         </div>
       </div>
 

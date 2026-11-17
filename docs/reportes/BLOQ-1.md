@@ -61,3 +61,10 @@ No hizo falta cambiarlas. `pes5_bloqueos` ya dejaba a `isAdmin()` crear, actuali
 
 ### Reglas: hallazgo abierto (aceptado como riesgo bajo)
 La regla de `pes5_bloqueos` permite al presidente escribir cualquier bloqueo de su equipo sin comprobar el dueño actual. Lo único que podría pisar es el bloqueo del admin en su propio equipo, y la app lo respeta (transacción y TTL). Acordado con el coordinador: se documenta como abierto y no se cambia.
+
+## Incidente de publicación: bloqueo escrito en producción
+
+Al verificar producción (solo lectura) abrí `https://teamsubscup.web.app/mejoras.html` en una pestaña con sesión activa (cuenta del dueño, equipo 61). La página tomó el bloqueo al cargar: `pes5_bloqueos/61` quedó con `por: presidente`, `nombre: Rational User`, `desde`/`latido` 2026-11-16T17:49:45Z. Fue una escritura no intencional.
+
+- Estado: vencido por TTL. No se borró; el próximo `tomar()` lo sobrescribe.
+- Regla para verificaciones de producción: no abrir páginas que escriban al cargar (Mejoras toma el bloqueo) en una pestaña con sesión. Usar `window.__TSC_READONLY__` antes de cargar, o una pestaña sin sesión.

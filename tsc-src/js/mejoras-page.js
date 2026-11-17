@@ -160,13 +160,13 @@ async function renderAuthUI(){
   if (!AUTH.user){
     EQUIPO_TSC = null; _gateTeamId = undefined;
     gate.style.display = ''; shell.style.display = 'none';
-    gate.innerHTML = `<p>Iniciá sesión para editar tu equipo.</p><button class="ep-btn primary" data-onclick="openAuthModal()">Iniciar sesión</button>`;
+    gate.innerHTML = `<p>Inicia sesión para editar tu equipo.</p><button class="ep-btn primary" data-onclick="openAuthModal()">Iniciar sesión</button>`;
     return;
   }
   if (!AUTH.teamId){
     EQUIPO_TSC = null; _gateTeamId = undefined;
     gate.style.display = ''; shell.style.display = 'none';
-    gate.innerHTML = `<p>Tu cuenta todavía no tiene un equipo de la TSC asignado. Pedile al admin que te vincule uno.</p>`;
+    gate.innerHTML = `<p>Tu cuenta todavía no tiene un equipo de la TSC asignado. Pide al admin que te vincule uno.</p>`;
     return;
   }
   if (_gateTeamId !== AUTH.teamId){
@@ -196,6 +196,8 @@ async function renderAuthUI(){
       return;
     }
     _gatePlantillaClub = EQUIPO_TSC.pes5ClubIdx;
+    // BONO-1: el bono depende de los suscriptores de la plantilla recien cargada: recalcular ahora.
+    await recalcularPresupuestoReal();
     // EMP-80-2: perfiles fijados de la temporada de cobro (si el admin ya los fijo). Sin doc: calculo en vivo.
     try { PERFILES_FIJADOS = await cargarPerfilesFijados(AUTH.teamId, COBRO_TEMPORADA ?? STATE.season); }
     catch(e){ console.warn('[mejoras] no se pudieron leer los perfiles fijados', e); PERFILES_FIJADOS = null; }
@@ -239,24 +241,24 @@ const MAIN_STATS = [
   {k:'def',l:'Defensa',d:'Un valor mas alto favorece las posiciones defensivas.'},
   {k:'equ',l:'Equilibrio',d:'Indica la resistencia de un jugador ante las cargas del contrario.'},
   {k:'res',l:'Resistencia',d:'Si este valor es menor que 1/2, la velocidad y carreras pierden intensidad.'},
-  {k:'vm', l:'Vel. maxima',d:'Un valor mas alto aumenta la velocidad de carrera.'},
-  {k:'ace',l:'Aceleracion',d:'Rapidez con la que el jugador alcanza su velocidad maxima.'},
+  {k:'vm', l:'Vel. máxima',d:'Un valor mas alto aumenta la velocidad de carrera.'},
+  {k:'ace',l:'Aceleración',d:'Rapidez con la que el jugador alcanza su velocidad maxima.'},
   {k:'rsp',l:'Respuesta',d:'Un valor mas alto aumenta la sensibilidad hacia balones sueltos y altos.'},
   {k:'agi',l:'Agilidad',d:'Cuanto mas alto sea este valor, mayor sera la agilidad del jugador.'},
-  {k:'pcd',l:'Prec. conduccion',d:'Mejora la capacidad de posesion del balon del jugador al regatear.'},
-  {k:'vcd',l:'Vel. conduccion',d:'Reduce la diferencia en velocidad entre movimiento normal y regate.'},
+  {k:'pcd',l:'Prec. conducción',d:'Mejora la capacidad de posesion del balon del jugador al regatear.'},
+  {k:'vcd',l:'Vel. conducción',d:'Reduce la diferencia en velocidad entre movimiento normal y regate.'},
   {k:'ppc',l:'Prec. p.c.',d:'Aumenta la precision y el exito en pases ras del suelo.'},
   {k:'vpc',l:'Vel. p.c.',d:'Reduce la posibilidad de que el contrario intercepte el pase corto.'},
   {k:'ppl',l:'Prec. p.l.',d:'Aumenta la precision y el exito del pase largo.'},
   {k:'vpl',l:'Vel. p.l.',d:'Aumenta la velocidad del pase largo y centros.'},
-  {k:'pre',l:'Precision',d:'Un valor mas alto aumenta la precision ante el gol.'},
+  {k:'pre',l:'Precisión',d:'Un valor mas alto aumenta la precision ante el gol.'},
   {k:'pot',l:'Potencia',d:'Aumenta la potencia del disparo.'},
   {k:'ted',l:'Tec. disp',d:'Efectivo al tirar a la porteria desde posiciones dificiles.'},
   {k:'psf',l:'Prec. saq. fta.',d:'Configura los niveles de precision de los saques de falta.'},
   {k:'efe',l:'Efecto',d:'Un valor mas alto aumenta el efecto curvado de la trayectoria del balon.'},
   {k:'cab',l:'Cabezazo',d:'Determina la capacidad de juego aereo del jugador.'},
   {k:'sal',l:'Salto',d:'Determina la altura de salto del jugador.'},
-  {k:'tec',l:'Tecnica',d:'Valores bajos tienden a botar la pelota al atraparla, perdiendo tiempo.'},
+  {k:'tec',l:'Técnica',d:'Valores bajos tienden a botar la pelota al atraparla, perdiendo tiempo.'},
   {k:'agr',l:'Agresividad',d:'Un valor mas alto aumenta la actitud atacante del jugador.'},
 ];
 const MAIN_BY_KEY = Object.fromEntries(MAIN_STATS.map(s=>[s.k,s]));
@@ -272,7 +274,7 @@ const SEC_NEW = [
   {k:'cond',l:'Estabilidad',sc:8, d:'Mantiene mejor su condicion jugando partidos consecutivos.'},
   {k:'wff', l:'Frec. pie malo',sc:8, d:'Determina cada cuanto usa la pierna no dominante.'},
   {k:'wfa', l:'Prec. pie malo',sc:8, d:'Determina la precision con la pierna no dominante.'},
-  {k:'inj', l:'Res. lesion',sc:'inj',d:'Determina la resistencia del jugador a sufrir lesiones.'},
+  {k:'inj', l:'Res. lesión',sc:'inj',d:'Determina la resistencia del jugador a sufrir lesiones.'},
 ];
 const INJ_DEF = SEC_NEW.find(s=>s.k==='inj');
 
@@ -285,13 +287,13 @@ const ALL_ABILITIES = [
   {k:'dribbling',l:'Regate',d:'Los jugadores COM favorecen el regate cuando tienen la pelota.'},
   {k:'dribbleKeeping',l:'Habilidades de regate',d:'Puede proteger el balon con regates dificiles.'},
   {k:'positioning',l:'Cap. posic.',d:'Posiciona bien al jugador al recibir pases y centros.'},
-  {k:'reaction',l:'Reaccion',d:'Mas riesgo de fuera de juego, pero mas oportunidades de gol.'},
+  {k:'reaction',l:'Reacción',d:'Mas riesgo de fuera de juego, pero mas oportunidades de gol.'},
   {k:'playmaker',l:'Cap. mando',d:'Aumenta la percepcion de la formacion de ataque del equipo.'},
   {k:'passing',l:'Pase',d:'Permite pases atrasados casi infalibles que conducen a goles.'},
   {k:'striker',l:'Hab. goleadora',d:'Posiciona al jugador en la linea delantera buscando el gol.'},
   {k:'oneVOneShoot',l:'Hab. gol. 1 a 1',d:'Mejora la precision del disparo mano a mano ante el portero.'},
   {k:'postPlayer',l:'Hab. jugador poste',d:'Mejora la posesion en la boca de la porteria y el pase directo.'},
-  {k:'linePos',l:'Lineas',d:'Mejora ataque/defensa en la linea de fuera de juego.'},
+  {k:'linePos',l:'Líneas',d:'Mejora ataque/defensa en la linea de fuera de juego.'},
   {k:'midRange',l:'Disparos medios',d:'Mejora la precision y el exito de los disparos desde media distancia.'},
   {k:'side',l:'Lado',d:'Mejora el juego en las areas cerca de la linea de banda.'},
   {k:'center',l:'Centro',d:'Mejora el juego en las areas centrales.'},
@@ -299,9 +301,9 @@ const ALL_ABILITIES = [
   {k:'oneTouchPass',l:'Hab. pase 1 toque',d:'Mejora la precision en el juego directo (paredes).'},
   {k:'outside',l:'Exterior',d:'Usa la parte externa del pie para golpear el balon.'},
   {k:'manMarkClose',l:'Marcar hombre',d:'Mejora la capacidad de marcar de cerca a un rival especifico.'},
-  {k:'sliding',l:'Hab. deslizandose',d:'Mejora la precision en los cortes (entradas).'},
+  {k:'sliding',l:'Hab. deslizándose',d:'Mejora la precision en los cortes (entradas).'},
   {k:'manMark',l:'Marcaje',d:'Buena colocacion y capacidad de permanecer con el hombre marcado.'},
-  {k:'dfLine',l:'Ctrl. linea defensa',d:'Ajusta la linea defensiva para atrapar al rival en fuera de juego.'},
+  {k:'dfLine',l:'Ctrl. línea defensa',d:'Ajusta la linea defensiva para atrapar al rival en fuera de juego.'},
   {k:'pkKeeper',l:'Hab. portero penaltis',d:'Mejora la habilidad para detener penaltis.'},
   {k:'oneVOneKeeper',l:'Hab. port 1 a 1',d:'Buena respuesta y mayor habilidad para parar 1 contra 1.'},
   {k:'longThrow',l:'Hab. saque largo',d:'Aumenta la distancia del saque de banda.'},
@@ -553,7 +555,71 @@ function formacionPorDefecto(){
 }
 /* La guardada solo vale si sus 11 ids siguen existiendo en el plantel
    actual (Luis pudo republicar o cambiar el club vinculado). */
+/* FORM-4: alineacion y formacion. Una sola lectura para la cancha, la lista y la ficha:
+   1) el borrador (modal abierto), 2) el pedido de formacion pendiente, 3) la publicada, 4) la local. */
+function _textoLinea(l){
+  return l.from ? `${l.label}: ${l.from} → ${l.to}` : `${l.label}: ${l.to}`;
+}
+/* Lineas del pedido: un "Cambio de alineacion" por cada cambio de quien juega, y "Formacion" solo si
+   se movieron los puntos o la posicion de un lugar (4-3-3, etc.). */
+function _lineasFormacion(base, nueva, nombreNueva){
+  const nombreDe = id => (PLAYER_BY_ID[id] && PLAYER_BY_ID[id].name) || '—';
+  const lineas = PES5_PLANTILLA.cambiosDeAlineacion(base.map(s => s.id), nueva.map(s => s.id), nombreDe)
+    .map(t => ({ label: 'Cambio de alineación', from: '', to: t }));
+  const puntos = base.some((s, i) => { const n = nueva[i]; return !n || s.x !== n.x || s.y !== n.y || s.pos !== n.pos; });
+  const nombreBase = _nombreFormacionDraft(base);
+  if (puntos || !lineas.length){
+    const igual = nombreNueva === nombreBase;
+    lineas.push({ label: 'Formación', from: igual ? '' : nombreBase, to: igual && puntos ? nombreNueva + ' (puntos movidos)' : nombreNueva });
+  }
+  return lineas;
+}
+/* El pedido de formacion pendiente (el ultimo que aun no aplico Luis), como alineacion. */
+const _tiempoPedido = p => { const m = PES5_PLANTILLA.msDeFecha(p.creadoEn); return m == null ? Number.MAX_SAFE_INTEGER : m; };
+function _formacionPendiente(){
+  const x = (APP.pendientes || []).filter(p => p.tipo === 'formacion' && p.estado === 'pendiente'
+    && p.formacion && Array.isArray(p.formacion.slots)).sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b)).pop();
+  if (!x) return null;
+  const f = formacionDesdePublicada({ slots: x.formacion.slots });
+  return f && f.every(s => PLAYER_BY_ID[s.id]) ? f : null;
+}
+/* Lo que se muestra como 11: con el modal abierto, el borrador; si no, la alineacion vigente. */
+function alineacionVigente(){
+  return (FORM_ABIERTO && FORM.draft) ? FORM.draft : formacionVigente();
+}
+function titularSpot(id){ return alineacionVigente().find(s => s.id === id) || null; }
+/* Nombre de cada lugar de la cancha: solo expande la sigla de la cancha (no es una posicion del juego). */
+const PITCH_LUGAR_NOMBRE = {
+  PT:'Portero', CT:'Central', DI:'Defensa izquierdo', DD:'Defensa derecho',
+  CCD:'Centrocampista defensivo', CC:'Centrocampista central', CIZ:'Centrocampista izquierdo', CDR:'Centrocampista derecho',
+  MP:'Mediapunta', EI:'Extremo izquierdo', ED:'Extremo derecho', SD:'Segundo delantero', DC:'Delantero centro',
+};
+/* Etiqueta de un titular: el nombre del lugar. La posicion principal del jugador va aparte solo si su
+   etiqueta de POSITIONS es distinta del nombre del lugar (comparacion de texto, sin mapeo). */
+function _tagLugar(spotPos, natural){
+  const lugar = PITCH_LUGAR_NOMBRE[spotPos] || spotPos;
+  const nat = (POS_BY_KEY[natural] && POS_BY_KEY[natural].l) || '';
+  if (!nat || nat === lugar) return lugar;
+  return `${lugar} · natural: ${nat}`;
+}
+/* Seccion de cada jugador: titular (en el 11 vigente), suplente (primeros 12 de la banca) o reserva. */
+function _seccionesPlantel(){
+  const sec = {};
+  alineacionVigente().forEach(s => { sec[s.id] = 'titular'; });
+  PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999))
+    .forEach((p, i) => { sec[p.id] = i < 12 ? 'suplente' : 'reserva'; });
+  return sec;
+}
+/* Plantel en el orden que se muestra: el 11 en el orden de la cancha y luego la banca por slot. */
+function plantelOrdenado(){
+  const sec = _seccionesPlantel();
+  const titulares = alineacionVigente().map(s => PLAYER_BY_ID[s.id]).filter(Boolean);
+  const banca = PLAYERS.filter(p => sec[p.id] !== 'titular').sort((a, b) => (a.slot ?? 999) - (b.slot ?? 999));
+  return [...titulares, ...banca];
+}
 function formacionVigente(){
+  const pendiente = _formacionPendiente();
+  if (pendiente) return pendiente;
   // Opcion B: la verdad es la formacion del save, publicada por la Tool.
   if (FORMACION_PUBLICADA){
     const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
@@ -623,6 +689,11 @@ async function cargarTopeExtraEquipo(teamId){
 // Slice D2: presupuesto disponible = topes de temporada (reglas) menos lo ya
 // cobrado esta temporada (libro coins) menos lo reservado en pedidos
 // pendientes propios; el general nunca supera el saldo real del equipo.
+/* BONO-1: suscriptores del plantel cargado (publicado en el presidente, del save en la Tool).
+   El bono del equipo es la regla por jugador × este numero. */
+function _nSuscriptoresPlantel(){
+  return PLAYERS.filter(p => p.subscriber).length;
+}
 async function recalcularPresupuestoReal(){
   const wallet = EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0;
   let gastado = { general: 0, sub: 0 };
@@ -643,7 +714,7 @@ async function recalcularPresupuestoReal(){
       APP.pendientes.push(Object.assign({ _id: d.id }, p)); // presentacion: aviso y marca «Pedido» (sin lecturas nuevas)
     });
   } catch (e) { console.warn('[editor] no se pudieron leer los pedidos pendientes', e); }
-  const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES);
+  const rest = YUNACOINS_RULES.topesRestantes(gastado, RULES, _nSuscriptoresPlantel());
   // slice 2.1-A: lo que necesita el aviso grande (sin pendientes de la edicion en curso)
   APP.gastado = { general: gastado.general, sub: gastado.sub };
   APP.pend = { total: pendTotal, general: pendG, sub: pendS };
@@ -930,7 +1001,7 @@ const APP = {
   // hardcodeado. Aca EQUIPO_TSC todavia no cargo (arranca en null antes de
   // loguearse) — se recalcula con el valor real apenas carga, ver
   // renderAuthUI() > "if (_gateTeamId !== AUTH.teamId)".
-  budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES),
+  budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES, 0), // BONO-1: el conteo llega con recalcularPresupuestoReal
   gastado: { general: 0, sub: 0 },              // slice 2.1-A: gastado de la temporada (libro coins)
   pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
@@ -988,9 +1059,11 @@ function sectionKeyOfSlot(slot){ const s = slot ?? 999; return s < 11 ? 'titular
 function renderRoster(){
   const q = (document.getElementById('ep-search').value||'').toLowerCase();
   const list = document.getElementById('ep-roster-list');
+  const secs = _seccionesPlantel();
+  const ordenPlantel = plantelOrdenado();
   // conteos y estado del segmentado (siempre sobre todo el plantel)
   SQUAD_SECTIONS.forEach(sec=>{
-    const n = PLAYERS.filter(p => sectionKeyOfSlot(p.slot) === sec.key).length;
+    const n = PLAYERS.filter(p => secs[p.id] === sec.key).length;
     const b = document.getElementById('ep-seg-n-' + sec.key);
     if (b) b.textContent = n;
     const tab = document.getElementById('ep-seg-' + sec.key);
@@ -999,13 +1072,15 @@ function renderRoster(){
 
   function item(p){
     const pos = p.primaryPos || 'CB';
-    const linea = LINEA_POS[pos] || 'mid';
+    const sp = titularSpot(p.id); // en el 11: la etiqueta es el lugar de la cancha
+    const codigo = sp ? (sp.pos || CODIGO_POS[pos] || pos) : (CODIGO_POS[pos] || pos);
+    const linea = sp ? (PITCH_POS_LINEA[sp.pos] || LINEA_POS[pos] || 'mid') : (LINEA_POS[pos] || 'mid');
     const pendiente = (APP.pendientes||[]).some(x => x.playerId === p.id && x.estado === 'pendiente');
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" data-onclick="selectPlayer('${p.id}')">
-      <span class="ep-pitem-pos ep-line-${linea}">${escHtml(CODIGO_POS[pos] || pos)}</span>
+      <span class="ep-pitem-pos ep-line-${linea}">${escHtml(codigo)}</span>
       <span class="ep-pitem-info">
         <span class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</span>
-        <span class="ep-pitem-tag">${escHtml((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || '')}</span>
+        <span class="ep-pitem-tag">${escHtml(sp ? _tagLugar(sp.pos, p.primaryPos) : ((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || ''))}</span>
       </span>
       ${pendiente ? '<span class="ep-pitem-pedido">Pedido</span>' : ''}
     </div>`;
@@ -1016,8 +1091,8 @@ function renderRoster(){
     // sin busqueda se ve el grupo elegido en el segmentado; con busqueda, todos los grupos que coinciden
     if (!q && sec.key !== APP.squadTab) return;
     const players = PLAYERS
-      .filter(p => sectionKeyOfSlot(p.slot) === sec.key && p.name.toLowerCase().includes(q))
-      .sort((a,b) => (a.slot ?? 0) - (b.slot ?? 0)); // orden real del archivo, no alfabetico ni por posicion
+      .filter(p => secs[p.id] === sec.key && p.name.toLowerCase().includes(q))
+      .sort((a,b) => ordenPlantel.indexOf(a) - ordenPlantel.indexOf(b)); // orden de la cancha (11) y luego la banca
     if(!players.length) return;
     if (q) html += `<div class="ep-bkt-hd">${sec.label}</div>`;
     html += players.map(item).join('');
@@ -1033,7 +1108,7 @@ function selectPlayer(id){
   APP.page = 1;
   APP.hint = 'Selecciona un atributo para ver su descripcion.';
   const jugador = PLAYER_BY_ID[id];
-  if (jugador) APP.squadTab = sectionKeyOfSlot(jugador.slot); // el segmentado sigue al jugador elegido
+  if (jugador) APP.squadTab = _seccionesPlantel()[id] || 'titular'; // el segmentado sigue al jugador elegido
   loadDraft();
   renderAll();
   // Telefono (<860 px): tocar un jugador abre el editor como vista propia. El scroll de la
@@ -1284,16 +1359,16 @@ function renderPending(){
     box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${avisoBloqueo}</span>`;
     return;
   }
-  const x = pend[0];
+  const x = pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a))[0]; // el mas reciente
   const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
   const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
   // pedido de formacion: no tiene jugador, va con el nombre de la formacion
   const nombreForm = x.tipo === 'formacion' ? ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '') : '';
   const frase = x.tipo === 'formacion'
-    ? `Formación ${escHtml(nombreForm)} espera que Luis la aplique.`
+    ? `${(x.lines || []).map(l => escHtml(_textoLinea(l))).join(' · ') || 'Formación ' + escHtml(nombreForm)} espera que Luis la aplique.`
     : `${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.`;
   box.hidden = false;
-  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${bloqueo ? avisoBloqueo + ' ' : ''}${frase}${mas} Podés cancelarlo desde Pedidos mientras siga pendiente.</span>`;
+  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${bloqueo ? avisoBloqueo + ' ' : ''}${frase}${mas} Puedes cancelarlo desde Pedidos mientras siga pendiente.</span>`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
@@ -1337,6 +1412,7 @@ function resumenAviso(){
   return YUNACOINS_RULES.resumenPresupuesto({
     saldo: EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0,
     reglas: { budgetGeneral: (RULES.budgetGeneral || 0) - extra, budgetSubscribers: RULES.budgetSubscribers },
+    nSuscriptores: _nSuscriptoresPlantel(), // BONO-1
     extra: extra,
     gastado: APP.gastado,
     pendientes: APP.pend,
@@ -1441,8 +1517,8 @@ function pendingChangeLines(){
     if(d.abilities[k] && !p.abilities[k]) lines.push({label:ABILITY_BY_KEY[k].l, from:'—', to:'habilidad nueva', cost:RULES.abilityCost});
   });
   POSITIONS.forEach(pos=>{
-    if(d.positions[pos.k] && !p.positions[pos.k]) lines.push({label:'Posicion: '+pos.l, from:'—', to:'agregada', cost:0});
-    if(!d.positions[pos.k] && p.positions[pos.k]) lines.push({label:'Posicion: '+pos.l, from:'marcada', to:'quitada', cost:0});
+    if(d.positions[pos.k] && !p.positions[pos.k]) lines.push({label:'Posición: '+pos.l, from:'—', to:'agregada', cost:0});
+    if(!d.positions[pos.k] && p.positions[pos.k]) lines.push({label:'Posición: '+pos.l, from:'marcada', to:'quitada', cost:0});
   });
   if(d.primaryPos !== undefined && d.primaryPos !== p.primaryPos) {
     const posDeKey = k => Object.values(POSITIONS).find(pos=>pos.k===k);
@@ -1486,7 +1562,7 @@ function openApplyConfirm(){
       <div class="ep-grab" aria-hidden="true"></div>
       <div class="ep-sheet-hd">
         <h2 id="ep-sheet-tit">${ADMIN_EMBED ? 'Revisar cambios' : 'Revisar pedido'}</h2>
-        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.' : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo podés cancelar.'}</span>
+        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.' : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo puedes cancelar.'}</span>
       </div>
       <ul class="ep-sheet-list">
         ${lines.map(l=>`<li class="ep-sheet-line">
@@ -1518,7 +1594,7 @@ async function commitChanges(){
   if(lines.length===0 || cost>remainingForPlayer(p)){ closeApplyConfirm(); return; }
   if(!puedeMandarPedido()){
     closeApplyConfirm();
-    showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pedile al admin que te vincule uno.' : 'Iniciá sesión para mandar el pedido.');
+    showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
     return;
   }
 
@@ -1732,11 +1808,13 @@ function clearAuditLog(){
 
 const FORM = { draft:null, sel:0, motivo:null };
 let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
+let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (base del pedido)
+let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
 
 function openFormationModal(){
   if (PLAYERS.length < FORMATION_COORDS.length){
-    showMiniToast('El plantel todavia no tiene 11 jugadores para armar la formacion.');
+    showMiniToast('El plantel todavía no tiene 11 jugadores para armar la formación.');
     return;
   }
   FORMATION = formacionVigente();
@@ -1745,10 +1823,11 @@ function openFormationModal(){
   // Si la formacion publicada es vieja y no trae posiciones, se completan
   // con la primera opcion valida de cada bloque (asi las reglas tienen datos).
   completarPosiciones();
+  FORM_BASE = JSON.parse(JSON.stringify(FORM.draft)); FORM_ABIERTO = true;
   FORM.sel = 0;
   FORM.motivo = null;
   FORM_DRAG = null;
-  FORM.resumen = 'mejores';
+  FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
   _pitchSyncOrientation();
   _montarModalCancha();
 }
@@ -1769,14 +1848,14 @@ function _montarModalCancha(){
   <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeFormationModal)">
     <div class="ep-modal wide${PITCH_VERTICAL ? ' ep-form-vert' : ''}">
       <div class="ep-modal-hd">
-        <h2>Formacion &middot; estrategia</h2>
+        <h2>Formación &middot; estrategia</h2>
         <button class="ep-modal-close" data-onclick="closeFormationModal()">&times;</button>
       </div>
       <div class="ep-modal-body">
         <div class="ep-pitch-crest">
           <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
-          ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineacion
-          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineacion segun las lineas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
+          ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineación
+          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineación según las líneas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
         </div>
         <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
           ${franjas}
@@ -1794,7 +1873,7 @@ function _montarModalCancha(){
         <div class="ep-pitch-info">
           <div class="ep-pitch-info-name" id="ep-form-name"></div>
           <div class="ep-pitch-posrow">
-            <span class="ep-pitch-info-zone">Posicion</span>
+            <span class="ep-pitch-info-zone">Posición</span>
             <select id="ep-form-pos" class="ep-pitch-possel" data-onchange="setFormationPos(this.value)"></select>
           </div>
           <div class="ep-pitch-selctl">
@@ -1805,31 +1884,16 @@ function _montarModalCancha(){
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
-        <div class="ep-pitch-ficha" id="ep-pitch-ficha"${PITCH_VERTICAL ? '' : ' hidden'}>
-          <div class="ep-casillas" id="ep-form-casillas"></div>
+        <div class="ep-form-bancawrap">
+          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(-1)" title="Jugadores anteriores" aria-label="Jugadores anteriores">
+            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Plantel: toca un jugador para verlo"></div>
+          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(1)" title="Jugadores siguientes" aria-label="Jugadores siguientes">
+            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
         </div>
-        <div class="ep-res" id="ep-res"${PITCH_VERTICAL ? '' : ' hidden'}>
-            <div class="ep-res-tabs" role="tablist" aria-label="Resumen del jugador">
-              <button role="tab" id="ep-res-t-mejores" data-onclick="setFormResumen('mejores')">Mejores</button>
-              <button role="tab" id="ep-res-t-peores" data-onclick="setFormResumen('peores')">Peores</button>
-              <button role="tab" id="ep-res-t-habilidades" data-onclick="setFormResumen('habilidades')">Habilid.</button>
-              <button role="tab" id="ep-res-t-posiciones" data-onclick="setFormResumen('posiciones')">Posic.</button>
-            </div>
-            <div class="ep-res-body" id="ep-res-body"></div>
-        </div>
-        <div class="ep-pitch-nudge" role="group" aria-label="Ajuste fino de la posicion">
-          <button class="ep-nudge up" data-onclick="moveFormationScreen('up')" title="Subir" aria-label="Subir">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
-          <button class="ep-nudge left" data-onclick="moveFormationScreen('left')" title="Atrás" aria-label="Atrás">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
-          <span class="ep-nudge-c" aria-hidden="true"></span>
-          <button class="ep-nudge right" data-onclick="moveFormationScreen('right')" title="Adelante" aria-label="Adelante">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-          <button class="ep-nudge down" data-onclick="moveFormationScreen('down')" title="Bajar" aria-label="Bajar">
-            <svg class="icn" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
-        </div>
+        <div class="ep-form-stats" id="ep-form-stats" hidden></div>
         <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Arrastrá un punto para moverlo.' : 'Clic en un punto para elegirlo · flechas (en pantalla o del teclado) para moverlo.'}</span>
+          <span>${toqueFino ? 'Toca un jugador para ver su ficha. Toca otro para cambiarlo de lugar (titular con titular, o suplente con titular).' : 'Clic en un jugador para ver su ficha; clic en otro para cambiarlo de lugar (titular con titular, o suplente con titular). Flechas: mueven el punto del teclado.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
@@ -1843,9 +1907,13 @@ function _montarModalCancha(){
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
+  const bancaWheel = document.getElementById('ep-form-bench');
+  if (bancaWheel) bancaWheel.addEventListener('wheel', _formBancaRueda, { passive: false });
   _formObservarAlto();
 }
 function closeFormationModal(){
+  FORM_ABIERTO = false;
+  renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
   document.getElementById('ep-pitch-wrap').innerHTML='';
@@ -1866,6 +1934,155 @@ function _centroPunto(campo, slot){
     y: r.top + campo.clientTop + pitchPctY(slot.x, slot.y) / 100 * campo.clientHeight,
   };
 }
+/* ================= FORM-2: seleccion, intercambio y ficha completa =================
+   Reglas:
+   - Tocar un jugador (cancha o lista) lo selecciona y muestra su ficha completa.
+   - Con uno seleccionado, tocar otro lo cambia de lugar si la combinacion es valida:
+       titular con titular: intercambian lugares (si son porteros, solo entre porteros);
+       suplente con titular: el suplente entra en el lugar del titular y este pasa a la banca.
+   - El arquero (slot 0) solo se cambia por otro arquero (la Tool valida que el que entra sea portero).
+   - Tocar el mismo jugador otra vez no hace nada. «Cancelar» quita la seleccion.
+   Estado: FORM.armado (hay un jugador esperando companero), FORM.banca (id del suplente armado
+   cuando el primer toque fue en la lista), FORM.verId (jugador de la ficha). */
+function _formEsPortero(id){ const p = PLAYER_BY_ID[id]; return !!p && p.primaryPos === 'GK'; }
+function _formIdxDeId(id){ return FORM.draft ? FORM.draft.findIndex(s => s.id === id) : -1; }
+function _formEsArqueroSlot(i){ return i === 0 || isKeeperSlot(FORM.draft[i]); }
+/* Un jugador puede ocupar el lugar i del 11 si ambos son porteros o ninguno lo es. */
+function _formLegalEntrada(id, i){
+  if (!FORM.draft[i]) return false;
+  return _formEsPortero(id) === _formEsArqueroSlot(i);
+}
+/* Dos titulares del 11 se intercambian si ambos son porteros o ninguno lo es. */
+function _formPuedeIntercambiar(a, b){
+  return a !== b && !!FORM.draft[a] && !!FORM.draft[b] && _formEsArqueroSlot(a) === _formEsArqueroSlot(b);
+}
+function intercambiarTitulares(a, b){
+  const tmp = FORM.draft[a].id;
+  FORM.draft[a].id = FORM.draft[b].id;
+  FORM.draft[b].id = tmp;
+  FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[b].id; FORM.motivo = null;
+}
+/* El jugador id ocupa el lugar i; el que estaba en ese lugar queda fuera del 11 (banca). */
+function _formEntrar(id, i){
+  FORM.draft[i].id = id;
+  FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
+}
+function _formMensajeIlegal(){ showMiniToast('El arquero solo se cambia por otro arquero.'); }
+/* Toque en un jugador del 11 (cancha o lista). Devuelve true si cambio la formacion. */
+function formacionTocarTitular(i){
+  if (!FORM.draft[i]) return false;
+  // 1) hay un suplente armado: entra en este lugar
+  if (FORM.banca){
+    if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(); FORM.verId = FORM.banca; renderFormationModal(); return false; }
+    _formEntrar(FORM.banca, i); renderFormationModal(); return true;
+  }
+  // 2) hay un titular armado: se intercambian
+  if (FORM.armado && FORM.sel !== i){
+    if (_formPuedeIntercambiar(FORM.sel, i)){ intercambiarTitulares(FORM.sel, i); renderFormationModal(); return true; }
+    _formMensajeIlegal();
+  }
+  // 3) seleccionar: muestra la ficha y queda armado
+  FORM.sel = i; FORM.armado = true; FORM.banca = null; FORM.verId = FORM.draft[i].id; FORM.motivo = null;
+  renderFormationModal();
+  return false;
+}
+/* Toque en un jugador de la lista (data-jugador). Los que estan en el 11 van por formacionTocarTitular. */
+function formacionTocarBanca(el){
+  const id = el && el.dataset ? el.dataset.jugador : null;
+  if (!id || !PLAYER_BY_ID[id]) return;
+  const i = _formIdxDeId(id);
+  if (i >= 0){ formacionTocarTitular(i); return; }
+  if (FORM.banca === id){ FORM.verId = id; renderFormationModal(); return; }
+  // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
+  if (FORM.armado && !FORM.banca){
+    if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
+    _formMensajeIlegal();
+  }
+  FORM.banca = id; FORM.armado = true; FORM.verId = id; FORM.motivo = null;
+  renderFormationModal();
+}
+function formacionCancelarArmado(){
+  FORM.armado = false; FORM.banca = null; FORM.motivo = null;
+  renderFormationModal();
+}
+/* Desplaza la lista de jugadores un paso (botones de 44 px). */
+function formacionBancaDesplazar(dir){
+  const el = document.getElementById('ep-form-bench');
+  if (!el) return;
+  el.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.8), behavior: 'smooth' });
+}
+/* Rueda del mouse sobre la lista: se desplaza en horizontal. */
+function _formBancaRueda(e){
+  const el = e.currentTarget;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ el.scrollLeft += e.deltaY; e.preventDefault(); }
+}
+const _FORM_ICO_SI = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const _FORM_ICO_NO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+/* Lista completa del plantel (todos, con su nombre) y la ficha del jugador elegido. */
+function _formRenderBancaYPanel(){
+  const bancaEl = document.getElementById('ep-form-bench');
+  const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
+  if (bancaEl){
+    const plantel = plantelOrdenado(); const secs = _seccionesPlantel();
+    bancaEl.innerHTML = plantel.map(p => {
+      const i = _formIdxDeId(p.id);
+      const cod = (i >= 0 && FORM.draft[i].pos) ? FORM.draft[i].pos : (CODIGO_POS[p.primaryPos] || p.primaryPos || '');
+      const etiqueta = i >= 0 ? 'En el 11' : (secs[p.id] === 'reserva' ? 'Reserva' : 'Suplente');
+      const cls = ['ep-form-subbtn', i >= 0 ? 'en11' : '', p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : ''].filter(Boolean).join(' ');
+      return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
+        <span class="ep-form-subname">${escHtml(p.name)}</span>
+        <span class="ep-form-subtag">${escHtml(etiqueta)} · ${escHtml(cod)}</span>
+      </button>`;
+    }).join('') || '<span class="ep-form-subnone">Sin jugadores en el plantel.</span>';
+  }
+  const panel = document.getElementById('ep-form-stats');
+  if (panel){
+    const p = FORM.verId ? PLAYER_BY_ID[FORM.verId] : null;
+    if (!p){ panel.hidden = true; panel.innerHTML = ''; }
+    else { panel.hidden = false; panel.innerHTML = _formFichaCompleta(p); }
+  }
+}
+/* Ficha con todo: atributos 0-99, secundarios (0-99, escala 1-8 y resistencia a lesiones), posiciones,
+   habilidades especiales (si tiene o no). Usa las mismas definiciones que el editor: MAIN_STATS,
+   SEC_NEW, POSITIONS y ALL_ABILITIES. Solo esta panel tiene scroll vertical propio. */
+function _formFichaCompleta(p){
+  const val = (v) => (v === undefined || v === null || v === '') ? '—' : escHtml(String(v));
+  const valor99 = (v) => typeof v === 'number' ? `<span style="color:${TIER_COLOR[tierClass99(v)]};">${v}</span>` : val(v);
+  const fila = (lab, v) => `<div class="ep-fs-row"><span>${escHtml(lab)}</span><b>${v}</b></div>`;
+  const atributos = MAIN_STATS.map(s => fila(s.l, valor99((p.stats || {})[s.k]))).join('');
+  const secundarios = SEC_NEW.map(s => {
+    const raw = (p.sec || {})[s.k];
+    return fila(s.l, s.sc === 99 ? valor99(raw) : val(raw));
+  }).join('');
+  const posiciones = POSITIONS.map(ps => {
+    const on = !!(p.positions || {})[ps.k];
+    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(ps.l)}</span></li>`;
+  }).join('');
+  const habil = ALL_ABILITIES.map(a => {
+    const on = !!(p.abilities || {})[a.k];
+    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(a.l)}</span><b>${on ? 'Sí' : 'No'}</b></li>`;
+  }).join('');
+  const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
+  const cuerpo = `${escHtml(cod)} · ${escHtml((POS_BY_KEY[p.primaryPos] && POS_BY_KEY[p.primaryPos].l) || p.tag || '')}`
+    + (p.dorsal && p.dorsal !== '?' ? ` · #${escHtml(p.dorsal)}` : '');
+  const ayuda = FORM.banca ? 'Toca un titular para que entre en su lugar.'
+    : FORM.armado ? 'Toca otro jugador para intercambiarlo con este.' : '';
+  return `
+    <div class="ep-fs-head">
+      <div class="ep-fs-id">
+        <div class="ep-fs-name">${escHtml(p.name)}</div>
+        <div class="ep-fs-sub">${cuerpo}</div>
+        <div class="ep-fs-sub">Altura ${val(p.height)} cm · Edad ${val(p.age)} · Pie ${val(p.foot)} · Banda ${val(p.side)}</div>
+      </div>
+      ${FORM.armado ? `<button type="button" class="ep-fs-cancel" data-onclick="formacionCancelarArmado()">Cancelar</button>` : ''}
+    </div>
+    ${ayuda ? `<div class="ep-fs-ayuda">${escHtml(ayuda)}</div>` : ''}
+    <div class="ep-fs-sec"><h4>Atributos</h4><div class="ep-fs-grid">${atributos}</div></div>
+    <div class="ep-fs-sec"><h4>Secundarios y lesiones</h4><div class="ep-fs-grid">${secundarios}</div></div>
+    <div class="ep-fs-sec"><h4>Posiciones</h4><ul class="ep-fs-list">${posiciones}</ul></div>
+    <div class="ep-fs-sec"><h4>Habilidades especiales</h4><ul class="ep-fs-list">${habil}</ul></div>`;
+}
+
 function _formProgramarRender(){
   if (_formRaf) return;
   _formRaf = requestAnimationFrame(() => { _formRaf = 0; renderFormationModal(); });
@@ -1880,9 +2097,10 @@ function _formPointerDown(e){
     if (d < mejorDist){ mejorDist = d; mejor = i; }
   });
   if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
+  // FORM-2: el toque decide (seleccionar, intercambiar o entrar). Si cambio la formacion, no hay arrastre.
+  if (formacionTocarTitular(mejor)) return;
   const slot = FORM.draft[mejor];
   const c = _centroPunto(campo, slot);
-  selectFormationPlayer(mejor);
   // Captura en todos los tipos de puntero: si se suelta fuera de la cancha, el clic
   // se entrega al campo y no al overlay (que cerraria el modal al soltar sobre el fondo).
   try { campo.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1949,6 +2167,8 @@ function renderFormationModal(){
   }).join('');
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
+  _formRenderBancaYPanel();
+
   // Alineacion en vivo (defensas-mediocampistas-delanteros segun las franjas).
   const lineupEl = document.getElementById('ep-form-lineup');
   if (lineupEl) lineupEl.textContent = _nombreFormacionDraft(FORM.draft);
@@ -1975,7 +2195,7 @@ function renderFormationModal(){
     `${escHtml(pl.name)} ${pl.dorsal && pl.dorsal !== '?' ? `<span style="color:var(--txt3);font-size:12px;">#${escHtml(pl.dorsal)}</span>` : ''}
      <span class="ep-subs-badge">${label}</span>`;
   document.getElementById('ep-form-zone').textContent = keeper
-    ? 'Arquero (posicion fija)'
+    ? 'Arquero (posición fija)'
     : PITCH_ZONE_BY_KEY[pitchThird(slot.x)].label;
   document.getElementById('ep-form-coords').textContent =
     `Columna ${slot.x}/${PITCH_COLS} · Fila ${slot.y}/${PITCH_ROWS}`;
@@ -1990,60 +2210,12 @@ function renderFormationModal(){
     ).join('');
     sel.disabled = keeper;
   }
-  _renderFichaFormacion();
   _formAjustarAlto();
 }
 
-/* ================= Slice 3d: ficha y resumen del jugador seleccionado (solo vertical) ================= */
+/* ================= Slice 3d: alto de la cancha (solo vertical; la ficha va debajo, dentro del scroll) ================= */
 const FORM_CAMPO_MAX = 520;      // px: la cancha no crece mas que esto
-const FORM_RESUMEN_ALTO = 150;   // px libres que pide el resumen (spec 3d): se reservan aunque la pestana sea corta
-const FORM_CAMPO_MIN = 230;      // la cancha no baja de aca: con resumen, lo que sobra tras el resumen; sin el, se oculta el resumen
-const FORM_ESCALA_CHICA = new Set(['cons','cond','wff','wfa','inj']); // escala 1-8 o lesion: fuera de mejores/peores
-function _formValoresJugador(p){
-  const out = [];
-  for (const s of MAIN_STATS) out.push({ label: ETIQUETA_FILA[s.k] || s.l, value: p.stats[s.k] });
-  for (const s of SEC_NEW) if (s.sc === 99 && !FORM_ESCALA_CHICA.has(s.k)) out.push({ label: s.l, value: p.sec[s.k] });
-  return out.filter(x => typeof x.value === 'number');
-}
-/* chips que entran en el contenedor (2 lineas, overflow oculto); el resto se resume con «+N» */
-function _formChipsQueEntran(cont, chips){
-  let n = chips.length;
-  const html = k => chips.slice(0, k).join('') + (k < chips.length ? `<span class="ep-chip ep-chip-mas">+${chips.length - k}</span>` : '');
-  cont.innerHTML = html(n);
-  while (n > 0 && cont.scrollHeight > cont.clientHeight + 1){ n--; cont.innerHTML = html(n); }
-}
-function _renderFichaFormacion(){
-  if (!PITCH_VERTICAL || !document.getElementById('ep-pitch-ficha')) return;
-  const slot = FORM.draft[FORM.sel];
-  const p = slot && PLAYER_BY_ID[slot.id];
-  if (!p) return;
-  const banda = p.side !== undefined ? (SIDE_LABEL[p.side] || '—') : '—';
-  const pie = FOOT_LABEL[p.favfoot] || p.foot;
-  document.getElementById('ep-form-casillas').innerHTML = `
-    <div class="ep-casilla"><span>Edad</span><b>${escHtml(p.age)}</b></div>
-    <div class="ep-casilla"><span>Altura</span><b>${escHtml(p.height)} cm</b></div>
-    <div class="ep-casilla"><span>Pie</span><b>${escHtml(pie)}</b></div>
-    <div class="ep-casilla"><span>Banda</span><b>${escHtml(banda)}</b></div>`;
-  const tab = FORM.resumen || 'mejores';
-  for (const t of ['mejores','peores','habilidades','posiciones']){
-    const b = document.getElementById('ep-res-t-' + t);
-    if (b){ b.setAttribute('aria-selected', String(t === tab)); b.classList.toggle('on', t === tab); }
-  }
-  const body = document.getElementById('ep-res-body');
-  if (tab === 'mejores' || tab === 'peores'){
-    const orden = _formValoresJugador(p).sort((a,b) => tab === 'mejores' ? b.value - a.value : a.value - b.value).slice(0, 4);
-    body.className = 'ep-res-body ep-res-list';
-    body.innerHTML = orden.map(s => `<div class="ep-res-item"><span>${escHtml(s.label)}</span><b style="color:${TIER_COLOR[tierClass99(s.value)]};">${s.value}</b></div>`).join('');
-  } else if (tab === 'habilidades'){
-    body.className = 'ep-res-body ep-chips';
-    _formChipsQueEntran(body, ALL_ABILITIES.filter(a => p.abilities[a.k]).map(a => `<span class="ep-chip">${escHtml(a.l)}</span>`));
-  } else {
-    body.className = 'ep-res-body ep-chips';
-    const pos = POSITIONS.filter(q => p.positions[q.k]).sort((a,b) => (b.k === p.primaryPos) - (a.k === p.primaryPos));
-    _formChipsQueEntran(body, pos.map(q => `<span class="ep-chip${q.k === p.primaryPos ? ' nat' : ''}">${escHtml(POS_BY_KEY[q.k]?.l || q.k)}</span>`));
-  }
-}
-function setFormResumen(tab){ FORM.resumen = tab; _renderFichaFormacion(); _formAjustarAlto(); }
+const FORM_CAMPO_MIN = 230;      // la cancha no baja de aca; si el modal es mas bajo, el modal se desplaza
 
 /* Orientacion: una sola fuente (la media query). Al cambiar con el modal abierto se
    cancela un arrastre en curso y se redibuja con el mismo borrador. */
@@ -2069,38 +2241,23 @@ function _formObservarAlto(){
   _formAjustarAlto();
 }
 function _formDejarDeObservar(){ if (FORM_RO){ FORM_RO.disconnect(); FORM_RO = null; } }
-/* Alto de la cancha vertical: toma el alto que sobra. Muestra el resumen solo si la cancha
-   queda FORM_CAMPO_MIN de cancha; si no, solo la ficha; si tampoco entra, ninguna. Horizontal: como antes. */
+/* Alto de la cancha vertical: toma el alto que sobra del modal. La ficha del jugador (#ep-form-stats)
+   va debajo de la cancha, dentro del scroll del modal, y no le resta alto. Horizontal: sin alto fijo. */
 function _formAjustarAlto(){
   const wrap = document.getElementById('ep-pitch-wrap');
   const body = wrap && wrap.querySelector('.ep-modal-body');
   const campo = document.getElementById('ep-pitch-field');
-  const fic = document.getElementById('ep-pitch-ficha');
-  const res = document.getElementById('ep-res');
   if (!body || !campo) return;
-  if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); if (fic) fic.hidden = true; return; }
-  // Medir con ficha y resumen visibles; luego decidir cuanto entra cada uno.
+  if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); return; }
   campo.style.removeProperty('--campo-h');
-  if (fic) fic.hidden = false;
-  if (res) res.hidden = false;
   const cs = getComputedStyle(body);
   const gap = parseFloat(cs.rowGap) || 10;
   const libreTot = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const fijosEls = [...body.children].filter(el => el !== campo && el !== fic && el !== res && el.offsetHeight > 0);
+  // lo que no es la cancha ni la ficha ocupa su alto; cada bloque suma un espacio
+  const fijosEls = [...body.children].filter(el => el !== campo && el.id !== 'ep-form-stats' && el.offsetHeight > 0);
   const fijos = fijosEls.reduce((s, el) => s + el.offsetHeight, 0);
-  const ficAlto = fic ? fic.offsetHeight : 0;
-  const resAlto = res ? res.offsetHeight : 0;
-  // altura de la cancha si quedan visibles la ficha y/o el resumen (cada bloque suma un espacio)
-  const alto = (conFic, conRes) => libreTot - fijos - (conFic ? ficAlto : 0) - (conRes ? resAlto : 0)
-    - (fijosEls.length + 1 + (conFic ? 1 : 0) + (conRes ? 1 : 0) - 1) * gap;
-  let conFicha = true;
-  // el resumen se muestra solo si, reservando FORM_RESUMEN_ALTO, la cancha conserva FORM_CAMPO_MIN
-  const conResumen = alto(true, false) - FORM_RESUMEN_ALTO - gap >= FORM_CAMPO_MIN;
-  let h = alto(true, conResumen);
-  if (h < FORM_CAMPO_MIN){ conFicha = false; h = alto(false, false); }
-  if (res) res.hidden = !conResumen;
-  if (fic) fic.hidden = !conFicha;
-  campo.style.setProperty('--campo-h', Math.max(160, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
+  const h = libreTot - fijos - fijosEls.length * gap;
+  campo.style.setProperty('--campo-h', Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
 }
 
 function opcionesPosicion(slot){
@@ -2147,10 +2304,10 @@ function validarFormacion(draft){
     cuenta[s.pos] = (cuenta[s.pos] || 0) + 1;
     if (PITCH_POS_LINEA[s.pos]) porLinea[PITCH_POS_LINEA[s.pos]]++;
   }
-  for (const pos of PITCH_POS_BANDA) if ((cuenta[pos] || 0) > 1) return `no puede haber dos ${pos} en la formacion`;
-  for (const [pos, max] of Object.entries(PITCH_POS_MAX)) if ((cuenta[pos] || 0) > max) return `maximo ${max} ${pos}`;
-  for (const [l, max] of Object.entries(PITCH_LINEA_MAX)) if (porLinea[l] > max) return `maximo ${max} ${PITCH_LINEA_NOMBRE[l]}`;
-  for (const [l, min] of Object.entries(PITCH_LINEA_MIN)) if (porLinea[l] < min) return `minimo ${min} ${PITCH_LINEA_NOMBRE[l]}`;
+  for (const pos of PITCH_POS_BANDA) if ((cuenta[pos] || 0) > 1) return `no puede haber dos ${pos} en la formación`;
+  for (const [pos, max] of Object.entries(PITCH_POS_MAX)) if ((cuenta[pos] || 0) > max) return `máximo ${max} ${pos}`;
+  for (const [l, max] of Object.entries(PITCH_LINEA_MAX)) if (porLinea[l] > max) return `máximo ${max} ${PITCH_LINEA_NOMBRE[l]}`;
+  for (const [l, min] of Object.entries(PITCH_LINEA_MIN)) if (porLinea[l] < min) return `mínimo ${min} ${PITCH_LINEA_NOMBRE[l]}`;
   return null;
 }
 /* Completa las posiciones que falten (formaciones publicadas viejas) con la
@@ -2218,8 +2375,8 @@ function moveFormationDotTo(x, y, opciones){
   slot.x = nx; slot.y = ny;
   if (!ajustarPosicionAlMover(slot)){
     slot.x = antes.x; slot.y = antes.y; slot.pos = antes.pos;
-    const linea = { def:'La defensa', mid:'El mediocampo', att:'El ataque' }[pitchThird(nx)] || 'Esa linea';
-    return fallo(`${linea} ya tiene el maximo de jugadores.`);
+    const linea = { def:'La defensa', mid:'El mediocampo', att:'El ataque' }[pitchThird(nx)] || 'Esa línea';
+    return fallo(`${linea} ya tiene el máximo de jugadores.`);
   }
   const baja = lineaBajoMinimo(lineasAntes, contarLineas(FORM.draft));
   if (baja){
@@ -2249,7 +2406,7 @@ function resetFormationDraft(){
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
   completarPosiciones();
   renderFormationModal();
-  showMiniToast('Formacion restablecida a la del save.');
+  showMiniToast('Formación restablecida a la del save.');
 }
 /* Nombre 4-4-2 derivado del borrador (mismas franjas que la cancha:
    defensa hasta la columna 15, medio 16-34, ataque 35-47). */
@@ -2265,7 +2422,7 @@ function _nombreFormacionDraft(draft){
 async function confirmFormation(){
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
   const error = validarFormacion(FORMATION);
-  if (error){ showMiniToast('Formacion invalida: ' + error + '.'); return; }
+  if (error){ showMiniToast('Formación inválida: ' + error + '.'); return; }
   const nombre = _nombreFormacionDraft(FORMATION);
   const slots = FORMATION.map((s, i) => ({
     slot: i,
@@ -2277,6 +2434,7 @@ async function confirmFormation(){
     lat: i === 0 ? null : Math.max(6, Math.min(99, Math.round(6 + (s.y - 1) * 93 / 46))),
     posNombre: s.pos || null,
   }));
+  const lineasPedido = _lineasFormacion(FORM_BASE || FORMATION, FORMATION, nombre);
   try {
     await firebase.firestore().collection('pedidos_pes5').add({
       uid: AUTH.user.uid,
@@ -2286,7 +2444,7 @@ async function confirmFormation(){
       tipo: 'formacion',
       pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
       formacion: { nombre, slots },
-      lines: [{ label: 'Formación', from: FORMATION_NAME, to: nombre }],
+      lines: lineasPedido,
       totalCost: 0,
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2294,13 +2452,13 @@ async function confirmFormation(){
     try{ localStorage.setItem(_formationKey(), JSON.stringify(FORMATION)); }catch(e){}
     FORMATION_NAME = nombre;
     // presentacion: la formacion recien enviada ya cuenta como pendiente (aviso y globito)
-    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre }, lines: [{ label: 'Formación', from: '', to: nombre }], estado: 'pendiente' });
+    APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'formacion', formacion: { nombre, slots }, lines: lineasPedido, estado: 'pendiente' });
     renderPending();
     closeFormationModal();
-    showMiniToast('Formacion enviada. La Tool la aplica al save.');
+    showMiniToast('Formación enviada. La Tool la aplica al save.');
   } catch(e) {
     console.warn('[editor] pedido de formacion', e);
-    showMiniToast('No se pudo enviar la formacion: ' + (e?.message || e));
+    showMiniToast('No se pudo enviar la formación: ' + (e?.message || e));
   }
 }
 document.addEventListener('keydown', function(e){
@@ -2527,7 +2685,7 @@ function togglePosition(key){
   }
   if(!ADMIN_EMBED){
     // Presidente: no puede desmarcar la registrada
-    if(on && key === d.primaryPos){ showMiniToast('Es la posición natural: primero elegí otra como natural.'); return; }
+    if(on && key === d.primaryPos){ showMiniToast('Es la posición natural: primero elige otra como natural.'); return; }
   } else {
     // Admin: no puede desmarcar todas
     if(on && marcadasCount === 1) {
@@ -2717,7 +2875,7 @@ function renderRows(){
     html = POSITIONS.map(pos=>{
       const on = d.positions[pos.k];
       const isRegistered = pos.k === d.primaryPos;
-      const hint = isRegistered ? 'Posición natural (círculo O): la posición principal del jugador.' : (on ? 'Posición secundaria (sin costo). Con el botón circular la hacés natural.' : 'Posición secundaria disponible para este jugador (sin costo en YunaCoins).');
+      const hint = isRegistered ? 'Posición natural (círculo O): la posición principal del jugador.' : (on ? 'Posición secundaria (sin costo). Con el botón circular la haces natural.' : 'Posición secundaria disponible para este jugador (sin costo en YunaCoins).');
       const circleBtn = on && !isRegistered
         ? `<button class="ep-register-btn" title="Hacer natural (círculo O)" data-onclick="event.stopPropagation();setPrimaryPos('${pos.k}')"><svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>`
         : '';
@@ -3124,8 +3282,10 @@ window.solicitarEmparejar = solicitarEmparejar;
 window.selectPlayer = selectPlayer;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
+window.formacionTocarBanca = formacionTocarBanca;
+window.formacionCancelarArmado = formacionCancelarArmado;
+window.formacionBancaDesplazar = formacionBancaDesplazar;
 window.moveFormationScreen = moveFormationScreen;
-window.setFormResumen = setFormResumen;
 window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;
 window.setSide = setSide;

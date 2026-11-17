@@ -206,7 +206,7 @@ test('frescura: horas desde la sincronizacion', () => {
 // ---------- techo de jugador (4.F) ----------
 
 test('4.F Jimbo: suscriptor con saldo 1000 y costo 3000 se rechaza por saldo y el techo es 1000', () => {
-  const pool = R.techoPresupuesto(1000, R.DEFAULT_RULES);
+  const pool = R.techoPresupuesto(1000, R.DEFAULT_RULES, 1);
   assert.equal(R.bonoSuscriptor(pool, true), 1000);             // min(1000, 50000 + 25000)
   const reparto = R.distribuirCosto(3000, pool.subscribers, true);
   const ev = R.evaluarPago(1000, 3000, reparto.fromGeneral, pool.general);
@@ -229,7 +229,7 @@ test('4.F techo: sin saldo en el pool no hay tope por saldo (compatibilidad)', (
 });
 
 test('4.F techo: techoPresupuesto deja el saldo real; con saldo alto manda el tope de temporada', () => {
-  const pool = R.techoPresupuesto(400000, R.DEFAULT_RULES);
+  const pool = R.techoPresupuesto(400000, R.DEFAULT_RULES, 1);
   assert.equal(pool.saldo, 400000);
   assert.equal(R.bonoSuscriptor(pool, true), 75000);            // general 50000 + bono 25000
   assert.equal(R.bonoSuscriptor(pool, false), 50000);

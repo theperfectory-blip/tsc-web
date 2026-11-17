@@ -31,8 +31,8 @@ test('reglasConExtra sube solo el tope general y no muta las reglas', () => {
 test('con extra, un equipo que agotó el tope general puede seguir gastando hasta el extra', () => {
   const base = R.normalizarReglas(null);
   const gastado = { general: base.budgetGeneral, sub: 0 };
-  assert.strictEqual(R.topesRestantes(gastado, base).general, 0);
-  const rest = R.topesRestantes(gastado, R.reglasConExtra(base, 10000));
+  assert.strictEqual(R.topesRestantes(gastado, base, 1).general, 0);
+  const rest = R.topesRestantes(gastado, R.reglasConExtra(base, 10000), 1);
   assert.strictEqual(rest.general, 10000);
   assert.strictEqual(R.evaluarPago(20000, 10000, 10000, rest.general).ok, true);
   assert.strictEqual(R.evaluarPago(20000, 10001, 10001, rest.general).excedeTopeGeneral, true);
