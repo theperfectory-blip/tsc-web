@@ -196,11 +196,11 @@ Nodes (0):
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `dbGetAll()` connect `Bracket` to `mejoras-page.js`, `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Calendario`, `yunacoins-rules.js`, `Sorteo en vivo`, `Historial y H2H`, `Perfil del presidente`, `Bracket publico`, `Equipos`, `Capa de datos`?**
-  _High betweenness centrality (0.229) - this node is a cross-community bridge._
+  _High betweenness centrality (0.223) - this node is a cross-community bridge._
 - **Why does `escHtml()` connect `Bracket publico` to `Bracket`, `mejoras-page.js`, `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Calendario`, `yunacoins-rules.js`, `Sorteo en vivo`, `Historial y H2H`, `Perfil del presidente`, `Push y Ajustes y arranque`, `Equipos`, `Tablas de posiciones`?**
-  _High betweenness centrality (0.209) - this node is a cross-community bridge._
+  _High betweenness centrality (0.208) - this node is a cross-community bridge._
 - **Why does `showToast()` connect `Bracket` to `pes5-tool.js`, `Palmares (Sala de Trofeos 3D)`, `Calendario`, `yunacoins-rules.js`, `Sorteo en vivo`, `Historial y H2H`, `Perfil del presidente`, `Sonido`, `Push y Ajustes y arranque`, `Bracket publico`, `Capa de datos`, `Tablas de posiciones`?**
-  _High betweenness centrality (0.178) - this node is a cross-community bridge._
+  _High betweenness centrality (0.177) - this node is a cross-community bridge._
 - **Are the 135 inferred relationships involving `dbGetAll()` (e.g. with `renderBracket()` and `getStandingsForPhase()`) actually correct?**
   _`dbGetAll()` has 135 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 103 inferred relationships involving `showToast()` (e.g. with `authForgotPassword()` and `authSignOut()`) actually correct?**

@@ -453,7 +453,7 @@ function render(){
   const app = document.getElementById('pt-app');
   if (!gate || !app) return;
   if (!AUTH.user){
-    gate.innerHTML = `<div class="gate">${ICN.lock}<div>Iniciá sesión como admin para usar la Tool PES5.</div></div>`;
+    gate.innerHTML = `<div class="gate">${ICN.lock}<div>Inicia sesión como admin para usar la Tool PES5.</div></div>`;
     app.style.display = 'none';
     return;
   }
@@ -545,13 +545,13 @@ function renderStatusBar(){
     if (_esTactilOApk()){
       el.innerHTML = `
         <div class="pt-statusbar">
-          <div class="pt-status-item"><span class="pt-dot off"></span> Modo móvil: pedidos y reglas. Para leer o escribir el save, abrí esta sección en Chrome o Edge en la PC.</div>
+          <div class="pt-status-item"><span class="pt-dot off"></span> Modo móvil: pedidos y reglas. Para leer o escribir el save, abre esta sección en Chrome o Edge en la PC.</div>
         </div>`;
       return;
     }
     el.innerHTML = `
       <div class="pt-statusbar">
-        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no da acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usás <b>Brave</b>, suele venir desactivado: activalo en <code>brave://flags/#file-system-access-api</code> (Enabled), reiniciá el navegador y volvé a entrar. Sin eso no se puede leer ni escribir el save.</div>
+        <div class="pt-status-item"><span class="pt-dot warn"></span> Este navegador no da acceso directo a carpetas (Chrome/Edge sí, Firefox/Safari no). Si usas <b>Brave</b>, suele venir desactivado: actívalo en <code>brave://flags/#file-system-access-api</code> (Enabled), reinicia el navegador y vuelve a entrar. Sin eso no se puede leer ni escribir el save.</div>
         <div class="pt-status-item" style="font-size:12px;">Mientras tanto funciona el modo móvil: pedidos y reglas.</div>
       </div>`;
     return;
@@ -561,7 +561,7 @@ function renderStatusBar(){
     el.innerHTML = `
       <div class="pt-statusbar">
         <div class="pt-status-item"><span class="pt-dot off"></span> Sin carpeta elegida — sugerido: <code>Documents\\KONAMI\\Pro Evolution Soccer 5\\save\\folder1</code></div>
-        <div class="pt-status-item pt-status-note">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abrí esto en <b>Chrome o Edge</b>.</div>
+        <div class="pt-status-item pt-status-note">Si el diálogo no aparece (Brave con el flag apagado, o el navegador de la app), abre esto en <b>Chrome o Edge</b>.</div>
         <div class="pt-status-actions">
           <button class="btn btn-sm btn-primary" data-onclick="ptElegirCarpetaClick()">${ICN.folder} Elegir carpeta del juego</button>
         </div>
@@ -617,7 +617,7 @@ function publicarDesactualizadasClick(){
   const ids = (PLANTILLAS_DESACTUALIZADAS || []).map(x => x.teamId);
   if (!ids.length) return;
   showConfirm('Publicar plantillas',
-    `Se publican ${ids.length} plantilla(s) desde el save que está abierto. Confirmá que no hay cambios a medio hacer: el presidente va a ver esos datos.`,
+    `Se publican ${ids.length} plantilla(s) desde el save que está abierto. Confirma que no hay cambios a medio hacer: el presidente va a ver esos datos.`,
     () => publicarPlantillas(ids));
 }
 window.ptPublicarDesactualizadas = publicarDesactualizadasClick;
@@ -626,7 +626,7 @@ async function elegirCarpetaClick(){
   try {
     const r = await PES5_SAVE.elegirCarpeta();
     if (!r.ok){
-      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Probá en Chrome o Edge.', 'error');
+      if (r.motivo === 'timeout') showToast('El diálogo de carpeta no se abrió. Prueba en Chrome o Edge.', 'error');
       return; // el admin cancelo el picker (o no se abrio)
     }
     await cargarSaveDesdeCarpeta();
@@ -637,7 +637,7 @@ async function elegirCarpetaClick(){
 async function reconectarCarpetaClick(){
   try {
     const r = await PES5_SAVE.recuperarCarpeta();
-    if (!r || !r.ok){ showToast('No se pudo reconectar — elegí la carpeta de nuevo.', 'error'); return; }
+    if (!r || !r.ok){ showToast('No se pudo reconectar — elige la carpeta de nuevo.', 'error'); return; }
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
   } catch(e) { showToast('Error: ' + (e.message||e), 'error'); }
@@ -767,7 +767,7 @@ function renderEquiposTab(){
     const repetido = PES5_CLUBES.repetidoDe(t, EQUIPOS_TSC);
     const selectorHtml = hayClubes
       ? `<select data-onchange="ptVincularEquipo(${t.id}, this.value)">${opcionesDe(t)}</select>`
-      : `<select disabled><option>Cargá el save para ver los clubes</option></select>${
+      : `<select disabled><option>Carga el save para ver los clubes</option></select>${
           t.pes5Club ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px;">vinculado: ${escHtml(t.pes5Club)}</div>` : ''
         }`;
     return `
@@ -775,7 +775,7 @@ function renderEquiposTab(){
         <td>${t.logo ? `<img class="pt-escudo" src="${escHtml(t.logo)}" alt="">` : `<span class="pt-escudo-ph">${ICN.shirt}</span>`}</td>
         <td>${escHtml(t.name)}</td>
         <td>${pres ? escHtml(pres.displayName||pres.email) : '<span style="color:var(--txt3)">sin presidente</span>'}</td>
-        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revinculá</span>` : ''}${repetido ? ` <span class="pt-badge-repetido" title="Dos equipos tienen este club: corregilo a mano">${ICN.alert} club repetido con ${escHtml(repetido.name)}</span>` : ''}</td>
+        <td>${selectorHtml}${roto ? ` <span class="badge badge-warn" title="El club vinculado no se encontro en el save cargado">${ICN.alert} vínculo roto: revincula</span>` : ''}${repetido ? ` <span class="pt-badge-repetido" title="Dos equipos tienen este club: corregilo a mano">${ICN.alert} club repetido con ${escHtml(repetido.name)}</span>` : ''}</td>
         <td class="pt-cupo${cupoLleno?' full':''}">${cupo}</td>
       </tr>`;
   }).join('');
@@ -783,7 +783,7 @@ function renderEquiposTab(){
   cont.innerHTML = `
     <div class="pt-toolbar">
       <input class="pt-search" id="eq-filtro" placeholder="Filtrar equipo...">
-      ${!hayClubes ? `<div class="pt-status-item" style="color:var(--txt3);">${ICN.alert} Cargá el save para ver los clubes</div>` : ''}
+      ${!hayClubes ? `<div class="pt-status-item" style="color:var(--txt3);">${ICN.alert} Carga el save para ver los clubes</div>` : ''}
     </div>
     <div class="tbl-wrap">
       <table class="tbl" id="eq-tabla">
@@ -810,7 +810,7 @@ async function vincularEquipo(teamId, idxStr){
     const frescos = await dbGetAll('teams');
     const otro = PES5_CLUBES.otroEquipoConClub(frescos, idx, teamId);
     if (otro){
-      showToast(`${CLUBES_PES5[idx]} ya lo tiene ${otro.name}. Elegí otro club.`, 'error');
+      showToast(`${CLUBES_PES5[idx]} ya lo tiene ${otro.name}. Elige otro club.`, 'error');
       renderEquiposTab();
       return;
     }
@@ -833,7 +833,7 @@ function renderPlantillaTab(){
   const cont = document.getElementById('pt-tabcontent');
   // Slice C1.2: sin save cargado, la pestaña Plantilla no lista nada.
   if (!PLANO || !CLUBES_PES5.length){
-    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elegí la carpeta del save (o subí el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
+    cont.innerHTML = `<div class="pt-empty">${ICN.alert}<div>Elige la carpeta del save (o sube el archivo) desde la barra de arriba para ver plantillas.</div></div>`;
     return;
   }
   // Slice C1.1 + C1.3: "Equipos TSC vinculados" = solo equipos activos con
@@ -881,7 +881,7 @@ function onTeamSelectPorIndice(idxStr){
   // Los cambios pendientes pertenecen al club abierto: cambiar de club los perderia
   // (y el cobro solo se aplica al club abierto), asi que se pide confirmacion.
   if (Object.keys(CAMBIOS_PENDIENTES).length && nuevo !== PLANTILLA_INDICE){
-    if (!confirm('Hay cambios sin escribir en el club actual. Si cambiás de club se descartan. ¿Descartarlos y cambiar?')){
+    if (!confirm('Hay cambios sin escribir en el club actual. Si cambias de club se descartan. ¿Descartarlos y cambiar?')){
       const sel = document.getElementById('pl-team-select');
       if (sel) sel.value = PLANTILLA_INDICE != null ? String(PLANTILLA_INDICE) : '';
       return;
@@ -956,7 +956,7 @@ function renderPlantillaBody(){
         <tbody>${filas || `<tr><td colspan="${6+COLS_ATTR.length}" style="text-align:center;color:var(--txt3);padding:20px;">Plantel vacío.</td></tr>`}</tbody>
       </table>
     </div>
-    <div class="pt-hint-click">Tocá un jugador para editarlo con el mismo editor que usan los presidentes.</div>`;
+    <div class="pt-hint-click">Toca un jugador para editarlo con el mismo editor que usan los presidentes.</div>`;
 }
 
 // ============================================================
@@ -1368,7 +1368,7 @@ async function confirmarEscribirAlSave(){
   // permiso para generar una descarga.
   const permitido = await PES5_SAVE.asegurarEscritura();
   if (!permitido){
-    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconectá la carpeta (botón "Reconectar" en la barra de arriba) o elegila de nuevo.' });
+    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconecta la carpeta (botón "Reconectar" en la barra de arriba) o elegila de nuevo.' });
     return;
   }
 
@@ -1681,7 +1681,7 @@ async function renderPedidosTab(opts){
     ? `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes.</div>
        <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
     : `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
-       ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Cargá el save para poder aplicar.</div>`}`;
+       ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Carga el save para poder aplicar.</div>`}`;
   const aplicar = movil ? '' : `
     <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
       <input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado
@@ -1710,7 +1710,7 @@ function _despuesDeRenderPedidos(movil, opts){
    en PC y en el telefono. Cancelar no escribe nada; Rechazar exige un motivo no vacio. */
 function rechazarPedido(id){
   const p = PEDIDOS_PENDIENTES.find(x => x._id === id);
-  if (!p){ showToast('No se encontró el pedido. Recargá la lista.', 'error'); return; }
+  if (!p){ showToast('No se encontró el pedido. Recarga la lista.', 'error'); return; }
   cerrarRechazo();
   RECHAZO_ID = id;
   const equipo = p.teamName || String(p.teamId);
@@ -1796,7 +1796,7 @@ async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
   if (logEl) logEl.innerHTML = '';
-  if (!PLANO){ showToast('Cargá el save primero.', 'error'); return; }
+  if (!PLANO){ showToast('Carga el save primero.', 'error'); return; }
   const ids = Array.from(document.querySelectorAll('.ped-sel:checked')).map(i => i.value);
   const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.includes(p._id));
   if (!pedidos.length){ showToast('No hay pedidos seleccionados.', 'error'); return; }
@@ -2077,7 +2077,7 @@ function _equiposPublicables(){
 }
 function _bloquePublicarHTML(){
   const abre = '<section class="pt-pub-block"><h3 class="pt-pub-title">Publicar plantillas</h3>';
-  if (!PLANO) return `${abre}<div class="pt-empty">${ICN.upload}<div>Cargá el save para publicar plantillas.</div></div></section>`;
+  if (!PLANO) return `${abre}<div class="pt-empty">${ICN.upload}<div>Carga el save para publicar plantillas.</div></div></section>`;
   const objetivo = _equiposPublicables();
   const filas = objetivo.map(t => {
     const clubNombre = CLUBES_PES5[t.pes5ClubIdx] || '?';
@@ -2145,7 +2145,7 @@ function publicarPlantillaDeEquipo(id){ return publicarPlantillas([id]); }
 async function publicarPlantillas(ids){
   const log = document.getElementById('pub-log');
   const linea = (msg, cls) => { if (!log) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; log.appendChild(d); };
-  if (!PLANO){ showToast('Cargá el save primero.', 'error'); return; }
+  if (!PLANO){ showToast('Carga el save primero.', 'error'); return; }
   const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null && (!ids || ids.includes(t.id)));
   if (!equipos.length){ showToast('No hay equipos para publicar.', 'error'); return; }
   const btn = document.getElementById('btn-publicar-todos'); if (btn) btn.disabled = true;
@@ -2222,7 +2222,7 @@ function _bloqueTopesExtraHTML(){
         <tbody>${filas}</tbody></table>` : `<div style="font-size:12px;color:var(--txt3);margin-bottom:12px;">Ningún equipo tiene tope extra.</div>`}
       <div class="pt-field">
         <label>Equipo</label>
-        <select id="te-equipo"><option value="">Elegí un equipo</option>${activos.map(t => `<option value="${escAttr(t.id)}">${escHtml(t.name)}</option>`).join('')}</select>
+        <select id="te-equipo"><option value="">Elige un equipo</option>${activos.map(t => `<option value="${escAttr(t.id)}">${escHtml(t.name)}</option>`).join('')}</select>
       </div>
       <div class="pt-field">
         <label>Extra (YunaCoins)<br><span style="font-size:11px;color:var(--txt3);">0 lo quita.</span></label>
@@ -2255,7 +2255,7 @@ async function guardarTopeExtra(){
   const extra = parseInt(document.getElementById('te-extra').value, 10);
   const motivo = String(document.getElementById('te-motivo').value || '').trim().slice(0, 100);
   const err = msg => { box.innerHTML = `<div style="color:var(--red,#f87171);font-size:12px;">${escHtml(msg)}</div>`; };
-  if (!id) return err('Elegí un equipo.');
+  if (!id) return err('Elige un equipo.');
   if (!Number.isFinite(extra) || extra < 0) return err('El extra tiene que ser un número mayor o igual a 0.');
   const nuevo = Object.assign({}, YC_TOPES_EXTRA);
   if (extra === 0) delete nuevo[id]; else nuevo[id] = { extra, motivo };
