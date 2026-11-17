@@ -92,6 +92,12 @@ const PES5_SAVE = (() => {
     return { ok: true, nombre: handle.name };
   }
 
+  // SYNC-1: true si la carpeta ya elegida conserva el permiso, sin abrir ningun dialogo.
+  async function permisoVigente() {
+    if (!CARPETA) return false;
+    try { return (await CARPETA.queryPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) { return false; }
+  }
+
   // ---------- lectura ----------
   async function _fileHandleDelSave() {
     if (!CARPETA) throw new Error('no hay carpeta elegida — llamar elegirCarpeta() o recuperarCarpeta() primero');
@@ -238,7 +244,7 @@ const PES5_SAVE = (() => {
   }
 
   return {
-    tieneSoporte, elegirCarpeta, recuperarCarpeta,
+    tieneSoporte, elegirCarpeta, recuperarCarpeta, permisoVigente,
     leer, escribir, observar, asegurarEscritura,
     descargar,
     get carpetaActual() { return CARPETA ? CARPETA.name : null; },

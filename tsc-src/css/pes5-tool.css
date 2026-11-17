@@ -229,3 +229,9 @@
   #page-pes5-admin .pt-emp-fila{grid-template-columns:minmax(0,1fr);}
   #page-pes5-admin .pt-emp-fila input[type=number],#page-pes5-admin .pt-emp-fila select{width:100%;}
 }
+
+/* SYNC-1: avisos y casilla de la confirmacion de Publicar save (el modal va en body, no dentro de la pagina). */
+.confirm-box .pt-aviso{display:flex;gap:8px;align-items:flex-start;margin:10px 0;padding:8px 10px;border:1px solid var(--gold-b);border-radius:8px;background:var(--gold-l);font-size:13px;color:var(--txt);}
+.confirm-box .pt-aviso.fuerte{border-color:var(--red);background:transparent;color:var(--red);}
+.confirm-box .pt-aviso svg.icn{flex:0 0 auto;margin-top:2px;}
+.confirm-box .pt-chk{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:14px;color:var(--txt);}

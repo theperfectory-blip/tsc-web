@@ -576,8 +576,7 @@ function renderStatusBar(){
   const pend = PLANTILLAS_DESACTUALIZADAS || [];
   const aviso = pend.length
     ? `<div class="pt-statusbar">
-        <div class="pt-status-item"><span class="badge badge-warn">${ICN.alert} ${pend.length} ${pend.length === 1 ? 'plantilla desactualizada' : 'plantillas desactualizadas'}: el presidente ve datos viejos</span></div>
-        <div class="pt-status-actions"><button class="btn btn-sm btn-primary" data-onclick="ptPublicarDesactualizadas()">${ICN.upload} Publicar ahora</button></div>
+        <div class="pt-status-item"><span class="badge badge-warn">${ICN.alert} ${pend.length} ${pend.length === 1 ? 'plantilla desactualizada' : 'plantillas desactualizadas'}: el presidente ve datos viejos. Usa «Publicar save» para publicarlas.</span></div>
       </div>`
     : '';
   el.innerHTML = `
@@ -586,8 +585,7 @@ function renderStatusBar(){
       <div class="pt-status-sep"></div>
       <div class="pt-status-item">${ICN.file} ${meta ? `<b>${escHtml(meta.nombre)}</b> · ${meta.tamaño.toLocaleString('es-AR')} b · ${escHtml(fecha)}` : 'sin leer todavía'}</div>
       <div class="pt-status-actions">
-        <button class="btn btn-sm" data-onclick="ptReconectarCarpetaClick()">${ICN.link} Reconectar</button>
-        <button class="btn btn-sm" data-onclick="ptRecargarSaveClick()">${ICN.refresh} Recargar</button>
+        <button class="btn btn-sm" data-onclick="ptActualizarSaveClick()">${ICN.refresh} Actualizar save</button>
       </div>
     </div>${aviso}`;
 }
@@ -615,14 +613,6 @@ async function revisarPlantillasDesactualizadas(){
   }
   if (document.getElementById('pt-statusbar')) renderStatusBar();
 }
-function publicarDesactualizadasClick(){
-  const ids = (PLANTILLAS_DESACTUALIZADAS || []).map(x => x.teamId);
-  if (!ids.length) return;
-  showConfirm('Publicar plantillas',
-    `Se publican ${ids.length} plantilla(s) desde el save que está abierto. Confirma que no hay cambios a medio hacer: el presidente va a ver esos datos.`,
-    () => publicarPlantillas(ids));
-}
-window.ptPublicarDesactualizadas = publicarDesactualizadasClick;
 
 async function elegirCarpetaClick(){
   try {
@@ -636,20 +626,20 @@ async function elegirCarpetaClick(){
     showToast('Carpeta elegida: ' + r.nombre);
   } catch(e) { showToast('Error: ' + (e.message||e), 'error'); }
 }
-async function reconectarCarpetaClick(){
+/* SYNC-1 · «Actualizar save» (reemplaza Reconectar + Recargar). Si el permiso de la carpeta sigue
+   vigente, recarga; si no, pide el permiso (recuperarCarpeta) y despues recarga. */
+async function actualizarSaveClick(){
   try {
-    const r = await PES5_SAVE.recuperarCarpeta();
-    if (!r || !r.ok){ showToast('No se pudo reconectar — elige la carpeta de nuevo.', 'error'); return; }
+    if (!(await PES5_SAVE.permisoVigente())){
+      const r = await PES5_SAVE.recuperarCarpeta();
+      if (!r || !r.ok){ showToast('No se pudo reconectar — elige la carpeta de nuevo.', 'error'); return; }
+    }
     await cargarSaveDesdeCarpeta();
     renderStatusBar();
+    await releerPlantillaAbierta();
+    if (TAB === 'equipos') renderEquiposTab();
+    showToast('Save recargado');
   } catch(e) { showToast('Error: ' + (e.message||e), 'error'); }
-}
-async function recargarSaveClick(){
-  await cargarSaveDesdeCarpeta();
-  renderStatusBar();
-  await releerPlantillaAbierta();
-  if (TAB === 'equipos') renderEquiposTab();
-  showToast('Save recargado');
 }
 /* ORD-1: el orden del plantel es el del save (bloque 5: slot 0 = arquero, 1-10 titulares...).
    Cada vez que cambia PLANO (recarga o cambio hecho en el juego) hay que releer el club abierto,
@@ -663,12 +653,13 @@ async function releerPlantillaAbierta(){
 async function cargarSaveDesdeCarpeta(){
   const leido = await PES5_SAVE.leer();
   SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
-  renderPausaTool(); // SAVE-1: el boton «Subir save» se habilita al tener un save abierto
+  renderPausaTool(); // SAVE-1: el boton «Publicar save» se habilita al tener un save abierto
   PLANO = PES5_CRYPT.descifrar(leido.bytes);
   recalcularClubesDelSave();
   await migrarPes5ClubIdx();
   iniciarObservador();
   await revisarPlantillasDesactualizadas();
+  return leido;   // SYNC-1: Publicar save usa estos bytes (los mismos que quedaron en PLANO)
 }
 
 /* ============================================================
@@ -1371,7 +1362,7 @@ async function confirmarEscribirAlSave(){
   // permiso para generar una descarga.
   const permitido = await PES5_SAVE.asegurarEscritura();
   if (!permitido){
-    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconecta la carpeta (botón "Reconectar" en la barra de arriba) o elegila de nuevo.' });
+    _mostrarErrorEscritura({ name: 'PermisoDenegado', message: 'No se pudo confirmar el permiso de escritura sobre la carpeta del save. Reconecta la carpeta (botón "Actualizar save" en la barra de arriba) o elegila de nuevo.' });
     return;
   }
 
@@ -1646,7 +1637,7 @@ async function renderPedidosTab(opts){
   }
   PEDIDOS_PENDIENTES.sort((a, b) => String(a.teamName || '').localeCompare(String(b.teamName || '')));
   const movil = ptModo() === 'movil';
-  // Publicar vive en Pedidos (solo PC, como antes la pestaña): el aviso global «Publicar ahora» lleva acá.
+  // Publicar vive en Pedidos (solo PC, como antes la pestaña). El aviso de desactualizadas apunta a «Publicar save».
   const bloquePub = movil ? '' : _bloquePublicarHTML();
   if (!PEDIDOS_PENDIENTES.length){
     cont.innerHTML = `<div class="pt-empty">${ICN.inbox}<div>No hay pedidos pendientes.</div></div><div class="pt-log" id="ped-log"></div>${bloquePub}`;
@@ -2103,8 +2094,7 @@ function _bloquePublicarHTML(){
       </tr>`;
   }).join('');
   return `${abre}
-      <div class="pt-sub">Copia la plantilla actual del save a la web para que cada presidente la vea en su editor.</div>
-      <button class="btn btn-primary btn-sm" id="btn-publicar-todos" data-onclick="ptPublicarPlantillas()">${ICN.upload} Publicar todos (${objetivo.length})</button>
+      <div class="pt-sub">Copia la plantilla actual del save a la web para que cada presidente la vea en su editor. Para publicar todos los equipos a la vez, usa «Publicar save».</div>
       <div class="pt-tbl-wrap"><table class="tbl pt-tbl-publicar">
         <thead><tr><th>Equipo TSC</th><th>Club PES5</th><th style="text-align:center;">Jugadores</th><th>Última publicación</th><th></th></tr></thead>
         <tbody>${filas}</tbody>
@@ -2153,39 +2143,47 @@ async function cargarEstadoPublicacion(equipos){
 /* Reemplazan handlers inline que no entran en la gramática de js/events.js (ver ahí). */
 function habilitarAplicarPedidos(chk){ document.getElementById('btn-aplicar-pedidos').disabled = !(chk.checked && PLANO); }
 function publicarPlantillaDeEquipo(id){ return publicarPlantillas([id]); }
+/* Escribe en pes5_plantillas las plantillas de `equipos` que cambiaron (debeReescribirPublicacion
+   salta las iguales). Llena `escritos` con los nombres escritos, aun si falla a mitad de camino. */
+async function _escribirPlantillas(equipos, escritos, linea){
+  const saveHash = await _hashPlano();
+  for (const t of equipos){
+    const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
+    // EMP-80-2: al publicar, los jugadores nuevos (fichajes) quedan con su perfil; los fijados no se tocan.
+    try {
+      const rp = await _completarPerfilesEquipo(t.id, t.pes5ClubIdx);
+      if (rp.agregados) linea(`${t.name}: ${rp.agregados} perfil(es) de emparejar fijados`, 'ok');
+    } catch (e) { linea(`${t.name}: no se fijaron los perfiles: ${e.message || e}`, 'err'); }
+    // 2.0-6.H2: sin cambios no se reescribe (publicadoEn queda igual).
+    const refPlantilla = firebase.firestore().collection('pes5_plantillas').doc(String(t.id));
+    const previa = await refPlantilla.get();
+    if (!PES5_PLANTILLA.debeReescribirPublicacion(previa.exists ? previa.data() : null, teamHash, t.pes5ClubIdx)){
+      linea(`${t.name}: sin cambios, ya estaba publicada`, 'ok');
+      continue;
+    }
+    await refPlantilla.set({
+      teamId: t.id, teamName: t.name, pes5ClubIdx: t.pes5ClubIdx, pes5Club: CLUBES_PES5[t.pes5ClubIdx] || null,
+      jugadores, formacion, saveHash, teamHash, publicadoPor: AUTH.user.email,
+      publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+    escritos.push(t.name);
+    linea(`${t.name}: ${jugadores.length} jugadores publicados${formacion ? ` · formación ${formacion.nombre}` : ''}`, 'ok');
+  }
+}
+async function _liberarBloqueoSiPublicado(equipos){
+  if (BLOQUEO_EQUIPO != null && equipos.some(t => t.id === BLOQUEO_EQUIPO) && !Object.keys(CAMBIOS_PENDIENTES).length) await liberarBloqueoEquipo();
+}
 async function publicarPlantillas(ids){
   const log = document.getElementById('pub-log');
   const linea = (msg, cls) => { if (!log) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; log.appendChild(d); };
   if (!PLANO){ showToast('Carga el save primero.', 'error'); return; }
   const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null && (!ids || ids.includes(t.id)));
   if (!equipos.length){ showToast('No hay equipos para publicar.', 'error'); return; }
-  const btn = document.getElementById('btn-publicar-todos'); if (btn) btn.disabled = true;
   if (log) log.innerHTML = '';
   try {
-    const saveHash = await _hashPlano();
-    for (const t of equipos){
-      const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
-      // EMP-80-2: al publicar, los jugadores nuevos (fichajes) quedan con su perfil; los fijados no se tocan.
-      try {
-        const rp = await _completarPerfilesEquipo(t.id, t.pes5ClubIdx);
-        if (rp.agregados) linea(`${t.name}: ${rp.agregados} perfil(es) de emparejar fijados`, 'ok');
-      } catch (e) { linea(`${t.name}: no se fijaron los perfiles: ${e.message || e}`, 'err'); }
-      // 2.0-6.H2: sin cambios no se reescribe (publicadoEn queda igual).
-      const refPlantilla = firebase.firestore().collection('pes5_plantillas').doc(String(t.id));
-      const previa = await refPlantilla.get();
-      if (!PES5_PLANTILLA.debeReescribirPublicacion(previa.exists ? previa.data() : null, teamHash, t.pes5ClubIdx)){
-        linea(`${t.name}: sin cambios, ya estaba publicada`, 'ok');
-        continue;
-      }
-      await refPlantilla.set({
-        teamId: t.id, teamName: t.name, pes5ClubIdx: t.pes5ClubIdx, pes5Club: CLUBES_PES5[t.pes5ClubIdx] || null,
-        jugadores, formacion, saveHash, teamHash, publicadoPor: AUTH.user.email,
-        publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      linea(`${t.name}: ${jugadores.length} jugadores publicados${formacion ? ` · formación ${formacion.nombre}` : ''}`, 'ok');
-    }
+    await _escribirPlantillas(equipos, [], linea);
     showToast(`Publicado: ${equipos.length} equipo(s).`);
-    if (BLOQUEO_EQUIPO != null && equipos.some(t => t.id === BLOQUEO_EQUIPO) && !Object.keys(CAMBIOS_PENDIENTES).length) await liberarBloqueoEquipo();
+    await _liberarBloqueoSiPublicado(equipos);
     return true;
   } catch (e) {
     console.error('[pes5-tool] publicar', e);
@@ -2193,7 +2191,6 @@ async function publicarPlantillas(ids){
     showToast('Error al publicar: ' + (e.message || e), 'error');
     return false;
   } finally {
-    if (btn) btn.disabled = false;
     cargarEstadoPublicacion(equipos);
     revisarPlantillasDesactualizadas();
   }
@@ -2541,7 +2538,7 @@ function renderPausaTool(){
   if (!el) return;
   if (!PAUSA_ESTADO){ el.innerHTML = ''; return; }
   const pausado = PAUSA_ESTADO.pausado;
-  // SAVE-1: «Subir save» va junto a «Pausar mejoras». Sin save abierto queda deshabilitado con un hint.
+  // SAVE-1 / SYNC-1: «Publicar save» va junto a «Pausar mejoras». Sin save abierto queda deshabilitado con un hint.
   const sinSave = !SAVE_META;
   const pub = SAVE_PUB_META;
   el.innerHTML = `
@@ -2550,8 +2547,8 @@ function renderPausaTool(){
         ? `${ICN.alert} Mejoras pausadas desde ${escHtml(_horaPausa(PAUSA_ESTADO.desde) || '—')}`
         : 'Mejoras activas: los presidentes pueden pedir cambios'}</span>
       <span class="pt-pausa-acciones">
-        ${sinSave ? '<span class="pt-hint">Abre el save (carpeta del juego) para poder subirlo.</span>' : ''}
-        <button class="btn btn-sm" data-onclick="ptSubirSaveClick()"${sinSave ? ' disabled' : ''}>${ICN.upload} Subir save</button>
+        ${sinSave ? '<span class="pt-hint">Abre el save (carpeta del juego) para poder publicarlo.</span>' : ''}
+        <button class="btn btn-sm btn-primary" data-onclick="ptPublicarSaveClick()"${sinSave ? ' disabled' : ''}>${ICN.upload} Publicar save</button>
         <button class="btn btn-sm" data-onclick="ptPausaToggle()">${pausado ? 'Reanudar mejoras' : 'Pausar mejoras'}</button>
       </span>
     </div>
@@ -2578,25 +2575,164 @@ function _nombreAdminSave(){
   return (AUTH.profile && AUTH.profile.displayName) || (AUTH.user && AUTH.user.displayName) || 'Admin';
 }
 
-function ptSubirSaveClick(){
-  if (!SAVE_META) return showToast('Abre el save antes de subirlo.', 'error');
-  const msg = SAVE_PUB_META && SAVE_PUB_META.subidoEn
-    ? `Reemplaza el save publicado del ${SAVE_PUBLICADO.fechaCorta(SAVE_PUB_META.subidoEn)}. Los presidentes lo descargan desde Mejoras.`
-    : 'Publica este save para que los presidentes lo descarguen desde Mejoras.';
-  showConfirm('Subir save', msg, ptSubirSaveConfirmado);
+/* SYNC-1 · «Publicar save» (un solo boton). Al confirmar, en este orden:
+   a) relee el archivo de la carpeta; b) publica las plantillas que cambiaron (todos los equipos
+   TSC activos con pes5ClubIdx, tambien sin presidente); c) sube el save a Storage; d) si la casilla
+   «Reanudar mejoras al terminar» esta marcada y las mejoras estan pausadas, las reanuda.
+   Si un paso falla, se detiene y el resumen dice que quedo hecho y que no. */
+let _PUB_SAVE_OCUPADO = false;
+
+// Lo que muestra la confirmacion: relee, cuenta las plantillas que cambian y revisa las dos guardas.
+async function _prepararPublicarSave(){
+  const leido = await cargarSaveDesdeCarpeta();
+  await cargarSavePublicadoTool();
+  const equipos = _equiposPublicables();
+  const cambian = [];
+  for (const t of equipos){
+    const { teamHash } = await _contenidoEquipo(t);
+    const previa = await firebase.firestore().collection('pes5_plantillas').doc(String(t.id)).get();
+    if (PES5_PLANTILLA.debeReescribirPublicacion(previa.exists ? previa.data() : null, teamHash, t.pes5ClubIdx)) cambian.push(t);
+  }
+  const pend = await firebase.firestore().collection('pedidos_pes5').where('estado', '==', 'pendiente').get();
+  const afectados = PES5_PLANTILLA.pedidosDeEquipos(pend.docs.map(d => Object.assign({ _id: d.id }, d.data())), cambian.map(t => t.id));
+  return {
+    leido, cambian, afectados,
+    saveViejo: PES5_PLANTILLA.saveMasViejoQuePublicado(leido.lastModified, SAVE_PUB_META),
+  };
 }
 
-// Sube el save que la Tool ya tiene abierto (la carpeta ya esta elegida: no se pide el archivo de nuevo).
-async function ptSubirSaveConfirmado(){
+async function ptPublicarSaveClick(){
+  if (_PUB_SAVE_OCUPADO) return;
+  if (!SAVE_META) return showToast('Abre el save antes de publicarlo.', 'error');
+  _PUB_SAVE_OCUPADO = true;
   try {
-    const leido = await PES5_SAVE.leer();
-    const blob = new Blob([leido.bytes], { type: 'application/octet-stream' });
-    SAVE_PUB_META = await SAVE_PUBLICADO.subirBlob(blob, { subidoPor: _nombreAdminSave(), nombreArchivo: leido.nombre });
-    renderPausaTool();
-    showToast('Save subido. Los presidentes ya pueden descargarlo desde Mejoras.');
+    _mostrarConfirmPublicarSave(await _prepararPublicarSave());
   } catch (e) {
-    showToast('No se pudo subir el save: ' + (e.message || e), 'error');
+    console.error('[pes5-tool] preparar publicar save', e);
+    showToast('No se pudo preparar la publicación: ' + (e.message || e), 'error');
+  } finally { _PUB_SAVE_OCUPADO = false; }
+}
+
+function _mostrarConfirmPublicarSave(plan){
+  document.getElementById('pt-pub-save-ov')?.remove();
+  const pausado = !!(PAUSA_ESTADO && PAUSA_ESTADO.pausado);
+  const n = plan.cambian.length;
+  const pub = SAVE_PUB_META;
+  const fechaPub = pub && pub.subidoEn ? SAVE_PUBLICADO.fechaCorta(pub.subidoEn) : null;
+  const resumen = n === 0
+    ? 'Ninguna plantilla cambió: solo se sube el save.'
+    : `Se publican <b>${n}</b> ${n === 1 ? 'plantilla cambiada' : 'plantillas cambiadas'}.`;
+  const reemplazo = fechaPub
+    ? `Se reemplaza el save publicado del <b>${escHtml(fechaPub)}</b>${pub.subidoPor ? ` (de ${escHtml(pub.subidoPor)})` : ''}.`
+    : 'Es el primer save publicado.';
+  const avisos = [];
+  if (plan.afectados.length){
+    const k = plan.afectados.length;
+    avisos.push(`<div class="pt-aviso">${ICN.alert} Hay ${k} ${k === 1 ? 'pedido pendiente' : 'pedidos pendientes'} de equipos cuya plantilla cambia: estos pedidos quedarán viejos.</div>`);
   }
+  if (plan.saveViejo){
+    avisos.push(`<div class="pt-aviso fuerte">${ICN.alert} Tu save es más viejo que el publicado (de ${escHtml(pub.subidoPor || '—')}, ${escHtml(fechaPub || '—')}). Publicarlo pisaría esos cambios.</div>`);
+  }
+  const hayAviso = avisos.length > 0;
+  const reanudarHtml = pausado
+    ? '<label class="pt-chk"><input type="checkbox" id="pt-pub-save-reanudar" checked> Reanudar mejoras al terminar</label>'
+    : '';
+  const ov = document.createElement('div');
+  ov.id = 'pt-pub-save-ov';
+  ov.className = 'confirm-overlay open';
+  ov.innerHTML = `
+    <div class="confirm-box">
+      <h4>Publicar save</h4>
+      <p>${resumen}</p>
+      <p>${reemplazo}</p>
+      ${avisos.join('')}
+      ${reanudarHtml}
+      <div class="confirm-actions">
+        <button class="btn" data-onclick="ptCerrarPublicarSave()">Volver</button>
+        <button class="btn ${plan.saveViejo ? 'btn-danger' : 'btn-primary'}" data-onclick="ptPublicarSaveConfirmar()">${hayAviso ? 'Publicar igual' : 'Publicar save'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function ptCerrarPublicarSave(){ document.getElementById('pt-pub-save-ov')?.remove(); }
+
+async function ptPublicarSaveConfirmar(){
+  if (_PUB_SAVE_OCUPADO) return;
+  const chk = document.getElementById('pt-pub-save-reanudar');
+  const reanudar = !!(chk && chk.checked);
+  ptCerrarPublicarSave();
+  _PUB_SAVE_OCUPADO = true;
+  try { await _ejecutarPublicarSave(reanudar); }
+  finally { _PUB_SAVE_OCUPADO = false; }
+}
+
+async function _ejecutarPublicarSave(reanudar){
+  const hecho = [];
+  const noHecho = [];
+  const escritos = [];
+  let paso = 'a';
+  try {
+    // a) relee: lo que se publica es lo que hay en el archivo en este momento
+    const leido = await cargarSaveDesdeCarpeta();
+    hecho.push('Save releído de la carpeta.');
+    // b) plantillas que cambiaron (incluye equipos sin presidente vinculado)
+    paso = 'b';
+    const equipos = _equiposPublicables();
+    await _escribirPlantillas(equipos, escritos, () => {});
+    await _liberarBloqueoSiPublicado(equipos);
+    hecho.push(escritos.length
+      ? `Plantillas publicadas (${escritos.length}): ${escritos.join(', ')}.`
+      : 'Plantillas: ninguna cambió.');
+    // c) sube el save que se acaba de leer (mismos bytes que quedaron en PLANO)
+    paso = 'c';
+    const blob = new Blob([leido.bytes], { type: 'application/octet-stream' });
+    SAVE_PUB_META = await SAVE_PUBLICADO.subirBlob(blob, { subidoPor: _nombreAdminSave(), nombreArchivo: leido.nombre, lastModified: leido.lastModified });
+    hecho.push('Save subido: los presidentes ya pueden descargarlo desde Mejoras.');
+    // d) reanuda mejoras, solo si todo lo anterior salio bien
+    paso = 'd';
+    if (PAUSA_ESTADO && PAUSA_ESTADO.pausado){
+      if (reanudar){
+        const ok = await escribirPausaTool(false);
+        if (!ok) throw new Error('no se pudieron reanudar las mejoras');
+        hecho.push('Mejoras reanudadas.');
+      } else {
+        hecho.push('Mejoras siguen pausadas (no se reanudaron).');
+      }
+    }
+    showToast('Save publicado.');
+    _mostrarResultadoPublicarSave(true, hecho, noHecho);
+  } catch (e) {
+    console.error('[pes5-tool] publicar save', e);
+    const msg = e.message || String(e);
+    if (paso === 'b' && escritos.length) hecho.push(`Plantillas publicadas antes del error (${escritos.length}): ${escritos.join(', ')}.`);
+    if (paso === 'a') noHecho.push(`No se pudo releer el save (${msg}). No se publicó nada.`);
+    if (paso === 'b') noHecho.push(`Plantillas: error al publicar (${msg}). No se subió el save y no se reanudaron las mejoras.`);
+    if (paso === 'c') noHecho.push(`Save no subido (${msg}). No se reanudaron las mejoras.`);
+    if (paso === 'd') noHecho.push(`Mejoras no reanudadas (${msg}). Reanúdalas con el botón de la barra.`);
+    _mostrarResultadoPublicarSave(false, hecho, noHecho);
+  } finally {
+    renderPausaTool();
+    renderStatusBar();
+    cargarEstadoPublicacion(_equiposPublicables());
+    revisarPlantillasDesactualizadas();
+  }
+}
+
+function _mostrarResultadoPublicarSave(ok, hecho, noHecho){
+  document.getElementById('pt-pub-save-ov')?.remove();
+  const lista = arr => arr.map(t => `<li>${escHtml(t)}</li>`).join('');
+  const ov = document.createElement('div');
+  ov.id = 'pt-pub-save-ov';
+  ov.className = 'confirm-overlay open';
+  ov.innerHTML = `
+    <div class="confirm-box">
+      <h4>${ok ? 'Save publicado' : 'La publicación se detuvo'}</h4>
+      ${hecho.length ? `<p><b>Quedó hecho:</b></p><ul>${lista(hecho)}</ul>` : ''}
+      ${noHecho.length ? `<p><b>No quedó hecho:</b></p><ul>${lista(noHecho)}</ul>` : ''}
+      <div class="confirm-actions"><button class="btn" data-onclick="ptCerrarPublicarSave()">Cerrar</button></div>
+    </div>`;
+  document.body.appendChild(ov);
 }
 
 async function ptPausaToggle(){
@@ -2631,6 +2767,7 @@ function mostrarAvisoPausaTool(n){
   document.body.appendChild(ov);
 }
 
+// Devuelve true si la pausa quedo escrita (SYNC-1: Publicar save la usa para decidir si sigue).
 async function escribirPausaTool(pausado){
   document.getElementById('pt-pausa-ov')?.remove();
   try {
@@ -2641,8 +2778,10 @@ async function escribirPausaTool(pausado){
     });
     showToast(pausado ? 'Mejoras pausadas. Los presidentes ya no pueden enviar pedidos.' : 'Mejoras reanudadas.');
     await cargarPausaTool();
+    return true;
   } catch (e) {
     showToast('No se pudo cambiar la pausa: ' + (e.message || e), 'error');
+    return false;
   }
 }
 
@@ -2668,13 +2807,14 @@ window.ptQuitarTopeExtra = quitarTopeExtra;
 window.ptHabilitarAplicarPedidos = habilitarAplicarPedidos;
 window.ptOnTeamSelectPorIndice = onTeamSelectPorIndice;
 window.ptPublicarPlantillaDeEquipo = publicarPlantillaDeEquipo;
-window.ptPublicarPlantillas = publicarPlantillas;
-window.ptRecargarSaveClick = recargarSaveClick;
+window.ptActualizarSaveClick = actualizarSaveClick;
+window.ptPublicarSaveClick = ptPublicarSaveClick;
+window.ptPublicarSaveConfirmar = ptPublicarSaveConfirmar;
+window.ptCerrarPublicarSave = ptCerrarPublicarSave;
 window.ptRechazarPedido = rechazarPedido;
 window.ptCerrarRechazo = cerrarRechazo;
 window.ptConfirmarRechazo = confirmarRechazo;
 window.ptRechazoMotivoInput = rechazoMotivoInput;
-window.ptReconectarCarpetaClick = reconectarCarpetaClick;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
 window.ptVincularEquipo = vincularEquipo;
