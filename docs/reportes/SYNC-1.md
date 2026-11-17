@@ -46,12 +46,39 @@ Encargo del coordinador («Pedido de Jimbo»): simplificar la sincronización sa
 | `node --test tools/test-sync-1.js` (nuevo: `saveMasViejoQuePublicado` y `pedidosDeEquipos`) | **6/6 OK** |
 | `node --test "tools/test-*.js"` (suite completa) | 1 falla: `tools/test-jugador-completo.js` («Berbatov encontrado en el save»). Lee el save real de la PC del admin (`Documents/KONAMI/…/folder1`) y no toca los archivos de este cambio. Es dependiente del dato local; no se corrió sobre la base para comparar |
 | `node --check` sobre `pes5-tool.js`, `pes5-save.js`, `save-publicado.js`, `pes5-plantilla.js` | OK |
-| `node scripts/audit-wiring.mjs` | rotos 0 · fuera de gramática 0 · muertas 3 · duplicados 0 · IDs 1 (las mismas categorías que antes) |
+| `node scripts/audit-wiring.mjs` (con el auditor ampliado, ver arriba) | rotos 0 · **sin window 0** · fuera de gramática 3 · muertas 9 · duplicados 7 · IDs 3. Antes de ampliarlo, sobre los archivos de `index.html`: 0 / 0 / 3 / 3 / 1 |
 | `node scripts/smoke-parity.mjs` | **PARIDAD: OK** · 0 errores de carga en `tsc-src` y `dist` |
 
 ### Lo que no se pudo probar
 - **Flujo completo en el sandbox (:3001 / emuladores):** la Tool necesita abrir la carpeta del juego (File System Access), que el navegador del panel no puede manejar. Tampoco hay Storage en el sandbox. Se copió el código al `sandbox/site` (gitignored), pero el navegador del panel no pudo navegar a `localhost:3002` («denied or failed»). Los puertos 8080 (Firestore, Java) y 9099 (Auth) ya los usa otro proceso, y el 3001 también; no se tocaron.
 - No se probó: la subida a Storage, la reanudación real, el aviso de pedidos, el de save viejo, ni el resumen con errores a mitad de camino.
+
+## Por qué audit-wiring no detectó «Subir save» (y cambio en el auditor)
+
+Hubo dos huecos, y los dos explican el fallo:
+
+1. **La Tool no se auditaba.** `scripts/audit-wiring.mjs` lee los `<script>` de `index.html`. `js/pes5-tool.js` no va ahí: lo carga a demanda `js/pes5-admin.js` con `createElement('script')`. Por eso el auditor nunca vio `pes5-tool.js`, ni `pes5-save.js`, `save-publicado.js`, `pes5-plantilla.js` ni `mejoras-page.js`.
+2. **El auditor contaba como «definida» cualquier función de primer nivel.** `ptSubirSaveClick` existía dentro de la IIFE de `pes5-tool.js`, pero `js/events.js` resuelve `data-onclick` con `window[fn]`. Sin `window.ptSubirSaveClick =`, el click no hace nada. La sección 1 no lo ve porque sí está definida.
+
+**Cambio en el auditor (SYNC-1):**
+- Escanea también los archivos cargados a demanda: cualquier literal `'js/….js'` que aparezca en `tsc-src/js/`.
+- Nueva sección **1a · «Handlers data-on* que no son window.<nombre>»**. Un nombre es de `window` si lo asigna `window.nombre =` en algún archivo, o si es `function`/`var` de primer nivel **fuera de un IIFE** (los rangos `(function(){ … })();` se miden por región, no por archivo).
+- Resumen de consola: `… · sin window N · …`.
+
+**Verificado:** sobre la versión de `pes5-tool.js` anterior a SYNC-1 (commit `8791eb5`), el auditor marca `ptSubirSaveClick` en `js/pes5-tool.js:2554`. Sobre el código actual: `sin window 0`.
+
+**Hallazgos nuevos que el auditor ahora ve (no se tocaron en SYNC-1):**
+- `js/mejoras-page.js:110`, `:2845`, `:2846`: handlers `data-onclick` fuera de la gramática de `events.js` (`if(event.target===this)…`, `${onDec}` con `stopPropagation`). Como no cumplen la gramática, no corren.
+- Duplicados de nombres globales: `showToast`, `openModal`, `closeModal`, `toggleTheme`, `renderAuthUI` están en `ui-utils.js`/`auth.js` **y** en `mejoras-page.js` (de primer nivel). Si `mejoras-page.js` se carga después, pisa la versión global. Hay que confirmar si es un problema real en el panel admin.
+- Muertas en la Tool: `costoJugador`, `costoTotalPendienteEquipo`, `_cambiosDe` (pre-existentes).
+- Límite del auditor: las secciones 2 y 3 todavía cuentan funciones internas de IIFE como globales (p. ej. `montar`, `cargarReglasFirestore`). Son falsos positivos posibles; la sección 1a sí usa la región.
+
+## Prueba con click real en el sandbox: no se pudo hacer
+
+- El navegador integrado sirve `sandbox/site` solo en el puerto que informa el log del servidor (`localhost:61649` en esta corrida; `localhost:3002` lo bloquea). Con `?emu=1` la página carga sin errores de consola.
+- El login admin del emulador falla con `auth/network-request-failed`: el navegador integrado no llega a `localhost:9099` (Auth) ni a `localhost:8080` (Firestore). Sin login no se llega a la página de la Tool.
+- Por eso **no se hizo el click real de «Publicar save» ni de «Actualizar save»**. Lo que sí se verificó: el código está en `window` (sección 1a en 0) y `node --check` pasa.
+- Pendiente: repetir el click real con un navegador que sí alcance los emuladores (p. ej. Chrome de Claude en Chrome, si Jimbo lo autoriza), o en la PC de Jimbo.
 
 ## Archivos que no son de este cambio
 - `android/app/capacitor.build.gradle`, `android/capacitor.settings.gradle` y `docs/reportes/MS-2.3-cableado.md` ya estaban modificados (sin commitear) al entrar al worktree. **`scripts/audit-wiring.mjs` reescribió `docs/reportes/MS-2.3-cableado.md`** (fecha y conteos). Ese archivo no se commitea en este encargo.

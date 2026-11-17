@@ -10,7 +10,7 @@
    4. IDs pedidos con getElementById que no existen en ningún template.
 
    Uso: node scripts/audit-wiring.mjs   (sin dependencias) */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'tsc-src');
 const html = readFileSync(join(SRC, 'index.html'), 'utf8');
-const jsFiles = [...html.matchAll(/<script(?: data-boot)? src="(js\/[^"]+\.js)"><\/script>/g)].map(m => m[1]);
+const jsFilesHtml = [...html.matchAll(/<script(?: data-boot)? src="(js\/[^"]+\.js)"><\/script>/g)].map(m => m[1]);
+// Tambien los que se cargan a demanda (p. ej. js/pes5-admin.js pide la Tool PES5 con document.createElement('script')):
+// sus nombres aparecen como literales 'js/….js' en otros archivos js/. Sin esto la Tool no se auditaba.
+const jsFilesLazy = new Set();
+for (const f of readdirSync(join(SRC, 'js'))) {
+  if (!f.endsWith('.js')) continue;
+  const code = readFileSync(join(SRC, 'js', f), 'utf8');
+  for (const m of code.matchAll(/['"`](js\/[\w\-./]+\.js)['"`]/g)) jsFilesLazy.add(m[1]);
+}
+const jsFiles = [...new Set([...jsFilesHtml, ...jsFilesLazy])];
 const files = [{ f: 'index.html', code: html }, ...jsFiles.map(f => ({ f, code: readFileSync(join(SRC, f), 'utf8') }))];
 const lineOf = (code, idx) => code.slice(0, idx).split('\n').length;
 
@@ -58,6 +67,47 @@ for (const { f, code } of files) {
       handlerCalls.add(name);
       if (BUILTIN.has(name) || defs.has(name)) continue;
       broken.push({ name, f, line: lineOf(code, m.index), snippet: (m[1] ?? m[2] ?? m[3]).slice(0, 80) });
+    }
+  }
+}
+
+/* ---------- 1a. handlers que existen pero no son propiedad de window ----------
+   js/events.js resuelve data-onclick="fn(…)" con window[fn]. Una función que solo está
+   definida dentro de una IIFE (p. ej. pes5-tool.js) existe en el archivo, pero window[fn]
+   es undefined: el click no hace nada. Por eso la sección 1 no la ve (cuenta como definida).
+   Un nombre es «de window» si: lo asigna `window.fn =` en algún archivo, o es una
+   `function`/`var` de primer nivel en un archivo que no va envuelto en IIFE. */
+// Rangos (offsets) de los IIFE de primer nivel: van de `(function(){` o `(() =>` en columna 0 al `})();` siguiente.
+const iifeRanges = code => {
+  const r = [];
+  const abre = /^\((?:function\s*\(\s*\)|\(\s*\)\s*=>)/gm;
+  let m;
+  while ((m = abre.exec(code))) {
+    const cierre = /^\}\)\(\);?[ \t]*$/gm;
+    cierre.lastIndex = m.index;
+    const c = cierre.exec(code);
+    r.push([m.index, c ? c.index : code.length]);
+  }
+  return r;
+};
+const dentroDeIIFE = (ranges, idx) => ranges.some(([a, b]) => idx >= a && idx <= b);
+const winProps = new Set();
+for (const { code } of files) for (const m of code.matchAll(/\bwindow\.([A-Za-z_$][\w$]*)\s*=[^=]/g)) winProps.add(m[1]);
+for (const { f, code } of files.filter(x => x.f !== 'index.html')) {
+  const rangos = iifeRanges(code);
+  for (const m of code.matchAll(/^(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(/gm)) if (!dentroDeIIFE(rangos, m.index)) winProps.add(m[1]);
+  for (const m of code.matchAll(/^var\s+([A-Za-z_$][\w$]*)\s*=/gm)) if (!dentroDeIIFE(rangos, m.index)) winProps.add(m[1]);
+}
+for (const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))
+  for (const d of m[1].matchAll(/^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/gm)) winProps.add(d[1]);
+const noWindow = [];
+for (const { f, code } of files) {
+  for (const m of code.matchAll(HANDLER)) {
+    const body = (m[1] ?? m[2] ?? m[3] ?? '').replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'|\\'[^']*\\'/g, "''");
+    for (const c of body.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
+      const name = c[1];
+      if (BUILTIN.has(name) || winProps.has(name) || !defs.has(name)) continue; // los no definidos ya salen en 1
+      noWindow.push({ name, f, line: lineOf(code, m.index), snippet: (m[1] ?? m[2] ?? m[3]).slice(0, 80) });
     }
   }
 }
@@ -130,6 +180,9 @@ md.push('# MS-2.3 · Auditor estático de cableado', '',
 md.push(`## 1. Handlers que llaman funciones no definidas (${broken.length})`, '');
 md.push(broken.length ? '| Función | Dónde | Handler |\n|---|---|---|' : '_Ninguno._');
 for (const b of broken) md.push(`| \`${b.name}\` | ${b.f}:${b.line} | \`${b.snippet.replace(/\|/g, '\\|')}\` |`);
+md.push('', `## 1a. Handlers data-on* que no son window.<nombre> (${noWindow.length}) — el click no hace nada`, '');
+md.push(noWindow.length ? '| Función | Dónde | Handler |\n|---|---|---|' : '_Ninguno._');
+for (const b of noWindow) md.push(`| \`${b.name}\` | ${b.f}:${b.line} | \`${b.snippet.replace(/\|/g, '\\|')}\` |`);
 md.push('', `## 1b. Handlers data-on* fuera de la gramática de js/events.js (${unparsable.length})`, '');
 md.push(unparsable.length ? '| Dónde | Handler | Error |\n|---|---|---|' : '_Ninguno._');
 for (const u of unparsable) md.push(`| ${u.f}:${u.line} | \`${u.snippet.replace(/\|/g, '\\|')}\` | ${u.err} |`);
@@ -143,4 +196,4 @@ for (const [id, w] of missingIds) md.push(`- \`${id}\` · ${w.slice(0, 4).join('
 md.push('');
 mkdirSync(join(ROOT, 'docs', 'reportes'), { recursive: true });
 writeFileSync(join(ROOT, 'docs', 'reportes', 'MS-2.3-cableado.md'), md.join('\n'));
-console.log(`[audit-wiring] rotos ${broken.length} · fuera de gramática ${unparsable.length} · muertas ${dead.length} · duplicados ${dups.length} · IDs ${missingIds.size}`);
+console.log(`[audit-wiring] rotos ${broken.length} · sin window ${noWindow.length} · fuera de gramática ${unparsable.length} · muertas ${dead.length} · duplicados ${dups.length} · IDs ${missingIds.size}`);
