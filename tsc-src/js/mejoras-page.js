@@ -1058,8 +1058,8 @@ function pendingCost(){
   ALL_ABILITY_KEYS.forEach(k=>{ if(d.abilities[k] && !p.abilities[k]) total += RULES.abilityCost; });
   return total;
 }
-/* techo de gasto del jugador (4.F): los suscriptores suman el bono exclusivo al tope general;
-   el resto del plantel solo ve el general. Los dos quedan acotados por el saldo real del equipo.
+/* techo de gasto del jugador (4.F + BONO-2): el bono es del EQUIPO, así que cualquier jugador
+   gasta del tope general + el bono. Acotado por el saldo real del equipo.
    Formula en YUNACOINS_RULES.bonoSuscriptor (ver cabecera de yunacoins-rules.js). APP.saldo ya
    descuenta lo reservado en pedidos pendientes. La edicion libre de la tool (equipo sin cobro)
    no tiene saldo que limite. */
@@ -1067,7 +1067,7 @@ function remainingForPlayer(p){
   if(!p) return 0;
   const cobra = !(EQUIPO_TSC && EQUIPO_TSC.cobra === false);
   const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
-  return YUNACOINS_RULES.bonoSuscriptor(pool, !!p.subscriber);
+  return YUNACOINS_RULES.bonoSuscriptor(pool);
 }
 /* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual */
 function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCost(); }
@@ -1415,7 +1415,7 @@ function renderHero(){
   // bono, el resto (o todo, si no es suscriptor) sale del general. Mismo
   // YUNACOINS_RULES.distribuirCosto que usa la tool (pes5-tool.html).
   const p = currentPlayer();
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!(p && p.subscriber));
+  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
   document.getElementById('ep-hero-general-cap').textContent = RULES.budgetGeneral.toLocaleString('es-CL');
   document.getElementById('ep-balance-total').textContent = Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL');
   document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
@@ -1464,7 +1464,6 @@ function renderAviso(){
   }
   const r = resumenAviso();
   const p = currentPlayer();
-  const esSub = !!(p && p.subscriber);
   const cost = pendingCost();
   const motivo = APP.motivo || 'Tope extra';
   const extraHtml = r.extra > 0
@@ -1494,8 +1493,7 @@ function renderAviso(){
         <span class="ep-aviso-k">Disponible para gastar ahora</span>
         <div class="ep-aviso-row"><span>General${r.extra > 0 ? ' (con extra)' : ''}</span><b>${fmt(r.restanteGeneral)}</b></div>
         <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.restanteSub)}</b></div>
-        <p class="ep-aviso-lim">Límite real: <b>${fmt(r.disponibleAhora)} YC</b>, el menor entre el saldo y el tope restante${r.limitaPor === 'saldo' ? ' (manda el saldo)' : ' (manda el tope)'}.</p>
-        ${esSub ? `<p class="ep-aviso-lim">Jugador suscriptor: el bono suma hasta <b>${fmt(r.disponibleSuscriptor)} YC</b>, sin pasar el saldo.</p>` : ''}
+        <p class="ep-aviso-lim">Límite real: <b>${fmt(r.disponibleAhora)} YC</b> para cualquier jugador del equipo (general + bono), el menor entre el saldo y el tope${r.limitaPor === 'saldo' ? ' (manda el saldo)' : ' (manda el tope)'}.</p>
       </div>
     </div>
     <div class="ep-aviso-cost">${cost > 0
@@ -1576,7 +1574,7 @@ function openApplyConfirm(){
   }
   const cost = pendingCost();
   // saldo, tope y bono antes y despues del pedido: los mismos datos que muestra el saldo
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!p.subscriber);
+  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
   const saldoAntes = APP.saldo || 0;
   const saldoDespues = Math.max(0, saldoAntes - cost);
   const cap = RULES.budgetGeneral || 0;
@@ -1643,7 +1641,7 @@ async function commitChanges(){
   /* Slice D.R punto 5b (orden INVERTIDO, 15/09): si es suscriptor, primero
      se gasta el bono exclusivo; agotado el bono, el resto sigue con el
      general. Si no es suscriptor, todo sale del general. */
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!p.subscriber);
+  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
 
   const btn = document.getElementById('ep-apply');
   if (btn) btn.disabled = true;

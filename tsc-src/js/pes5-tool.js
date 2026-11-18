@@ -65,10 +65,10 @@ let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habil
      - el wallet real de cada equipo es SIEMPRE `team.yunacoin` (nunca un
        numero de regla — `techoPresupuesto`/`presidentWallet` del editor no
        se usan aca, la tool ya tenia el saldo real).
-     - orden de consumo INVERTIDO: un jugador suscriptor (`j.subscriber`,
-       viene de `leerJugadorCompleto` — nombre que empieza con "$") gasta
-       primero el bono de suscriptores; el resto (o el total si no es
-       suscriptor) sale del tope general. Ver YUNACOINS_RULES.distribuirCosto.
+     - BONO-2: el bono es del EQUIPO, no del jugador. Cualquier jugador gasta
+       primero el bono de suscriptores (tope extra del equipo) y, agotado, sale
+       del tope general. `j.subscriber` ya no decide el reparto. Ver
+       YUNACOINS_RULES.distribuirCosto.
      - los topes de TEMPORADA no se guardan en `teams`: se derivan del
        libro `coins` (season actual + reason que empieza con 'mejora PES5')
        cada vez que se elige un club en la pestaña Plantilla — ver
@@ -312,7 +312,7 @@ function repartoPendienteEquipo(){
     const { total, lineas } = _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id]);
     if (total <= 0) return;
     const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
-    const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
+    const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub);
     subUsadoAcum += reparto.fromSub;
     totalGeneral += reparto.fromGeneral;
     totalSub += reparto.fromSub;
@@ -1965,7 +1965,7 @@ async function aplicarPedidosSeleccionados(){
       }
       const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
-      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
+      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub));
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
       if (!pago.ok){ rechazados.push({ pedido: p, motivo: pago.excedeSaldo ? 'saldo insuficiente' : 'se superó el tope de temporada' }); continue; }
       try {
