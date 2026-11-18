@@ -489,7 +489,6 @@
 .ep-root .ep-form-subbtn.flash{animation:ep-flash .22s ease-out;}
 @media (prefers-reduced-motion:reduce){
 .ep-root .ep-pitch-dot.flash,.ep-root .ep-form-subbtn.flash{animation:none;}
-.ep-root .ep-switch i,.ep-root .ep-switch i::after{transition:none;}
 }
 /* ficha completa: fluye dentro del scroll del modal (un solo scroll; FIX-HAB: no hay scroll anidado) */
 .ep-root .ep-form-stats{margin-top:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);
@@ -586,9 +585,25 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-pitch-field.vertical .ep-pitch-arc{left:50%;top:auto;bottom:auto;width:11%;transform:translate(-50%,-50%);}
 .ep-root .ep-pitch-field.vertical .ep-pitch-arc.left{top:auto;bottom:13%;transform:translate(-50%,50%);clip-path:inset(0 0 50% 0);}
 .ep-root .ep-pitch-field.vertical .ep-pitch-arc.right{top:13%;bottom:auto;transform:translate(-50%,-50%);clip-path:inset(50% 0 0 0);}
-.ep-root .ep-modal.ep-form-vert .ep-modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding:10px 14px 12px;}
+/* MEJUI2: el modal de formación en el teléfono se parte en dos: arriba la cancha vertical
+   (algo menos de media pantalla) y abajo la lista de banca y reservas, que scrollea sola. */
+.ep-root .ep-pitch-top,
+.ep-root .ep-form-lista{display:contents;}
+.ep-root .ep-modal.ep-form-vert .ep-modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden;padding:10px 14px 12px;}
 .ep-root .ep-modal.ep-form-vert .ep-modal-body > *{flex:none;margin:0;}
-/* datos del jugador en 2 filas (nombre y posicion; luego el selector de jugador): el campo gana alto */
+.ep-root .ep-modal.ep-form-vert .ep-pitch-top{display:flex;flex-direction:column;gap:10px;min-height:0;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-top > *{margin:0;}
+.ep-root .ep-modal.ep-form-vert .ep-form-lista{display:flex;flex:1 1 auto;flex-direction:column;gap:10px;min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;padding:0 2px 4px;}
+.ep-root .ep-modal.ep-form-vert .ep-form-lista > *{flex:none;margin:0;}
+.ep-root .ep-modal.ep-form-vert .ep-form-bench,
+.ep-root .ep-modal.ep-form-vert .ep-form-stats{margin-top:0;}
+/* La lista de cambios manda en la mitad inferior: la banca va primero y los datos del
+   jugador seleccionado quedan debajo. */
+.ep-root .ep-modal.ep-form-vert .ep-form-bench{order:1;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-info{order:2;}
+.ep-root .ep-modal.ep-form-vert .ep-form-stats{order:3;}
+/* datos del jugador en 2 filas (nombre y posicion; luego el selector de jugador) */
 .ep-root .ep-modal.ep-form-vert .ep-pitch-info{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;margin:0;padding:8px 10px;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-info-name{grid-column:1;grid-row:1;min-width:0;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-posrow{grid-column:2;grid-row:1;}
@@ -626,46 +641,48 @@ html.ep-lock body{overflow:hidden;}
 .mej-pausa-box p{margin:0 0 14px;font-size:15px;line-height:1.4;}
 .mej-pausa-box button{background:var(--gold);color:#111;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;}
 
-/* UI-HAB-1 · Habilidades especiales: cada celda es un boton entero; nombre a la izquierda, costo y estrella a la derecha
-   (las estrellas quedan en la misma columna). Estrella de 24 px dentro de un area de clic de 44x44. */
-@media (min-width:420px){
-.ep-root .ep-rows.ep-rows-hab{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
-.ep-root .ep-rows.ep-rows-hab .ep-row:nth-child(-n+2){border-top:none;}
-}
-.ep-root .ep-row.ep-hab{display:grid;grid-template-columns:minmax(0,1fr) auto 44px;align-items:center;gap:6px;padding:6px 6px 6px 12px;min-height:56px;cursor:pointer;}
+/* MEJUI2 · Habilidades especiales y Posiciones: sin interruptores. Una sola estrella
+   grande por fila (icono de 28 px dentro de una zona de toque de 48 px). Estrella llena
+   dorada = la tiene; contorno gris = no la tiene. Tocar la estrella la agrega o la quita. */
+.ep-root .ep-row.ep-hab{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;
+  padding:4px 4px 4px 12px;min-height:56px;cursor:pointer;}
 .ep-root .ep-row.ep-hab:hover{background:var(--card2);}
 .ep-root .ep-row.ep-hab.locked{cursor:not-allowed;}
 .ep-root .ep-row.ep-hab.on{box-shadow:inset 0 0 0 1px var(--gold-b);}
-.ep-root .ep-hab .ep-hab-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:14px;min-width:0;overflow-wrap:break-word;}
-.ep-root .ep-hab .ep-hab-costo{min-width:52px;text-align:right;font-family:'Barlow Condensed';font-weight:700;font-size:13px;color:var(--gold);white-space:nowrap;}
-.ep-root .ep-hab-estrella{width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;background:none;border:1px solid transparent;border-radius:10px;color:var(--txt3);cursor:pointer;}
-.ep-root .ep-hab-estrella .icn{width:24px;height:24px;}
+.ep-root .ep-hab .ep-hab-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:15px;min-width:0;overflow-wrap:break-word;}
+.ep-root .ep-hab-estrella{width:48px;height:48px;display:flex;align-items:center;justify-content:center;padding:0;
+  background:none;border:1px solid transparent;border-radius:12px;color:var(--txt3);cursor:pointer;}
+.ep-root .ep-hab-estrella .icn{width:28px;height:28px;stroke-width:1.7;}
 .ep-root .ep-hab-estrella:hover{color:var(--gold);border-color:var(--gold-b);}
 .ep-root .ep-hab-estrella:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 .ep-root .ep-hab-estrella.on{color:var(--gold);}
 
-/* MEJUI-2 · Posiciones: misma fila que Habilidades especiales. Interruptor a la derecha
-   y estrella de posicion natural (24 px) junto a el; las inactivas dejan el hueco. */
-.ep-root .ep-row.ep-pos{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;
-  padding:6px 6px 6px 12px;min-height:56px;cursor:pointer;}
+.ep-root .ep-row.ep-pos{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;
+  padding:4px 4px 4px 12px;min-height:56px;cursor:pointer;}
 .ep-root .ep-row.ep-pos:hover{background:var(--card2);}
 .ep-root .ep-row.ep-pos.on{box-shadow:inset 0 0 0 1px var(--gold-b);}
+.ep-root .ep-pos-code{width:44px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:0.5px;}
 .ep-root .ep-pos-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:15px;}
-.ep-root .ep-pos-ctl{display:flex;align-items:center;gap:4px;flex:none;}
-.ep-root .ep-switch{width:48px;height:44px;padding:0;background:none;border:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
-.ep-root .ep-switch i{position:relative;display:block;width:44px;height:26px;border-radius:999px;background:var(--card3);border:1px solid var(--brd2);
-  transition:background .15s ease,border-color .15s ease;}
-.ep-root .ep-switch i::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--txt3);
-  transition:transform .15s ease,background .15s ease;}
-.ep-root .ep-switch.on i{background:var(--gold-l);border-color:var(--gold-b);}
-.ep-root .ep-switch.on i::after{transform:translateX(18px);background:var(--gold);}
-.ep-root .ep-switch:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:12px;}
-.ep-root .ep-pos-star{width:44px;height:44px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;
-  background:none;border:1px solid transparent;border-radius:10px;color:var(--txt3);cursor:pointer;}
-.ep-root .ep-pos-star .icn{width:24px;height:24px;}
+.ep-root .ep-pos-lado{display:flex;align-items:center;gap:8px;flex:none;}
+.ep-root .ep-pos-principal{font-family:'Barlow Condensed';font-weight:700;font-size:10.5px;letter-spacing:0.8px;
+  text-transform:uppercase;color:var(--gold);background:var(--gold-l);border:1px solid var(--gold-b);
+  border-radius:999px;padding:2px 7px;white-space:nowrap;}
+.ep-root .ep-pos-star{width:48px;height:48px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;
+  background:none;border:1px solid transparent;border-radius:12px;color:var(--txt3);cursor:pointer;}
+.ep-root .ep-pos-star .icn{width:28px;height:28px;stroke-width:1.7;}
 .ep-root .ep-pos-star:hover{color:var(--gold);border-color:var(--gold-b);}
+.ep-root .ep-pos-star:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 .ep-root .ep-pos-star.on{color:var(--gold);}
-.ep-root .ep-pos-star.vacia{pointer-events:none;border-color:transparent;}
+
+/* MEJUI2 · «Hacer principal» en la línea fija de descripción (solo con una posición
+   secundaria abierta). La posición natural no se quita: su estrella no ofrece el botón. */
+.ep-root .ep-hint.accion{pointer-events:auto;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.ep-root .ep-hint-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ep-root .ep-hint-btn{flex:none;min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--gold-b);
+  background:var(--gold-l);color:var(--gold);font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;
+  letter-spacing:0.8px;text-transform:uppercase;cursor:pointer;}
+.ep-root .ep-hint-btn:hover{filter:brightness(1.12);}
 
 /* PAUSA-1: mejoras pausadas (aviso arriba; acciones deshabilitadas) */
 .ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;}

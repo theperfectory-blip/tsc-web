@@ -1027,6 +1027,9 @@ const APP = {
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
   draft: null,
   hint: 'Selecciona un atributo para ver su descripción.',
+  // MEJUI2: posición cuya descripción está abierta. Solo ella muestra «Hacer principal»
+  // en la línea fija de abajo (la forma discreta de cambiar la posición natural).
+  posSel: null,
 };
 
 function currentPlayer(){ return PLAYER_BY_ID[APP.playerId]; }
@@ -1126,6 +1129,7 @@ function renderRoster(){
 function selectPlayer(id){
   APP.playerId = id;
   APP.page = 1;
+  APP.posSel = null;
   APP.hint = 'Selecciona un atributo para ver su descripción.';
   const jugador = PLAYER_BY_ID[id];
   if (jugador) APP.squadTab = _seccionesPlantel()[id] || 'titular'; // el segmentado sigue al jugador elegido
@@ -1431,6 +1435,7 @@ function gotoPage(delta){
   const next = APP.page + delta;
   if(next<1 || next>PAGES.length) return;
   APP.page = next;
+  APP.posSel = null;
   // MEJUI-1: la linea fija arranca con una ayuda corta de la pagina abierta.
   APP.hint = ['Toca un atributo para ver su descripción.',
     'Toca un atributo para ver su descripción.',
@@ -1441,10 +1446,28 @@ function gotoPage(delta){
 function _pintarHint(text){
   const el = document.getElementById('ep-hint');
   if (!el) return;
-  el.textContent = text || '';
   el.title = text || '';
+  el.classList.remove('accion');
+  el.textContent = text || '';
+  // MEJUI2: con una posición secundaria abierta, la línea de descripción ofrece
+  // «Hacer principal» (forma discreta de cambiar la posición natural). La principal
+  // no lleva botón: no se puede quitar.
+  const pos = APP.posSel && APP.page === 4 ? POS_BY_KEY[APP.posSel] : null;
+  if (!pos || !APP.draft || !APP.draft.positions[pos.k] || pos.k === APP.draft.primaryPos) return;
+  const txt = document.createElement('span');
+  txt.className = 'ep-hint-txt';
+  txt.textContent = text || '';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ep-hint-btn';
+  btn.textContent = 'Hacer principal';
+  btn.setAttribute('data-onclick', `hacerPrincipal('${pos.k}')`);
+  el.textContent = '';
+  el.append(txt, btn);
+  el.classList.add('accion');
 }
 function setHint(text){
+  APP.posSel = null;
   APP.hint = text;
   _pintarHint(text);
   renderRows();
@@ -1927,43 +1950,47 @@ function _montarModalCancha(){
         <button class="ep-modal-close" data-onclick="closeFormationModal()">&times;</button>
       </div>
       <div class="ep-modal-body">
-        <div class="ep-pitch-crest">
-          <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
-          ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineación
-          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineación según las líneas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
-        </div>
-        <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
-          ${franjas}
-          <div class="ep-pitch-halfline"></div>
-          <div class="ep-pitch-circle"></div>
-          <div class="ep-pitch-box left"></div>
-          <div class="ep-pitch-box right"></div>
-          <div class="ep-pitch-arc left"></div>
-          <div class="ep-pitch-arc right"></div>
-          <div class="ep-pitch-goal left"></div>
-          <div class="ep-pitch-goal right"></div>
-          <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
-          <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
-        </div>
-        <div class="ep-pitch-info">
-          <div class="ep-pitch-info-name" id="ep-form-name"></div>
-          <div class="ep-pitch-posrow">
-            <span class="ep-pitch-info-zone">Posición</span>
-            <select id="ep-form-pos" class="ep-pitch-possel" data-onchange="setFormationPos(this.value)"></select>
+        <div class="ep-pitch-top">
+          <div class="ep-pitch-crest">
+            <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
+            ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineación
+            <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineación según las líneas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
           </div>
-          <div class="ep-pitch-selctl">
-            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(-1)" title="Jugador anterior" aria-label="Jugador anterior">
-              <svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
-            <span class="ep-pitch-info-zone" id="ep-form-zone"></span>
-            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(1)" title="Jugador siguiente" aria-label="Jugador siguiente">
-              <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+          <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
+            ${franjas}
+            <div class="ep-pitch-halfline"></div>
+            <div class="ep-pitch-circle"></div>
+            <div class="ep-pitch-box left"></div>
+            <div class="ep-pitch-box right"></div>
+            <div class="ep-pitch-arc left"></div>
+            <div class="ep-pitch-arc right"></div>
+            <div class="ep-pitch-goal left"></div>
+            <div class="ep-pitch-goal right"></div>
+            <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
+            <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
+          </div>
+          <div class="ep-pitch-hint">
+            <span>${toqueFino ? 'Toca un jugador del 11 y después a quién entra (o al revés). Toca otra vez al marcado para cancelar.' : 'Clic en un jugador del 11 y después en quién entra (o al revés). Clic otra vez en el marcado para cancelar.'}</span>
+            <span id="ep-form-coords"></span>
           </div>
         </div>
-        <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Titulares, banca y reservas"></div>
-        <div class="ep-form-stats" id="ep-form-stats" hidden></div>
-        <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Toca un jugador del 11 y después a quién entra (o al revés). Toca otra vez al marcado para cancelar.' : 'Clic en un jugador del 11 y después en quién entra (o al revés). Clic otra vez en el marcado para cancelar.'}</span>
-          <span id="ep-form-coords"></span>
+        <div class="ep-form-lista" id="ep-form-lista">
+          <div class="ep-pitch-info">
+            <div class="ep-pitch-info-name" id="ep-form-name"></div>
+            <div class="ep-pitch-posrow">
+              <span class="ep-pitch-info-zone">Posición</span>
+              <select id="ep-form-pos" class="ep-pitch-possel" data-onchange="setFormationPos(this.value)"></select>
+            </div>
+            <div class="ep-pitch-selctl">
+              <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(-1)" title="Jugador anterior" aria-label="Jugador anterior">
+                <svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <span class="ep-pitch-info-zone" id="ep-form-zone"></span>
+              <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(1)" title="Jugador siguiente" aria-label="Jugador siguiente">
+                <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+            </div>
+          </div>
+          <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Banca y reservas"></div>
+          <div class="ep-form-stats" id="ep-form-stats" hidden></div>
         </div>
       </div>
       <div class="ep-form-swapbar" id="ep-form-swapbar" aria-live="polite" hidden></div>
@@ -2117,10 +2144,10 @@ function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
   renderFormationModal();
 }
-/* Lista completa del plantel y la ficha del jugador elegido.
-   MEJUI-4: una fila por jugador, en una columna bajo la cancha, con el dorsal y las
-   iniciales de posicion en el color de su linea (clases ep-line-*, como el editor).
-   Titulares con el texto normal; banca en celeste/azul y reservas en verde.
+/* Banca y reservas (y la ficha del jugador elegido), en la mitad inferior del modal.
+   MEJUI-4: una fila por jugador, con el dorsal y las iniciales de posicion en el color de
+   su linea (clases ep-line-*, como el editor); banca en celeste/azul y reservas en verde.
+   MEJUI2: los titulares no se repiten acá (están en la cancha).
    Con un jugador marcado, los destinos validos se resaltan (.puede) y el resto se
    atenua (.no), sin bloquear el toque: si no vale, el toast explica por que. */
 function _lineaFormacion(p, slot, i){
@@ -2153,11 +2180,12 @@ function _formRenderBancaYPanel(){
         <span class="ep-form-cod ep-line-${linea}">${escHtml(cod)}</span>
       </button>`;
     };
-    const grupos = [['titular', 'Titulares'], ['suplente', 'Banca'], ['reserva', 'Reservas']];
+    // MEJUI2: abajo de la cancha va solo la banca y los reservas (los titulares ya están
+    // en la cancha y se tocan ahí): así la lista de cambios queda a la vista en la mitad
+    // inferior de la pantalla.
+    const grupos = [['suplente', 'Banca'], ['reserva', 'Reservas']];
     bancaEl.innerHTML = grupos.map(([sec, titulo]) => {
-      const ids = sec === 'titular'
-        ? FORM.draft.map(s => s.id)
-        : _rosterVisible().filter(id => secs[id] === sec && PLAYER_BY_ID[id]);
+      const ids = _rosterVisible().filter(id => secs[id] === sec && PLAYER_BY_ID[id]);
       if (!ids.length) return '';
       return `<div class="ep-form-grp">${titulo}</div>` + ids.map(id => fila(PLAYER_BY_ID[id], sec)).join('');
     }).join('') || '<span class="ep-form-subnone">Sin jugadores en el plantel.</span>';
@@ -2387,8 +2415,9 @@ function _formObservarAlto(){
   _formAjustarAlto();
 }
 function _formDejarDeObservar(){ if (FORM_RO){ FORM_RO.disconnect(); FORM_RO = null; } }
-/* Alto de la cancha vertical: toma el alto que sobra del modal. La ficha del jugador (#ep-form-stats)
-   va debajo de la cancha, dentro del scroll del modal, y no le resta alto. Horizontal: sin alto fijo. */
+/* MEJUI2: alto de la cancha vertical. La cancha ocupa algo menos de la mitad superior de
+   la pantalla del celular y la lista de banca/reservas se queda con el resto, con su
+   propio scroll (ver .ep-form-lista). Horizontal: sin alto fijo. */
 function _formAjustarAlto(){
   const wrap = document.getElementById('ep-pitch-wrap');
   const body = wrap && wrap.querySelector('.ep-modal-body');
@@ -2397,16 +2426,21 @@ function _formAjustarAlto(){
   if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); return; }
   campo.style.removeProperty('--campo-h');
   const cs = getComputedStyle(body);
+  const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
   const gap = parseFloat(cs.rowGap) || 10;
-  const libreTot = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  // lo que no es la cancha ni la ficha ocupa su alto; cada bloque suma un espacio.
-  // MEJUI-4: la lista de titulares/banca/reservas ahora es una columna larga que scrollea
-  // con el modal, asi que no resta alto a la cancha (si lo hiciera, la dejaria en el minimo).
-  const fijosEls = [...body.children].filter(el => el !== campo && el.id !== 'ep-form-stats'
-    && el.id !== 'ep-form-bench' && el.offsetHeight > 0);
-  const fijos = fijosEls.reduce((s, el) => s + el.offsetHeight, 0);
-  const h = libreTot - fijos - fijosEls.length * gap;
-  campo.style.setProperty('--campo-h', Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
+  const util = body.clientHeight - pad;
+  // Lo que no es la cancha arriba (franja del equipo y ayuda), con sus separaciones.
+  const top = campo.parentElement;
+  const topEls = top ? [...top.children].filter(el => el !== campo) : [];
+  const otrosTop = topEls.reduce((s, el) => s + el.offsetHeight, 0);
+  const gapTop = parseFloat(top ? getComputedStyle(top).rowGap : 0) || gap;
+  const gapsTop = Math.max(0, top ? top.children.length - 1 : 0) * gapTop;
+  // Unos 44% del alto de la pantalla; el tope evita que la lista quede sin espacio en
+  // pantallas muy bajas (en un telefono normal no recorta la cancha).
+  const altoPantalla = window.innerHeight || body.clientHeight || 640;
+  const topePorLista = util - otrosTop - gapsTop - gap - 60;
+  const h = Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(altoPantalla * 0.44), Math.floor(topePorLista)));
+  campo.style.setProperty('--campo-h', h + 'px');
 }
 
 function opcionesPosicion(slot){
@@ -2862,15 +2896,29 @@ function togglePosition(key){
   }
 
   d.positions[key] = !d.positions[key];
-  // MEJUI-2: la linea fija sigue a la posicion que se toca (el interruptor corta el burbujeo).
+  // MEJUI2: la linea fija sigue a la posicion que se toca (la estrella corta el burbujeo).
   const pos = POS_BY_KEY[key];
   if (pos){
+    APP.posSel = key;
     APP.hint = key === d.primaryPos ? 'Posición natural del jugador.'
-      : (d.positions[key] ? 'Posición secundaria. Toca la estrella para hacerla natural.'
+      : (d.positions[key] ? 'Posición secundaria. Usa «Hacer principal» para que sea la natural.'
                           : 'Posición disponible para este jugador (sin costo en YunaCoins).');
     _pintarHint(APP.hint);
   }
   renderCard(); renderRows(); renderCart();
+}
+/* MEJUI2: tocar el nombre de una posición abre su descripción y deja «Hacer principal»
+   en la línea fija de abajo (solo si está marcada y no es la natural). */
+function mejVerPosicion(key){
+  const pos = POS_BY_KEY[key];
+  if (!pos) return;
+  const d = APP.draft;
+  APP.posSel = key;
+  APP.hint = key === d.primaryPos ? 'Posición natural del jugador.'
+    : (d.positions[key] ? 'Posición secundaria. Usa «Hacer principal» para que sea la natural.'
+                        : 'Posición disponible para este jugador (sin costo en YunaCoins).');
+  _pintarHint(APP.hint);
+  renderRows();
 }
 // El save de PES5 guarda un solo bit para el pie dominante: derecho o izquierdo. No existe "ambos".
 const FOOT_LABEL = { D: 'Der.', I: 'Izq.' };
@@ -2886,13 +2934,14 @@ function setSide(v){
 function setPrimaryPos(k){
   if(!APP.draft.positions[k]) return;
   APP.draft.primaryPos = k;
+  APP.posSel = k;
   APP.hint = 'Posición natural del jugador.';
   _pintarHint(APP.hint);
   renderCard(); renderRows(); renderCart();
 }
 
 function starSvg(on){
-  return `<svg class="icn star ${on?'on':''}" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>`;
+  return `<svg class="icn star ${on?'on':''}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>`;
 }
 
 /* ================= render: filas por pagina ================= */
@@ -3016,18 +3065,16 @@ function renderRows(){
     }).join('');
   }
 
-  // UI-HAB-1: la fila entera activa la habilidad (un solo handler en la fila: el boton de la estrella
-  // no tiene handler propio, asi que no hay doble disparo). Nombre a la izquierda, costo y estrella a la derecha.
+  // MEJUI2: la fila solo muestra la descripción (linea fija); la estrella grande es el
+  // control que agrega o quita la habilidad. Misma lógica y costo que siempre (toggleAbility).
   function abilityRow(a){
     const on = d.abilities[a.k];
     const boughtBefore = p.abilities[a.k];
     const canToggle = boughtBefore || on || canAfford(RULES.abilityCost);
-    const costo = RULES.abilityCost;
-    const etiqueta = `${a.l}: ${on ? 'desactivar' : 'activar'} habilidad (+${costo})`;
-    return `<div class="ep-row ep-hab ${APP.hint===a.d?'sel':''} ${on?'on':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="toggleAbility('${a.k}')">
+    const etiqueta = `${on ? 'Quitar' : 'Agregar'} ${a.l}`;
+    return `<div class="ep-row ep-hab ${APP.hint===a.d?'sel':''} ${on?'on':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="setHint('${jsq(a.d)}')">
       <div class="ep-rlabel ep-hab-nombre">${escHtml(a.l)}</div>
-      <div class="ep-rcost ep-hab-costo">${on&&!boughtBefore?'+'+costo:''}</div>
-      <button type="button" class="ep-hab-estrella ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}">${starSvg(on)}</button>
+      <button type="button" class="ep-hab-estrella ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}" data-onclick="event.stopPropagation();toggleAbility('${a.k}')">${starSvg(on)}</button>
     </div>`;
   }
   function padRow(){ return `<div class="ep-row pad"><div class="ep-rlabel">&mdash;</div></div>`; }
@@ -3036,27 +3083,24 @@ function renderRows(){
     html = ALL_ABILITIES.map(abilityRow).join('');
   }
   if(APP.page===4){
-    // MEJUI-2: misma fila que Habilidades especiales. Control (interruptor) a la derecha y,
-    // junto a el, la estrella de posicion natural (24 px). Las inactivas dejan el hueco de la
-    // estrella para que nada se mueva al activarlas.
+    // MEJUI2: una sola estrella grande por fila (sin interruptores). El código va en el
+    // color de su línea, el nombre al centro y «Principal» junto a la estrella cuando es
+    // la posición natural. La principal no se quita: togglePosition lo impide.
     html = POSITIONS.map(pos=>{
       const on = d.positions[pos.k];
       const isRegistered = pos.k === d.primaryPos;
-      const hint = isRegistered ? 'Posición natural del jugador.'
-        : (on ? 'Posición secundaria. Toca la estrella para hacerla natural.'
-              : 'Posición disponible para este jugador (sin costo en YunaCoins).');
-      const estrella = !on
-        ? '<span class="ep-pos-star vacia" aria-hidden="true"></span>'
-        : isRegistered
-          ? `<span class="ep-pos-star on" title="Posición natural">${starSvg(true)}</span>`
-          : `<button type="button" class="ep-pos-star" title="Hacer natural" aria-label="Hacer ${escAttr(pos.l)} la posición natural" data-onclick="event.stopPropagation();setPrimaryPos('${pos.k}')">${starSvg(false)}</button>`;
-      return `<div class="ep-row ep-pos ${on?'on':''}" data-onclick="setHint('${jsq(hint)}')">
+      const linea = LINEA_POS[pos.k] || 'mid';
+      const codigo = CODIGO_POS[pos.k] || pos.k;
+      const etiqueta = `${on ? 'Quitar' : 'Agregar'} ${pos.l}`;
+      const sel = APP.posSel === pos.k;
+      const principal = isRegistered
+        ? '<span class="ep-pos-principal">Principal</span>'
+        : '';
+      return `<div class="ep-row ep-pos ${on?'on':''} ${sel?'sel':''}" data-onclick="mejVerPosicion('${pos.k}')">
+        <span class="ep-pos-code ep-line-${linea}" aria-hidden="true">${escHtml(codigo)}</span>
         <div class="ep-rlabel ep-pos-nombre">${escHtml(pos.l)}</div>
-        <div class="ep-pos-ctl">
-          <button type="button" class="ep-switch ${on?'on':''}" role="switch" aria-checked="${on?'true':'false'}"
-            aria-label="${escAttr((on?'Quitar ':'Agregar ') + pos.l)}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')"><i aria-hidden="true"></i></button>
-          ${estrella}
-        </div>
+        <span class="ep-pos-lado">${principal}<button type="button" class="ep-pos-star ${on?'on':''}" aria-pressed="${on?'true':'false'}"
+          aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</button></span>
       </div>`;
     }).join('') + `
       <div class="ep-row" data-onclick="setHint('Pie dominante del jugador. En el juego solo puede ser derecho o izquierdo.')">
@@ -3499,6 +3543,8 @@ window.resetFormationDraft = resetFormationDraft;
 window.selectFormationPlayer = selectFormationPlayer;
 window.solicitarEmparejar = solicitarEmparejar;
 window.selectPlayer = selectPlayer;
+window.mejVerPosicion = mejVerPosicion;
+window.hacerPrincipal = setPrimaryPos;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
 window.formacionTocarBanca = formacionTocarBanca;
