@@ -20,7 +20,7 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SRC = join(ROOT, 'tsc-src');
 const OUT = join(ROOT, 'sandbox');
 const SITE = join(OUT, 'site');
-const INCLUDE = ['index.html', 'manifest.webmanifest', 'css', 'js', 'assets', 'data'];
+const INCLUDE = ['index.html', 'mejoras.html', 'manifest.webmanifest', 'css', 'js', 'assets', 'data'];
 
 // Mismo proyecto y API key pública que tsc-src/js/firebase-config.js.
 const PROJECT = 'tsc-web-yuna';
