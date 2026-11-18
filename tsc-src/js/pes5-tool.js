@@ -1644,35 +1644,8 @@ async function renderPedidosTab(opts){
     _despuesDeRenderPedidos(movil, opts);
     return;
   }
-  const filas = PEDIDOS_PENDIENTES.map(p => {
-    const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
-    const esFormacion = p.tipo === 'formacion';
-    const lineas = esFormacion
-      ? ((p.lines && p.lines.length)
-          ? p.lines.map(l => l.from ? `${escHtml(l.label)}: ${escHtml(l.from)} → ${escHtml(l.to)}` : `${escHtml(l.label)}: ${escHtml(l.to)}`).join('<br>')
-          : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
-      : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
-    const aplicable = esFormacion
-      ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
-      : !!(p.cambios && p.registro != null);
-    const jugador = esFormacion
-      ? ((p.lines || []).some(l => l.label === 'Cambio de alineación') ? '<i>Alineación</i>' : '<i>Formación</i>')
-      : `${escHtml(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
-    // En PC la casilla elige que pedidos aplicar. En el telefono no se aplica nada (3.B).
-    const celdaSel = movil ? '' : `<td data-label="Aplicar"><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>`;
-    return `<tr>
-      ${celdaSel}
-      <td data-label="Equipo">${escHtml(p.teamName || String(p.teamId))}</td>
-      <td data-label="Jugador">${jugador}</td>
-      <td data-label="Cambios" style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${!movil && !aplicable ? '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : ''}</td>
-      <td data-label="Costo" style="text-align:right;">${esFormacion ? 'gratis' : Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
-      <td data-label="Enviado" style="font-size:12px;">${escHtml(fecha)}</td>
-      <td class="pt-td-accion"><button class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarPedido('${escHtml(p._id)}')">Rechazar</button></td>
-    </tr>`;
-  }).join('');
-  const cabecera = movil
-    ? '<th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th style="text-align:right;">Costo estimado</th><th>Enviado</th><th></th>'
-    : '<th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th style="text-align:right;">Costo estimado</th><th>Enviado</th><th></th>';
+  const grupos = _ptGruposPedidos();
+  const acordeon = grupos.map(g => _ptEquipoHTML(g, movil)).join('');
   const intro = movil
     ? `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes.</div>
        <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
@@ -1685,11 +1658,160 @@ async function renderPedidosTab(opts){
     <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>`;
   cont.innerHTML = `
     ${intro}
-    <div class="pt-tbl-wrap"><table class="tbl pt-tbl-pedidos"><thead><tr>${cabecera}</tr></thead><tbody>${filas}</tbody></table></div>
+    <div class="pt-ped-acc">${acordeon}</div>
     ${aplicar}
     <div class="pt-log" id="ped-log"></div>
     ${bloquePub}`;
   _despuesDeRenderPedidos(movil, opts);
+}
+
+/* Acordeón de pedidos (3 niveles: equipo › tipo › pedido). Solo arma HTML: las
+   casillas .ped-sel conservan value = id del pedido y aplicarPedidosSeleccionados
+   las lee igual que antes. Los grupos nacen cerrados. */
+const PT_PED_TIPOS = [
+  { key: 'mejoras', label: 'Mejoras' },
+  { key: 'alineacion', label: 'Alineación' },
+  { key: 'formacion', label: 'Formación' },
+  { key: 'emparejar', label: 'Emparejar' },
+];
+function _ptClaveEquipo(p){
+  return p.teamId != null && p.teamId !== '' ? String(p.teamId) : 'n:' + String(p.teamName || 'sin-equipo');
+}
+function _ptTipoPedido(p){
+  if (p.tipo === 'emparejar') return 'emparejar';
+  if (p.tipo === 'formacion'){
+    return (p.lines || []).some(l => l && l.label === 'Cambio de alineación') ? 'alineacion' : 'formacion';
+  }
+  return 'mejoras';
+}
+function _ptPedidoAplicable(p){
+  return p.tipo === 'formacion'
+    ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
+    : !!(p.cambios && p.registro != null);
+}
+function _ptCostoPedido(p){
+  return _ptTipoPedido(p) === 'mejoras' ? Number(p.totalCost || 0) : 0;
+}
+function _ptCostoTexto(n){
+  const v = Number(n || 0);
+  return v > 0 ? v.toLocaleString('es-CL') + ' YC' : 'gratis';
+}
+function _ptGruposPedidos(){
+  const porEquipo = new Map();
+  for (const p of PEDIDOS_PENDIENTES){
+    const key = _ptClaveEquipo(p);
+    if (!porEquipo.has(key)){
+      porEquipo.set(key, {
+        key: key, nombre: String(p.teamName || p.teamId || 'Sin equipo'),
+        total: 0, aplicables: 0, tipos: new Map(), pedidos: [],
+      });
+    }
+    const g = porEquipo.get(key);
+    g.pedidos.push(p);
+    g.total += _ptCostoPedido(p);
+    if (_ptPedidoAplicable(p)) g.aplicables++;
+    const tipo = _ptTipoPedido(p);
+    if (!g.tipos.has(tipo)) g.tipos.set(tipo, []);
+    g.tipos.get(tipo).push(p);
+  }
+  return Array.from(porEquipo.values()).map(g => ({
+    key: g.key, nombre: g.nombre, total: g.total, aplicables: g.aplicables, pedidos: g.pedidos,
+    tipos: PT_PED_TIPOS.filter(t => g.tipos.has(t.key))
+      .map(t => ({ key: t.key, label: t.label, pedidos: g.tipos.get(t.key) })),
+  }));
+}
+function _ptLineasPedido(p){
+  return p.tipo === 'formacion'
+    ? ((p.lines && p.lines.length)
+        ? p.lines.map(l => l.from ? `${escHtml(l.label)}: ${escHtml(l.from)} → ${escHtml(l.to)}` : `${escHtml(l.label)}: ${escHtml(l.to)}`).join('<br>')
+        : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
+    : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
+}
+function _ptPedidoHTML(p, movil){
+  const tipo = _ptTipoPedido(p);
+  const aplicable = _ptPedidoAplicable(p);
+  const eq = _ptClaveEquipo(p);
+  const esFormacion = tipo === 'formacion' || tipo === 'alineacion';
+  const nombre = esFormacion
+    ? (tipo === 'alineacion' ? 'Alineación' : 'Formación') + ((p.formacion && p.formacion.nombre) ? ' · ' + p.formacion.nombre : '')
+    : (p.playerName || 'Jugador sin nombre');
+  // En PC la casilla elige qué pedidos aplicar. En el teléfono no se aplica nada (3.B).
+  const sel = movil ? '' : `<input type="checkbox" class="ped-sel" value="${escAttr(p._id)}" data-eq="${escAttr(eq)}" aria-label="Aplicar este pedido" data-onchange="ptPedSelPedido(this)" ${aplicable ? 'checked' : 'disabled'}>`;
+  const sub = !esFormacion && p.subscriber ? ' <span class="badge">$</span>' : '';
+  const viejo = !movil && !aplicable ? ' <span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : '';
+  const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
+  const lineas = _ptLineasPedido(p);
+  return `<div class="pt-ped-item">
+    <div class="pt-ped-row">
+      ${sel}
+      <span class="pt-ped-nombre">${escHtml(nombre)}${sub}${viejo}</span>
+      <span class="pt-ped-costo">${_ptCostoTexto(_ptCostoPedido(p))}</span>
+      <button class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarPedido('${escAttr(p._id)}')">Rechazar</button>
+    </div>
+    <details class="pt-ped-det">
+      <summary><span class="pt-ped-chev" aria-hidden="true"></span>Ver detalle</summary>
+      <div class="pt-ped-lineas">${lineas || '<i>sin detalle</i>'}</div>
+      ${fecha ? `<div class="pt-ped-fecha">Enviado: ${escHtml(fecha)}</div>` : ''}
+    </details>
+  </div>`;
+}
+function _ptTipoHTML(t, movil){
+  return `<div class="pt-ped-type">
+    <button type="button" class="pt-ped-type-toggle pt-ped-toggle" aria-expanded="false" data-onclick="ptPedToggle(this)">
+      <span class="pt-ped-chev" aria-hidden="true"></span>
+      <span class="pt-ped-type-nombre">${escHtml(t.label)}</span>
+      <span class="pt-ped-cant">${t.pedidos.length}</span>
+    </button>
+    <div class="pt-ped-type-body" hidden>${t.pedidos.map(p => _ptPedidoHTML(p, movil)).join('')}</div>
+  </div>`;
+}
+function _ptEquipoHTML(g, movil){
+  const n = g.pedidos.length;
+  const todos = movil ? '' : `<input type="checkbox" class="pt-ped-allchk" data-eq="${escAttr(g.key)}" aria-label="Seleccionar todos los pedidos de este equipo" data-onchange="ptPedSelEquipo(this)" ${g.aplicables ? 'checked' : 'disabled'}>`;
+  return `<div class="pt-ped-team">
+    <div class="pt-ped-team-hd">
+      ${todos}
+      <button type="button" class="pt-ped-team-toggle pt-ped-toggle" aria-expanded="false" data-onclick="ptPedToggle(this)">
+        <span class="pt-ped-chev" aria-hidden="true"></span>
+        <span class="pt-ped-team-nombre">${escHtml(g.nombre)}</span>
+        <span class="pt-ped-team-meta">${n} ${n === 1 ? 'pedido' : 'pedidos'} · ${_ptCostoTexto(g.total)}</span>
+      </button>
+    </div>
+    <div class="pt-ped-team-body" hidden>${g.tipos.map(t => _ptTipoHTML(t, movil)).join('')}</div>
+  </div>`;
+}
+/* Abre/cierra un nivel del acordeón (equipo o tipo). El panel es hijo del
+   contenedor del botón, no su hermano (el encabezado del equipo lo envuelve). */
+function ptPedToggle(btn){
+  if (!btn) return;
+  const grupo = btn.closest('.pt-ped-team, .pt-ped-type');
+  const body = grupo ? grupo.querySelector(':scope > .pt-ped-team-body, :scope > .pt-ped-type-body') : null;
+  if (!body) return;
+  const abierto = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+  body.hidden = abierto;
+}
+function _ptSelsDeEquipo(eq){
+  return Array.from(document.querySelectorAll('#pt-tabcontent .ped-sel')).filter(el => el.dataset && el.dataset.eq === eq);
+}
+function _ptAllChkDeEquipo(eq){
+  return Array.from(document.querySelectorAll('#pt-tabcontent .pt-ped-allchk')).find(el => el.dataset && el.dataset.eq === eq) || null;
+}
+/* Casilla del equipo: marca o desmarca todas sus casillas aplicables. */
+function ptPedSelEquipo(chk){
+  const eq = (chk.dataset && chk.dataset.eq) || '';
+  for (const el of _ptSelsDeEquipo(eq)) if (!el.disabled) el.checked = !!chk.checked;
+  chk.indeterminate = false;
+}
+/* Casilla de un pedido: deja la del equipo en marcada / indeterminada / vacía. */
+function ptPedSelPedido(chk){
+  const eq = (chk.dataset && chk.dataset.eq) || '';
+  const sels = _ptSelsDeEquipo(eq).filter(el => !el.disabled);
+  const todos = _ptAllChkDeEquipo(eq);
+  if (!todos) return;
+  const marcados = sels.filter(el => el.checked).length;
+  todos.checked = sels.length > 0 && marcados === sels.length;
+  todos.indeterminate = marcados > 0 && marcados < sels.length;
 }
 
 /* Tras pintar Pedidos: restaura el log de la ultima aplicacion (si vuelve a pintar) y
@@ -2815,6 +2937,9 @@ window.ptRechazarPedido = rechazarPedido;
 window.ptCerrarRechazo = cerrarRechazo;
 window.ptConfirmarRechazo = confirmarRechazo;
 window.ptRechazoMotivoInput = rechazoMotivoInput;
+window.ptPedToggle = ptPedToggle;
+window.ptPedSelEquipo = ptPedSelEquipo;
+window.ptPedSelPedido = ptPedSelPedido;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
 window.ptVincularEquipo = vincularEquipo;
