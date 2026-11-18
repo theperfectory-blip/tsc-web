@@ -27,14 +27,18 @@ html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlo
 *{box-sizing:border-box;}
 ::-webkit-scrollbar{display:none;}
 *{scrollbar-width:none;}
-/* SAVE-1 · barra del save publicado (fecha de la ultima subida y «Descargar save») */
-.mej-save-pub{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px auto 0;max-width:1100px;padding:10px 14px;border:1px solid var(--brd);border-radius:12px;background:var(--card2);color:var(--txt);font-size:14px;}
+/* SAVE-1 · barra del save publicado (boton discreto con la fecha de la ultima subida) */
+/* MEJUI-5 · save publicado: una linea corta con icono de descarga, al estilo de la cabecera.
+   El aviso de hacer una copia del save propio va en el title del boton. */
+.mej-save-pub{display:flex;align-items:center;justify-content:flex-end;gap:8px;max-width:1280px;margin:0 auto;
+  padding:6px 14px 0;color:var(--txt2);font-family:'Barlow',sans-serif;}
 .mej-save-pub[hidden]{display:none;}
-.mej-save-pub .msp-txt{display:flex;flex-direction:column;gap:2px;}
-.mej-save-pub .msp-txt small{color:var(--txt3);font-size:12px;}
-.mej-save-pub .btn{display:inline-flex;align-items:center;gap:6px;}
-.mej-save-pub .btn[disabled]{opacity:.55;cursor:not-allowed;}
-.mej-save-pub .icn{width:16px;height:16px;flex:none;}
+.mej-save-pub .msp-btn{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 12px;
+  border:1px solid var(--brd2);border-radius:10px;background:var(--card);color:var(--txt);
+  font-size:12.5px;font-weight:500;letter-spacing:0.3px;text-decoration:none;cursor:pointer;}
+.mej-save-pub .msp-btn:hover{border-color:var(--gold-b);color:var(--gold);}
+.mej-save-pub .msp-empty{font-size:12px;color:var(--txt3);}
+.mej-save-pub .icn{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 </style>
 </head>
 <body>

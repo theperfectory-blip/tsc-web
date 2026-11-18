@@ -83,7 +83,7 @@ const MEJ_MARKUP = `
       </nav>
 
       <div class="ep-rows" id="ep-rows"></div>
-      <div class="ep-hint" id="ep-hint" hidden></div>
+      <div class="ep-hint" id="ep-hint" aria-live="polite"></div>
 
       <div class="ep-cart">
         <div class="ep-cart-info">
@@ -557,9 +557,6 @@ function formacionPorDefecto(){
    actual (Luis pudo republicar o cambiar el club vinculado). */
 /* FORM-4: alineacion y formacion. Una sola lectura para la cancha, la lista y la ficha:
    1) el borrador (modal abierto), 2) el pedido de formacion pendiente, 3) la publicada, 4) la local. */
-function _textoLinea(l){
-  return l.from ? `${l.label}: ${l.from} → ${l.to}` : `${l.label}: ${l.to}`;
-}
 /* Lineas del pedido: un "Cambio de alineacion" por cada cambio de quien juega, y "Formacion" solo si
    se movieron los puntos o la posicion de un lugar (4-3-3, etc.). */
 function _lineasFormacion(base, nueva, nombreNueva){
@@ -1029,7 +1026,7 @@ const APP = {
   pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
   draft: null,
-  hint: 'Selecciona un atributo para ver su descripcion.',
+  hint: 'Selecciona un atributo para ver su descripción.',
 };
 
 function currentPlayer(){ return PLAYER_BY_ID[APP.playerId]; }
@@ -1129,7 +1126,7 @@ function renderRoster(){
 function selectPlayer(id){
   APP.playerId = id;
   APP.page = 1;
-  APP.hint = 'Selecciona un atributo para ver su descripcion.';
+  APP.hint = 'Selecciona un atributo para ver su descripción.';
   const jugador = PLAYER_BY_ID[id];
   if (jugador) APP.squadTab = _seccionesPlantel()[id] || 'titular'; // el segmentado sigue al jugador elegido
   loadDraft();
@@ -1366,7 +1363,16 @@ function renderPager(){
   // marcas de pagina como en el juego: una activa (larga) y el resto
   document.getElementById('ep-pgdots').innerHTML = PAGES.map((_, i) => `<i class="${i===APP.page-1?'on':''}"></i>`).join('');
 }
-/* Aviso del pedido pendiente (presentacion): usa los pedidos que ya carga el editor. */
+/* Aviso compacto del panel lateral (MEJUI-3): una fila por jugador con el nombre y el
+   costo total. Cerrada por defecto; se despliega para ver cada cambio. El total general
+   y el acceso a Pedidos quedan siempre visibles. */
+function togglePendDetalle(btn){
+  const det = btn && btn.nextElementSibling;
+  if (!det) return;
+  const abrir = det.hidden;
+  det.hidden = !abrir;
+  btn.setAttribute('aria-expanded', String(abrir));
+}
 function renderPending(){
   const pend = (APP.pendientes||[]).filter(x => x.estado === 'pendiente');
   const sub = document.getElementById('ep-pedidos-sub');
@@ -1377,33 +1383,70 @@ function renderPending(){
   const box = document.getElementById('ep-pend');
   if (!box) return;
   const bloqueo = !ADMIN_EMBED && !!APP.bloqueoPorAplicado;
-  const avisoBloqueo = 'Luis aplicó cambios que todavía no publicó. Espera a que publique para pedir más.';
   if (ADMIN_EMBED || (!pend.length && !bloqueo)){ box.hidden = true; box.innerHTML = ''; return; }
-  if (!pend.length){
-    box.hidden = false;
-    box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${avisoBloqueo}</span>`;
-    return;
-  }
-  const x = pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a))[0]; // el mas reciente
-  const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
-  const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
-  // pedido de formacion: no tiene jugador, va con el nombre de la formacion
-  const nombreForm = x.tipo === 'formacion' ? ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '') : '';
-  const frase = x.tipo === 'formacion'
-    ? `${(x.lines || []).map(l => escHtml(_textoLinea(l))).join(' · ') || 'Formación ' + escHtml(nombreForm)} espera que Luis la aplique.`
-    : `${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.`;
+
+  const fmt = n => Number(n || 0).toLocaleString('es-CL');
+  const textoLinea = l => {
+    const cambio = (l.from === '' || l.from == null || l.from === '—')
+      ? String(l.to == null ? '' : l.to)
+      : `${l.from} → ${l.to}`;
+    return `<div class="ep-pend-line"><span>${escHtml(l.label || '')}</span><b>${escHtml(cambio)}</b></div>`;
+  };
+  // Agrupado por jugador (o formacion), en el orden de llegada del pedido mas reciente.
+  const grupos = new Map();
+  pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a)).forEach(x => {
+    const nombre = x.tipo === 'formacion'
+      ? 'Formación ' + ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '')
+      : (x.playerName || 'Jugador');
+    const g = grupos.get(nombre) || { nombre, costo: 0, pedidos: [] };
+    g.costo += Number(x.totalCost || 0);
+    g.pedidos.push(x);
+    grupos.set(nombre, g);
+  });
+  const total = [...grupos.values()].reduce((s, g) => s + g.costo, 0);
+  const lista = [...grupos.values()].map(g => `
+    <div class="ep-pend-item">
+      <button type="button" class="ep-pend-row" aria-expanded="false" data-onclick="togglePendDetalle(this)">
+        <span class="ep-pend-name">${escHtml(g.nombre)}</span>
+        <b class="ep-pend-cost">${fmt(g.costo)}</b>
+        <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="ep-pend-det" hidden>
+        ${g.pedidos.map(x => (x.lines || []).length
+          ? x.lines.map(textoLinea).join('')
+          : '<div class="ep-pend-line"><span>Sin detalle</span></div>').join('')}
+      </div>
+    </div>`).join('');
   box.hidden = false;
-  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${bloqueo ? avisoBloqueo + ' ' : ''}${frase}${mas} Puedes cancelarlo desde Pedidos mientras siga pendiente.</span>`;
+  box.innerHTML = `
+    <div class="ep-pend-hd">
+      <span class="ep-pend-lbl">${bloqueo ? 'Esperando publicación' : 'En revisión'}</span>
+      <b class="ep-pend-tot">${fmt(total)} YC</b>
+    </div>
+    ${bloqueo ? '<div class="ep-pend-bloq">Luis aplicó cambios que todavía no publicó.</div>' : ''}
+    ${lista ? `<div class="ep-pend-list">${lista}</div>` : ''}
+    <button type="button" class="ep-pend-ver" data-onclick="openAuditModal()">Ver pedidos</button>`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
   if(next<1 || next>PAGES.length) return;
   APP.page = next;
+  // MEJUI-1: la linea fija arranca con una ayuda corta de la pagina abierta.
+  APP.hint = ['Toca un atributo para ver su descripción.',
+    'Toca un atributo para ver su descripción.',
+    'Toca una habilidad para ver qué hace.',
+    'Toca una posición para ver qué significa.'][APP.page-1];
   renderAll();
+}
+function _pintarHint(text){
+  const el = document.getElementById('ep-hint');
+  if (!el) return;
+  el.textContent = text || '';
+  el.title = text || '';
 }
 function setHint(text){
   APP.hint = text;
-  document.getElementById('ep-hint').textContent = text;
+  _pintarHint(text);
   renderRows();
 }
 /* la zona de yunacoins vive fuera del editor (es el dato mas importante);
@@ -1503,8 +1546,11 @@ function renderAviso(){
 function renderCart(){
   const cost = pendingCost();
   const n = pendingChangeLines().length;
+  const p = currentPlayer();
   document.getElementById('ep-cost').textContent = cost > 0 ? '−' + cost.toLocaleString('es-CL') : '0';
-  document.getElementById('ep-cart-count').textContent = n ? n + (n === 1 ? ' cambio' : ' cambios') : 'Sin cambios';
+  document.getElementById('ep-cart-count').textContent = n
+    ? (p ? p.name + ' · ' : '') + n + (n === 1 ? ' cambio' : ' cambios')
+    : 'Sin cambios';
   document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL') + ' YC' : '';
   renderHero();
   renderAviso();
@@ -1833,6 +1879,7 @@ function clearAuditLog(){
 
 const FORM = { draft:null, sel:0, motivo:null };
 let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
+let FORM_FLASH = null; // MEJUI-4: jugador que acaba de cambiar (animacion corta de un solo render)
 let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (base del pedido)
 let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
 // ORD-4: los intercambios de banca del borrador van en FORM.bancaPares (pares de ids, en el orden en que se hicieron).
@@ -1912,19 +1959,14 @@ function _montarModalCancha(){
               <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
         </div>
-        <div class="ep-form-bancawrap">
-          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(-1)" title="Jugadores anteriores" aria-label="Jugadores anteriores">
-            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Plantel: toca un jugador para verlo"></div>
-          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(1)" title="Jugadores siguientes" aria-label="Jugadores siguientes">
-            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
-        </div>
+        <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Titulares, banca y reservas"></div>
         <div class="ep-form-stats" id="ep-form-stats" hidden></div>
         <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Toca un jugador para ver su ficha. Toca otro para cambiarlo de lugar (titular con titular, o suplente con titular).' : 'Clic en un jugador para ver su ficha; clic en otro para cambiarlo de lugar (titular con titular, o suplente con titular). Flechas: mueven el punto del teclado.'}</span>
+          <span>${toqueFino ? 'Toca un jugador del 11 y después a quién entra (o al revés). Toca otra vez al marcado para cancelar.' : 'Clic en un jugador del 11 y después en quién entra (o al revés). Clic otra vez en el marcado para cancelar.'}</span>
           <span id="ep-form-coords"></span>
         </div>
       </div>
+      <div class="ep-form-swapbar" id="ep-form-swapbar" aria-live="polite" hidden></div>
       <div class="ep-modal-foot">
         <button class="ep-btn" data-onclick="resetFormationDraft()">Restablecer</button>
         <button class="ep-btn" data-onclick="closeFormationModal()">Cancelar</button>
@@ -1935,8 +1977,6 @@ function _montarModalCancha(){
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
-  const bancaWheel = document.getElementById('ep-form-bench');
-  if (bancaWheel) bancaWheel.addEventListener('wheel', _formBancaRueda, { passive: false });
   _formObservarAlto();
 }
 function closeFormationModal(){
@@ -1986,16 +2026,24 @@ function _formPuedeIntercambiar(a, b){
   return a !== b && !!FORM.draft[a] && !!FORM.draft[b] && _formEsArqueroSlot(a) === _formEsArqueroSlot(b);
 }
 function intercambiarTitulares(a, b){
+  const nombre = id => (PLAYER_BY_ID[id] && PLAYER_BY_ID[id].name) || 'Jugador';
+  const idA = FORM.draft[a].id, idB = FORM.draft[b].id;
   const tmp = FORM.draft[a].id;
   FORM.draft[a].id = FORM.draft[b].id;
   FORM.draft[b].id = tmp;
   FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[b].id; FORM.motivo = null;
+  FORM_FLASH = FORM.draft[b].id;
+  showMiniToast('Entra ' + nombre(idB) + ', sale ' + nombre(idA));
 }
 /* El jugador id ocupa el lugar i; el que estaba en ese lugar queda fuera del 11 (banca). */
 function _formEntrar(id, i){
-  _formCambiarEnBanca(id, FORM.draft[i].id);
+  const nombre = pid => (PLAYER_BY_ID[pid] && PLAYER_BY_ID[pid].name) || 'Jugador';
+  const sale = FORM.draft[i].id;
+  _formCambiarEnBanca(id, sale);
   FORM.draft[i].id = id;
   FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
+  FORM_FLASH = id;
+  showMiniToast('Entra ' + nombre(id) + ', sale ' + nombre(sale));
 }
 /* ORD-4: un jugador con un intercambio de banca en este pedido no entra al 11 hasta deshacerlo. */
 function _formEnParBanca(id){ return (FORM.bancaPares || []).some(p => p[0] === id || p[1] === id); }
@@ -2011,12 +2059,18 @@ function formacionTocarTitular(i){
     if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(FORM.banca); FORM.verId = FORM.banca; renderFormationModal(); return false; }
     _formEntrar(FORM.banca, i); renderFormationModal(); return true;
   }
-  // 2) hay un titular armado: se intercambian
-  if (FORM.armado && FORM.sel !== i){
+  // 2) ya estaba marcado este mismo titular: el toque lo desmarca
+  if (FORM.armado && FORM.sel === i){
+    FORM.armado = false; FORM.motivo = null;
+    renderFormationModal();
+    return false;
+  }
+  // 3) hay un titular armado: se intercambian
+  if (FORM.armado){
     if (_formPuedeIntercambiar(FORM.sel, i)){ intercambiarTitulares(FORM.sel, i); renderFormationModal(); return true; }
     _formMensajeIlegal();
   }
-  // 3) seleccionar: muestra la ficha y queda armado
+  // 4) seleccionar: muestra la ficha, marca la fila y abre la franja de cambio
   FORM.sel = i; FORM.armado = true; FORM.banca = null; FORM.verId = FORM.draft[i].id; FORM.motivo = null;
   renderFormationModal();
   return false;
@@ -2027,9 +2081,10 @@ function formacionTocarBanca(el){
   if (!id || !PLAYER_BY_ID[id]) return;
   const i = _formIdxDeId(id);
   if (i >= 0){ formacionTocarTitular(i); return; }
+  // MEJUI-4: tocar de nuevo al marcado anula la seleccion (igual que «Cancelar»)
+  if (FORM.banca === id){ formacionCancelarArmado(); return; }
   // ORD-3: con un suplente o reserva armado, otro suplente o reserva lo intercambia de lugar en la banca
   if (FORM.banca && FORM.banca !== id){ _formSwapBanca(FORM.banca, id); renderFormationModal(); return; }
-  if (FORM.banca === id){ FORM.verId = id; renderFormationModal(); return; }
   // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
   if (FORM.armado && !FORM.banca){
     if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
@@ -2062,34 +2117,49 @@ function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
   renderFormationModal();
 }
-/* Desplaza la lista de jugadores un paso (botones de 44 px). */
-function formacionBancaDesplazar(dir){
-  const el = document.getElementById('ep-form-bench');
-  if (!el) return;
-  el.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.8), behavior: 'smooth' });
+/* Lista completa del plantel y la ficha del jugador elegido.
+   MEJUI-4: una fila por jugador, en una columna bajo la cancha, con el dorsal y las
+   iniciales de posicion en el color de su linea (clases ep-line-*, como el editor).
+   Titulares con el texto normal; banca en celeste/azul y reservas en verde.
+   Con un jugador marcado, los destinos validos se resaltan (.puede) y el resto se
+   atenua (.no), sin bloquear el toque: si no vale, el toast explica por que. */
+function _lineaFormacion(p, slot, i){
+  if (i === 0 || (slot && slot.pos === 'PT')) return 'gk';
+  return PITCH_POS_LINEA[slot && slot.pos] || LINEA_POS[p.primaryPos] || 'mid';
 }
-/* Rueda del mouse sobre la lista: se desplaza en horizontal. */
-function _formBancaRueda(e){
-  const el = e.currentTarget;
-  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ el.scrollLeft += e.deltaY; e.preventDefault(); }
-}
-const _FORM_ICO_SI = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
-const _FORM_ICO_NO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
-/* Lista completa del plantel (todos, con su nombre) y la ficha del jugador elegido. */
 function _formRenderBancaYPanel(){
   const bancaEl = document.getElementById('ep-form-bench');
   const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
   if (bancaEl){
-    const plantel = plantelOrdenado(); const secs = _seccionesPlantel();
-    bancaEl.innerHTML = plantel.map(p => {
+    const secs = _seccionesPlantel();
+    const fila = (p, seccion) => {
       const i = _formIdxDeId(p.id);
-      const cod = (i >= 0 && FORM.draft[i].pos) ? FORM.draft[i].pos : (CODIGO_POS[p.primaryPos] || p.primaryPos || '');
-      const etiqueta = i >= 0 ? 'En el 11' : (secs[p.id] === 'reserva' ? 'Reserva' : 'Suplente');
-      const cls = ['ep-form-subbtn', i >= 0 ? 'en11' : '', p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : ''].filter(Boolean).join(' ');
-      return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
+      const slot = i >= 0 ? FORM.draft[i] : null;
+      const linea = _lineaFormacion(p, slot, i);
+      const cod = (slot && slot.pos) || CODIGO_POS[p.primaryPos] || p.primaryPos || '';
+      const dorsal = p.dorsal && p.dorsal !== '?' ? '#' + p.dorsal : '';
+      const puede = !armadoId || p.id === armadoId || (
+        FORM.banca
+          ? (i >= 0 ? _formLegalEntrada(FORM.banca, i) : true)
+          : (i >= 0 ? _formPuedeIntercambiar(FORM.sel, i) : _formLegalEntrada(p.id, FORM.sel)));
+      const cls = ['ep-form-subbtn', 'es-' + seccion, i >= 0 ? 'en11' : '',
+        p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : '',
+        armadoId && !puede ? 'no' : '', armadoId && puede && p.id !== armadoId ? 'puede' : '',
+        FORM_FLASH === p.id ? 'flash' : ''].filter(Boolean).join(' ');
+      return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)"
+        data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
+        <span class="ep-form-num ep-line-${linea}${dorsal ? '' : ' vacia'}">${dorsal ? escHtml(dorsal) : ''}</span>
         <span class="ep-form-subname">${escHtml(p.name)}</span>
-        <span class="ep-form-subtag">${escHtml(etiqueta)} · ${escHtml(cod)}</span>
+        <span class="ep-form-cod ep-line-${linea}">${escHtml(cod)}</span>
       </button>`;
+    };
+    const grupos = [['titular', 'Titulares'], ['suplente', 'Banca'], ['reserva', 'Reservas']];
+    bancaEl.innerHTML = grupos.map(([sec, titulo]) => {
+      const ids = sec === 'titular'
+        ? FORM.draft.map(s => s.id)
+        : _rosterVisible().filter(id => secs[id] === sec && PLAYER_BY_ID[id]);
+      if (!ids.length) return '';
+      return `<div class="ep-form-grp">${titulo}</div>` + ids.map(id => fila(PLAYER_BY_ID[id], sec)).join('');
     }).join('') || '<span class="ep-form-subnone">Sin jugadores en el plantel.</span>';
   }
   const panel = document.getElementById('ep-form-stats');
@@ -2099,9 +2169,9 @@ function _formRenderBancaYPanel(){
     else { panel.hidden = false; panel.innerHTML = _formFichaCompleta(p); }
   }
 }
-/* Ficha con todo: atributos 0-99, secundarios (0-99, escala 1-8 y resistencia a lesiones), posiciones,
-   habilidades especiales (si tiene o no). Usa las mismas definiciones que el editor: MAIN_STATS,
-   SEC_NEW, POSITIONS y ALL_ABILITIES. Solo esta panel tiene scroll vertical propio. */
+/* Ficha del jugador (MEJUI-4): solo lo que tiene. Atributos, las posiciones marcadas y
+   las habilidades que ya posee; lo que no tiene no se escribe (ni listas vacias).
+   Usa las mismas definiciones que el editor: MAIN_STATS, SEC_NEW, POSITIONS y ALL_ABILITIES. */
 function _formFichaCompleta(p){
   const val = (v) => (v === undefined || v === null || v === '') ? '—' : escHtml(String(v));
   const valor99 = (v) => typeof v === 'number' ? `<span style="color:${TIER_COLOR[tierClass99(v)]};">${v}</span>` : val(v);
@@ -2111,33 +2181,34 @@ function _formFichaCompleta(p){
     const raw = (p.sec || {})[s.k];
     return fila(s.l, s.sc === 99 ? valor99(raw) : val(raw));
   }).join('');
-  const posiciones = POSITIONS.map(ps => {
-    const on = !!(p.positions || {})[ps.k];
-    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(ps.l)}</span></li>`;
+  const posiciones = POSITIONS.filter(ps => (p.positions || {})[ps.k]).map(ps => {
+    const linea = LINEA_POS[ps.k] || 'mid';
+    return `<li class="ep-fs-chip ep-line-${linea}" title="${escAttr(ps.l)}">${escHtml(CODIGO_POS[ps.k] || ps.k)}</li>`;
   }).join('');
-  const habil = ALL_ABILITIES.map(a => {
-    const on = !!(p.abilities || {})[a.k];
-    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(a.l)}</span><b>${on ? 'Sí' : 'No'}</b></li>`;
-  }).join('');
+  const habilidades = ALL_ABILITIES.filter(a => (p.abilities || {})[a.k])
+    .map(a => `<li class="ep-fs-chip">${escHtml(a.l)}</li>`).join('');
   const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
-  const cuerpo = `${escHtml(cod)} · ${escHtml((POS_BY_KEY[p.primaryPos] && POS_BY_KEY[p.primaryPos].l) || p.tag || '')}`
-    + (p.dorsal && p.dorsal !== '?' ? ` · #${escHtml(p.dorsal)}` : '');
+  const linea = LINEA_POS[p.primaryPos] || 'mid';
+  const dorsal = p.dorsal && p.dorsal !== '?' ? `<span class="ep-fs-dorsal ep-line-${linea}">#${escHtml(p.dorsal)}</span>` : '';
   const ayuda = FORM.banca ? 'Toca un titular para que entre en su lugar.'
     : FORM.armado ? 'Toca otro jugador para intercambiarlo con este.' : '';
   return `
     <div class="ep-fs-head">
       <div class="ep-fs-id">
         <div class="ep-fs-name">${escHtml(p.name)}</div>
-        <div class="ep-fs-sub">${cuerpo}</div>
-        <div class="ep-fs-sub">Altura ${val(p.height)} cm · Edad ${val(p.age)} · Pie ${val(p.foot)} · Banda ${val(p.side)}</div>
+        <div class="ep-fs-sub">
+          <span class="ep-fs-pos ep-line-${linea}">${escHtml(cod)}</span>
+          ${dorsal}
+          <span>Altura ${val(p.height)} cm · Edad ${val(p.age)} · Pie ${val(p.foot)} · Banda ${val(p.side)}</span>
+        </div>
       </div>
       ${FORM.armado ? `<button type="button" class="ep-fs-cancel" data-onclick="formacionCancelarArmado()">Cancelar</button>` : ''}
     </div>
     ${ayuda ? `<div class="ep-fs-ayuda">${escHtml(ayuda)}</div>` : ''}
     <div class="ep-fs-sec"><h4>Atributos</h4><div class="ep-fs-grid">${atributos}</div></div>
     <div class="ep-fs-sec"><h4>Secundarios y lesiones</h4><div class="ep-fs-grid">${secundarios}</div></div>
-    <div class="ep-fs-sec"><h4>Posiciones</h4><ul class="ep-fs-list">${posiciones}</ul></div>
-    <div class="ep-fs-sec"><h4>Habilidades especiales</h4><ul class="ep-fs-list">${habil}</ul></div>`;
+    ${posiciones ? `<div class="ep-fs-sec"><h4>Posiciones</h4><ul class="ep-fs-list ep-fs-chips">${posiciones}</ul></div>` : ''}
+    ${habilidades ? `<div class="ep-fs-sec"><h4>Habilidades especiales</h4><ul class="ep-fs-list ep-fs-chips">${habilidades}</ul></div>` : ''}`;
 }
 
 function _formProgramarRender(){
@@ -2217,7 +2288,7 @@ function renderFormationModal(){
     const isSel = i===FORM.sel;
     const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
     const arrastrando = FORM_DRAG && FORM_DRAG.activo && FORM_DRAG.idx === i && !isKeeperSlot(slot);
-    return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''} ${arrastrando?'dragging':''}"
+    return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''} ${arrastrando?'dragging':''} ${FORM_FLASH===slot.id?'flash':''}"
       style="left:${xPct}%;top:${yPct}%;" title="${escHtml(pl.name)}">
       ${isSel?`<span class="ep-pitch-tag">${label}</span>`:''}
     </div>`;
@@ -2225,6 +2296,23 @@ function renderFormationModal(){
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
   _formRenderBancaYPanel();
+
+  // MEJUI-4: franja fija con la instruccion del cambio y «Cancelar». Reservada: solo
+  // aparece mientras hay un jugador marcado, asi no cambia el alto del resto al tocar.
+  const bar = document.getElementById('ep-form-swapbar');
+  if (bar){
+    const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
+    if (!armadoId){ bar.hidden = true; bar.innerHTML = ''; }
+    else {
+      const nom = (PLAYER_BY_ID[armadoId] && PLAYER_BY_ID[armadoId].name) || 'Jugador';
+      const texto = FORM.banca
+        ? `Entra ${nom}: elige a quién reemplaza`
+        : `Cambiar a ${nom}: elige quién entra`;
+      bar.hidden = false;
+      bar.innerHTML = `<span class="ep-form-swaptxt">${escHtml(texto)}</span>
+        <button type="button" class="ep-btn" data-onclick="formacionCancelarArmado()">Cancelar</button>`;
+    }
+  }
 
   // Alineacion en vivo (defensas-mediocampistas-delanteros segun las franjas).
   const lineupEl = document.getElementById('ep-form-lineup');
@@ -2267,6 +2355,7 @@ function renderFormationModal(){
     ).join('');
     sel.disabled = keeper;
   }
+  FORM_FLASH = null; // la animacion corre una sola vez en este render
   _formAjustarAlto();
 }
 
@@ -2310,8 +2399,11 @@ function _formAjustarAlto(){
   const cs = getComputedStyle(body);
   const gap = parseFloat(cs.rowGap) || 10;
   const libreTot = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  // lo que no es la cancha ni la ficha ocupa su alto; cada bloque suma un espacio
-  const fijosEls = [...body.children].filter(el => el !== campo && el.id !== 'ep-form-stats' && el.offsetHeight > 0);
+  // lo que no es la cancha ni la ficha ocupa su alto; cada bloque suma un espacio.
+  // MEJUI-4: la lista de titulares/banca/reservas ahora es una columna larga que scrollea
+  // con el modal, asi que no resta alto a la cancha (si lo hiciera, la dejaria en el minimo).
+  const fijosEls = [...body.children].filter(el => el !== campo && el.id !== 'ep-form-stats'
+    && el.id !== 'ep-form-bench' && el.offsetHeight > 0);
   const fijos = fijosEls.reduce((s, el) => s + el.offsetHeight, 0);
   const h = libreTot - fijos - fijosEls.length * gap;
   campo.style.setProperty('--campo-h', Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
@@ -2672,7 +2764,7 @@ function adjustMain(key,delta){
   if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   const p = currentPlayer();
   APP.hint = MAIN_BY_KEY[key].d;
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
   const cur = APP.draft.stats[key];
   if(delta>0){
     if(cur>=99){ renderRows(); return; }
@@ -2690,7 +2782,7 @@ function adjustSec(key,delta){
   const p = currentPlayer();
   const def = SEC_NEW.find(s=>s.k===key);
   APP.hint = def.d;
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
   const cur = APP.draft.sec[key];
   const max = def.sc===99 ? 99 : 8;
   if(delta>0){
@@ -2711,7 +2803,7 @@ function adjustSec(key,delta){
 function adjustInjury(delta){
   const p = currentPlayer();
   APP.hint = INJ_DEF.d;
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
   const baseIdx = INJURY_ORDER.indexOf(p.sec.inj);
   const curIdx  = INJURY_ORDER.indexOf(APP.draft.sec.inj);
   if(delta>0){
@@ -2729,7 +2821,7 @@ function toggleAbility(key){
   // Marca la fila como seleccionada igual que adjustMain/adjustSec: la fila activa
   // se decide comparando APP.hint con la descripcion de la fila.
   const ab = ABILITY_BY_KEY[key];
-  if(ab){ APP.hint = ab.d; document.getElementById('ep-hint').textContent = ab.d; }
+  if(ab){ APP.hint = ab.d; _pintarHint(ab.d); }
   if(p.abilities[key] && !ADMIN_EMBED){ renderRows(); return; } // ya comprada antes, no se puede "vender" (el admin si puede quitarla)
   if(!APP.draft.abilities[key] && !p.abilities[key] && !canAfford(RULES.abilityCost)){
     showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return;
@@ -2770,6 +2862,14 @@ function togglePosition(key){
   }
 
   d.positions[key] = !d.positions[key];
+  // MEJUI-2: la linea fija sigue a la posicion que se toca (el interruptor corta el burbujeo).
+  const pos = POS_BY_KEY[key];
+  if (pos){
+    APP.hint = key === d.primaryPos ? 'Posición natural del jugador.'
+      : (d.positions[key] ? 'Posición secundaria. Toca la estrella para hacerla natural.'
+                          : 'Posición disponible para este jugador (sin costo en YunaCoins).');
+    _pintarHint(APP.hint);
+  }
   renderCard(); renderRows(); renderCart();
 }
 // El save de PES5 guarda un solo bit para el pie dominante: derecho o izquierdo. No existe "ambos".
@@ -2786,6 +2886,8 @@ function setSide(v){
 function setPrimaryPos(k){
   if(!APP.draft.positions[k]) return;
   APP.draft.primaryPos = k;
+  APP.hint = 'Posición natural del jugador.';
+  _pintarHint(APP.hint);
   renderCard(); renderRows(); renderCart();
 }
 
@@ -2830,9 +2932,9 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
   const tono = cambiada ? 'var(--gold)' : color; // fila cambiada: valor y barra en dorado
   const costBadge = costSoFar>0 ? `<span class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</span>` : '';
   const viejo = cambiada ? `<span class="ep-rold">${min}</span>` : '';
-  // la descripcion vive dentro de la fila: la del atributo elegido o la de un cambio pendiente
+  // MEJUI-1: la descripcion ya no vive dentro de la fila; va en la linea fija de abajo (#ep-hint).
+  // El aviso de tope de temporada se conserva: es un estado, no la descripcion del atributo.
   const aviso = topeM ? `<div class="ep-rdesc" style="color:var(--gold);">${escHtml(topeM)}</div>` : '';
-  const detalle = ((sel || cambiada) ? `<div class="ep-rdesc">${escHtml(desc)}</div>` : '') + aviso;
   return `<div class="ep-row ${sel?'sel':''} ${cambiada?'chg':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
     <div class="ep-rmain">
       <div class="ep-rhead"><span class="ep-rlabel">${escHtml(label)}</span>${costBadge}</div>
@@ -2843,18 +2945,14 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
       <button ${decDisabled?'disabled':''} aria-label="Bajar ${escHtml(label)}" data-onclick="event.stopPropagation();${onDec}">&minus;</button>
       <button ${incDisabled?'disabled':''} aria-label="Subir ${escHtml(label)}" data-onclick="event.stopPropagation();${onInc}">+</button>
     </div>
-    ${detalle}
+    ${aviso}
   </div>`;
 }
 
-/* Presentacion (2.0-3c): grupos de la pagina Principales y etiquetas completas de la propuesta.
-   Solo cambian lo que se muestra; las claves (k) y MAIN_STATS siguen igual. */
-const GRUPOS_PRINCIPALES = [
-  ['Rol', ['atk','def']],
-  ['Físico', ['equ','res','vm','ace','rsp','agi']],
-  ['Balón y pase', ['pcd','vcd','ppc','vpc','ppl','vpl']],
-  ['Disparo', ['pre','pot','ted']],
-];
+/* Presentacion (2.0-3c): etiquetas completas de la propuesta.
+   MEJUI-1: el juego no agrupa los atributos por rol, asi que la pagina Principales
+   los lista seguidos, en el orden de siempre (PAGE1_STATS). Solo cambia lo que se
+   muestra; las claves (k) y MAIN_STATS siguen igual. */
 const ETIQUETA_FILA = {atk:'Ataque', def:'Defensa', equ:'Equilibrio', res:'Resistencia', vm:'Vel. máxima', ace:'Aceleración',
   rsp:'Respuesta', agi:'Agilidad', pcd:'Prec. conducción', vcd:'Vel. conducción', ppc:'Prec. pase corto', vpc:'Vel. pase corto',
   ppl:'Prec. pase largo', vpl:'Vel. pase largo', pre:'Precisión', pot:'Potencia', ted:'Téc. de disparo'};
@@ -2866,14 +2964,14 @@ function renderRows(){
   let html = '';
 
   if(APP.page===1){
-    html = GRUPOS_PRINCIPALES.map(([titulo, keys]) => `<div class="ep-grp">${titulo}</div>` + keys.map(k => {
-      const s = MAIN_BY_KEY[k];
+    html = PAGE1_STATS.map(s => {
+      const k = s.k;
       const v = d.stats[k];
       const afford = v>=99 || canAfford(costoPuntoPres(k, v+1));
       const cost = v>p.stats[k] ? costoStatPres(k, p.stats[k], v) : 0;
       return numericRowHTML(ETIQUETA_FILA[k] || s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
         `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
-    }).join('')).join('');
+    }).join('');
   }
 
   if(APP.page===2){
@@ -2938,21 +3036,26 @@ function renderRows(){
     html = ALL_ABILITIES.map(abilityRow).join('');
   }
   if(APP.page===4){
+    // MEJUI-2: misma fila que Habilidades especiales. Control (interruptor) a la derecha y,
+    // junto a el, la estrella de posicion natural (24 px). Las inactivas dejan el hueco de la
+    // estrella para que nada se mueva al activarlas.
     html = POSITIONS.map(pos=>{
       const on = d.positions[pos.k];
       const isRegistered = pos.k === d.primaryPos;
-      const hint = isRegistered ? 'Posición natural (círculo O): la posición principal del jugador.' : (on ? 'Posición secundaria (sin costo). Con el botón circular la haces natural.' : 'Posición secundaria disponible para este jugador (sin costo en YunaCoins).');
-      const circleBtn = on && !isRegistered
-        ? `<button class="ep-register-btn" title="Hacer natural (círculo O)" data-onclick="event.stopPropagation();setPrimaryPos('${pos.k}')"><svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>`
-        : '';
-      const labelBadge = isRegistered
-        ? `<span style="color:var(--gold);font-size:11px;">(natural)</span>`
-        : '';
-      return `<div class="ep-row" data-onclick="setHint('${jsq(hint)}')">
-        <div class="ep-rlabel">${escHtml(pos.l)} ${labelBadge}</div>
-        <div style="display:flex;gap:5px;align-items:center;">
-          ${circleBtn}
-          <div class="ep-rstar ${on?'on':''}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</div>
+      const hint = isRegistered ? 'Posición natural del jugador.'
+        : (on ? 'Posición secundaria. Toca la estrella para hacerla natural.'
+              : 'Posición disponible para este jugador (sin costo en YunaCoins).');
+      const estrella = !on
+        ? '<span class="ep-pos-star vacia" aria-hidden="true"></span>'
+        : isRegistered
+          ? `<span class="ep-pos-star on" title="Posición natural">${starSvg(true)}</span>`
+          : `<button type="button" class="ep-pos-star" title="Hacer natural" aria-label="Hacer ${escAttr(pos.l)} la posición natural" data-onclick="event.stopPropagation();setPrimaryPos('${pos.k}')">${starSvg(false)}</button>`;
+      return `<div class="ep-row ep-pos ${on?'on':''}" data-onclick="setHint('${jsq(hint)}')">
+        <div class="ep-rlabel ep-pos-nombre">${escHtml(pos.l)}</div>
+        <div class="ep-pos-ctl">
+          <button type="button" class="ep-switch ${on?'on':''}" role="switch" aria-checked="${on?'true':'false'}"
+            aria-label="${escAttr((on?'Quitar ':'Agregar ') + pos.l)}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')"><i aria-hidden="true"></i></button>
+          ${estrella}
         </div>
       </div>`;
     }).join('') + `
@@ -2987,7 +3090,7 @@ function renderAll(){
   renderRows();
   renderCart();
   renderPending();
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
 }
 /* Cabecera: nombre del equipo e iniciales (presentacion). En modo admin lo pisa renderAdminBar. */
 function renderTop(){
@@ -3061,7 +3164,7 @@ function iniciarModoAdmin(m){
   APP.motivo = m.motivo || '';
   APP.playerId = m.jugadorId;
   APP.page = 1;
-  APP.hint = 'Selecciona un atributo para ver su descripcion.';
+  APP.hint = 'Selecciona un atributo para ver su descripción.';
   ADMIN_PENDIENTE = m.pendiente || null;
   loadDraft();
   _raiz().classList.add('admin-embed');
@@ -3400,12 +3503,12 @@ window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
 window.formacionTocarBanca = formacionTocarBanca;
 window.formacionCancelarArmado = formacionCancelarArmado;
-window.formacionBancaDesplazar = formacionBancaDesplazar;
 window.moveFormationScreen = moveFormationScreen;
 window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;
 window.setSide = setSide;
 window.toggleAbility = toggleAbility;
+window.togglePendDetalle = togglePendDetalle;
 window.togglePosition = togglePosition;
 window.mejToggleTheme = toggleTheme;
 window.setSquadTab = setSquadTab;

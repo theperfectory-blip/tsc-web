@@ -24,6 +24,9 @@
   --linea-def:#8DB6DA;
   --linea-mid:#5FCB8B;
   --linea-att:#E39A72;
+  /* nombres de la lista de formacion: banca y reservas (MEJUI-4) */
+  --banca-txt:#8FD0FF;
+  --reserva-txt:#9BE3A8;
   --ep-on-gold:#0C0F14;}
 :root[data-theme="light"]{--tier-n:#3A3F47;
   --tier-y:#8a7a1a;
@@ -35,6 +38,8 @@
   --linea-def:#2f5f8a;
   --linea-mid:#1f7a4a;
   --linea-att:#a4522a;
+  --banca-txt:#174A9C;
+  --reserva-txt:#17612C;
   --ep-on-gold:#1A1A1A;}
 .ep-root .icn{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
 .ep-root .icn.star.on{fill:currentColor;}
@@ -135,11 +140,33 @@
 .ep-root .ep-acc .badge{position:absolute;right:10px;top:10px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
   background:var(--gold);color:var(--ep-on-gold);font-family:'Bebas Neue';font-size:14px;line-height:20px;text-align:center;}
 
-/* aviso del pedido pendiente */
-.ep-root .ep-pend{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;background:var(--gold-l);
+/* MEJUI-3 · panel lateral de cambios: una fila por jugador (nombre + costo), cerrada por
+   defecto; se despliega para ver el detalle. Total general y acceso a Pedidos siempre visibles. */
+.ep-root .ep-pend{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;background:var(--gold-l);
   border:1px solid var(--gold-b);font-size:13px;line-height:1.35;color:var(--txt);}
 .ep-root .ep-pend[hidden]{display:none;}
-.ep-root .ep-pend .icn{color:var(--gold);margin-top:2px;}
+.ep-root .ep-pend-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.ep-root .ep-pend-lbl{font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);}
+.ep-root .ep-pend-tot{font-family:'Bebas Neue';font-weight:400;font-size:20px;line-height:1;color:var(--gold);white-space:nowrap;}
+.ep-root .ep-pend-bloq{font-size:12px;color:var(--txt2);}
+.ep-root .ep-pend-list{display:flex;flex-direction:column;gap:4px;}
+.ep-root .ep-pend-item{background:var(--card);border:1px solid var(--brd);border-radius:10px;overflow:clip;}
+.ep-root .ep-pend-row{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 10px;background:none;border:none;
+  color:var(--txt);font:inherit;text-align:left;cursor:pointer;}
+.ep-root .ep-pend-row:hover{background:var(--card2);}
+.ep-root .ep-pend-name{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-pend-cost{flex:none;font-family:'Bebas Neue';font-size:16px;color:var(--gold);}
+.ep-root .ep-pend-row .icn{flex:none;width:16px;height:16px;color:var(--txt3);transition:transform .15s ease;}
+.ep-root .ep-pend-row[aria-expanded="true"] .icn{transform:rotate(180deg);}
+.ep-root .ep-pend-det{display:flex;flex-direction:column;gap:2px;padding:2px 10px 8px;font-size:12.5px;color:var(--txt2);}
+.ep-root .ep-pend-det[hidden]{display:none;}
+.ep-root .ep-pend-line{display:flex;justify-content:space-between;gap:10px;min-width:0;}
+.ep-root .ep-pend-line span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ep-root .ep-pend-line b{flex:none;color:var(--txt);font-weight:500;white-space:nowrap;}
+.ep-root .ep-pend-ver{align-self:flex-start;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--brd2);
+  background:var(--card);color:var(--txt);font-family:'Barlow Condensed';font-weight:700;font-size:13px;
+  letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;}
+.ep-root .ep-pend-ver:hover{border-color:var(--gold-b);color:var(--gold);}
 
 /* ---- plantilla ---- */
 .ep-root .ep-roster-hd input{width:100%;height:46px;padding:0 14px;background:var(--card);border:1px solid var(--brd);border-radius:12px;
@@ -244,7 +271,15 @@
 .ep-root .ep-register-btn{width:36px;height:36px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;
   border:1px solid var(--brd2);background:var(--card3);color:var(--txt3);cursor:pointer;padding:0;}
 .ep-root .ep-register-btn:hover{color:var(--gold);border-color:var(--gold-b);}
-.ep-root .ep-hint{display:none;}
+/* MEJUI-1: linea fija de descripcion, justo encima de la barra de YunaCoins.
+   Alto reservado siempre (aunque este vacia), un solo renglon con elipsis: nada se mueve
+   al tocar otra habilidad o atributo. En telefono va pegada arriba de la barra fija. */
+.ep-root .ep-hint{display:block;position:fixed;left:0;right:0;z-index:49;
+  bottom:calc(68px + env(safe-area-inset-bottom));min-height:32px;padding:7px 14px;
+  background:var(--nav);border-top:1px solid var(--brd);pointer-events:none;
+  font-size:12.5px;line-height:18px;color:var(--txt2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-hint:empty{visibility:hidden;}
 
 /* barra inferior fija: cambios, total, descartar y revisar */
 .ep-root .ep-cart{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;align-items:center;gap:10px;
@@ -301,6 +336,7 @@
 /* ---- escritorio (>= 860 px): dos columnas, la plantilla a la izquierda ---- */
 @media (min-width:860px){
 .ep-root .ep-top{padding:0 24px;}
+.ep-root .ep-hint{position:static;bottom:auto;border:1px solid var(--brd);border-radius:10px;background:var(--card);padding:8px 12px;}
 .ep-root .ep-layout{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:24px;padding:24px;align-items:start;}
 .ep-root .ep-roster{position:sticky;top:84px;}
 .ep-root .ep-roster-list{max-height:calc(100vh - 430px);min-height:240px;overflow-y:auto;}
@@ -319,6 +355,7 @@
 
 /* ---- telefono (< 860 px): plantilla y editor son dos vistas ---- */
 @media (max-width:859.98px){
+.ep-root .ep-shell{padding-bottom:170px;}
 .ep-root:not(.admin-embed)[data-vista="plantilla"] .ep-editor{display:none;}
 .ep-root:not(.admin-embed)[data-vista="editor"] .ep-roster{display:none;}
 .ep-root:not(.admin-embed)[data-vista="editor"] .ep-edit-hd{display:flex;}
@@ -409,30 +446,61 @@
 .ep-root .ep-pitch-possel:disabled{opacity:0.6;cursor:default;}
 .ep-root .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
 
-/* ---- FORM-1: banca de suplentes y reserva (botones de 44 px de alto, toque y mouse) ---- */
-/* FORM-2 · lista completa del plantel (desplazable, con botones de 44 px) y ficha del jugador */
-.ep-root .ep-form-bancawrap{display:flex;align-items:stretch;gap:6px;margin-top:10px;}
-.ep-root .ep-form-scrollbtn{flex:0 0 44px;width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
-  background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--gold);}
-.ep-root .ep-form-scrollbtn:hover{border-color:var(--gold-b);}
-.ep-root .ep-form-scrollbtn svg{width:20px;height:20px;}
-.ep-root .ep-form-bench{flex:1 1 auto;min-width:0;display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding:2px 2px 6px;}
-.ep-root .ep-form-subbtn{flex:0 0 auto;scroll-snap-align:start;min-height:44px;min-width:132px;max-width:200px;display:flex;flex-direction:column;
-  justify-content:center;align-items:flex-start;gap:2px;padding:6px 10px;background:var(--card2);border:1px solid var(--brd);
-  border-radius:var(--r);color:var(--txt);cursor:pointer;text-align:left;font-family:inherit;}
+/* ---- MEJUI-4: titulares, banca y reservas (columna compacta bajo la cancha) ----
+   Una fila por jugador con zona de toque de 48 px. El dorsal y la sigla van en el color
+   de su linea (clases ep-line-*, las mismas del editor); el nombre, segun la seccion. */
+.ep-root .ep-form-bench{display:flex;flex-direction:column;gap:4px;margin-top:10px;min-width:0;}
+.ep-root .ep-form-grp{padding:8px 2px 2px;font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;
+  letter-spacing:1.2px;text-transform:uppercase;color:var(--txt3);}
+.ep-root .ep-form-grp:first-child{padding-top:0;}
+.ep-root .ep-form-subbtn{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;
+  width:100%;min-height:48px;padding:4px 10px 4px 6px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:10px;color:var(--txt);cursor:pointer;text-align:left;font-family:inherit;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 .ep-root .ep-form-subbtn:hover,.ep-root .ep-form-subbtn:focus-visible{border-color:var(--gold-b);outline:none;}
-.ep-root .ep-form-subbtn.en11{box-shadow:inset 3px 0 0 var(--gold);}
 .ep-root .ep-form-subbtn.ver{border-color:var(--gold);}
 .ep-root .ep-form-subbtn.armado{background:var(--card3);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-b);}
-.ep-root .ep-form-subname{font-family:'Bebas Neue';font-size:15px;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-.ep-root .ep-form-subtag{font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.ep-root .ep-form-subbtn.puede{border-color:var(--gold-b);}
+.ep-root .ep-form-subbtn.no{opacity:.38;}
+.ep-root .ep-form-num{display:flex;align-items:center;justify-content:center;height:28px;border-radius:6px;
+  font-family:'Bebas Neue';font-size:15px;line-height:1;}
+.ep-root .ep-form-num.vacia{background:none;}
+.ep-root .ep-form-subname{min-width:0;font-family:'Bebas Neue';font-size:16px;letter-spacing:0.4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-form-subbtn.es-titular .ep-form-subname{color:var(--txt);}
+.ep-root .ep-form-subbtn.es-suplente .ep-form-subname{color:var(--banca-txt);}
+.ep-root .ep-form-subbtn.es-reserva .ep-form-subname{color:var(--reserva-txt);}
+.ep-root .ep-form-cod{display:flex;align-items:center;justify-content:center;min-width:40px;height:28px;border-radius:6px;
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;}
+@media (min-width:860px){
+.ep-root .ep-form-bench{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;}
+.ep-root .ep-form-grp{grid-column:1 / -1;}
+}
+/* franja fija del cambio (arriba de los botones del modal) */
+.ep-root .ep-form-swapbar{display:flex;align-items:center;gap:10px;padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+  background:var(--card2);border-top:1px solid var(--gold-b);}
+.ep-root .ep-form-swapbar[hidden]{display:none;}
+.ep-root .ep-form-swaptxt{flex:1;min-width:0;font-size:13px;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-form-swapbar .ep-btn{flex:none;min-height:44px;}
+/* animacion corta del cambio (<250 ms; sin animacion con prefers-reduced-motion) */
+@keyframes ep-flash{from{opacity:.35;box-shadow:0 0 0 6px var(--gold-b);}to{opacity:1;box-shadow:0 0 0 0 transparent;}}
+.ep-root .ep-pitch-dot.flash{animation:ep-flash .22s ease-out;}
+.ep-root .ep-form-subbtn.flash{animation:ep-flash .22s ease-out;}
+@media (prefers-reduced-motion:reduce){
+.ep-root .ep-pitch-dot.flash,.ep-root .ep-form-subbtn.flash{animation:none;}
+.ep-root .ep-switch i,.ep-root .ep-switch i::after{transition:none;}
+}
 /* ficha completa: fluye dentro del scroll del modal (un solo scroll; FIX-HAB: no hay scroll anidado) */
 .ep-root .ep-form-stats{margin-top:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);
   padding:10px 12px;}
 .ep-root .ep-form-stats[hidden]{display:none;}
 .ep-root .ep-fs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
 .ep-root .ep-fs-name{font-family:'Bebas Neue';font-size:18px;color:var(--txt);}
-.ep-root .ep-fs-sub{font-size:12px;color:var(--txt3);}
+.ep-root .ep-fs-sub{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--txt3);}
+.ep-root .ep-fs-pos{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:22px;border-radius:5px;
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;}
+.ep-root .ep-fs-dorsal{background:none;font-family:'Bebas Neue';font-size:15px;line-height:1;}
 .ep-root .ep-fs-cancel{flex:none;min-height:44px;padding:0 14px;background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--txt);cursor:pointer;font-family:inherit;}
 .ep-root .ep-fs-ayuda{margin-top:6px;font-size:12px;color:var(--gold);}
 .ep-root .ep-fs-sec h4{margin:12px 0 6px;font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);font-weight:600;}
@@ -441,7 +509,19 @@
 .ep-root .ep-fs-row b{color:var(--txt);font-weight:600;}
 .ep-root .ep-fs-row small{color:var(--txt3);font-weight:400;font-size:11px;}
 .ep-root .ep-fs-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 14px;}
+.ep-root .ep-fs-list.ep-fs-chips{display:flex;flex-wrap:wrap;gap:6px;}
 .ep-root .ep-fs-list li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--txt3);min-height:24px;}
+.ep-root .ep-fs-list li.ep-fs-chip{align-items:center;justify-content:center;min-height:28px;padding:2px 8px;
+  background:none;border:1px solid currentColor;border-radius:6px;
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;color:var(--txt);}
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-gk,
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-def,
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-mid,
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-att{background:none;}
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-gk{color:var(--linea-gk);}
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-def{color:var(--linea-def);}
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-mid{color:var(--linea-mid);}
+.ep-root .ep-fs-list li.ep-fs-chip.ep-line-att{color:var(--linea-att);}
 .ep-root .ep-fs-list li.on{color:var(--txt);}
 .ep-root .ep-fs-list li svg{width:14px;height:14px;flex:none;color:var(--txt3);}
 .ep-root .ep-fs-list li.on svg{color:var(--gold);}
@@ -486,6 +566,7 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.admin-embed .ep-layout{display:flex;flex-direction:column;padding:14px;}
 .ep-root.admin-embed .ep-shell{padding-bottom:0;}
 .ep-root.admin-embed .ep-top{position:relative;padding:0 14px;}
+.ep-root.admin-embed .ep-hint{position:static;bottom:auto;border:1px solid var(--brd);border-radius:10px;background:var(--card);padding:8px 12px;}
 .ep-root.admin-embed .ep-top-back,
 .ep-root.admin-embed .ep-top-acc,
 .ep-root.admin-embed .ep-edit-hd{display:none !important;}
@@ -562,6 +643,29 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-hab-estrella:hover{color:var(--gold);border-color:var(--gold-b);}
 .ep-root .ep-hab-estrella:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 .ep-root .ep-hab-estrella.on{color:var(--gold);}
+
+/* MEJUI-2 · Posiciones: misma fila que Habilidades especiales. Interruptor a la derecha
+   y estrella de posicion natural (24 px) junto a el; las inactivas dejan el hueco. */
+.ep-root .ep-row.ep-pos{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;
+  padding:6px 6px 6px 12px;min-height:56px;cursor:pointer;}
+.ep-root .ep-row.ep-pos:hover{background:var(--card2);}
+.ep-root .ep-row.ep-pos.on{box-shadow:inset 0 0 0 1px var(--gold-b);}
+.ep-root .ep-pos-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:15px;}
+.ep-root .ep-pos-ctl{display:flex;align-items:center;gap:4px;flex:none;}
+.ep-root .ep-switch{width:48px;height:44px;padding:0;background:none;border:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;}
+.ep-root .ep-switch i{position:relative;display:block;width:44px;height:26px;border-radius:999px;background:var(--card3);border:1px solid var(--brd2);
+  transition:background .15s ease,border-color .15s ease;}
+.ep-root .ep-switch i::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--txt3);
+  transition:transform .15s ease,background .15s ease;}
+.ep-root .ep-switch.on i{background:var(--gold-l);border-color:var(--gold-b);}
+.ep-root .ep-switch.on i::after{transform:translateX(18px);background:var(--gold);}
+.ep-root .ep-switch:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:12px;}
+.ep-root .ep-pos-star{width:44px;height:44px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;
+  background:none;border:1px solid transparent;border-radius:10px;color:var(--txt3);cursor:pointer;}
+.ep-root .ep-pos-star .icn{width:24px;height:24px;}
+.ep-root .ep-pos-star:hover{color:var(--gold);border-color:var(--gold-b);}
+.ep-root .ep-pos-star.on{color:var(--gold);}
+.ep-root .ep-pos-star.vacia{pointer-events:none;border-color:transparent;}
 
 /* PAUSA-1: mejoras pausadas (aviso arriba; acciones deshabilitadas) */
 .ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;}
