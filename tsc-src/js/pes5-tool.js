@@ -1910,6 +1910,45 @@ function _motivoSinVistaPublicada(pub, pedido){
 function _motivoCambioFormacion(c){
   return 'la formación del save cambió desde la publicada que vio el presidente: slot ' + c.slot + ', ' + c.campo + ' era ' + c.era + ', ahora ' + c.ahora + ' (plantilla desactualizada)';
 }
+/* ============================================================
+   PED2 — dos pedidos del mismo jugador en un mismo lote
+   ------------------------------------------------------------
+   Los pedidos de un equipo se aplican del mas viejo al mas nuevo
+   (creadoEn) y, si dos tocan al mismo jugador, el segundo se valida
+   contra «lo publicado + lo que este lote ya aplico», no contra lo
+   publicado solo: al aplicarse el primero, la copia del save deja de
+   coincidir con la publicacion en esos campos y antes se rechazaba
+   como «plantilla desactualizada» (bug de produccion, San Martin de
+   Mendoza: Niang, Ribery, Cana — el que «cambio» fue el otro pedido
+   del mismo presidente, no Luis).
+   Regla de costo: cada pedido paga lo suyo, medido contra el save como
+   esta al aplicarlo. Lo que otro pedido del lote ya subio no se cobra
+   dos veces (mismo valor: 0) y, si este pedido sube mas arriba, paga
+   solo el tramo nuevo. El precio declarado (totalCost) se compara con
+   el save actual y, cuando hay otro pedido del mismo jugador antes en
+   el lote, tambien con la publicacion sola: el pedido pudo armarse
+   antes de que el lote aplicara lo suyo (el presidente lo arma sobre
+   lo publicado, no sobre la copia del save).
+   ============================================================ */
+// Cambios que este lote ya escribio en la copia para un jugador (registro), en orden.
+function _cambiosDelLoteDe(cambiosDelLote, registro){
+  return (registro == null ? null : cambiosDelLote[String(registro)]) || [];
+}
+// Anota los cambios de un pedido ya aplicado en la copia.
+function _anotarCambiosDelLote(cambiosDelLote, registro, cambios){
+  if (registro == null || !cambios) return;
+  (cambiosDelLote[String(registro)] = cambiosDelLote[String(registro)] || []).push(cambios);
+}
+// Base contra la que se valida un pedido: lo publicado + los cambios previos del lote.
+function _baseDelPedido(jPub, cambiosPrevios){
+  return cambiosPrevios.length ? PES5_PLANTILLA.publicadoConAplicados(jPub, cambiosPrevios) : jPub;
+}
+// Costo de un pedido contra una base que no es el save (la plantilla publicada), con el MISMO
+// perfil que se usa para cobrarle al jugador del save (`_costoTool` usa el perfil del jugador
+// del save; aca se pasa explicito para no depender de leer un perfil de una base sintetica).
+function _costoContraBase(teamId, jugadorDelSave, base, cambios){
+  return YUNACOINS_RULES.costoCambios(base, cambios, YC_RULES, { perfil: _perfilTool(teamId, jugadorDelSave), cfg: _emparejarCfg() });
+}
 async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
@@ -1946,6 +1985,12 @@ async function aplicarPedidosSeleccionados(){
   const rechazados = [];  // {pedido, motivo}
   const porEquipo = {};
   pedidos.forEach(p => { (porEquipo[p.teamId] = porEquipo[p.teamId] || []).push(p); });
+  // PED2: dentro de cada equipo se procesan del pedido mas viejo al mas nuevo (creadoEn); antes
+  // el orden dependia de la lista. Asi «lo ya aplicado por el lote» es lo que el presidente ya
+  // habia mandado antes, no lo que vino primero en la seleccion.
+  Object.keys(porEquipo).forEach(t => { porEquipo[t] = PES5_PLANTILLA.pedidosEnOrdenDeCreacion(porEquipo[t]); });
+  // PED2: cambios que este lote ya escribio en la copia, por jugador (registro).
+  const cambiosDelLote = {};
   // PES5-TOPE-1: tope de atributos de la temporada actual (null = sin tope)
   const topeTemporada = _topeAtributoVigente();
   for (const teamId of Object.keys(porEquipo)){
@@ -2040,7 +2085,9 @@ async function aplicarPedidosSeleccionados(){
         const jPubE = (pubE.data.jugadores || []).find(x => x && x.id === 'r' + p.registro);
         if (!jPubE){ rechazados.push({ pedido: p, motivo: 'el jugador no está en la plantilla publicada' }); continue; }
         const jSaveE = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, p.registro, 0);
-        const cambioE = PES5_PLANTILLA.cambiosContraSave(jPubE, jSaveE, p.cambios);
+        // PED2: si otro pedido del lote ya toco este jugador, la base suma lo que el lote aplico.
+        const previosE = _cambiosDelLoteDe(cambiosDelLote, p.registro);
+        const cambioE = PES5_PLANTILLA.cambiosContraSave(_baseDelPedido(jPubE, previosE), jSaveE, p.cambios);
         if (cambioE){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioE.campo }); continue; }
         // Perfil y maximo se recalculan con las reglas actuales y el save actual (no se confia en el pedido).
         const cfgE = _emparejarCfg();
@@ -2058,6 +2105,7 @@ async function aplicarPedidosSeleccionados(){
           rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
         }
         const lineasE = YUNACOINS_RULES.cambiosEmparejar(jE, cfgE, fijadoE).lineas;
+        _anotarCambiosDelLote(cambiosDelLote, p.registro, p.cambios);   // PED2: el lote ya lo escribio
         aplicados.push({ pedido: p, team, info: {
           pedidoId: p._id, playerId: p.registro, playerName: jE.nombre, subscriber: !!jE.subscriber,
           total: 0, lineas: lineasE, fromGeneral: 0, fromSub: 0, emparejar: true, nivel: nivelCfg,
@@ -2075,17 +2123,36 @@ async function aplicarPedidosSeleccionados(){
       const jPub = (pubM.data.jugadores || []).find(x => x && x.id === 'r' + p.registro);
       if (!jPub){ rechazados.push({ pedido: p, motivo: 'el jugador no está en la plantilla publicada' }); continue; }
       const jSave = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, p.registro, 0);
-      const cambioM = PES5_PLANTILLA.cambiosContraSave(jPub, jSave, p.cambios);
+      // PED2: base de la validacion = lo publicado + lo que este lote ya aplico a este jugador.
+      const previosM = _cambiosDelLoteDe(cambiosDelLote, p.registro);
+      const cambioM = PES5_PLANTILLA.cambiosContraSave(_baseDelPedido(jPub, previosM), jSave, p.cambios);
       if (cambioM){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioM.campo + ' era ' + cambioM.era + ', ahora ' + cambioM.ahora }); continue; }
       const j = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
+      // PED2: `total` es el delta contra el save de ahora: lo que otro pedido del lote ya subio
+      // a este jugador no se cobra dos veces y, si este pedido sube mas arriba, paga solo el
+      // tramo nuevo. Si no hay otro pedido del mismo jugador antes en el lote, es el costo de
+      // siempre (contra lo publicado, porque el save tiene que seguir igual en esos campos).
       const { total, lineas } = _costoTool(team.id, j, p.cambios);
       // EMP-80-2: el pedido tiene que costar lo mismo que hoy con la misma funcion (tramo gratis incluido).
       // Un pedido armado con otra tarifa se rechaza y el presidente lo arma de nuevo.
-      if (p.totalCost != null && Number(p.totalCost) !== total){
+      // PED2: con otro pedido del mismo jugador antes en el lote, el precio declarado tambien
+      // puede ser el de la publicacion sola (el pedido se armo antes de que el lote aplicara lo
+      // suyo). Se acepta cualquiera de los dos y se cobra `total` (el delta).
+      let precioDelPedido = total;   // el que se usa para la defensa de «cambio sin costo»
+      if (previosM.length){
+        const totalPublicado = _costoContraBase(team.id, j, PES5_PLANTILLA.jugadorReglasDeEditor(jPub), p.cambios).total;
+        if (p.totalCost != null && Number(p.totalCost) !== total && Number(p.totalCost) !== totalPublicado){
+          rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + totalPublicado.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
+          continue;
+        }
+        // Un pedido cuyos campos ya subio otro pedido del lote queda en 0 a proposito (no se
+        // cobra dos veces): el precio contra lo publicado dice que el pedido si sube algo.
+        precioDelPedido = totalPublicado;
+      } else if (p.totalCost != null && Number(p.totalCost) !== total){
         rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + total.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
         continue;
       }
-      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
+      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, precioDelPedido, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
       const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub));
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
@@ -2095,6 +2162,7 @@ async function aplicarPedidosSeleccionados(){
       } catch (e) {
         rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
       }
+      _anotarCambiosDelLote(cambiosDelLote, p.registro, p.cambios);   // PED2: el lote ya lo escribio
       usadoGeneral += reparto.fromGeneral; usadoSub += reparto.fromSub; usadoTotal += total;
       aplicados.push({ pedido: p, team, info: {
         pedidoId: p._id, playerId: p.registro, playerName: j.nombre, subscriber: !!j.subscriber,
