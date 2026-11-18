@@ -1034,10 +1034,88 @@ const APP = {
 };
 
 function currentPlayer(){ return PLAYER_BY_ID[APP.playerId]; }
+
+/* ================= PED1 · un solo pedido pendiente de mejoras por jugador =================
+   Antes el borrador partia siempre del jugador publicado y `APP.pendientes` solo se usaba para
+   pintar la marca «Pedido»: si el presidente volvia a mandar cambios del mismo jugador sin
+   cancelar el anterior, quedaban dos pedidos pendientes solapados y la Tool aplicaba uno y
+   rechazaba el otro («el jugador cambio desde el pedido») con perdida de cambios.
+   Ahora: el borrador parte de lo publicado + los cambios del pedido pendiente, y al enviar se
+   manda UN pedido nuevo con TODOS los cambios respecto de lo publicado, cancelando el pendiente
+   anterior en el mismo paso. El pedido de mejoras no lleva 'tipo' (formacion y emparejar si). */
+function pendientesMejoraDeJugador(p){
+  if (!p) return [];
+  const registro = registroPres(p);
+  return (APP.pendientes || []).filter(x => x && x.estado === 'pendiente' && !x.tipo
+    && (x.playerId === p.id
+        || (registro != null && x.registro != null && Number(x.registro) === Number(registro))));
+}
+/* El pedido de mejoras pendiente mas reciente del jugador (null si no hay ninguno). */
+function pedidoMejoraPendiente(p){
+  const lista = pendientesMejoraDeJugador(p).slice().sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b));
+  return lista.length ? lista[lista.length - 1] : null;
+}
+/* Pedidos de emparejar pendientes del jugador (EMP-80-1). */
+function pendientesEmparejarDeJugador(p){
+  if (!p) return [];
+  const registro = registroPres(p);
+  return (APP.pendientes || []).filter(x => x && x.estado === 'pendiente' && x.tipo === 'emparejar'
+    && (x.playerId === p.id
+        || (registro != null && x.registro != null && Number(x.registro) === Number(registro))));
+}
+/* Jugador del que parte el borrador: lo publicado + los cambios de los pedidos pendientes.
+   Lo normal es uno solo; si quedaron pedidos viejos solapados (el bug PED1) se aplican en
+   orden y se conservan los cambios de todos hasta que se mande el pedido unico. */
+function jugadorBaseBorrador(p){
+  const lista = pendientesMejoraDeJugador(p)
+    .filter(x => x.cambios)
+    .sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b));
+  let j = p;
+  lista.forEach(x => {
+    try { j = PES5_PLANTILLA.aplicarCambiosAlJugador(j, x.cambios); }
+    catch(e){ console.warn('[mejoras] pedido pendiente ilegible', e); }
+  });
+  return j;
+}
+/* YunaCoins que el pedido pendiente ya tiene reservados para este jugador. */
+function costoReservadoJugador(p){
+  return pendientesMejoraDeJugador(p).reduce((s, x) => s + Number(x.totalCost || 0), 0);
+}
+/* Costo que el pedido nuevo suma sobre lo ya reservado (la reserva no se cuenta dos veces). */
+function pendingCostSinReservar(){
+  return Math.max(0, pendingCost() - costoReservadoJugador(currentPlayer()));
+}
+/* Reparto general/suscriptores del pedido nuevo: al reemplazar, el pendiente del jugador libera
+   su parte de suscriptores antes de repartir (mismo calculo que el envio). */
+function repartoDelPedidoNuevo(p, cost){
+  const liberadoSub = pendientesMejoraDeJugador(p).reduce((s, x) => s + Number(x.fromSub || 0), 0);
+  return YUNACOINS_RULES.distribuirCosto(cost, Math.max(0, (APP.budget.subscribers || 0) + liberadoSub));
+}
+/* Cambios del borrador respecto de lo PUBLICADO: es lo que lleva el pedido nuevo. */
+function cambiosDelBorrador(p, d){
+  return PES5_PLANTILLA.cambiosDesdeEditor(p, {
+    stats: Object.assign({}, p.stats, d.stats),
+    sec: Object.assign({}, p.sec, d.sec),
+    abilities: Object.assign({}, p.abilities, d.abilities),
+    positions: d.positions, primaryPos: d.primaryPos, side: d.side,
+    height: d.height, favfoot: d.favfoot, age: d.age,
+  });
+}
+/* ¿El borrador es exactamente el pedido que ya esta pendiente? (no hay nada nuevo que mandar) */
+function borradorYaPedido(p){
+  if (!p || !APP.draft) return false;
+  const pedido = pedidoMejoraPendiente(p);
+  if (!pedido || !pedido.cambios) return false;
+  const cambios = cambiosDelBorrador(p, APP.draft);
+  if (!Object.keys(cambios).length) return false;
+  return PES5_PLANTILLA.canonicoJSON(cambios) === PES5_PLANTILLA.canonicoJSON(pedido.cambios);
+}
+
 function loadDraft(){
   const p = currentPlayer();
   // Modo admin: el borrador arranca desde el original + lo ya guardado en la tool.
-  const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : p;
+  // Presidente (PED1): desde lo publicado + los cambios del pedido pendiente, si hay.
+  const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : jugadorBaseBorrador(p);
   APP.draft = JSON.parse(JSON.stringify({
     stats:src.stats, sec:src.sec, abilities:src.abilities, positions:src.positions, primaryPos:src.primaryPos, side:src.side, favfoot:src.favfoot, height:src.height, age:src.age,
   }));
@@ -1070,8 +1148,9 @@ function remainingForPlayer(p){
   const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
   return YUNACOINS_RULES.bonoSuscriptor(pool);
 }
-/* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual */
-function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCost(); }
+/* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual (sin contar dos
+   veces el pedido pendiente del jugador, que ya venia reservado) */
+function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCostSinReservar(); }
 function canAfford(nextCost){ return nextCost <= remainingBalance(); }
 
 /* ================= render: roster (agrupado por posicion, estilo PES5) ================= */
@@ -1277,8 +1356,22 @@ async function confirmarSolicitarEmparejar(playerId){
   if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
   const nivel = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
   const registro = PES5_PLANTILLA.registroDeId(p.id);
+  const fs = firebase.firestore();
+  const nuevoRef = fs.collection('pedidos_pes5').doc();
+  const viejos = pendientesEmparejarDeJugador(p);   // PED1: un solo emparejar pendiente por jugador
   try {
-    await firebase.firestore().collection('pedidos_pes5').add({
+    /* PED1: si por lo que sea ya habia un emparejar pendiente de este jugador (dos pestanas,
+       lista vieja), se cancela en el mismo batch para no dejar dos pendientes. Las reglas ya
+       permiten crear y cancelar el propio en la misma escritura. */
+    const batch = fs.batch();
+    viejos.forEach(x => {
+      if (x._id && String(x._id).indexOf('local-') !== 0){
+        batch.update(fs.collection('pedidos_pes5').doc(x._id), {
+          estado: 'cancelado', canceladoEn: new Date().toISOString(),
+        });
+      }
+    });
+    batch.set(nuevoRef, {
       uid: AUTH.user.uid,
       teamId: String(AUTH.teamId),
       teamName: EQUIPO_TSC?.name || null,
@@ -1300,12 +1393,14 @@ async function confirmarSolicitarEmparejar(playerId){
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   } catch (e) {
     showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
     return;
   }
   // presentacion: el pedido ya cuenta como pendiente (boton, aviso y globito). No reserva saldo.
-  APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'emparejar', playerId: p.id, registro, perfil: r.perfil, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
+  APP.pendientes = (APP.pendientes || []).filter(x => viejos.indexOf(x) < 0);
+  APP.pendientes.push({ _id: nuevoRef.id, tipo: 'emparejar', playerId: p.id, registro, perfil: r.perfil, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
   renderCard();
   renderPending();
   showMiniToast('Pedido de emparejar enviado. Luis lo revisa.');
@@ -1494,7 +1589,7 @@ function _topeEquipoDatos(){
    los numeros bajan en vivo (antes de aplicar/confirmar) y el tope solo
    cambia cuando cambian los suscriptores, el extra o las reglas. */
 function renderHero(){
-  const cost = pendingCost();
+  const cost = pendingCostSinReservar();
   const d = _topeEquipoDatos();
   const r = d.r;
   // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
@@ -1554,7 +1649,11 @@ function renderAviso(){
   }
   const d = _topeEquipoDatos();
   const r = d.r;
-  const cost = pendingCost();
+  // PED1: los números bajan con lo que el pedido nuevo suma de verdad (el pendiente del
+  // jugador ya está reservado y se reemplaza: no se cuenta dos veces).
+  const cost = pendingCostSinReservar();
+  const costPedido = pendingCost();
+  const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(currentPlayer());
   // misma foto que el bloque de saldo: los tres números bajan en vivo con la
   // edición en curso (todavía no enviada), y «Esta edición» dice cuánto suma.
   const saldoBruto = r.saldoDisponible;
@@ -1586,23 +1685,30 @@ function renderAviso(){
         <span class="ep-aviso-note">${saldoBruto < quedaBruto ? 'Limita tu saldo' : 'Limita el tope'}</span>
       </div>
     </div>
-    <div class="ep-aviso-cost">${cost > 0
-      ? `Esta edición: <b>−${fmt(cost)} YC</b>`
+    <div class="ep-aviso-cost">${costPedido > 0
+      ? `${pendiente ? 'Tu pedido' : 'Esta edición'}: <b>−${fmt(costPedido)} YC</b>${pendiente ? ' · reemplaza tu pedido pendiente' : ''}`
       : 'Esta edición: sin costo'}</div>`;
 }
 function renderCart(){
   const cost = pendingCost();
   const n = pendingChangeLines().length;
   const p = currentPlayer();
+  // PED1: si el jugador ya tiene un pedido pendiente, el borrador (y el pedido nuevo) lo
+  // incluyen: el texto lo dice para que el presidente no crea que se perdio lo que ya pidio.
+  const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(p);
+  const yaPedido = !ADMIN_EMBED && borradorYaPedido(p);
   document.getElementById('ep-cost').textContent = cost > 0 ? '−' + cost.toLocaleString('es-CL') : '0';
-  document.getElementById('ep-cart-count').textContent = n
-    ? (p ? p.name + ' · ' : '') + n + (n === 1 ? ' cambio' : ' cambios')
-    : 'Sin cambios';
-  document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL') + ' YC' : '';
+  document.getElementById('ep-cart-count').textContent = yaPedido
+    ? (p ? p.name + ' · ' : '') + 'pedido enviado (sin cambios nuevos)'
+    : n
+      ? (p ? p.name + ' · ' : '') + n + (n === 1 ? ' cambio' : ' cambios') + (pendiente ? ' · reemplaza tu pedido pendiente' : '')
+      : 'Sin cambios';
+  document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - pendingCostSinReservar()).toLocaleString('es-CL') + ' YC' : '';
   renderHero();
   renderAviso();
   const applyBtn = document.getElementById('ep-apply');
-  applyBtn.disabled = (pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)) || (!ADMIN_EMBED && !!APP.bloqueoPorAplicado);
+  applyBtn.disabled = (pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)) || (!ADMIN_EMBED && (yaPedido || !!APP.bloqueoPorAplicado));
+  applyBtn.title = yaPedido ? 'Ya mandaste estos cambios: edita algo para mandar un pedido nuevo' : '';
   document.getElementById('ep-warn').textContent = '';
 }
 
@@ -1665,13 +1771,25 @@ function openApplyConfirm(){
     if(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length) commitChangesAdmin();
     return;
   }
+  if (!ADMIN_EMBED && pendientesEmparejarDeJugador(p).length){
+    showMiniToast('Este jugador tiene un pedido de emparejar pendiente: espera a que Luis lo aplique o cancélalo en Pedidos antes de mandar mejoras.');
+    return;
+  }
+  if (!ADMIN_EMBED && borradorYaPedido(p)){
+    showMiniToast('Ya mandaste estos cambios para ' + p.name + ': edita algo para mandar un pedido nuevo.');
+    return;
+  }
   const cost = pendingCost();
+  // PED1: el pedido pendiente del jugador ya reserva su costo; el pedido nuevo lo reemplaza.
+  const reservado = ADMIN_EMBED ? 0 : costoReservadoJugador(p);
+  const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(p);
+  const costoSinReservar = Math.max(0, cost - reservado);
   // saldo, tope y bono antes y despues del pedido: los mismos datos que muestra el saldo
-  const { fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
+  const { fromSub } = repartoDelPedidoNuevo(p, cost);
   const saldoAntes = APP.saldo || 0;
-  const saldoDespues = Math.max(0, saldoAntes - cost);
+  const saldoDespues = Math.max(0, saldoAntes - costoSinReservar);
   const d = _topeEquipoDatos();
-  const quedaTope = Math.max(0, d.r.restanteGeneral + d.r.restanteSub - cost);
+  const quedaTope = Math.max(0, d.r.restanteGeneral + d.r.restanteSub - costoSinReservar);
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
   <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
@@ -1679,7 +1797,10 @@ function openApplyConfirm(){
       <div class="ep-grab" aria-hidden="true"></div>
       <div class="ep-sheet-hd">
         <h2 id="ep-sheet-tit">${ADMIN_EMBED ? 'Revisar cambios' : 'Revisar pedido'}</h2>
-        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.' : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo puedes cancelar.'}</span>
+        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.'
+          : (pendiente
+              ? 'Reemplaza tu pedido anterior de ' + escHtml(p.name) + ': se cancela al enviar. Se cobra cuando Luis lo aplica en el juego.'
+              : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo puedes cancelar.')}</span>
       </div>
       <ul class="ep-sheet-list">
         ${lines.map(l=>`<li class="ep-sheet-line">
@@ -1702,6 +1823,17 @@ function openApplyConfirm(){
 }
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
+/* Relee los pedidos pendientes del presidente (la misma consulta que
+   recalcularPresupuestoReal) y deja APP.pendientes igual que el servidor. Se usa antes de
+   mandar un pedido: si otra pestana dejo un pendiente del mismo jugador, se cancela igual. */
+async function _refrescarPendientes(){
+  try {
+    const q = await firebase.firestore().collection('pedidos_pes5')
+      .where('uid', '==', AUTH.user.uid).where('estado', '==', 'pendiente').get();
+    APP.pendientes = q.docs.map(d => Object.assign({ _id: d.id }, d.data()));
+  } catch(e){ console.warn('[editor] no se pudieron releer los pedidos pendientes', e); }
+}
+
 async function commitChanges(){
   if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
   if (ADMIN_EMBED) return commitChangesAdmin();
@@ -1709,38 +1841,78 @@ async function commitChanges(){
   const p = currentPlayer();
   const lines = pendingChangeLines();
   const cost = pendingCost();
-  if(lines.length===0 || cost>remainingForPlayer(p)){ closeApplyConfirm(); return; }
+  if(lines.length===0){ closeApplyConfirm(); return; }
   if(!puedeMandarPedido()){
     closeApplyConfirm();
     showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
     return;
   }
+  // PED1 · un solo pedido pendiente por jugador: la lista se relee del servidor justo antes
+  // de armar el envio, para reemplazar tambien lo que haya quedado de otra pestana.
+  const antes = pendientesMejoraDeJugador(p).map(x => String(x._id)).sort().join('|');
+  await _refrescarPendientes();
+  if (pendientesMejoraDeJugador(p).map(x => String(x._id)).sort().join('|') !== antes){
+    // Otra pestana dejo un pendiente de este jugador: si se manda este pedido, ese se cancela
+    // y sus cambios se perderfan. Se corta aca y el presidente vuelve a abrir al jugador.
+    closeApplyConfirm();
+    renderPending();
+    showMiniToast('Se actualizó tu pedido pendiente de ' + p.name + ': vuelve a abrirlo para sumar esos cambios.');
+    return;
+  }
+  // PED1: el pedido pendiente del jugador ya reserva su costo; el nuevo lo reemplaza (no suma dos veces).
+  const reservado = costoReservadoJugador(p);
+  const costoSinReservar = Math.max(0, cost - reservado);
+  if (costoSinReservar > remainingForPlayer(p)){ closeApplyConfirm(); return; }
+  if (pendientesEmparejarDeJugador(p).length){
+    closeApplyConfirm();
+    showMiniToast('Este jugador tiene un pedido de emparejar pendiente: espera a que Luis lo aplique o cancélalo en Pedidos antes de mandar mejoras.');
+    return;
+  }
 
-  const draftJugador = {
-    stats: Object.assign({}, p.stats, APP.draft.stats),
-    sec: Object.assign({}, p.sec, APP.draft.sec),
-    abilities: Object.assign({}, p.abilities, APP.draft.abilities),
-    positions: APP.draft.positions, primaryPos: APP.draft.primaryPos, side: APP.draft.side,
-    height: APP.draft.height, favfoot: APP.draft.favfoot,
-  };
-  const cambios = PES5_PLANTILLA.cambiosDesdeEditor(p, draftJugador);
+  const viejos = pendientesMejoraDeJugador(p);  // PED1: los que este pedido reemplaza
+  const pendiente = pedidoMejoraPendiente(p);
+  const cambios = cambiosDelBorrador(p, APP.draft);
   const registro = PES5_PLANTILLA.registroDeId(p.id);
   if (registro == null || !Object.keys(cambios).length){
     closeApplyConfirm();
     showMiniToast('No hay cambios aplicables para mandar.');
     return;
   }
+  if (pendiente && pendiente.cambios
+      && PES5_PLANTILLA.canonicoJSON(cambios) === PES5_PLANTILLA.canonicoJSON(pendiente.cambios)){
+    closeApplyConfirm();
+    showMiniToast('Ya mandaste estos cambios para ' + p.name + ': edita algo para mandar un pedido nuevo.');
+    return;
+  }
 
   /* Slice D.R punto 5b (orden INVERTIDO, 15/09): si es suscriptor, primero
      se gasta el bono exclusivo; agotado el bono, el resto sigue con el
-     general. Si no es suscriptor, todo sale del general. */
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
+     general. Si no es suscriptor, todo sale del general. Al reemplazar un pedido
+     pendiente se libera antes su parte de suscriptores (repartoDelPedidoNuevo). */
+  const { fromGeneral, fromSub } = repartoDelPedidoNuevo(p, cost);
+  const liberadoGeneral = viejos.reduce((s, x) => s + Number(x.fromGeneral || 0), 0);
+  const liberadoSub = viejos.reduce((s, x) => s + Number(x.fromSub || 0), 0);
 
   const btn = document.getElementById('ep-apply');
   if (btn) btn.disabled = true;
+  const fs = firebase.firestore();
+  const nuevoRef = fs.collection('pedidos_pes5').doc();
   try {
-    /* el pedido a Firestore es lo que el admin aplica con la tool; el presidente solo puede cancelarlo mientras esta pendiente (ver firebase/firestore.rules). */
-    await firebase.firestore().collection('pedidos_pes5').add({
+    /* PED1 · un solo pedido pendiente de mejoras por jugador: el pedido nuevo (todos los
+       cambios contra lo publicado) y la cancelación del anterior van en el MISMO batch, asi
+       nunca quedan dos pendientes del mismo jugador. Las reglas de Firestore ya permiten las
+       dos operaciones por separado (crear y cancelar el propio mientras esta pendiente), asi
+       que el batch no necesita cambios de reglas: si una falla no se escribe ninguna y el
+       pedido anterior sigue pendiente. Mismo update que cancelarPedidoDesdeHistorial. */
+    const batch = fs.batch();
+    viejos.forEach(x => {
+      if (x._id && String(x._id).indexOf('local-') !== 0){
+        batch.update(fs.collection('pedidos_pes5').doc(x._id), {
+          estado: 'cancelado', canceladoEn: new Date().toISOString(),
+        });
+      }
+    });
+    batch.set(nuevoRef, {
       uid: AUTH.user.uid,
       teamId: String(AUTH.teamId),
       teamName: EQUIPO_TSC?.name || null,
@@ -1758,42 +1930,43 @@ async function commitChanges(){
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   } catch(e){
     if (btn) btn.disabled = false;
     showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
     return;
   }
 
-  APP.budget.general -= fromGeneral;
-  APP.budget.subscribers -= fromSub;
-  APP.saldo = Math.max(0, (APP.saldo || 0) - cost);
-
-  Object.assign(p.stats, APP.draft.stats);
-  Object.assign(p.sec, APP.draft.sec);
-  Object.assign(p.abilities, APP.draft.abilities);
-  Object.assign(p.positions, APP.draft.positions);
-  p.primaryPos = APP.draft.primaryPos;
-  if(APP.draft.side !== undefined) p.side = APP.draft.side;
-  p.tag = POS_BY_KEY[p.primaryPos]?.l || p.primaryPos;
-  p.favfoot = APP.draft.favfoot;
-  p.height = APP.draft.height;
+  /* Reserva de YunaCoins (PED1): el pedido viejo deja de reservar y el nuevo reserva una sola
+     vez. Se ajusta en memoria y despues se recalcula del servidor (pedidos pendientes + coins). */
+  APP.budget.general = Math.max(0, (APP.budget.general || 0) + liberadoGeneral - fromGeneral);
+  APP.budget.subscribers = Math.max(0, (APP.budget.subscribers || 0) + liberadoSub - fromSub);
+  APP.saldo = Math.max(0, (APP.saldo || 0) + reservado - cost);
+  APP.pendientes = (APP.pendientes || []).filter(x => viejos.indexOf(x) < 0);
+  const nuevoLocal = {
+    _id: nuevoRef.id, playerId: p.id, playerName: p.name, registro,
+    cambios, lines, totalCost: cost, fromGeneral, fromSub, estado: 'pendiente',
+    creadoEn: new Date().toISOString(),
+  };
+  APP.pendientes.push(nuevoLocal);
 
   AUDIT_LOG.push({
     ts: Date.now(), playerId:p.id, playerName:p.name, dorsal:p.dorsal, subscriber:!!p.subscriber,
     lines, totalCost:cost, fromGeneral, fromSub,
+    reemplaza: pendiente ? String(pendiente._id || '') : '',
     budgetAfter:{general:APP.budget.general, subscribers:APP.budget.subscribers},
   });
   saveAuditLog();
 
-  // presentacion: el pedido recien enviado ya cuenta como pendiente (marca «Pedido» y aviso)
-  APP.pendientes.push({ _id: 'local-' + Date.now(), playerId: p.id, playerName: p.name, lines, totalCost: cost, estado: 'pendiente' });
+  // el jugador publicado NO se toca: lo que se ve es lo publicado + el pedido pendiente (loadDraft).
+  await recalcularPresupuestoReal();
+  if (!pendientesMejoraDeJugador(p).length) APP.pendientes.push(nuevoLocal); // lectura eventual: no perder el pedido recien creado
+  loadDraft();
   closeApplyConfirm();
-  renderCard();
-  renderRows();
-  renderCart();
-  renderRoster();
-  renderPending();
-  showMiniToast(`Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins`);
+  renderAll();
+  showMiniToast(pendiente
+    ? `Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins · reemplaza tu pedido anterior de ${p.name}`
+    : `Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins`);
 }
 
 let _toastTimer=null;
