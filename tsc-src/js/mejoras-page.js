@@ -1487,7 +1487,7 @@ function _topeEquipoDatos(){
   const partes = [];
   if (bono > 0 || r.extra > 0) partes.push('Base ' + _fmtYC(r.topeGeneral));
   if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono));
-  if (r.extra > 0) partes.push((APP.motivo ? APP.motivo + ' ' : 'Extra ') + _fmtYC(r.extra));
+  if (r.extra > 0) partes.push('Extra ' + _fmtYC(r.extra));   // sin motivo: Jimbo prefiere solo «Extra N»
   return { r: r, bono: bono, total: r.topeTotal + bono, desglose: partes.join(' + ') };
 }
 /* la zona de yunacoins vive fuera del editor (es el dato mas importante);

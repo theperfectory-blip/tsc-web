@@ -238,7 +238,7 @@ function _coinsTopeHTML(d){
   const partes = [];
   if(r.bono > 0 || r.extra > 0) partes.push(`Base ${nf(r.topeGeneral)}`);
   if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} ${nf(r.bono)}`);
-  if(r.extra > 0) partes.push(`${d.motivoExtra ? escHtml(d.motivoExtra) + ' ' : 'Extra '}${nf(r.extra)}`);
+  if(r.extra > 0) partes.push(`Extra ${nf(r.extra)}`);
   return box([
     `Tope del equipo esta temporada: <strong style="color:var(--txt);">${nf(r.topeTotal)}</strong>`,
     partes.length ? `<span style="color:var(--txt2);">${partes.join(' + ')}</span>` : '',
