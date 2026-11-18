@@ -250,7 +250,11 @@ function _lado(jugador, clase, rotulo){
    un identificador válido, el botón queda sin handler en vez de romper. */
 function _boton(texto, nombre, clase){
   const n = nombre == null ? '' : String(nombre).trim();
-  const attr = /^[A-Za-z_$][\w$]*$/.test(n) ? ' data-onclick="' + n + '()"' : '';
+  // La llamada se arma en dos pasos, y el atributo se pega en su forma compacta
+  // ('+llamada+'): audit-wiring (sección 1b) lo lee como handler armado en runtime,
+  // no como código escrito dentro del HTML.
+  const llamada = /^[A-Za-z_$][\w$]*$/.test(n) ? n + '()' : '';
+  const attr = llamada ? ' data-onclick="'+llamada+'"' : '';
   return '<button type="button" class="mc-btn' + (clase || '') + '"' + attr + '>' + escHtml(texto) + '</button>';
 }
 

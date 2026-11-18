@@ -1907,6 +1907,9 @@ let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (ba
 let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
 // ORD-4: los intercambios de banca del borrador van en FORM.bancaPares (pares de ids, en el orden en que se hicieron).
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
+// INTEG: cambio titular↔banca/reserva pendiente de confirmar en el panel de comparacion.
+let FORM_CMP = null;  // { slot, entra, prev:{sel,armado,banca,verId} } con el panel abierto
+let FORM_CMP_HTML = ''; // ultimo HTML pintado del panel: no se rehace en cada render
 
 function openFormationModal(){
   if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
@@ -1924,6 +1927,7 @@ function openFormationModal(){
   FORM.sel = 0;
   FORM.motivo = null;
   FORM_DRAG = null;
+  FORM_CMP = null; FORM_CMP_HTML = '';
   FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = [];
   _pitchSyncOrientation();
@@ -1935,6 +1939,7 @@ function _montarModalCancha(){
   // En pantalla tactil la ayuda habla de arrastrar; con mouse, de las flechas.
   const toqueFino = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const wrap = document.getElementById('ep-pitch-wrap');
+  FORM_CMP_HTML = ''; // el contenedor del panel se rehace con el modal: se vuelve a pintar
   // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
   // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
   const franjas = PITCH_ZONES.map(z => {
@@ -2001,6 +2006,7 @@ function _montarModalCancha(){
           <svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Confirmar</button>
       </div>
     </div>
+    <div id="ep-form-cmp" class="ep-form-cmp" hidden></div>
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
@@ -2009,6 +2015,7 @@ function _montarModalCancha(){
 function closeFormationModal(){
   FORM_ABIERTO = false;
   FORM.bancaOrden = null;
+  FORM_CMP = null; FORM_CMP_HTML = '';   // INTEG: el panel de comparacion se va con el modal
   renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
@@ -2084,6 +2091,8 @@ function formacionTocarTitular(i){
   // 1) hay un suplente armado: entra en este lugar
   if (FORM.banca){
     if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(FORM.banca); FORM.verId = FORM.banca; renderFormationModal(); return false; }
+    // INTEG: primero se compara (panel SALE/ENTRA); el cambio se aplica al confirmar
+    if (_formCmpAbrir(FORM.banca, i)){ renderFormationModal(); return false; }
     _formEntrar(FORM.banca, i); renderFormationModal(); return true;
   }
   // 2) ya estaba marcado este mismo titular: el toque lo desmarca
@@ -2114,7 +2123,11 @@ function formacionTocarBanca(el){
   if (FORM.banca && FORM.banca !== id){ _formSwapBanca(FORM.banca, id); renderFormationModal(); return; }
   // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
   if (FORM.armado && !FORM.banca){
-    if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
+    if (_formLegalEntrada(id, FORM.sel)){
+      // INTEG: primero se compara (panel SALE/ENTRA); el cambio se aplica al confirmar
+      if (_formCmpAbrir(id, FORM.sel)){ renderFormationModal(); return; }
+      _formEntrar(id, FORM.sel); renderFormationModal(); return;
+    }
     _formMensajeIlegal(id);
   }
   FORM.banca = id; FORM.armado = true; FORM.verId = id; FORM.motivo = null;
@@ -2142,8 +2155,80 @@ function _formCambiarEnBanca(entra, sale){
 }
 function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
+  FORM_CMP = null; FORM_CMP_HTML = '';
   renderFormationModal();
 }
+/* ================= INTEG: comparar antes de cambiar (panel CMP) =================
+   Con js/mejoras-cambio.js cargado (window.MEJORAS_CAMBIO), el segundo toque de un
+   cambio titular↔banca/reserva ya no aplica el cambio: abre el panel SALE/ENTRA del
+   componente dentro de este modal y el cambio se hace al confirmar.
+   Si el componente no esta cargado, el segundo toque aplica como siempre (sin panel).
+   Mientras el panel esta abierto, FORM_CMP = { slot, entra, prev }:
+     slot  lugar del 11 que se cambia
+     entra id del jugador de banca o reservas que ocuparia ese lugar
+     prev  seleccion de antes de abrir el panel (a donde vuelve «Elegir otro») */
+function _formCmpDisponible(){
+  return !!(window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlPanel === 'function');
+}
+/* Abre el panel para el cambio entra ↔ draft[slot]. Devuelve true si lo abrio; en ese
+   caso el cambio NO se aplica todavia. */
+function _formCmpAbrir(entra, slot){
+  if (!_formCmpDisponible() || !FORM.draft[slot]) return false;
+  const sale = FORM.draft[slot].id;
+  if (!PLAYER_BY_ID[sale] || !PLAYER_BY_ID[entra]) return false;
+  FORM_CMP = { slot, entra, prev: { sel: FORM.sel, armado: FORM.armado, banca: FORM.banca, verId: FORM.verId } };
+  return true;
+}
+/* HTML del panel; '' si no hay nada que comparar. El velo (mc-velo) es «tocar fuera» y
+   tambien vuelve, sin cambiar nada. Los handlers van por NOMBRE global (data-onclick). */
+function _formCmpHtml(){
+  if (!FORM_CMP || !_formCmpDisponible() || !FORM.draft[FORM_CMP.slot]) return '';
+  const sale = PLAYER_BY_ID[FORM.draft[FORM_CMP.slot].id];
+  const entra = PLAYER_BY_ID[FORM_CMP.entra];
+  if (!sale || !entra) return '';
+  return '<div class="mc-velo" aria-hidden="true" data-onclick="mejCmpVolver()"></div>'
+    + window.MEJORAS_CAMBIO.htmlPanel(sale, entra, { onVolver: 'mejCmpVolver', onConfirmar: 'mejCmpConfirmar' });
+}
+/* Pinta el panel en su contenedor del modal (#ep-form-cmp). Solo reescribe si cambio
+   el HTML: asi el scroll del panel no se reinicia en cada render de la cancha. */
+function _formRenderCmp(){
+  const cont = document.getElementById('ep-form-cmp');
+  if (!cont) return;
+  const html = _formCmpHtml();
+  if (html !== FORM_CMP_HTML){
+    FORM_CMP_HTML = html;
+    cont.innerHTML = html;
+  }
+  cont.hidden = !html;
+}
+/* «Elegir otro» del panel: lo cierra, no cambia nada y deja elegido el primer jugador. */
+function mejCmpVolver(){
+  if (!FORM_CMP) return;
+  const prev = FORM_CMP.prev;
+  FORM_CMP = null; FORM_CMP_HTML = '';
+  FORM.sel = prev.sel; FORM.armado = prev.armado; FORM.banca = prev.banca;
+  FORM.verId = prev.verId; FORM.motivo = null;
+  renderFormationModal();
+}
+/* «Hacer el cambio» del panel: lo cierra y aplica el cambio con la misma funcion del
+   cambio en dos toques (_formEntrar: respeta la regla del arquero y bancaSwaps, y avisa
+   «Entra X, sale Y»). */
+function mejCmpConfirmar(){
+  if (!FORM_CMP) return;
+  const slot = FORM_CMP.slot, entra = FORM_CMP.entra;
+  FORM_CMP = null; FORM_CMP_HTML = '';
+  if (!FORM.draft[slot]){ renderFormationModal(); return; }
+  if (!_formLegalEntrada(entra, slot)){ _formMensajeIlegal(entra); renderFormationModal(); return; }
+  _formEntrar(entra, slot);
+  renderFormationModal();
+}
+/* Esc = «Elegir otro»: cierra el panel, no el modal. En captura, para que ninguna otra
+   capa lo consuma antes (el resto de la app cierra modales con Escape en burbuja). */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape' || !FORM_CMP) return;
+  e.stopPropagation();
+  mejCmpVolver();
+}, true);
 /* Banca y reservas (y la ficha del jugador elegido), en la mitad inferior del modal.
    MEJUI-4: una fila por jugador, con el dorsal y las iniciales de posicion en el color de
    su linea (clases ep-line-*, como el editor); banca en celeste/azul y reservas en verde.
@@ -2157,6 +2242,11 @@ function _lineaFormacion(p, slot, i){
 function _formRenderBancaYPanel(){
   const bancaEl = document.getElementById('ep-form-bench');
   const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
+  // INTEG: con un TITULAR elegido, cada jugador de banca o reservas que puede entrar
+  // muestra a la derecha la diferencia de promedio (componente MEJORAS_CAMBIO).
+  const MC = _formCmpDisponible() ? window.MEJORAS_CAMBIO : null;
+  const titular = (MC && FORM.armado && !FORM.banca && FORM.draft[FORM.sel])
+    ? PLAYER_BY_ID[FORM.draft[FORM.sel].id] : null;
   if (bancaEl){
     const secs = _seccionesPlantel();
     const fila = (p, seccion) => {
@@ -2173,11 +2263,13 @@ function _formRenderBancaYPanel(){
         p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : '',
         armadoId && !puede ? 'no' : '', armadoId && puede && p.id !== armadoId ? 'puede' : '',
         FORM_FLASH === p.id ? 'flash' : ''].filter(Boolean).join(' ');
+      const delta = (titular && i < 0 && puede && p.id !== titular.id)
+        ? `<span class="ep-form-cmpd">${MC.htmlDelta(titular, p)}</span>` : '';
       return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)"
         data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
         <span class="ep-form-num ep-line-${linea}${dorsal ? '' : ' vacia'}">${dorsal ? escHtml(dorsal) : ''}</span>
         <span class="ep-form-subname">${escHtml(p.name)}</span>
-        <span class="ep-form-cod ep-line-${linea}">${escHtml(cod)}</span>
+        <span class="ep-form-cod ep-line-${linea}">${escHtml(cod)}</span>${delta}
       </button>`;
     };
     // MEJUI2: abajo de la cancha va solo la banca y los reservas (los titulares ya están
@@ -2244,7 +2336,7 @@ function _formProgramarRender(){
   _formRaf = requestAnimationFrame(() => { _formRaf = 0; renderFormationModal(); });
 }
 function _formPointerDown(e){
-  if (e.button !== 0 || FORM_DRAG) return;
+  if (e.button !== 0 || FORM_DRAG || FORM_CMP) return;
   const campo = e.currentTarget;
   let mejor = -1, mejorDist = Infinity;
   FORM.draft.forEach((slot, i) => {
@@ -2255,6 +2347,8 @@ function _formPointerDown(e){
   if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
   // FORM-2: el toque decide (seleccionar, intercambiar o entrar). Si cambio la formacion, no hay arrastre.
   if (formacionTocarTitular(mejor)) return;
+  // INTEG: si ese toque abrio el panel de comparacion, el gesto termina aca (no hay arrastre).
+  if (FORM_CMP) return;
   const slot = FORM.draft[mejor];
   const c = _centroPunto(campo, slot);
   // Captura en todos los tipos de puntero: si se suelta fuera de la cancha, el clic
@@ -2324,6 +2418,7 @@ function renderFormationModal(){
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
   _formRenderBancaYPanel();
+  _formRenderCmp();
 
   // MEJUI-4: franja fija con la instruccion del cambio y «Cancelar». Reservada: solo
   // aparece mientras hay un jugador marcado, asi no cambia el alto del resto al tocar.
@@ -2655,6 +2750,7 @@ async function confirmFormation(){
 document.addEventListener('keydown', function(e){
   const wrap = document.getElementById('ep-pitch-wrap');
   if(!wrap || !wrap.innerHTML) return;
+  if(FORM_CMP) return;   // INTEG: con el panel de comparacion abierto, las teclas son del panel
   const move = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'};
   if(move[e.key]){ e.preventDefault(); moveFormationScreen(move[e.key]); return; }
   if(e.key==='Tab'){ e.preventDefault(); cycleFormationPlayer(e.shiftKey?-1:1); }
@@ -3549,6 +3645,9 @@ window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
 window.formacionTocarBanca = formacionTocarBanca;
 window.formacionCancelarArmado = formacionCancelarArmado;
+// INTEG: handlers por NOMBRE del panel de comparacion (data-onclick del componente)
+window.mejCmpVolver = mejCmpVolver;
+window.mejCmpConfirmar = mejCmpConfirmar;
 window.moveFormationScreen = moveFormationScreen;
 window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;

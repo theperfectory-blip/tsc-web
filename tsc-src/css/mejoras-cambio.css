@@ -175,3 +175,16 @@
   .mc-grip{display:none;}
   .mc-foot{max-height:38%;}
 }
+
+/* ---------- integracion con la formacion (slice INTEG) ----------
+   El panel se monta dentro del modal de formacion (js/mejoras-page.js,
+   contenedor #ep-form-cmp) sobre un celofan invisible: tocar fuera del panel
+   vuelve a la formacion sin cambiar nada. El velo queda por debajo del panel
+   (que usa --z-modal) y por encima del modal. */
+.mc-velo{position:fixed;inset:0;z-index:calc(var(--z-modal,600) - 1);
+  background:transparent;cursor:default;}
+/* Pastilla de diferencia en la lista de banca y reservas: cuarta columna de la
+   fila, a la derecha de la sigla. Sin pastilla la columna mide 0 y nada se mueve. */
+.ep-root .ep-form-bench .ep-form-subbtn{grid-template-columns:44px minmax(0,1fr) 44px auto;}
+.ep-root .ep-form-bench .ep-form-cmpd{display:flex;justify-content:flex-end;min-width:0;}
+.ep-root .ep-form-bench .ep-form-cmpd .mc-delta{font-size:12px;padding:1px 7px;white-space:nowrap;}
