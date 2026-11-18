@@ -213,27 +213,38 @@ async function _coinsDatosTope(team, cobro){
   return out;
 }
 
-/* Bloque compacto (2 líneas) con el tope de la temporada y cuánto le sirve cargar. */
+/* TOPE-1 · bloque del tope de la temporada en el modal de Agregar. El número
+   grande es el tope TOTAL del equipo (base + extra + bono de suscriptores),
+   con el desglose chico debajo (solo las partes que existen); «Saldo» va
+   aparte porque es otro número. El bono y el extra amplían el tope: no son
+   coins regaladas, se gastan con el saldo del equipo. */
 function _coinsTopeHTML(d){
   const nf = n => Number(n || 0).toLocaleString('es-CL');
   if(!d) return '';
-  const r = d.resumen;
-  const lineas = [];
-  if(r){
-    const partes = [];
-    if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} (${nf(r.bono)})`);
-    if(r.extra > 0) partes.push(`extra ${nf(r.extra)}${d.motivoExtra ? ` (${escHtml(d.motivoExtra)})` : ''}`);
-    lineas.push(`Tope temporada: <strong style="color:var(--txt);">${nf(r.topeTotal)}</strong> = ${nf(r.topeGeneral)}${partes.map(p => ' + ' + p).join('')}`);
-    lineas.push(`Gastado: ${nf(r.gastadoTotal)} · Saldo: ${nf(r.saldo)} · Le sirve cargar hasta: <strong style="color:var(--gold);">${nf(r.sirveCargar)}</strong>`);
-  }else{
-    const falta = d.faltan.length ? d.faltan.map(k => _COINS_FALTA_LABEL[k] || k).join(', ') : 'el tope de la temporada';
-    lineas.push(`Tope temporada: <span style="color:var(--txt3);">sin datos de ${escHtml(falta)}</span>`);
-    const gastado = d.gastado ? (Number(d.gastado.general || 0) + Number(d.gastado.sub || 0)) : null;
-    lineas.push(`${gastado != null ? `Gastado: ${nf(gastado)} · ` : ''}Saldo: ${nf(d.saldo)} · Le sirve cargar hasta: <span style="color:var(--txt3);">sin datos de ${escHtml(falta)}</span>`);
-  }
-  return `<div style="margin:-4px 0 14px;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);font-size:12px;line-height:1.5;color:var(--txt2);">
-    ${lineas.map(l => `<div>${l}</div>`).join('')}
+  const box = lineas => `<div style="margin:-4px 0 14px;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);font-size:12px;line-height:1.5;color:var(--txt2);">
+    ${lineas.filter(Boolean).map(l => `<div>${l}</div>`).join('')}
   </div>`;
+  const r = d.resumen;
+  if(!r){
+    const falta = d.faltan.length ? d.faltan.map(k => _COINS_FALTA_LABEL[k] || k).join(', ') : 'el tope de la temporada';
+    const gastado = d.gastado ? (Number(d.gastado.general || 0) + Number(d.gastado.sub || 0)) : null;
+    return box([
+      `Tope del equipo esta temporada: <span style="color:var(--txt3);">sin datos de ${escHtml(falta)}</span>`,
+      `${gastado != null ? `Gastado: ${nf(gastado)} · ` : ''}Saldo: ${nf(d.saldo)}`,
+      `Le sirve cargar hasta: <span style="color:var(--txt3);">sin datos de ${escHtml(falta)}</span>`,
+    ]);
+  }
+  // Desglose: base siempre que haya bono o extra; el motivo del extra si lo hay.
+  const partes = [];
+  if(r.bono > 0 || r.extra > 0) partes.push(`Base ${nf(r.topeGeneral)}`);
+  if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} ${nf(r.bono)}`);
+  if(r.extra > 0) partes.push(`${d.motivoExtra ? escHtml(d.motivoExtra) + ' ' : 'Extra '}${nf(r.extra)}`);
+  return box([
+    `Tope del equipo esta temporada: <strong style="color:var(--txt);">${nf(r.topeTotal)}</strong>`,
+    partes.length ? `<span style="color:var(--txt2);">${partes.join(' + ')}</span>` : '',
+    `Gastado: ${nf(r.gastadoTotal)} · Saldo: ${nf(r.saldo)}`,
+    `Le sirve cargar hasta: <strong style="color:var(--gold);">${nf(r.sirveCargar)}</strong>`,
+  ]);
 }
 
 /* Aviso (no bloqueo) de la vista previa: la cantidad supera lo que el equipo

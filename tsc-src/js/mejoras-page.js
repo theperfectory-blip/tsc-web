@@ -32,13 +32,14 @@ const MEJ_MARKUP = `
   <div class="ep-layout">
     <aside class="ep-roster">
       <section class="ep-saldo" aria-label="YunaCoins del equipo">
-        <div class="ep-saldo-lbl">Saldo del equipo</div>
-        <div class="ep-saldo-val" title="Saldo total de YunaCoins del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
+        <div class="ep-saldo-lbl">Tu saldo</div>
+        <div class="ep-saldo-val" title="YunaCoins cargadas en la cuenta del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
         <div class="ep-cap">
-          <div class="ep-cap-txt"><span>Queda del tope de la temporada</span><span><b id="ep-balance-general">0</b> / <span id="ep-hero-general-cap">0</span></span></div>
+          <div class="ep-cap-txt"><span>Tope del equipo: queda <b id="ep-balance-general">0</b> de <span id="ep-hero-general-cap">0</span></span></div>
           <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
+          <div class="ep-cap-desg" id="ep-cap-desg" hidden></div>
         </div>
-        <div class="ep-bono"><span>Bono suscriptores</span><b id="ep-balance-sub">0</b></div>
+        <div class="ep-disp">Disponible ahora: <b id="ep-disp-val">0</b> <span id="ep-disp-quien"></span></div>
       </section>
 
       <div class="ep-access">
@@ -1472,32 +1473,55 @@ function setHint(text){
   _pintarHint(text);
   renderRows();
 }
+function _fmtYC(n){ return Math.max(0, Math.round(n || 0)).toLocaleString('es-CL'); }
+/* TOPE-1: el tope del equipo de la temporada es base + bono de suscriptores +
+   tope extra (premio o reembolso): el bono y el extra AMPLÍAN el tope, no son
+   YunaCoins que se regalen (se pagan con el saldo del equipo). Los números
+   salen de YUNACOINS_RULES: resumenPresupuesto (mismos del aviso grande) y
+   bonoEquipo (regla por suscriptor × suscriptores del plantel). El desglose
+   solo trae las partes que existen: sin suscriptores ni extra no hay desglose. */
+function _topeEquipoDatos(){
+  const r = resumenAviso();
+  const n = _nSuscriptoresPlantel();
+  const bono = YUNACOINS_RULES.bonoEquipo(RULES, n);
+  const partes = [];
+  if (bono > 0 || r.extra > 0) partes.push('Base ' + _fmtYC(r.topeGeneral));
+  if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono));
+  if (r.extra > 0) partes.push((APP.motivo ? APP.motivo + ' ' : 'Extra ') + _fmtYC(r.extra));
+  return { r: r, bono: bono, total: r.topeTotal + bono, desglose: partes.join(' + ') };
+}
 /* la zona de yunacoins vive fuera del editor (es el dato mas importante);
-   el numerador baja en vivo (antes de aplicar/confirmar), el "/ tope" solo
-   cambia cuando el admin guarda reglas nuevas. */
+   los numeros bajan en vivo (antes de aplicar/confirmar) y el tope solo
+   cambia cuando cambian los suscriptores, el extra o las reglas. */
 function renderHero(){
   const cost = pendingCost();
-  // Slice D.R punto 5b: orden INVERTIDO — un suscriptor gasta primero el
-  // bono, el resto (o todo, si no es suscriptor) sale del general. Mismo
-  // YUNACOINS_RULES.distribuirCosto que usa la tool (pes5-tool.html).
-  const p = currentPlayer();
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
-  document.getElementById('ep-hero-general-cap').textContent = RULES.budgetGeneral.toLocaleString('es-CL');
-  document.getElementById('ep-balance-total').textContent = Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL');
-  document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
-  document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
-  // barra del tope de temporada: lo que queda sobre el tope, mismos datos que el texto de arriba
-  const cap = RULES.budgetGeneral || 0;
-  const quedaGeneral = APP.budget.general - fromGeneral;
+  const d = _topeEquipoDatos();
+  const r = d.r;
+  // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
+  // edicion en curso todavia no esta aplicada, asi que se resta aparte.
+  const saldoBruto = Math.max(0, APP.saldo || 0);
+  const quedaBruto = r.restanteGeneral + r.restanteSub;
+  const saldo = Math.max(0, saldoBruto - cost);
+  const queda = Math.max(0, quedaBruto - cost);
+  document.getElementById('ep-hero-general-cap').textContent = _fmtYC(d.total);
+  document.getElementById('ep-balance-general').textContent = _fmtYC(queda);
+  document.getElementById('ep-balance-total').textContent = _fmtYC(saldo);
+  const desg = document.getElementById('ep-cap-desg');
+  if (desg){ desg.textContent = d.desglose; desg.hidden = !d.desglose; }
+  // disponible para gastar ahora: el menor entre el saldo y lo que queda del
+  // tope, sin superar lo que la edicion en curso todavia no desconto (BONO-2).
+  const dv = document.getElementById('ep-disp-val');
+  if (dv) dv.textContent = _fmtYC(Math.max(0, Math.min(saldoBruto, quedaBruto) - cost));
+  const dq = document.getElementById('ep-disp-quien');
+  if (dq) dq.textContent = '(' + (saldoBruto < quedaBruto ? 'limita tu saldo' : 'limita el tope') + ')';
+  // barra del tope del equipo: lo que queda sobre el tope TOTAL
   const fill = document.getElementById('ep-cap-fill');
-  if (fill) fill.style.width = cap > 0 ? Math.min(100, Math.max(0, quedaGeneral / cap * 100)) + '%' : '0%';
+  if (fill) fill.style.width = d.total > 0 ? Math.min(100, Math.max(0, queda / d.total * 100)) + '%' : '0%';
 }
 /* ================= Slice 2.1-A: aviso grande de presupuesto =================
    Arriba del editor, en el presidente y en la Tool (modo admin). Los numeros salen de
    YUNACOINS_RULES.resumenPresupuesto (pura, con tests en tools/test-aviso-presupuesto.js).
    Modo admin: la Tool pasa gastado, extra, motivo, pendientesOtros y equipo.gratis. */
-// Icono Lucide "trophy" (SVG inline, sin emojis: AGENTS.md).
-const ICN_AVISO_TROFEO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
 function resumenAviso(){
   const extra = APP.extra || 0;
   return YUNACOINS_RULES.resumenPresupuesto({
@@ -1528,42 +1552,42 @@ function renderAviso(){
       <p class="ep-aviso-sub">El equipo no tiene presidente: sin costo ni topes.</p>`;
     return;
   }
-  const r = resumenAviso();
-  const p = currentPlayer();
+  const d = _topeEquipoDatos();
+  const r = d.r;
   const cost = pendingCost();
-  const motivo = APP.motivo || 'Tope extra';
-  const extraHtml = r.extra > 0
-    ? `<div class="ep-aviso-extra"><span class="ep-aviso-trofeo">${ICN_AVISO_TROFEO}</span><span><b>+${fmt(r.extra)}</b> · ${escHtml(motivo)}</span></div>`
-    : '';
+  // misma foto que el bloque de saldo: los tres números bajan en vivo con la
+  // edición en curso (todavía no enviada), y «Esta edición» dice cuánto suma.
+  const saldoBruto = r.saldoDisponible;
+  const quedaBruto = r.restanteGeneral + r.restanteSub;
+  const saldo = Math.max(0, saldoBruto - cost);
+  const queda = Math.max(0, quedaBruto - cost);
+  const disponible = Math.max(0, Math.min(saldoBruto, quedaBruto) - cost);
   el.className = 'ep-aviso';
   el.innerHTML = `
     <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span>${ADMIN_EMBED ? `<span class="ep-aviso-team">${escHtml(e.name || '')}</span>` : ''}</div>
     <div class="ep-aviso-grid">
       <div class="ep-aviso-cell">
-        <span class="ep-aviso-k">Saldo actual</span>
-        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(r.saldoDisponible)}</b><span class="ep-aviso-u">YC</span></span>
-        <span class="ep-aviso-note">Sin lo reservado en pedidos o cambios pendientes</span>
+        <span class="ep-aviso-k">Tu saldo</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(saldo)}</b><span class="ep-aviso-u">YC</span></span>
       </div>
       <div class="ep-aviso-cell">
-        <span class="ep-aviso-k">Tope de la temporada</span>
-        <div class="ep-aviso-row"><span>General</span><b>${fmt(r.topeGeneral)}</b></div>
-        ${extraHtml}
-        <div class="ep-aviso-row ep-aviso-total"><span>Total</span><b>${fmt(r.topeTotal)}</b></div>
+        <span class="ep-aviso-k">Tope del equipo esta temporada</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(d.total)}</b><span class="ep-aviso-u">YC</span></span>
+        ${d.desglose ? `<span class="ep-aviso-note">${escHtml(d.desglose)}</span>` : ''}
       </div>
       <div class="ep-aviso-cell">
-        <span class="ep-aviso-k">Gastado en la temporada</span>
-        <div class="ep-aviso-row"><span>General</span><b>${fmt(r.gastadoGeneral)}</b></div>
-        <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.gastadoSub)}</b></div>
+        <span class="ep-aviso-k">Queda del tope</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(queda)}</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note">Gastado esta temporada ${fmt(r.gastadoGeneral + r.gastadoSub)}</span>
       </div>
       <div class="ep-aviso-cell ep-aviso-disp">
-        <span class="ep-aviso-k">Disponible para gastar ahora</span>
-        <div class="ep-aviso-row"><span>General${r.extra > 0 ? ' (con extra)' : ''}</span><b>${fmt(r.restanteGeneral)}</b></div>
-        <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.restanteSub)}</b></div>
-        <p class="ep-aviso-lim">Límite real: <b>${fmt(r.disponibleAhora)} YC</b> para cualquier jugador del equipo (general + bono), el menor entre el saldo y el tope${r.limitaPor === 'saldo' ? ' (manda el saldo)' : ' (manda el tope)'}.</p>
+        <span class="ep-aviso-k">Disponible ahora</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(disponible)}</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note">${saldoBruto < quedaBruto ? 'Limita tu saldo' : 'Limita el tope'}</span>
       </div>
     </div>
     <div class="ep-aviso-cost">${cost > 0
-      ? `Esta edición: <b>−${fmt(cost)} YC</b> · queda ${fmt(Math.max(0, r.saldoDisponible - cost))} YC`
+      ? `Esta edición: <b>−${fmt(cost)} YC</b>`
       : 'Esta edición: sin costo'}</div>`;
 }
 function renderCart(){
@@ -1643,11 +1667,11 @@ function openApplyConfirm(){
   }
   const cost = pendingCost();
   // saldo, tope y bono antes y despues del pedido: los mismos datos que muestra el saldo
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
+  const { fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers);
   const saldoAntes = APP.saldo || 0;
   const saldoDespues = Math.max(0, saldoAntes - cost);
-  const cap = RULES.budgetGeneral || 0;
-  const quedaGeneral = APP.budget.general - fromGeneral;
+  const d = _topeEquipoDatos();
+  const quedaTope = Math.max(0, d.r.restanteGeneral + d.r.restanteSub - cost);
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
   <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
@@ -1666,7 +1690,7 @@ function openApplyConfirm(){
       </ul>
       ${ADMIN_EMBED ? '' : `<dl class="ep-sheet-saldo">
         <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
-        <div><dt>Queda del tope</dt><dd>${quedaGeneral.toLocaleString('es-CL')} / ${cap.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Tope del equipo</dt><dd>queda ${quedaTope.toLocaleString('es-CL')} de ${d.total.toLocaleString('es-CL')}</dd></div>
         <div><dt>Bono suscriptores usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
       </dl>`}
       <div class="ep-sheet-act">
