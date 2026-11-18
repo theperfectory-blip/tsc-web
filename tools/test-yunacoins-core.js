@@ -205,34 +205,59 @@ test('frescura: horas desde la sincronizacion', () => {
 
 // ---------- techo de jugador (4.F) ----------
 
-test('4.F Jimbo: suscriptor con saldo 1000 y costo 3000 se rechaza por saldo y el techo es 1000', () => {
+test('4.F Jimbo: saldo 1000 y costo 3000 se rechaza por saldo y el techo es 1000', () => {
   const pool = R.techoPresupuesto(1000, R.DEFAULT_RULES, 1);
-  assert.equal(R.bonoSuscriptor(pool, true), 1000);             // min(1000, 50000 + 25000)
-  const reparto = R.distribuirCosto(3000, pool.subscribers, true);
+  assert.equal(R.bonoSuscriptor(pool), 1000);                   // min(1000, 50000 + 25000)
+  const reparto = R.distribuirCosto(3000, pool.subscribers);
   const ev = R.evaluarPago(1000, 3000, reparto.fromGeneral, pool.general);
   assert.equal(ev.ok, false);
   assert.equal(ev.excedeSaldo, true);
   assert.equal(ev.excedeTopeGeneral, false);                    // el rechazo es por saldo, no por tope
 });
 
-test('4.F techo: no suscriptor = min(saldo, general restante); suscriptor = min(saldo, general + bono restantes)', () => {
+test('4.F + BONO-2 techo: cualquier jugador = min(saldo, general restante + bono restante)', () => {
   const pool = { saldo: 100000, general: 10000, subscribers: 5000 };
-  assert.equal(R.bonoSuscriptor(pool, false), 10000);
-  assert.equal(R.bonoSuscriptor(pool, true), 15000);
-  assert.equal(R.bonoSuscriptor({ saldo: 12000, general: 10000, subscribers: 5000 }, true), 12000);
-  assert.equal(R.bonoSuscriptor({ saldo: 8000, general: 10000, subscribers: 5000 }, false), 8000);
-  assert.equal(R.bonoSuscriptor({ saldo: 0, general: 10000, subscribers: 5000 }, true), 0);
+  assert.equal(R.bonoSuscriptor(pool), 15000);
+  assert.equal(R.bonoSuscriptor({ saldo: 12000, general: 10000, subscribers: 5000 }), 12000);
+  assert.equal(R.bonoSuscriptor({ saldo: 8000, general: 10000, subscribers: 5000 }), 8000);
+  assert.equal(R.bonoSuscriptor({ saldo: 0, general: 10000, subscribers: 5000 }), 0);
 });
 
 test('4.F techo: sin saldo en el pool no hay tope por saldo (compatibilidad)', () => {
-  assert.equal(R.bonoSuscriptor({ general: 10000, subscribers: 5000 }, true), 15000);
+  assert.equal(R.bonoSuscriptor({ general: 10000, subscribers: 5000 }), 15000);
 });
 
 test('4.F techo: techoPresupuesto deja el saldo real; con saldo alto manda el tope de temporada', () => {
   const pool = R.techoPresupuesto(400000, R.DEFAULT_RULES, 1);
   assert.equal(pool.saldo, 400000);
-  assert.equal(R.bonoSuscriptor(pool, true), 75000);            // general 50000 + bono 25000
-  assert.equal(R.bonoSuscriptor(pool, false), 50000);
+  assert.equal(R.bonoSuscriptor(pool), 75000);                  // general 50000 + bono 25000
+  assert.equal(R.bonoSuscriptor(R.techoPresupuesto(400000, R.DEFAULT_RULES, 0)), 50000);
+});
+
+// ---------- BONO-2: el bono es del equipo ----------
+
+const REGLAS_BONO = { budgetGeneral: 120000, budgetSubscribers: 10000 }; // 10.000 por suscriptor
+
+test('BONO-2 techo: equipo con 3 suscriptores, tope general 120.000 y saldo 500.000 → 150.000 para un jugador NO suscriptor', () => {
+  const pool = R.techoPresupuesto(500000, REGLAS_BONO, 3);
+  assert.equal(pool.general, 120000);
+  assert.equal(pool.subscribers, 30000);                        // 3 × 10.000
+  assert.equal(R.bonoSuscriptor(pool), 150000);                 // 120.000 + 30.000, sin importar quién gaste
+});
+
+test('BONO-2 techo: el mismo equipo con saldo 120.000 → manda el saldo', () => {
+  const pool = R.techoPresupuesto(120000, REGLAS_BONO, 3);
+  assert.equal(R.bonoSuscriptor(pool), 120000);                 // min(120.000, 120.000 + 30.000)
+});
+
+test('BONO-2 techo: equipo sin suscriptores → el techo es el tope general', () => {
+  const pool = R.techoPresupuesto(500000, REGLAS_BONO, 0);
+  assert.equal(pool.subscribers, 0);
+  assert.equal(R.bonoSuscriptor(pool), 120000);
+});
+
+test('BONO-2 reparto: el bono va primero y el resto sale del general', () => {
+  assert.deepEqual(R.distribuirCosto(50000, 30000), { fromSub: 30000, fromGeneral: 20000 });
 });
 
 // ---------- transporte de Loyalty (4.G) ----------

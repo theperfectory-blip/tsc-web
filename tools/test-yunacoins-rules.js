@@ -7,8 +7,10 @@
 // REESCRITO para el punto 5 del macro-slice D.R (mapeo de presupuestos,
 // resuelto 15/09): el orden de consumo bono/general se INVIRTIO respecto de
 // la primera version de este test (esa version calculaba "general primero,
-// bono al agotarse" — la regla nueva es "suscriptor: bono primero"). Los 5
-// casos de abajo son los pedidos por el supervisor (atributo dentro de
+// bono al agotarse" — la regla nueva es "bono primero"). BONO-2 (regla
+// actual): el bono es un tope extra del EQUIPO, no del jugador, asi que
+// CUALQUIER jugador gasta primero el bono y despues el general; sin
+// suscriptores el bono vale 0. Los 5 casos de abajo son los pedidos por el supervisor (atributo dentro de
 // banda, atributo cruzando banda, habilidad, altura dentro de cupo, caso
 // que no alcanza el saldo) mas cobertura extra de las funciones nuevas
 // (distribuirCosto, gastoTemporada, topesRestantes, evaluarPago,
@@ -148,16 +150,16 @@ assert(r5ok.ok === true, `caso control: saldo y tope alcanzan -> ok:true (obteni
 console.log('');
 
 /* ============================================================
-   distribuirCosto — ORDEN INVERTIDO (punto 5b): suscriptor gasta el bono
-   PRIMERO; no suscriptor nunca lo toca.
+   distribuirCosto — BONO-2: el bono es un tope extra del EQUIPO, asi que
+   CUALQUIER jugador gasta el bono PRIMERO y el resto sale del general.
    ============================================================ */
-console.log('--- distribuirCosto: orden invertido ---');
-const d1 = YUNACOINS_RULES.distribuirCosto(800, 500, true); // suscriptor, bono alcanza parcial
-assert(d1.fromSub === 500 && d1.fromGeneral === 300, `suscriptor 800 con bono 500 -> fromSub:500, fromGeneral:300 (obtenido: ${JSON.stringify(d1)})`);
-const d2 = YUNACOINS_RULES.distribuirCosto(300, 500, true); // suscriptor, bono alcanza entero
-assert(d2.fromSub === 300 && d2.fromGeneral === 0, `suscriptor 300 con bono 500 -> fromSub:300, fromGeneral:0 (obtenido: ${JSON.stringify(d2)})`);
-const d3 = YUNACOINS_RULES.distribuirCosto(800, 500, false); // NO suscriptor, nunca toca el bono
-assert(d3.fromSub === 0 && d3.fromGeneral === 800, `no suscriptor 800 con bono 500 disponible -> fromSub:0, fromGeneral:800 (obtenido: ${JSON.stringify(d3)})`);
+console.log('--- distribuirCosto: bono del equipo primero ---');
+const d1 = YUNACOINS_RULES.distribuirCosto(800, 500); // el bono alcanza parcial
+assert(d1.fromSub === 500 && d1.fromGeneral === 300, `costo 800 con bono 500 -> fromSub:500, fromGeneral:300 (obtenido: ${JSON.stringify(d1)})`);
+const d2 = YUNACOINS_RULES.distribuirCosto(300, 500); // el bono alcanza entero
+assert(d2.fromSub === 300 && d2.fromGeneral === 0, `costo 300 con bono 500 -> fromSub:300, fromGeneral:0 (obtenido: ${JSON.stringify(d2)})`);
+const d3 = YUNACOINS_RULES.distribuirCosto(800, 0); // sin bono (equipo sin suscriptores o bono agotado)
+assert(d3.fromSub === 0 && d3.fromGeneral === 800, `costo 800 sin bono disponible -> fromSub:0, fromGeneral:800 (obtenido: ${JSON.stringify(d3)})`);
 console.log('');
 
 /* ============================================================
@@ -185,8 +187,8 @@ const pool1 = YUNACOINS_RULES.techoPresupuesto(400000, R, 1);
 assert(pool1.general === 50000 && pool1.subscribers === 25000, `wallet 400000 (>> tope) -> general:50000 (capado), subscribers:25000 (obtenido: ${JSON.stringify(pool1)})`);
 const pool2 = YUNACOINS_RULES.techoPresupuesto(30000, R, 1);
 assert(pool2.general === 30000 && pool2.subscribers === 25000, `wallet 30000 (< tope) -> general:30000 (limitado por el wallet), subscribers:25000 (obtenido: ${JSON.stringify(pool2)})`);
-assert(YUNACOINS_RULES.bonoSuscriptor(pool1, false) === 50000, 'bonoSuscriptor(pool1,false) === 50000 (solo general)');
-assert(YUNACOINS_RULES.bonoSuscriptor(pool1, true) === 75000, 'bonoSuscriptor(pool1,true) === 75000 (general+bono)');
+assert(YUNACOINS_RULES.bonoSuscriptor(pool1) === 75000, 'bonoSuscriptor(pool1) === 75000 (general 50000 + bono 25000, para cualquier jugador)');
+assert(YUNACOINS_RULES.bonoSuscriptor(YUNACOINS_RULES.techoPresupuesto(400000, R, 0)) === 50000, 'bonoSuscriptor sin suscriptores === 50000 (solo el tope general)');
 console.log('');
 
 /* ============================================================
@@ -557,9 +559,9 @@ const tech1 = YUNACOINS_RULES.techoPresupuesto(400000, RB, 1);
 const tech4 = YUNACOINS_RULES.techoPresupuesto(400000, RB, 4);
 assert(tech0.subscribers === 0 && tech1.subscribers === 10000 && tech4.subscribers === 40000, 'BONO-1 · techoPresupuesto: bono 0 / 10.000 / 40.000 según el conteo');
 const res4 = YUNACOINS_RULES.resumenPresupuesto({ saldo: 1000000, reglas: RB, extra: 0, gastado: {}, pendientes: {}, nSuscriptores: 4 });
-assert(res4.restanteSub === 40000 && res4.disponibleSuscriptor === 90000, `BONO-1 · resumen con 4 suscriptores: bono 40.000 y disponible para suscriptor 90.000 (obtenido: ${res4.restanteSub} / ${res4.disponibleSuscriptor})`);
+assert(res4.restanteSub === 40000 && res4.disponibleAhora === 90000, `BONO-1 · resumen con 4 suscriptores: bono 40.000 y disponible 90.000 para cualquier jugador del equipo (obtenido: ${res4.restanteSub} / ${res4.disponibleAhora})`);
 const res0 = YUNACOINS_RULES.resumenPresupuesto({ saldo: 1000000, reglas: RB, extra: 0, gastado: {}, pendientes: {}, nSuscriptores: 0 });
-assert(res0.restanteSub === 0 && res0.disponibleSuscriptor === 50000, 'BONO-1 · resumen sin suscriptores: bono 0 y el suscriptor solo ve el tope general');
+assert(res0.restanteSub === 0 && res0.disponibleAhora === 50000, 'BONO-1 · resumen sin suscriptores: bono 0 y el techo del equipo es el tope general');
 
 console.log('--- BONO-1 · topes ya gastados en la temporada siguen valiendo ---');
 const gastadoSub6k = { general: 0, sub: 6000 };
@@ -571,9 +573,9 @@ assert(YUNACOINS_RULES.topesRestantes(gastadoSub25k, RB, 1).subscribers === 0, '
 assert(YUNACOINS_RULES.topesRestantes(gastadoSub25k, RB, 4).subscribers === 15000, 'BONO-1 · con 4 suscriptores el mismo gasto deja 15.000');
 
 console.log('--- BONO-1 · cobro con el bono del equipo ---');
-const cobro1 = YUNACOINS_RULES.distribuirCosto(30000, YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, RB, 1).subscribers, true);
-assert(cobro1.fromSub === 10000 && cobro1.fromGeneral === 20000, 'BONO-1 · cobro 30.000 a suscriptor con 1 suscriptor: 10.000 del bono y 20.000 del general');
-const cobro4 = YUNACOINS_RULES.distribuirCosto(30000, YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, RB, 4).subscribers, true);
+const cobro1 = YUNACOINS_RULES.distribuirCosto(30000, YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, RB, 1).subscribers);
+assert(cobro1.fromSub === 10000 && cobro1.fromGeneral === 20000, 'BONO-1 · cobro 30.000 con 1 suscriptor: 10.000 del bono y 20.000 del general');
+const cobro4 = YUNACOINS_RULES.distribuirCosto(30000, YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, RB, 4).subscribers);
 assert(cobro4.fromSub === 30000 && cobro4.fromGeneral === 0, 'BONO-1 · el mismo cobro con 4 suscriptores sale todo del bono');
 
 console.log('');

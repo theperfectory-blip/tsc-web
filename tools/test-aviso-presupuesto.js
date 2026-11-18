@@ -44,23 +44,22 @@ test('lo reservado en pendientes baja el saldo y los topes', () => {
   assert.strictEqual(r.restanteSub, 25000 - 2000);
 });
 
-test('el limite real es el menor entre el saldo y el tope restante', () => {
+test('BONO-2 · el limite real es el menor entre el saldo y el tope del equipo (general + bono)', () => {
   // saldo menor que el tope restante: manda el saldo
   const a = RES({ saldo: 5000, reglas: BASE, extra: 0, gastado: {}, pendientes: {} });
   assert.strictEqual(a.disponibleAhora, 5000);
   assert.strictEqual(a.limitaPor, 'saldo');
-  // tope restante menor que el saldo: manda el tope
+  // tope restante menor que el saldo: manda el tope del equipo (general 10.000 + bono 25.000)
   const b = RES({ saldo: 90000, reglas: BASE, extra: 0, gastado: { general: 40000 }, pendientes: {} });
-  assert.strictEqual(b.disponibleAhora, 10000);
+  assert.strictEqual(b.disponibleAhora, 35000);
   assert.strictEqual(b.limitaPor, 'tope');
 });
 
-test('suscriptor: puede llegar hasta general + bono, sin pasar el saldo', () => {
+test('BONO-2 · cualquier jugador del equipo llega hasta general + bono, sin pasar el saldo', () => {
   const r = RES({ saldo: 100000, reglas: BASE, extra: 0, gastado: { general: 40000, sub: 20000 }, pendientes: {} });
-  assert.strictEqual(r.disponibleAhora, 10000);          // solo general
-  assert.strictEqual(r.disponibleSuscriptor, 15000);     // general 10000 + bono 5000
+  assert.strictEqual(r.disponibleAhora, 15000);          // general 10000 + bono 5000, sin distinguir suscriptor
   const pobre = RES({ saldo: 12000, reglas: BASE, extra: 0, gastado: { general: 40000, sub: 20000 }, pendientes: {} });
-  assert.strictEqual(pobre.disponibleSuscriptor, 12000); // el saldo corta
+  assert.strictEqual(pobre.disponibleAhora, 12000);      // el saldo corta
 });
 
 test('gastos por encima del tope no dan restante negativo', () => {
