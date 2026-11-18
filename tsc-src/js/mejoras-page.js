@@ -722,7 +722,7 @@ async function recalcularPresupuestoReal(){
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
     gastado = YUNACOINS_RULES.gastoTemporada(tx);
     // EMP-80-1: jugadores con mejoras PAGADAS en la temporada de cobro (bloquea «Solicitar emparejar»)
-    APP.pagadosRegistro = new Set(tx.filter(c => c.pes5 && Number(c.amount) > 0).map(c => Number(c.pes5.playerId)));
+    APP.pagadosRegistro = new Set(tx.filter(c => c.pes5 && !c.pes5.reembolso && c.pes5.playerId != null && Number(c.amount) > 0).map(c => Number(c.pes5.playerId)));
   } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); APP.pagadosRegistro = null; }
   let pendG = 0, pendS = 0, pendTotal = 0;
   APP.pendientes = [];
@@ -1852,9 +1852,9 @@ async function openAuditModal(){
     </div>`).join('') : '<div class="sum">Todavía no mandaste pedidos.</div>';
   const filasMov = movimientos.length ? movimientos.map(m => `
     <div class="ep-diffline">
-      <div class="lbl">${escHtml((m.pes5 && m.pes5.playerName) || '')} &middot; ${escHtml(m.note || '')}</div>
+      <div class="lbl">${m.pes5 && m.pes5.reembolso ? 'Reembolso' : escHtml((m.pes5 && m.pes5.playerName) || '')} &middot; ${escHtml(m.note || '')}</div>
       <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleString('es-CL') : '')}</div>
-      <div class="cost">-${Number(m.amount || 0).toLocaleString('es-CL')}</div>
+      <div class="cost">${m.pes5 && m.pes5.reembolso ? '+' : '-'}${Number(m.amount || 0).toLocaleString('es-CL')}</div>
     </div>`).join('') : '<div class="sum">Sin cobros de mejoras esta temporada.</div>';
   wrap.innerHTML = `
   <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeAuditModal)">

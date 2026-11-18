@@ -138,12 +138,185 @@ function _coinsCobroLineaHTML(c){
     : `<div style="font-size:13px;color:var(--red,#f87171);margin-bottom:12px;">No se puede mover YuNaCoins: ${escHtml(c.motivo)}.</div>`;
 }
 
+/* ==========================================================
+   COINS1 · tope de la temporada en el modal de Agregar
+   ----------------------------------------------------------
+   Luis hace de «banco»: carga coins que el equipo después gasta en mejoras.
+   Para no cargarle de más, el modal muestra cuánto le SIRVE cargar: el tope
+   de la temporada (general + extra del equipo + bono de suscriptores) menos
+   lo ya gastado en mejoras, menos el saldo que tiene hoy. Todo de solo
+   lectura: si falta un dato se dice «sin datos de …», no se inventa.
+   ========================================================== */
+const _COINS_FALTA_LABEL = {
+  temporada: 'la temporada de cobro',
+  reglas: 'las reglas de la temporada',
+  extra: 'el tope extra del equipo',
+  plantilla: 'la plantilla publicada',
+  libro: 'el libro de YuNaCoins',
+};
+
+/* Junta los datos del tope de un equipo: reglas, extra, suscriptores de la
+   plantilla publicada y lo gastado esta temporada en el libro `coins`. */
+async function _coinsDatosTope(team, cobro){
+  const saldo = Number(team && team.yunacoin) || 0;
+  const out = { reglas: null, extra: 0, motivoExtra: '', nSuscriptores: null, gastado: null, saldo, faltan: [], resumen: null };
+  const season = cobro && cobro.n != null ? cobro.n : null;
+  if(season == null) out.faltan.push('temporada');
+  if(typeof firebase === 'undefined' || !firebase.firestore){
+    out.faltan.push('reglas','extra','plantilla','libro');
+    return out;
+  }
+  let fs;
+  try{ fs = firebase.firestore(); }
+  catch(e){
+    console.warn('[coins] tope: Firestore no está disponible', e);
+    out.faltan.push('reglas','extra','plantilla','libro');
+    return out;
+  }
+  try{
+    const snap = await fs.collection('pes5_config').doc('reglas').get();
+    if(snap.exists) out.reglas = YUNACOINS_RULES.normalizarReglas(snap.data());
+    else out.faltan.push('reglas');
+  }catch(e){ console.warn('[coins] tope: no se pudieron leer las reglas', e); out.faltan.push('reglas'); }
+  try{
+    if(season != null){
+      const snap = await fs.collection('pes5_config').doc('topesExtra-' + season).get();
+      const topes = YUNACOINS_RULES.normalizarTopesExtra(snap.exists ? snap.data() : null);
+      const e = topes[String(team.id)];
+      out.extra = e ? e.extra : 0;      // sin doc = equipo sin extra (no es dato faltante)
+      out.motivoExtra = e ? (e.motivo || '') : '';
+    }
+  }catch(e){ console.warn('[coins] tope: no se pudo leer el tope extra', e); out.faltan.push('extra'); }
+  try{
+    const snap = await fs.collection('pes5_plantillas').doc(String(team.id)).get();
+    const jugadores = snap.exists && Array.isArray(snap.data().jugadores) ? snap.data().jugadores : null;
+    if(jugadores){
+      // Suscriptor = jugador con «$» delante del nombre (mismo criterio que el save).
+      out.nSuscriptores = jugadores.filter(j => String((j && j.name) || '').startsWith('$')).length;
+    }else{
+      out.faltan.push('plantilla');
+    }
+  }catch(e){ console.warn('[coins] tope: no se pudo leer la plantilla publicada', e); out.faltan.push('plantilla'); }
+  try{
+    if(season != null){
+      const tx = await dbGetAll('coins', c => String(c.teamId) === String(team.id)
+        && Number(c.season) === Number(season)
+        && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
+      out.gastado = YUNACOINS_RULES.gastoTemporada(tx);
+    }
+  }catch(e){ console.warn('[coins] tope: no se pudo leer el libro coins', e); out.faltan.push('libro'); }
+  if(out.reglas && out.gastado && out.nSuscriptores != null && season != null){
+    out.resumen = YUNACOINS_RULES.resumenCarga({
+      reglas: out.reglas, extra: out.extra, nSuscriptores: out.nSuscriptores, gastado: out.gastado, saldo: out.saldo,
+    });
+  }
+  return out;
+}
+
+/* Bloque compacto (2 líneas) con el tope de la temporada y cuánto le sirve cargar. */
+function _coinsTopeHTML(d){
+  const nf = n => Number(n || 0).toLocaleString('es-CL');
+  if(!d) return '';
+  const r = d.resumen;
+  const lineas = [];
+  if(r){
+    const partes = [];
+    if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} (${nf(r.bono)})`);
+    if(r.extra > 0) partes.push(`extra ${nf(r.extra)}${d.motivoExtra ? ` (${escHtml(d.motivoExtra)})` : ''}`);
+    lineas.push(`Tope temporada: <strong style="color:var(--txt);">${nf(r.topeTotal)}</strong> = ${nf(r.topeGeneral)}${partes.map(p => ' + ' + p).join('')}`);
+    lineas.push(`Gastado: ${nf(r.gastadoTotal)} · Saldo: ${nf(r.saldo)} · Le sirve cargar hasta: <strong style="color:var(--gold);">${nf(r.sirveCargar)}</strong>`);
+  }else{
+    const falta = d.faltan.length ? d.faltan.map(k => _COINS_FALTA_LABEL[k] || k).join(', ') : 'el tope de la temporada';
+    lineas.push(`Tope temporada: <span style="color:var(--txt3);">sin datos de ${escHtml(falta)}</span>`);
+    const gastado = d.gastado ? (Number(d.gastado.general || 0) + Number(d.gastado.sub || 0)) : null;
+    lineas.push(`${gastado != null ? `Gastado: ${nf(gastado)} · ` : ''}Saldo: ${nf(d.saldo)} · Le sirve cargar hasta: <span style="color:var(--txt3);">sin datos de ${escHtml(falta)}</span>`);
+  }
+  return `<div style="margin:-4px 0 14px;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);font-size:12px;line-height:1.5;color:var(--txt2);">
+    ${lineas.map(l => `<div>${l}</div>`).join('')}
+  </div>`;
+}
+
+/* Aviso (no bloqueo) de la vista previa: la cantidad supera lo que el equipo
+   puede gastar esta temporada en mejoras. */
+function _coinsSobraHTML(mode, amount){
+  const r = window._coinsTopeResumen;
+  if(mode !== 'add' || !r || isNaN(amount) || !(amount > r.sirveCargar)) return '';
+  const sobra = amount - r.sirveCargar;
+  return `<div style="margin-top:6px;font-size:12px;line-height:1.4;color:var(--txt2);">Supera lo que puede gastar esta temporada en mejoras: le quedarían <strong style="color:var(--gold);">${sobra.toLocaleString('es-CL')}</strong> sin usar.</div>`;
+}
+
+/* Motivo elegido en el modal ('' si no hay select). */
+function _coinsMotivo(){
+  return document.getElementById('ci-reason')?.value || '';
+}
+
+/* COINS1 · reembolso: cantidad entera >= 0 (las dos partes pueden ser 0). */
+function _coinsParte(raw){
+  const t = String(raw == null ? '' : raw).trim();
+  if(!/^\d+$/.test(t)) return NaN;
+  const n = Number(t);
+  return n >= 0 && n <= COINS_MAX ? n : NaN;
+}
+
+/* Reembolso: por defecto todo va al tope general (= la cantidad). */
+function _coinsReembolsoDefaults(amount){
+  const g = document.getElementById('ci-reembolso-general');
+  const s = document.getElementById('ci-reembolso-sub');
+  if(!g || !s) return;
+  g.value = String(Number.isFinite(amount) ? amount : 0);
+  s.value = '0';
+}
+
+/* Reembolso: muestra u oculta los dos campos y dice si suman la cantidad. */
+function _coinsReembolsoUI(amount, visible){
+  const box = document.getElementById('coins-reembolso');
+  if(!box) return;
+  box.style.display = visible ? '' : 'none';
+  if(!visible) return;
+  const g = _coinsParte(document.getElementById('ci-reembolso-general')?.value);
+  const s = _coinsParte(document.getElementById('ci-reembolso-sub')?.value);
+  const hint = document.getElementById('coins-reembolso-hint');
+  if(!hint) return;
+  if(isNaN(g) || isNaN(s)){
+    hint.innerHTML = `<span style="color:var(--red);">Escribe dos enteros (0 o más): tienen que sumar ${Number.isFinite(amount) ? amount.toLocaleString('es-CL') : 'la cantidad'}.</span>`;
+    return;
+  }
+  const suma = g + s;
+  hint.innerHTML = (Number.isFinite(amount) && suma !== amount)
+    ? `<span style="color:var(--red);">General ${g.toLocaleString('es-CL')} + bono ${s.toLocaleString('es-CL')} = ${suma.toLocaleString('es-CL')}: tiene que sumar ${amount.toLocaleString('es-CL')}.</span>`
+    : `Se devuelven ${suma.toLocaleString('es-CL')} coins y vuelven al tope${s > 0 ? ` (general ${g.toLocaleString('es-CL')} · bono ${s.toLocaleString('es-CL')})` : ''}.`;
+}
+
+/* Al cambiar el motivo: muestra los campos del reembolso y reinicia el reparto. */
+function onCoinsReasonChange(){
+  const esReembolso = _coinsMotivo() === 'reembolso';
+  const amount = _coinsAmount(document.getElementById('ci-amount')?.value);
+  window._coinsReembolsoManual = false;
+  if(esReembolso) _coinsReembolsoDefaults(amount);
+  _coinsReembolsoUI(amount, esReembolso);
+  updateCoinsPreview(Number(window._coinsSaldoModal) || 0, window._coinsModalMode || 'add');
+}
+
+/* Al editar a mano una de las dos partes del reembolso. */
+function coinsReembolsoEditado(){
+  window._coinsReembolsoManual = true;
+  const amount = _coinsAmount(document.getElementById('ci-amount')?.value);
+  _coinsReembolsoUI(amount, true);
+  updateCoinsPreview(Number(window._coinsSaldoModal) || 0, window._coinsModalMode || 'add');
+}
+
 async function openCoinsModal(teamId, mode){
   const team = await dbGet('teams', teamId);
   if(!team){ showToast('El equipo ya no existe','error'); renderAdmCoins(); return; }
   const cobro = await _coinsTemporadaInfo();
-  const wrap = document.getElementById('coins-modal-wrap');
   const isAdd = mode==='add';
+  // COINS1: el bloque del tope solo tiene sentido al AGREGAR coins.
+  const tope = isAdd ? await _coinsDatosTope(team, cobro) : null;
+  window._coinsTopeResumen = tope && tope.resumen ? tope.resumen : null;
+  window._coinsSaldoModal = Number(team.yunacoin) || 0;
+  window._coinsModalMode = mode;
+  window._coinsReembolsoManual = false;
+  const wrap = document.getElementById('coins-modal-wrap');
   wrap.innerHTML = `
   <div class="modal-overlay open" id="coins-modal">
     <div class="modal" style="max-width:380px;">
@@ -159,6 +332,7 @@ async function openCoinsModal(teamId, mode){
             <div style="font-size:13px;color:var(--txt2);">Saldo actual: <strong style="color:var(--gold);">${(team.yunacoin||0).toLocaleString('es-CL')} coins</strong></div>
           </div>
         </div>
+        ${_coinsTopeHTML(tope)}
         ${_coinsCobroLineaHTML(cobro)}
         <div class="form-group">
           <label>Cantidad</label>
@@ -166,10 +340,24 @@ async function openCoinsModal(teamId, mode){
         </div>
         <div class="form-group">
           <label>Motivo</label>
-          <select id="ci-reason" style="width:100%;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);">
-            ${isAdd?'<option value="stream">Stream</option><option value="victoria">Victoria</option><option value="campeon">Campeón</option><option value="evento">Evento</option><option value="bonus">Bonus</option><option value="otro">Otro</option>':'<option value="compra">Compra jugador</option><option value="mejora">Mejora stats</option><option value="tactica">Táctica</option><option value="multa">Multa</option><option value="otro">Otro</option>'}
+          <select id="ci-reason" data-onchange="onCoinsReasonChange()" style="width:100%;padding:8px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);">
+            ${isAdd?'<option value="stream">Stream</option><option value="victoria">Victoria</option><option value="campeon">Campeón</option><option value="evento">Evento</option><option value="bonus">Bonus</option><option value="otro">Otro</option><option value="reembolso">Reembolso de mejora</option>':'<option value="compra">Compra jugador</option><option value="mejora">Mejora stats</option><option value="tactica">Táctica</option><option value="multa">Multa</option><option value="otro">Otro</option>'}
           </select>
         </div>
+        ${isAdd?`<div class="form-group" id="coins-reembolso" style="display:none;">
+          <label>¿A qué tope vuelve? (general + bono = cantidad)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div>
+              <span style="display:block;font-size:12px;color:var(--txt2);margin-bottom:4px;">Devolver al tope general</span>
+              <input type="number" id="ci-reembolso-general" min="0" value="0" data-oninput="coinsReembolsoEditado()">
+            </div>
+            <div>
+              <span style="display:block;font-size:12px;color:var(--txt2);margin-bottom:4px;">Devolver al bono</span>
+              <input type="number" id="ci-reembolso-sub" min="0" value="0" data-oninput="coinsReembolsoEditado()">
+            </div>
+          </div>
+          <div id="coins-reembolso-hint" style="margin-top:6px;font-size:12px;line-height:1.4;color:var(--txt3);"></div>
+        </div>`:''}
         <div class="form-group" style="margin-bottom:0;">
           <label>Nota (opcional)</label>
           <input type="text" id="ci-note" placeholder="Descripción del movimiento...">
@@ -189,10 +377,17 @@ function updateCoinsPreview(current, mode){
   const amount = _coinsAmount(document.getElementById('ci-amount')?.value);
   const el = document.getElementById('coins-preview');
   if(!el) return;
-  if(isNaN(amount)){ el.innerHTML = `<span style="color:var(--txt3);font-size:14px;">${_COINS_AMOUNT_MSG}</span>`; return; }
-  if(mode!=='add' && amount>current){ el.innerHTML = `<span style="color:var(--red);font-size:14px;">Saldo insuficiente: el equipo tiene ${current.toLocaleString('es-CL')} coins</span>`; return; }
+  // COINS1 · reembolso: mientras no se edite a mano, el reparto sigue la cantidad.
+  const esReembolso = mode==='add' && _coinsMotivo()==='reembolso';
+  if(esReembolso){
+    if(!window._coinsReembolsoManual) _coinsReembolsoDefaults(amount);
+    _coinsReembolsoUI(amount, true);
+  }
+  const aviso = _coinsSobraHTML(mode, amount);
+  if(isNaN(amount)){ el.innerHTML = `<span style="color:var(--txt3);font-size:14px;">${_COINS_AMOUNT_MSG}</span>${aviso}`; return; }
+  if(mode!=='add' && amount>current){ el.innerHTML = `<span style="color:var(--red);font-size:14px;">Saldo insuficiente: el equipo tiene ${current.toLocaleString('es-CL')} coins</span>${aviso}`; return; }
   const newTotal = mode==='add' ? current+amount : current-amount;
-  el.innerHTML = `Nuevo saldo: <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${newTotal.toLocaleString('es-CL')}</strong> coins`;
+  el.innerHTML = `Nuevo saldo: <strong style="color:var(--gold);font-family:'Bebas Neue';font-size:22px;">${newTotal.toLocaleString('es-CL')}</strong> coins${aviso}`;
 }
 
 function closeCoinsModal(){ document.getElementById('coins-modal-wrap').innerHTML=''; }
@@ -201,9 +396,25 @@ function saveCoinsTransaction(teamId, mode){
   return _coinsRun(async ()=>{
     if(mode!=='add' && mode!=='sub') return;
     const amount = _coinsAmount(document.getElementById('ci-amount')?.value);
-    const reason = document.getElementById('ci-reason')?.value || 'otro';
+    const motivo = _coinsMotivo() || 'otro';
     const note   = (document.getElementById('ci-note')?.value||'').trim().slice(0,200);
     if(isNaN(amount)){ showToast(_COINS_AMOUNT_MSG,'error'); return; }
+    /* COINS1 · reembolso de mejora: devuelve las coins al equipo Y reintegra el
+       tope de la temporada (pes5 con fromGeneral/fromSub negativos, que
+       gastoTemporada resta). El movimiento es mode 'add': suma saldo. */
+    let reason = motivo;
+    let pes5 = null;
+    if(mode==='add' && motivo==='reembolso'){
+      const g = _coinsParte(document.getElementById('ci-reembolso-general')?.value);
+      const s = _coinsParte(document.getElementById('ci-reembolso-sub')?.value);
+      if(isNaN(g) || isNaN(s)){ showToast('Reembolso: el tope general y el bono tienen que ser enteros de 0 o más','error'); return; }
+      if(g + s !== amount){
+        showToast(`Reembolso: tiene que sumar ${amount.toLocaleString('es-CL')} (general ${g.toLocaleString('es-CL')} + bono ${s.toLocaleString('es-CL')} = ${(g+s).toLocaleString('es-CL')})`,'error');
+        return;
+      }
+      reason = 'mejora PES5 reembolso';
+      pes5 = { fromGeneral: -g, fromSub: -s, reembolso: true };
+    }
     const cob = await _coinsTemporadaCobro();
     if(!cob) return;
     const team = await dbGet('teams', teamId);
@@ -214,11 +425,13 @@ function saveCoinsTransaction(teamId, mode){
       return;
     }
     const newTotal = mode==='add' ? current+amount : current-amount;
+    const mov = {teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:cob.n,date:new Date().toISOString(),streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)};
+    if(pes5) mov.pes5 = pes5;
     await dbWriteBatch([
-      {type:'add', store:'coins', data:{teamId,teamName:team.name,mode,amount,reason,note,before:current,after:newTotal,season:cob.n,date:new Date().toISOString(),streamlabs:YUNACOINS_RULES.marcaStreamlabsInicial(team)}},
+      {type:'add', store:'coins', data:mov},
       {type:'set', store:'teams', data:{...team,yunacoin:newTotal}},
     ]);
-    showToast(`${mode==='add'?'+':'-'}${amount.toLocaleString('es-CL')} coins a ${team.name}`);
+    showToast(pes5 ? `Reembolso: +${amount.toLocaleString('es-CL')} coins a ${team.name}` : `${mode==='add'?'+':'-'}${amount.toLocaleString('es-CL')} coins a ${team.name}`);
     closeCoinsModal();
     renderAdmCoins();
   });
@@ -229,7 +442,7 @@ async function openCoinsHistory(teamId){
   const history = await dbGetAll('coins', c=>c.teamId===teamId);
   const sorted  = history.sort((a,b)=>new Date(b.date)-new Date(a.date));
   const wrap    = document.getElementById('coins-history-wrap');
-  const RLABELS = {stream:'Stream',victoria:'Victoria',campeon:'Campeón',evento:'Evento',bonus:'Bonus',compra:'Compra jugador',mejora:'Mejora stats',tactica:'Táctica',multa:'Multa',otro:'Otro'};
+  const RLABELS = {stream:'Stream',victoria:'Victoria',campeon:'Campeón',evento:'Evento',bonus:'Bonus',compra:'Compra jugador',mejora:'Mejora stats',tactica:'Táctica',multa:'Multa',otro:'Otro',reembolso:'Reembolso de mejora','mejora PES5 reembolso':'Reembolso de mejora'};
   wrap.innerHTML = `
   <div class="modal-overlay open">
     <div class="modal" style="max-width:500px;">

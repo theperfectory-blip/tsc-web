@@ -353,6 +353,54 @@
   }
 
   /* ============================================================
+     COINS1 · resumenCarga — lo que le SIRVE cargar a Luis a un equipo en el
+     modal de Agregar YuNaCoins (el «banco»: pasa coins de Streamlabs a la
+     web). Puro: no lee Firestore ni el DOM, todo viene en `opts`:
+       reglas         reglas base de la temporada (budgetGeneral, budgetSubscribers).
+       extra          tope extra del equipo esta temporada (0 si no tiene).
+       nSuscriptores  jugadores con «$» en la plantilla publicada del equipo.
+       gastado        {general, sub} de gastoTemporada (libro coins).
+       saldo          saldo real del equipo (teams.yunacoin).
+     Devuelve:
+       topeGeneral   tope base de la temporada.
+       extra         tope extra del equipo (premio).
+       bono          bono de suscriptores (regla por jugador × suscriptores).
+       topeTotal     topeGeneral + extra + bono.
+       gastadoTotal  lo gastado en la temporada (general + bono).
+       restante      lo que todavía puede gastar en mejoras (por tope, sin
+                     compensar uno con el otro): no negativo.
+       saldo         saldo actual del equipo.
+       sirveCargar   lo que le falta de saldo para llegar a `restante`; nunca
+                     negativo (si ya le alcanza, 0). No mira el saldo del
+                     bono aparte: es un solo numero para el modal.
+     Un reembolso resta del gasto (`fromGeneral`/`fromSub` negativos), asi que
+     `restante` vuelve a subir sin tocar `teams`.
+     ============================================================ */
+  function resumenCarga(opts) {
+    const o = opts || {};
+    const r = o.reglas || DEFAULT_RULES;
+    const saldo = Math.max(0, Number(o.saldo) || 0);
+    const extra = Math.max(0, Math.floor(Number(o.extra) || 0));
+    const gastado = o.gastado || {};
+    const topeGeneral = Math.max(0, Number(r.budgetGeneral) || 0);
+    const bono = bonoEquipo(r, o.nSuscriptores);
+    const gastadoGeneral = Number(gastado.general) || 0;
+    const gastadoSub = Number(gastado.sub) || 0;
+    const restante = Math.max(0, topeGeneral + extra - gastadoGeneral)
+      + Math.max(0, bono - gastadoSub);
+    return {
+      topeGeneral: topeGeneral,
+      extra: extra,
+      bono: bono,
+      topeTotal: topeGeneral + extra + bono,
+      gastadoTotal: gastadoGeneral + gastadoSub,
+      restante: restante,
+      saldo: saldo,
+      sirveCargar: Math.max(0, restante - saldo),
+    };
+  }
+
+  /* ============================================================
      evaluarPago — version completa de `puedePagar` (punto 5 del
      macro-slice): "puedePagar = saldo real >= total Y los topes de
      temporada no se exceden (tope general para todos, bono solo para
@@ -1071,6 +1119,7 @@
     gastoTemporada: gastoTemporada,
     topesRestantes: topesRestantes,
     resumenPresupuesto: resumenPresupuesto,
+    resumenCarga: resumenCarga,
     normalizarTopesExtra: normalizarTopesExtra,
     extraDeEquipo: extraDeEquipo,
     reglasConExtra: reglasConExtra,
