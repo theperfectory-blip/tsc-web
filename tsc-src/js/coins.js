@@ -236,16 +236,24 @@ function _coinsTopeHTML(d){
     ]);
   }
   // Desglose: base siempre que haya bono o extra; el motivo del extra si lo hay.
+  // BONO-5: el bono es POR JUGADOR («cada uno solo para su jugador»), no una
+  // bolsa del equipo: el desglose muestra cuánto le toca a cada «$».
   const partes = [];
   if(r.bono > 0 || r.extra > 0) partes.push(`Base ${nf(r.topeGeneral)}`);
-  if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} ${nf(r.bono)} (solo jugadores $)`);
+  if(r.bono > 0){
+    const nSub = Number(d.nSuscriptores) || 0;
+    const porJugador = nSub > 0 ? r.bono / nSub : 0;
+    partes.push(nSub === 1
+      ? `1 suscriptor × ${nf(porJugador)} (solo para su jugador)`
+      : `${nf(nSub)} suscriptores × ${nf(porJugador)} (cada uno solo para su jugador)`);
+  }
   if(r.extra > 0) partes.push(`Extra ${nf(r.extra)}`);
   return box([
     `Tope del equipo esta temporada: <strong style="color:var(--txt);">${nf(r.topeTotal)}</strong>`,
     partes.length ? `<span style="color:var(--txt2);">${partes.join(' + ')}</span>` : '',
     `Gastado: ${nf(r.gastadoTotal)} · Saldo: ${nf(r.saldo)}`,
     `Le sirve cargar hasta: <strong style="color:var(--gold);">${nf(r.sirveCargar)}</strong>`,
-    r.bono > 0 ? '<span style="color:var(--txt3);">El bono solo lo gastan los jugadores con «$».</span>' : '',
+    r.bono > 0 ? '<span style="color:var(--txt3);">El bono de cada jugador con «$» solo se puede gastar en ese jugador.</span>' : '',
   ]);
 }
 

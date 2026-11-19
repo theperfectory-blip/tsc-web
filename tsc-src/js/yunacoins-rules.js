@@ -310,6 +310,52 @@
   }
 
   /* ============================================================
+     BONO-5 · bono POR JUGADOR (reemplaza la bolsa del equipo de BONO-3)
+     ------------------------------------------------------------
+     Cada jugador con «$» tiene su PROPIO bono de `budgetSubscribers` por
+     temporada y solo se puede gastar en ESE jugador. No es una bolsa común:
+     lo que gasta A no le quita bono a B. El cobro sigue saliendo del saldo del
+     equipo; el bono solo amplía cuánto de un jugador puede salir del bono en
+     lugar del tope general.
+
+     `gastoBonoJugador` suma lo que ESE jugador ya consumió de su bono:
+       - movimientos del libro `coins` de la temporada (el llamador ya filtró
+         temporada/equipo y `reason` que empieza con 'mejora PES5') con
+         `pes5.playerId` == `playerId`: se suma `pes5.fromSub` (un reembolso
+         trae `fromSub` negativo y devuelve bono);
+       - sus pedidos pendientes (`estado` 'pendiente' o sin estado): se suma
+         su `fromSub` ya repartido.
+     `bonoRestanteJugador` devuelve max(0, porJugador - gasto) si el jugador
+     tiene «$»; 0 si no. Sin `porJugador` usa la regla `budgetSubscribers`.
+     Comparaciones por String: `playerId` puede venir como número o texto.
+     ============================================================ */
+  function gastoBonoJugador(transacciones, pendientes, playerId) {
+    if (playerId == null) return 0;
+    const id = String(playerId);
+    let gastado = 0;
+    (transacciones || []).forEach(function (t) {
+      if (!t || !t.pes5 || t.pes5.playerId == null) return;
+      if (typeof t.reason === 'string' && t.reason.indexOf('mejora PES5') !== 0) return;
+      if (String(t.pes5.playerId) !== id) return;
+      gastado += Number(t.pes5.fromSub) || 0;
+    });
+    (pendientes || []).forEach(function (p) {
+      if (!p || p.playerId == null) return;
+      if (p.estado && p.estado !== 'pendiente') return;
+      if (String(p.playerId) !== id) return;
+      gastado += Number(p.fromSub) || 0;
+    });
+    return gastado;
+  }
+  function bonoRestanteJugador(transacciones, pendientes, playerId, porJugador, esSuscriptor) {
+    if (!esSuscriptor) return 0;
+    const cuota = porJugador == null
+      ? Math.max(0, Number(DEFAULT_RULES.budgetSubscribers) || 0)
+      : Math.max(0, Number(porJugador) || 0);
+    return Math.max(0, cuota - gastoBonoJugador(transacciones, pendientes, playerId));
+  }
+
+  /* ============================================================
      resumenPresupuesto (slice 2.1-A) — arma los numeros del aviso grande del
      editor de mejoras. Puro: no lee Firestore ni el DOM.
        - saldo: saldo real del equipo (teams.yunacoin).
@@ -1137,6 +1183,8 @@
     distribuirCosto: distribuirCosto,
     gastoTemporada: gastoTemporada,
     topesRestantes: topesRestantes,
+    gastoBonoJugador: gastoBonoJugador,
+    bonoRestanteJugador: bonoRestanteJugador,
     resumenPresupuesto: resumenPresupuesto,
     resumenCarga: resumenCarga,
     normalizarTopesExtra: normalizarTopesExtra,
