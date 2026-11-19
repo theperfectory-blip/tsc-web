@@ -1180,10 +1180,147 @@ function toggleEdicionGratis(el){
 
 // Barra de escritura del plantel abierto: estado de cobro, cambios pendientes,
 // checkbox "PES5 esta cerrado" y botones. Vive en #pl-writebar, fuera de #pl-body.
+/* ================= BONO4 · las mismas dos barras del editor =================
+   Copia chica de la animación de js/mejoras-page.js: la Tool no comparte un
+   archivo de UI con el editor (solo lo monta), así que la función va duplicada
+   con el mismo comportamiento — el número cuenta y la barra se achica en ~300 ms,
+   la barra que baja se ilumina ~400 ms, y sin animación con prefers-reduced-motion.
+   El bono baja primero y, agotado, sigue el general (BONO-3). */
+const BARRA_MS = 300;
+const BARRA_DESTELLO_MS = 400;
+function _ptSinMovimiento(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function _ptFmt(n){ return Math.max(0, Math.round(n || 0)).toLocaleString('es-CL'); }
+function _ptNumero(el, def){
+  const n = Number(String((el && el.textContent) || '').replace(/[^\d-]/g, ''));
+  return Number.isFinite(n) ? n : (def || 0);
+}
+const _ptAnimNumero = new WeakMap();
+function ptAnimarNumero(el, desde, hasta, opts){
+  if (!el) return;
+  const o = opts || {};
+  const dur = Math.max(0, o.duracion == null ? BARRA_MS : o.duracion);
+  const retraso = Math.max(0, o.retraso || 0);
+  const previo = _ptAnimNumero.get(el);
+  if (previo){
+    if (previo.raf) cancelAnimationFrame(previo.raf);
+    if (previo.timer) clearTimeout(previo.timer);
+    _ptAnimNumero.delete(el);
+  }
+  const fin = Math.round(Number(hasta) || 0);
+  const ini = desde == null ? _ptNumero(el, fin) : Math.round(Number(desde) || 0);
+  if (!dur || _ptSinMovimiento() || ini === fin){ el.textContent = _ptFmt(fin); return; }
+  const estado = { raf: 0, timer: 0 };
+  const arrancar = function(){
+    const t0 = performance.now();
+    const paso = function(t){
+      const p = Math.min(1, (t - t0) / dur);
+      const v = Math.round(ini + (fin - ini) * (1 - Math.pow(1 - p, 3)));
+      el.textContent = _ptFmt(p < 1 ? v : fin);
+      if (p < 1) estado.raf = requestAnimationFrame(paso);
+      else if (_ptAnimNumero.get(el) === estado) _ptAnimNumero.delete(el);
+    };
+    estado.raf = requestAnimationFrame(paso);
+  };
+  _ptAnimNumero.set(el, estado);
+  if (retraso) estado.timer = setTimeout(arrancar, retraso);
+  else arrancar();
+}
+const _ptDestellos = new WeakMap();
+function ptDestelloBarra(row, retraso){
+  if (!row || _ptSinMovimiento()) return;
+  const previo = _ptDestellos.get(row);
+  if (previo){ clearTimeout(previo.t1); clearTimeout(previo.t2); }
+  row.classList.remove('pt-barra-baja');
+  const estado = { t1: 0, t2: 0 };
+  estado.t1 = setTimeout(function(){
+    row.classList.remove('pt-barra-baja');
+    void row.offsetWidth;
+    row.classList.add('pt-barra-baja');
+    estado.t2 = setTimeout(function(){ row.classList.remove('pt-barra-baja'); }, BARRA_DESTELLO_MS + 60);
+  }, Math.max(0, retraso || 0));
+  _ptDestellos.set(row, estado);
+}
+const _ptTimerBarra = new WeakMap();
+function ptPintarBarra(cfg){
+  if (!cfg) return;
+  const total = Math.max(0, Number(cfg.total) || 0);
+  const queda = Math.max(0, Number(cfg.queda) || 0);
+  const retraso = Math.max(0, cfg.retraso || 0);
+  if (cfg.cap) cfg.cap.textContent = _ptFmt(total);
+  if (cfg.val) ptAnimarNumero(cfg.val, cfg.desde, queda, { retraso: retraso });
+  if (cfg.fill){
+    const pct = total > 0 ? Math.min(100, Math.max(0, queda / total * 100)) : 0;
+    if (_ptSinMovimiento()){
+      cfg.fill.style.transition = 'none';
+      cfg.fill.style.width = pct + '%';
+    } else {
+      cfg.fill.style.transition = '';
+      const previo = _ptTimerBarra.get(cfg.fill);
+      if (previo) clearTimeout(previo);
+      if (retraso){
+        const t = setTimeout(function(){
+          cfg.fill.style.width = pct + '%';
+          _ptTimerBarra.delete(cfg.fill);
+        }, retraso);
+        _ptTimerBarra.set(cfg.fill, t);
+      } else cfg.fill.style.width = pct + '%';
+    }
+  }
+  if (cfg.baja) ptDestelloBarra(cfg.row, retraso);
+}
+/* BONO4: totales de la temporada (general con su tope extra y bono de
+   suscriptores) para las dos barras del plantel abierto. */
+function _topesTemporadaEquipo(team){
+  const reglas = _reglasEquipo(team ? team.id : null);
+  const n = _nSuscriptoresDelEquipo(team ? team.id : null);
+  return YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, reglas, n);
+}
+/* BONO4: dos barras «queda X de Y» del reparto del equipo, con la animación del
+   editor. Se pintan después de escribir el markup (id base 'pt-barra-...'). */
+function _ptPintarBarras(datos){
+  if (!datos) return;
+  const barBono = document.getElementById('pt-barra-bono');
+  if (barBono) barBono.hidden = !(datos.bonoTotal > 0);
+  const bajaBono = datos.subDespues < datos.subAntes;
+  const bajaGeneral = datos.genDespues < datos.genAntes;
+  ptPintarBarra({
+    row: barBono,
+    fill: document.getElementById('pt-barra-bono-fill'),
+    val: document.getElementById('pt-barra-bono-val'),
+    cap: document.getElementById('pt-barra-bono-cap'),
+    total: datos.bonoTotal, queda: datos.subDespues, desde: datos.prevBono, baja: bajaBono, retraso: 0,
+  });
+  ptPintarBarra({
+    row: document.getElementById('pt-barra-general'),
+    fill: document.getElementById('pt-barra-general-fill'),
+    val: document.getElementById('pt-barra-general-val'),
+    cap: document.getElementById('pt-barra-general-cap'),
+    total: datos.generalTotal, queda: datos.genDespues, desde: datos.prevGeneral, baja: bajaGeneral,
+    retraso: (bajaBono && bajaGeneral) ? BARRA_MS : 0,
+  });
+}
+function _ptBarrasHTML(){
+  return `<div class="pt-barras" id="pt-barras">
+    <div class="pt-barra" id="pt-barra-bono" hidden>
+      <span class="pt-barra-txt">Bono suscriptores (solo $): queda <b id="pt-barra-bono-val">0</b> de <span id="pt-barra-bono-cap">0</span></span>
+      <span class="pt-barra-bar" aria-hidden="true"><i id="pt-barra-bono-fill"></i></span>
+    </div>
+    <div class="pt-barra" id="pt-barra-general">
+      <span class="pt-barra-txt">Tope general: queda <b id="pt-barra-general-val">0</b> de <span id="pt-barra-general-cap">0</span></span>
+      <span class="pt-barra-bar" aria-hidden="true"><i id="pt-barra-general-fill"></i></span>
+    </div>
+  </div>`;
+}
 function renderWriteBar(){
   const el = document.getElementById('pl-writebar');
   if (!el) return;
   if (PLANTILLA_INDICE == null || !PLANTILLA_ACTUAL){ el.innerHTML = ''; return; }
+  // BONO4: lo que se ve ahora en las barras, para contar desde ahí y no desde 0
+  // cuando el bloque se rehace.
+  const prevBono = _ptNumero(document.getElementById('pt-barra-bono-val'), 0);
+  const prevGeneral = _ptNumero(document.getElementById('pt-barra-general-val'), 0);
   const cerrado = !!document.getElementById('pes5-cerrado')?.checked;
   const equipoTSC = equipoTSCActual();
   const presidente = tienePresidente(equipoTSC);
@@ -1191,20 +1328,31 @@ function renderWriteBar(){
   const total = Object.keys(CAMBIOS_PENDIENTES).length;
   const modoDescarga = !PES5_SAVE.tieneSoporte();
   let cobroHtml;
+  let barras = null;
   if (!equipoTSC){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
   } else if (!presidente){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${escHtml(equipoTSC.name)} · sin presidente · edición libre</span>`;
   } else if (!cobra){
-    cobroHtml = `<span class="pt-cobro-badge gratis">${ICN.unlock} Edición gratis · no se cobra a ${escHtml(equipoTSC.name)} (saldo ${(equipoTSC.yunacoin || 0).toLocaleString('es-AR')})</span>`;
+    cobroHtml = `<span class="pt-cobro-badge gratis">${ICN.unlock} Edición gratis · no se cobra a ${escHtml(equipoTSC.name)} (saldo ${(equipoTSC.yunacoin || 0).toLocaleString('es-CL')})</span>`;
   } else {
     const reparto = repartoPendienteEquipo();
     const restantes = _restantesTemporada();
     const saldo = equipoTSC.yunacoin || 0;
     const ev = YUNACOINS_RULES.evaluarPago(saldo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
-    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${escHtml(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-AR')}</span>
-      <span class="pt-cobro-txt">Total a cobrar: ${reparto.totalCosto.toLocaleString('es-AR')} · tope gral. restante ${restantes.general.toLocaleString('es-AR')} · bono restante ${restantes.subscribers.toLocaleString('es-AR')}</span>
-      ${ev.excedeSaldo ? `<span class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente: faltan ${(reparto.totalCosto - saldo).toLocaleString('es-AR')}</span>` : ''}
+    const tot = _topesTemporadaEquipo(equipoTSC);
+    const subAntes = Math.max(0, restantes.subscribers);
+    const genAntes = Math.max(0, restantes.general);
+    barras = {
+      bonoTotal: tot.subscribers, generalTotal: tot.general,
+      subAntes: subAntes, genAntes: genAntes,
+      subDespues: Math.max(0, subAntes - reparto.fromSub),
+      genDespues: Math.max(0, genAntes - reparto.fromGeneral),
+      prevBono: prevBono, prevGeneral: prevGeneral,
+    };
+    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${escHtml(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-CL')}</span>
+      <span class="pt-cobro-txt">Total a cobrar: ${reparto.totalCosto.toLocaleString('es-CL')} · tope gral. restante ${restantes.general.toLocaleString('es-CL')} · bono restante ${restantes.subscribers.toLocaleString('es-CL')}</span>
+      ${ev.excedeSaldo ? `<span class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente: faltan ${(reparto.totalCosto - saldo).toLocaleString('es-CL')}</span>` : ''}
       ${(!ev.excedeSaldo && ev.excedeTopeGeneral) ? `<span class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada</span>` : ''}`;
   }
   el.innerHTML = `
@@ -1216,7 +1364,9 @@ function renderWriteBar(){
       <label><input type="checkbox" id="pes5-cerrado" ${cerrado ? 'checked' : ''}> PES5 está cerrado</label>
       <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled data-onclick="ptConfirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
       <button class="btn btn-sm" ${total ? '' : 'disabled'} data-onclick="ptDescartarTodo()">Descartar cambios</button>
-    </div>`;
+    </div>
+    ${barras ? _ptBarrasHTML() : ''}`;
+  if (barras) requestAnimationFrame(function(){ _ptPintarBarras(barras); });
   document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
   actualizarBotonEscritura();
 }

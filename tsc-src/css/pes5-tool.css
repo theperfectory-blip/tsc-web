@@ -95,6 +95,27 @@
   border-top:1px solid var(--brd);font-size:12.5px;color:var(--txt2);}
 #page-pes5-admin .pt-cobro-total b{font-family:'Bebas Neue';font-size:18px;color:var(--gold);}
 #page-pes5-admin .pt-cobro-faltante{font-size:11.5px;color:#f87171;}
+/* BONO4: las mismas dos barras del editor (bono y general) en la barra de
+   escritura del plantel; la que baja se ilumina ~400 ms. Sin animación con
+   prefers-reduced-motion. */
+#page-pes5-admin .pt-barras{display:flex;flex-direction:column;gap:10px;margin-top:8px;max-width:560px;}
+#page-pes5-admin .pt-barra{display:flex;flex-direction:column;gap:5px;border-radius:10px;padding:2px 4px;margin:0 -4px;}
+#page-pes5-admin .pt-barra[hidden]{display:none;}
+#page-pes5-admin .pt-barra-txt{font-size:12px;color:var(--txt2);}
+#page-pes5-admin .pt-barra-txt b{color:var(--gold);font-weight:600;}
+#page-pes5-admin .pt-barra-bar{display:block;height:5px;border-radius:3px;background:var(--card3);overflow:hidden;}
+#page-pes5-admin .pt-barra-bar i{display:block;height:100%;min-width:0;border-radius:3px;background:var(--gold);
+  transition:width 300ms ease-out;}
+@keyframes pt-barra-destello{
+  0%{background:transparent;}
+  25%{background:var(--gold-l);box-shadow:0 0 0 1px var(--gold-b);}
+  100%{background:transparent;box-shadow:0 0 0 0 transparent;}
+}
+#page-pes5-admin .pt-barra.pt-barra-baja{animation:pt-barra-destello 400ms ease-out;}
+@media (prefers-reduced-motion:reduce){
+  #page-pes5-admin .pt-barra-bar i{transition:none;}
+  #page-pes5-admin .pt-barra.pt-barra-baja{animation:none;}
+}
 #page-pes5-admin .pt-empty{padding:50px 20px;text-align:center;color:var(--txt3);border:1px dashed var(--brd);border-radius:var(--rl);}
 #page-pes5-admin .pt-empty .icn{width:30px;height:30px;margin-bottom:8px;}
 #page-pes5-admin .pt-log{font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;

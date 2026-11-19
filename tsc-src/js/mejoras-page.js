@@ -35,9 +35,15 @@ const MEJ_MARKUP = `
         <div class="ep-saldo-lbl">Tu saldo</div>
         <div class="ep-saldo-val" title="YunaCoins cargadas en la cuenta del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
         <div class="ep-edicion" id="ep-edicion" hidden><span id="ep-edicion-lbl">Esta edición</span><b id="ep-edicion-val"></b><span class="ep-edicion-note" id="ep-edicion-note"></span></div>
-        <div class="ep-cap">
-          <div class="ep-cap-txt"><span>Tope del equipo: queda <b id="ep-balance-general">0</b> de <span id="ep-hero-general-cap">0</span></span></div>
-          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
+        <div class="ep-cap ep-cap-doble">
+          <div class="ep-bar" id="ep-bar-bono" hidden>
+            <div class="ep-cap-txt"><span>Bono suscriptores (solo $): queda <b id="ep-balance-bono">0</b> de <span id="ep-hero-bono-cap">0</span></span></div>
+            <div class="ep-cap-bar" aria-hidden="true"><i id="ep-bono-fill"></i></div>
+          </div>
+          <div class="ep-bar" id="ep-bar-general">
+            <div class="ep-cap-txt"><span>Tope general: queda <b id="ep-balance-general">0</b> de <span id="ep-hero-general-cap">0</span></span></div>
+            <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
+          </div>
           <div class="ep-cap-desg" id="ep-cap-desg" hidden></div>
         </div>
         <div class="ep-disp" id="ep-disp" hidden>Puedes gastar hasta <b id="ep-disp-val">0</b> YC: te limita el tope de la temporada</div>
@@ -1741,6 +1747,130 @@ function setHint(text){
   renderRows();
 }
 function _fmtYC(n){ return Math.max(0, Math.round(n || 0)).toLocaleString('es-CL'); }
+
+/* ================= BONO4 · los topes bajan a la vista =================
+   Mientras se edita, el número cuenta y la barra se achica en ~300 ms; la barra
+   que está bajando se ilumina ~400 ms para que el ojo vaya a ella. Con un
+   jugador con «$» el bono baja primero y, cuando llega a 0, sigue el general;
+   sin «$» solo baja el general. Sin animación con prefers-reduced-motion.
+
+   UNA sola función de animación de números para el editor (la Tool del admin
+   tiene una copia chica: no comparten archivo, ver js/pes5-tool.js). Cancela la
+   animación anterior del mismo elemento; `desde: null` arranca desde lo que se
+   ve en pantalla (así un clic rápido no salta). */
+const BARRA_MS = 300;
+const BARRA_DESTELLO_MS = 400;
+function _sinMovimiento(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+const _animNumero = new WeakMap();
+function animarNumero(el, desde, hasta, opts){
+  if (!el) return;
+  const o = opts || {};
+  const dur = Math.max(0, o.duracion == null ? BARRA_MS : o.duracion);
+  const retraso = Math.max(0, o.retraso || 0);
+  const fmt = typeof o.formato === 'function' ? o.formato : _fmtYC;
+  const previo = _animNumero.get(el);
+  if (previo){
+    if (previo.raf) cancelAnimationFrame(previo.raf);
+    if (previo.timer) clearTimeout(previo.timer);
+    _animNumero.delete(el);
+  }
+  const fin = Math.round(Number(hasta) || 0);
+  const ini = desde == null ? _numeroVisible(el, fin) : Math.round(Number(desde) || 0);
+  if (!dur || _sinMovimiento() || ini === fin){ el.textContent = fmt(fin); return; }
+  const estado = { raf: 0, timer: 0 };
+  const arrancar = function(){
+    const t0 = performance.now();
+    const paso = function(t){
+      const p = Math.min(1, (t - t0) / dur);
+      const v = Math.round(ini + (fin - ini) * (1 - Math.pow(1 - p, 3)));
+      el.textContent = fmt(p < 1 ? v : fin);
+      if (p < 1) estado.raf = requestAnimationFrame(paso);
+      else if (_animNumero.get(el) === estado) _animNumero.delete(el);
+    };
+    estado.raf = requestAnimationFrame(paso);
+  };
+  _animNumero.set(el, estado);
+  if (retraso) estado.timer = setTimeout(arrancar, retraso);
+  else arrancar();
+}
+/* Valor que se ve ahora en el elemento (los números van con separador es-CL). */
+function _numeroVisible(el, def){
+  const n = Number(String((el && el.textContent) || '').replace(/[^\d-]/g, ''));
+  return Number.isFinite(n) ? n : (def || 0);
+}
+/* Destello suave de la barra que baja (400 ms). Repetirlo reinicia la animación. */
+const _destellosBarra = new WeakMap();
+function destelloBarra(row, retraso){
+  if (!row || _sinMovimiento()) return;
+  const previo = _destellosBarra.get(row);
+  if (previo){ clearTimeout(previo.t1); clearTimeout(previo.t2); }
+  row.classList.remove('ep-barra-baja');
+  const estado = { t1: 0, t2: 0 };
+  estado.t1 = setTimeout(function(){
+    row.classList.remove('ep-barra-baja');
+    void row.offsetWidth; // reinicia la animación si se repite seguido
+    row.classList.add('ep-barra-baja');
+    estado.t2 = setTimeout(function(){ row.classList.remove('ep-barra-baja'); }, BARRA_DESTELLO_MS + 60);
+  }, Math.max(0, retraso || 0));
+  _destellosBarra.set(row, estado);
+}
+/* Pinta una barra «queda X de Y»: número animado + ancho con transition 300 ms. */
+const _timerBarra = new WeakMap();
+function pintarBarra(cfg){
+  if (!cfg) return;
+  const total = Math.max(0, Number(cfg.total) || 0);
+  const queda = Math.max(0, Number(cfg.queda) || 0);
+  const retraso = Math.max(0, cfg.retraso || 0);
+  if (cfg.cap) cfg.cap.textContent = _fmtYC(total);
+  if (cfg.val) animarNumero(cfg.val, cfg.desde, queda, { retraso: retraso });
+  if (cfg.fill){
+    const pct = total > 0 ? Math.min(100, Math.max(0, queda / total * 100)) : 0;
+    if (_sinMovimiento()){
+      cfg.fill.style.transition = 'none';
+      cfg.fill.style.width = pct + '%';
+    } else {
+      cfg.fill.style.transition = '';
+      const previo = _timerBarra.get(cfg.fill);
+      if (previo) clearTimeout(previo);
+      if (retraso){
+        const t = setTimeout(function(){
+          cfg.fill.style.width = pct + '%';
+          _timerBarra.delete(cfg.fill);
+        }, retraso);
+        _timerBarra.set(cfg.fill, t);
+      } else cfg.fill.style.width = pct + '%';
+    }
+  }
+  if (cfg.baja) destelloBarra(cfg.row, retraso);
+}
+/* BONO4: cuánto queda de cada tope DESPUÉS de la edición en curso. Es la regla
+   BONO-3 aplicada a la vista: el bono primero para un jugador con «$» y, agotado,
+   el general; un jugador sin «$» gasta solo del general. Con carrito se reparte
+   el carrito completo jugador por jugador y vuelven las reservas que reemplaza. */
+function _repartoBarras(r){
+  const subAntes = Math.max(0, r.restanteSub || 0);
+  const genAntes = Math.max(0, r.restanteGeneral || 0);
+  if (ADMIN_EMBED){
+    const p = currentPlayer();
+    let libSub = 0, libGen = 0;
+    pendientesMejoraDeJugador(p).forEach(function(x){
+      libSub += Number(x.fromSub || 0);
+      libGen += Number(x.fromGeneral || 0);
+    });
+    const rep = YUNACOINS_RULES.distribuirCosto(pendingCostSinReservar(), subAntes + libSub, !!(p && p.subscriber));
+    return {
+      subAntes: subAntes, subDespues: Math.max(0, subAntes + libSub - rep.fromSub),
+      genAntes: genAntes, genDespues: Math.max(0, genAntes + libGen - rep.fromGeneral),
+    };
+  }
+  const rep = _repartoCarrito(_carritoEntradas());
+  return {
+    subAntes: subAntes, subDespues: Math.max(0, subAntes + rep.liberadoSub - rep.totalSub),
+    genAntes: genAntes, genDespues: Math.max(0, genAntes + rep.liberadoGeneral - rep.totalGeneral),
+  };
+}
 /* TOPE-1: el tope del equipo de la temporada es base + bono de suscriptores +
    tope extra (premio o reembolso): el bono y el extra AMPLÍAN el tope, no son
    YunaCoins que se regalen (se pagan con el saldo del equipo). BONO-3: el tramo
@@ -1781,13 +1911,34 @@ function renderHero(){
   // mostrando el tope del EQUIPO (base + bono + extra); «Puedes gastar hasta» usa el
   // techo del jugador abierto (general, o general + bono si es «$»).
   const esSub = !!(currentPlayer() && currentPlayer().subscriber);
-  const quedaBruto = r.restanteGeneral + r.restanteSub;
   const topeJugador = r.restanteGeneral + (esSub ? r.restanteSub : 0);
   const saldo = Math.max(0, saldoBruto - cost);
-  const queda = Math.max(0, quedaBruto - cost);
-  document.getElementById('ep-hero-general-cap').textContent = _fmtYC(d.total);
-  document.getElementById('ep-balance-general').textContent = _fmtYC(queda);
-  document.getElementById('ep-balance-total').textContent = _fmtYC(saldo);
+  animarNumero(document.getElementById('ep-balance-total'), null, saldo);
+  // BONO4: dos barras debajo de «Tu saldo». El bono baja primero y, cuando
+  // termina, el general; la barra que baja se ilumina. Con carrito, las dos
+  // muestran lo que queda después de TODO el carrito.
+  const rep = _repartoBarras(r);
+  const bonoTotal = d.bono;
+  const generalTotal = r.topeTotal;
+  const barBono = document.getElementById('ep-bar-bono');
+  if (barBono) barBono.hidden = !(bonoTotal > 0);
+  const bajaBono = rep.subDespues < rep.subAntes;
+  const bajaGeneral = rep.genDespues < rep.genAntes;
+  pintarBarra({
+    row: barBono,
+    fill: document.getElementById('ep-bono-fill'),
+    val: document.getElementById('ep-balance-bono'),
+    cap: document.getElementById('ep-hero-bono-cap'),
+    total: bonoTotal, queda: rep.subDespues, desde: null, baja: bajaBono, retraso: 0,
+  });
+  pintarBarra({
+    row: document.getElementById('ep-bar-general'),
+    fill: document.getElementById('ep-cap-fill'),
+    val: document.getElementById('ep-balance-general'),
+    cap: document.getElementById('ep-hero-general-cap'),
+    total: generalTotal, queda: rep.genDespues, desde: null, baja: bajaGeneral,
+    retraso: (bajaBono && bajaGeneral) ? BARRA_MS : 0,
+  });
   // desglose chico del tope; «Gastado: N» entra aca (solo si hay algo gastado)
   const desg = document.getElementById('ep-cap-desg');
   if (desg){
@@ -1821,10 +1972,7 @@ function renderHero(){
   const disp = document.getElementById('ep-disp');
   if (disp) disp.hidden = !(topeJugador < saldoBruto);
   const dv = document.getElementById('ep-disp-val');
-  if (dv) dv.textContent = _fmtYC(disponible);
-  // barra del tope del equipo: lo que queda sobre el tope TOTAL
-  const fill = document.getElementById('ep-cap-fill');
-  if (fill) fill.style.width = d.total > 0 ? Math.min(100, Math.max(0, queda / d.total * 100)) + '%' : '0%';
+  if (dv) animarNumero(dv, null, disponible);
 }
 /* ================= Slice 2.1-A: aviso de presupuesto (solo Tool PES5) =================
    SALDO1: en el editor del PRESIDENTE este panel ya no se pinta (su bloque compacto
@@ -1845,6 +1993,7 @@ function resumenAviso(){
     pendientes: APP.pend,
   });
 }
+let _avisoFirma = '';
 function renderAviso(){
   const el = document.getElementById('ep-aviso');
   if (!el) return;
@@ -1852,20 +2001,20 @@ function renderAviso(){
   // compacto de «Tu saldo» muestra los mismos numeros, sin repetirlos). Solo la
   // Tool del admin lo conserva: ahi la plantilla esta oculta y el aviso es el
   // unico lugar con los numeros y con «Edición gratis» / «sin cobro».
-  if (!ADMIN_EMBED){ el.hidden = true; el.className = 'ep-aviso'; el.innerHTML = ''; return; }
+  if (!ADMIN_EMBED){ el.hidden = true; el.className = 'ep-aviso'; el.innerHTML = ''; _avisoFirma = ''; return; }
   const e = EQUIPO_TSC;
-  if (!e || !APP.draft){ el.hidden = true; el.innerHTML = ''; return; }
+  if (!e || !APP.draft){ el.hidden = true; el.innerHTML = ''; _avisoFirma = ''; return; }
   const fmt = n => Math.round(n || 0).toLocaleString('es-CL');
   el.hidden = false;
-  if (ADMIN_EMBED && e.gratis){
-    el.className = 'ep-aviso gratis';
-    el.innerHTML = `<div class="ep-aviso-big">Edición gratis: no se cobra</div>
-      <p class="ep-aviso-sub">No se descuentan YunaCoins de ${escHtml(e.name || 'este equipo')} por estos cambios.</p>`;
-    return;
-  }
-  if (ADMIN_EMBED && !e.cobra){
-    el.className = 'ep-aviso libre';
-    el.innerHTML = `<div class="ep-aviso-big">Edición libre: no se cobra</div>
+  if (e.gratis || !e.cobra){
+    const firma = e.gratis ? 'gratis' : 'libre';
+    if (firma === _avisoFirma && el.firstChild) return;
+    _avisoFirma = firma;
+    el.className = 'ep-aviso ' + firma;
+    el.innerHTML = e.gratis
+      ? `<div class="ep-aviso-big">Edición gratis: no se cobra</div>
+      <p class="ep-aviso-sub">No se descuentan YunaCoins de ${escHtml(e.name || 'este equipo')} por estos cambios.</p>`
+      : `<div class="ep-aviso-big">Edición libre: no se cobra</div>
       <p class="ep-aviso-sub">El equipo no tiene presidente: sin costo ni topes.</p>`;
     return;
   }
@@ -1876,44 +2025,100 @@ function renderAviso(){
   const cost = pendingCostSinReservar();
   const costPedido = pendingCost();
   const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(currentPlayer());
-  // misma foto que el bloque de saldo: los tres números bajan en vivo con la
+  // misma foto que el bloque de saldo: los números bajan en vivo con la
   // edición en curso (todavía no enviada), y «Esta edición» dice cuánto suma.
   const saldoBruto = r.saldoDisponible;
   // BONO-3: «Queda del tope» es del EQUIPO; «Disponible ahora» es el techo del
   // jugador abierto (el bono solo lo usa un jugador con «$»).
   const esSub = !!(currentPlayer() && currentPlayer().subscriber);
-  const quedaBruto = r.restanteGeneral + r.restanteSub;
   const topeJugador = r.restanteGeneral + (esSub ? r.restanteSub : 0);
   const saldo = Math.max(0, saldoBruto - cost);
-  const queda = Math.max(0, quedaBruto - cost);
   const disponible = Math.max(0, Math.min(saldoBruto, topeJugador) - cost);
-  el.className = 'ep-aviso';
-  el.innerHTML = `
-    <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span>${ADMIN_EMBED ? `<span class="ep-aviso-team">${escHtml(e.name || '')}</span>` : ''}</div>
+  // BONO4: mismas dos barras que el bloque de saldo del presidente, con el bono
+  // bajando primero y el general después. El markup se rehace solo si cambia la
+  // forma (edición gratis/libre, desglose o si hay bono); los números y las barras
+  // se actualizan en sitio para que la animación no se corte en cada clic.
+  const rep = _repartoBarras(r);
+  const bonoTotal = d.bono;
+  const generalTotal = r.topeTotal;
+  const firma = 'aviso|' + (e.name || '') + '|' + (d.desglose ? 'd' : '') + '|' + (bonoTotal > 0 ? 'b' : '');
+  const nuevo = firma !== _avisoFirma || !document.getElementById('ep-aviso-general-v');
+  const prevSaldo = _numeroVisible(document.getElementById('ep-aviso-saldo-v'), saldo);
+  const prevDisp = _numeroVisible(document.getElementById('ep-aviso-disp-v'), disponible);
+  const prevBono = _numeroVisible(document.getElementById('ep-aviso-bono-v'), rep.subDespues);
+  const prevGen = _numeroVisible(document.getElementById('ep-aviso-general-v'), rep.genDespues);
+  if (nuevo){
+    _avisoFirma = firma;
+    el.className = 'ep-aviso';
+    el.innerHTML = `
+    <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span><span class="ep-aviso-team">${escHtml(e.name || '')}</span></div>
     <div class="ep-aviso-grid">
       <div class="ep-aviso-cell">
         <span class="ep-aviso-k">Tu saldo</span>
-        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(saldo)}</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n" id="ep-aviso-saldo-v">0</b><span class="ep-aviso-u">YC</span></span>
       </div>
       <div class="ep-aviso-cell">
         <span class="ep-aviso-k">Tope del equipo esta temporada</span>
-        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(d.total)}</b><span class="ep-aviso-u">YC</span></span>
-        ${d.desglose ? `<span class="ep-aviso-note">${escHtml(d.desglose)}</span>` : ''}
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n" id="ep-aviso-tope-v">0</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note" id="ep-aviso-desg"></span>
       </div>
-      <div class="ep-aviso-cell">
+      <div class="ep-aviso-cell ep-aviso-barras">
         <span class="ep-aviso-k">Queda del tope</span>
-        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(queda)}</b><span class="ep-aviso-u">YC</span></span>
-        <span class="ep-aviso-note">Gastado esta temporada ${fmt(r.gastadoGeneral + r.gastadoSub)}</span>
+        <div class="ep-bar" id="ep-aviso-bar-bono" hidden>
+          <div class="ep-cap-txt"><span>Bono suscriptores (solo $): queda <b id="ep-aviso-bono-v">0</b> de <span id="ep-aviso-bono-cap">0</span></span></div>
+          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-aviso-bono-fill"></i></div>
+        </div>
+        <div class="ep-bar" id="ep-aviso-bar-general">
+          <div class="ep-cap-txt"><span>Tope general: queda <b id="ep-aviso-general-v">0</b> de <span id="ep-aviso-general-cap">0</span></span></div>
+          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-aviso-general-fill"></i></div>
+        </div>
+        <span class="ep-aviso-note" id="ep-aviso-gastado"></span>
       </div>
       <div class="ep-aviso-cell ep-aviso-disp">
         <span class="ep-aviso-k">Disponible ahora</span>
-        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(disponible)}</b><span class="ep-aviso-u">YC</span></span>
-        <span class="ep-aviso-note">${saldoBruto < topeJugador ? 'Limita tu saldo' : 'Limita el tope'}</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n" id="ep-aviso-disp-v">0</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note" id="ep-aviso-limite"></span>
       </div>
     </div>
-    <div class="ep-aviso-cost">${costPedido > 0
+    <div class="ep-aviso-cost" id="ep-aviso-cost"></div>`;
+  }
+  const pintar = function(){
+    const topeEl = document.getElementById('ep-aviso-tope-v');
+    if (topeEl) topeEl.textContent = fmt(d.total);
+    const desg = document.getElementById('ep-aviso-desg');
+    if (desg){ desg.textContent = d.desglose || ''; desg.hidden = !d.desglose; }
+    const gast = document.getElementById('ep-aviso-gastado');
+    if (gast) gast.textContent = 'Gastado esta temporada ' + fmt(r.gastadoGeneral + r.gastadoSub);
+    const lim = document.getElementById('ep-aviso-limite');
+    if (lim) lim.textContent = saldoBruto < topeJugador ? 'Limita tu saldo' : 'Limita el tope';
+    const costEl = document.getElementById('ep-aviso-cost');
+    if (costEl) costEl.innerHTML = costPedido > 0
       ? `${pendiente ? 'Tu pedido' : 'Esta edición'}: <b>−${fmt(costPedido)} YC</b>${pendiente ? ' · reemplaza tu pedido pendiente' : ''}`
-      : 'Esta edición: sin costo'}</div>`;
+      : 'Esta edición: sin costo';
+    animarNumero(document.getElementById('ep-aviso-saldo-v'), nuevo ? prevSaldo : null, saldo);
+    animarNumero(document.getElementById('ep-aviso-disp-v'), nuevo ? prevDisp : null, disponible);
+    const barBono = document.getElementById('ep-aviso-bar-bono');
+    if (barBono) barBono.hidden = !(bonoTotal > 0);
+    const bajaBono = rep.subDespues < rep.subAntes;
+    const bajaGeneral = rep.genDespues < rep.genAntes;
+    pintarBarra({
+      row: barBono,
+      fill: document.getElementById('ep-aviso-bono-fill'),
+      val: document.getElementById('ep-aviso-bono-v'),
+      cap: document.getElementById('ep-aviso-bono-cap'),
+      total: bonoTotal, queda: rep.subDespues, desde: prevBono, baja: bajaBono, retraso: 0,
+    });
+    pintarBarra({
+      row: document.getElementById('ep-aviso-bar-general'),
+      fill: document.getElementById('ep-aviso-general-fill'),
+      val: document.getElementById('ep-aviso-general-v'),
+      cap: document.getElementById('ep-aviso-general-cap'),
+      total: generalTotal, queda: rep.genDespues, desde: prevGen, baja: bajaGeneral,
+      retraso: (bajaBono && bajaGeneral) ? BARRA_MS : 0,
+    });
+  };
+  if (nuevo) requestAnimationFrame(pintar);
+  else pintar();
 }
 function renderCart(){
   // CARRO1: el borrador abierto queda en el carrito en cada cambio (y se persiste).
