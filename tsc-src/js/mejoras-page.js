@@ -817,13 +817,6 @@ function gratisStatDe(p, campo, from, to){
   return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(p), emparejarCfgPres());
 }
 const PERFIL_LABEL = { base: 'Base', suscriptor: 'Suscriptor' };
-// Costo de un pedido en la lista: «sin costo (perfil X)» si todo fue tramo gratis; si no, los YunaCoins.
-function pedidoCostoTexto(p){
-  const total = Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0));
-  const gratisLine = (p.lines || []).find(l => Number(l.gratis || 0) > 0 && PERFIL_LABEL[l.perfil]);
-  if (total === 0 && gratisLine) return 'sin costo (perfil ' + PERFIL_LABEL[gratisLine.perfil] + ')';
-  return total.toLocaleString('es-CL') + ' YunaCoins';
-}
 // Texto del costo de una linea. Con tramo gratis: «+200 · 1 sin costo (perfil Base)»; sin costo: «sin costo (perfil X)».
 function lineaCostoTexto(l){
   const g = Number(l.gratis || 0);
@@ -1663,16 +1656,8 @@ function renderPager(){
   // marcas de pagina como en el juego: una activa (larga) y el resto
   document.getElementById('ep-pgdots').innerHTML = PAGES.map((_, i) => `<i class="${i===APP.page-1?'on':''}"></i>`).join('');
 }
-/* Aviso compacto del panel lateral (MEJUI-3): una fila por jugador con el nombre y el
-   costo total. Cerrada por defecto; se despliega para ver cada cambio. El total general
-   y el acceso a Pedidos quedan siempre visibles. */
-function togglePendDetalle(btn){
-  const det = btn && btn.nextElementSibling;
-  if (!det) return;
-  const abrir = det.hidden;
-  det.hidden = !abrir;
-  btn.setAttribute('aria-expanded', String(abrir));
-}
+/* HIST1: tarjeta de resumen del panel lateral, una sola linea y un boton. El detalle
+   (y la cancelacion) vive en la ventana del historial, que se abre en Pendientes. */
 function renderPending(){
   const pend = (APP.pendientes||[]).filter(x => x.estado === 'pendiente');
   const sub = document.getElementById('ep-pedidos-sub');
@@ -1685,41 +1670,19 @@ function renderPending(){
   const bloqueo = !ADMIN_EMBED && !!APP.bloqueoPorAplicado;
   if (ADMIN_EMBED || (!pend.length && !bloqueo)){ box.hidden = true; box.innerHTML = ''; return; }
 
-  const fmt = n => Number(n || 0).toLocaleString('es-CL');
-  // Agrupado por jugador (o formacion), en el orden de llegada del pedido mas reciente.
-  const grupos = new Map();
-  pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a)).forEach(x => {
-    const nombre = x.tipo === 'formacion'
-      ? 'Formación ' + ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '')
-      : (x.playerName || 'Jugador');
-    const g = grupos.get(nombre) || { nombre, costo: 0, pedidos: [] };
-    g.costo += Number(x.totalCost || 0);
-    g.pedidos.push(x);
-    grupos.set(nombre, g);
-  });
-  const total = [...grupos.values()].reduce((s, g) => s + g.costo, 0);
-  const lista = [...grupos.values()].map(g => `
-    <div class="ep-pend-item">
-      <button type="button" class="ep-pend-row" aria-expanded="false" data-onclick="togglePendDetalle(this)">
-        <span class="ep-pend-name">${escHtml(g.nombre)}</span>
-        <b class="ep-pend-cost">${fmt(g.costo)}</b>
-        <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
-      <div class="ep-pend-det" hidden>
-        ${g.pedidos.map(x => (x.lines || []).length
-          ? x.lines.map(_textoLineaCambio).join('')
-          : '<div class="ep-pend-line"><span>Sin detalle</span></div>').join('')}
-      </div>
-    </div>`).join('');
+  const total = pend.reduce((s, x) => s + Number(x.totalCost || 0), 0);
+  const linea = pend.length
+    ? pend.length + (pend.length === 1 ? ' pedido en revisión' : ' pedidos en revisión')
+      + ' · ' + Number(total).toLocaleString('es-CL') + ' YC'
+    : '';
   box.hidden = false;
   box.innerHTML = `
     <div class="ep-pend-hd">
-      <span class="ep-pend-lbl">${bloqueo ? 'Esperando publicación' : 'En revisión'}</span>
-      <b class="ep-pend-tot">${fmt(total)} YC</b>
+      <span class="ep-pend-lbl">${pend.length ? 'En revisión' : 'Esperando publicación'}</span>
     </div>
+    ${linea ? `<div class="ep-res-line">${linea}</div>` : ''}
     ${bloqueo ? '<div class="ep-pend-bloq">Luis aplicó cambios que todavía no publicó.</div>' : ''}
-    ${lista ? `<div class="ep-pend-list">${lista}</div>` : ''}
-    <button type="button" class="ep-pend-ver" data-onclick="openAuditModal()">Ver pedidos</button>`;
+    ${pend.length ? `<button type="button" class="ep-pend-ver" data-onclick="openAuditModal('pendiente')">Ver</button>` : ''}`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
@@ -1979,29 +1942,15 @@ function renderCart(){
     : '';
 }
 
-/* ================= CARRO1 · panel de cambios en espera =================
-   Una fila por jugador (nombre, costo, detalle desplegable y quitar), el total y los
-   botones «Descartar todo» / «Revisar todo». Se puede mirar con mejoras pausadas. */
-let _carroAbierto = new Set();
-function toggleCarroDetalle(btn){
-  const item = btn && btn.closest ? btn.closest('[data-jugador]') : null;
-  if (!item) return;
-  const id = item.getAttribute('data-jugador');
-  const det = item.querySelector('.ep-pend-det');
-  if (!det) return;
-  const abrir = det.hidden;
-  det.hidden = !abrir;
-  btn.setAttribute('aria-expanded', String(abrir));
-  if (abrir) _carroAbierto.add(id); else _carroAbierto.delete(id);
-}
-/* CARRO2: texto «antes → después» de un cambio (compartido por el panel y las hojas). */
+/* ================= CARRO1 · tarjeta de cambios en espera =================
+   HIST1: solo el resumen en una linea y dos botones («Descartar» y «Revisar todo»).
+   El detalle por jugador se ve en la hoja de revision (CARRO2). Se puede mirar con
+   mejoras pausadas; descartar y enviar siguen bloqueados por la pausa. */
+/* CARRO2: texto «antes → después» de un cambio (compartido por la hoja de revision). */
 function _textoCambio(l){
   return (l.from === '' || l.from == null || l.from === '—')
     ? String(l.to == null ? '' : l.to)
     : `${l.from} → ${l.to}`;
-}
-function _textoLineaCambio(l){
-  return `<div class="ep-pend-line"><span>${escHtml(l.label || '')}</span><b>${escHtml(_textoCambio(l))}</b></div>`;
 }
 function _pluralCambios(n){
   return (n || 0) + (n === 1 ? ' cambio' : ' cambios');
@@ -2071,43 +2020,22 @@ function renderCarritoPanel(){
   if (!box) return;
   const entradas = ADMIN_EMBED ? [] : _carritoEntradas();
   if (!entradas.length){ box.hidden = true; box.innerHTML = ''; return; }
-  const fmt = n => Number(n || 0).toLocaleString('es-CL');
   const total = _carritoCosto();
   const excede = _carritoExcede();
-  const items = entradas.map(e => {
-    const id = String(e.p.id);
-    const abierto = _carroAbierto.has(id);
-    const lineas = pendingChangeLinesDe(e.p, e.d);
-    return `<div class="ep-pend-item ep-carro-item" data-jugador="${escAttr(id)}">
-      <div class="ep-carro-row">
-        <button type="button" class="ep-carro-open" aria-expanded="${abierto ? 'true' : 'false'}" data-onclick="toggleCarroDetalle(this)" title="Ver el detalle de ${escAttr(e.p.name)}">
-          <span class="ep-rev-dot ep-line-${_lineaDeJugador(e.p)}" aria-hidden="true"></span>
-          <span class="ep-carro-txt">
-            <span class="ep-pend-name">${escHtml(e.p.name)}</span>
-            <span class="ep-carro-n">${_pluralCambios(lineas.length)}</span>
-          </span>
-          <b class="ep-pend-cost">${fmt(e.costo)}</b>
-          <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <button type="button" class="ep-carro-x" data-onclick="descartarCarritoJugador('${jsq(id)}')" aria-label="Quitar a ${escAttr(e.p.name)} del carrito" title="Quitar del carrito">
-          <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-      <div class="ep-pend-det"${abierto ? '' : ' hidden'}>
-        ${lineas.length ? lineas.map(_textoLineaCambio).join('') : '<div class="ep-pend-line"><span>Sin detalle</span></div>'}
-      </div>
-    </div>`;
-  }).join('');
+  const nCambios = entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
+  // HIST1: una sola linea. Con un jugador se lo nombra; con varios, la cuenta y el total.
+  const linea = entradas.length === 1
+    ? escHtml(entradas[0].p.name) + ' · ' + _pluralCambios(nCambios) + ' · ' + _fmtYC(total) + ' YC'
+    : entradas.length + ' jugadores · ' + _fmtYC(total) + ' YC';
   box.hidden = false;
   box.innerHTML = `
     <div class="ep-pend-hd">
       <span class="ep-pend-lbl">Cambios en espera</span>
-      <b class="ep-pend-tot">${fmt(total)} YC</b>
     </div>
-    <div class="ep-pend-list">${items}</div>
+    <div class="ep-res-line">${linea}</div>
     ${excede ? '<div class="ep-carro-warn">El carrito supera lo disponible.</div>' : ''}
     <div class="ep-carro-act">
-      <button type="button" class="ep-btn" data-onclick="descartarCarrito()">Descartar todo</button>
+      <button type="button" class="ep-btn" data-onclick="descartarCarrito()">Descartar</button>
       <button type="button" class="ep-btn primary" data-onclick="openReviewAll()"${excede ? ' disabled' : ''}>Revisar todo</button>
     </div>`;
 }
@@ -2127,7 +2055,6 @@ function descartarCarritoJugador(id){
   const p = PLAYER_BY_ID[id];
   delete APP.drafts[id];
   delete APP.draftsBase[id];
-  _carroAbierto.delete(String(id));
   if (id === APP.playerId) loadDraft();
   _carritoGuardar();
   renderAll();
@@ -2138,7 +2065,6 @@ function descartarCarrito(){
   if (!_carritoEntradas().length){ showMiniToast('No hay cambios en espera.'); return; }
   APP.drafts = {};
   APP.draftsBase = {};
-  _carroAbierto.clear();
   loadDraft();
   _carritoGuardar();
   renderAll();
@@ -2276,7 +2202,7 @@ function _idsPendientesDe(p){
 }
 function openReviewAll(){
   if (ADMIN_EMBED) return openApplyConfirm();
-  if (_bloqueadoPorPausa()) return;
+  // HIST1: en pausa se puede mirar el carrito; el envio lo corta commitCarrito.
   if (APP.bloqueoPorAplicado){
     showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.');
     return;
@@ -2471,7 +2397,6 @@ async function commitCarrito(){
   saveAuditLog();
   APP.drafts = {};
   APP.draftsBase = {};
-  _carroAbierto.clear();
   _carritoGuardar();
   await recalcularPresupuestoReal();
   // lectura eventual: conservar los pedidos recien creados si el servidor aun no los trae
@@ -2680,8 +2605,167 @@ function saveAuditLog(){
 }
 const AUDIT_LOG = loadAuditLog();
 
-async function openAuditModal(){
+/* ================= HIST1 · ventana del historial de pedidos =================
+   Los cancelados no se muestran (los cancelados a mano y los que PED1 reemplazó al
+   mandar un pedido nuevo del mismo jugador). Pestañas Pendientes / Aplicados /
+   Rechazados; cada pedido es una fila cerrada (se abre para ver el detalle) y al
+   final «Cobros al equipo», también cerrada. */
+let _AUDIT = { tab: 'pendiente', pedidos: [], movimientos: [] };
+let _auditSeq = 0;   // sube al cerrar: una carga vieja no vuelve a abrir la ventana
+const AUDIT_TABS = [['pendiente', 'Pendientes'], ['aplicado', 'Aplicados'], ['rechazado', 'Rechazados']];
+const _msAudit = v => v && v.toDate ? v.toDate().getTime() : (v ? new Date(v).getTime() : 0);
+/* fecha corta de la derecha de cada fila */
+function _fechaCorta(v){
+  const t = _msAudit(v);
+  return t ? new Date(t).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+}
+/* «antes → después» de una linea guardada en el pedido */
+function _textoLineaPedido(l){
+  if (!l) return '';
+  return (l.from === '' || l.from == null || l.from === '—')
+    ? String(l.to == null ? '' : l.to)
+    : String(l.from) + ' → ' + String(l.to);
+}
+/* Las lineas de alineacion vienen como «Entra X por Y» o «X ↔ Y». */
+function _textoAlineacionPedido(t){
+  const s = String(t == null ? '' : t);
+  let m = /^Entra (.+) por (.+)$/.exec(s);
+  if (m) return 'entra ' + m[1] + ', sale ' + m[2];
+  m = /^(.+?) ↔ (.+)$/.exec(s);
+  if (m) return m[1] + ' y ' + m[2] + ' cambian de lugar';
+  return s;
+}
+/* Titulo de una linea: un pedido de mejoras, formacion/alineacion o emparejar. */
+function _tituloPedido(p){
+  const lineas = Array.isArray(p.lines) ? p.lines : [];
+  if (p.tipo === 'emparejar'){
+    const nivel = Number(p.nivel);
+    return escHtml(p.playerName || 'Jugador')
+      + (Number.isFinite(nivel) && nivel > 0 ? ' · Emparejar a ' + nivel : ' · Emparejar');
+  }
+  if (p.tipo === 'formacion'){
+    const linForm = lineas.find(l => l && l.label === 'Formación');
+    const alin = lineas.filter(l => l && l.label === 'Cambio de alineación');
+    if (linForm){
+      const antes = linForm.from ? String(linForm.from) : '';
+      const despues = linForm.to ? String(linForm.to) : ((p.formacion && p.formacion.nombre) || '');
+      return 'Cambio de formación: ' + escHtml(antes ? antes + ' → ' + despues : despues);
+    }
+    if (alin.length === 1) return 'Cambio de alineación: ' + escHtml(_textoAlineacionPedido(alin[0].to));
+    if (alin.length > 1) return alin.length + ' cambios de alineación';
+    const nombre = (p.formacion && p.formacion.nombre) || '';
+    return 'Cambio de formación' + (nombre ? ': ' + escHtml(nombre) : '');
+  }
+  return escHtml(p.playerName || 'Jugador') + ' · ' + _pluralCambios(lineas.length)
+    + ' · ' + _fmtYC(p.totalCost) + ' YC';
+}
+/* El detalle de la fila: una linea por cambio (atributo, habilidad, posicion, lesion, altura). */
+function _detallePedidoHTML(p){
+  const lineas = Array.isArray(p.lines) ? p.lines : [];
+  if (!lineas.length) return '<li class="ep-rev-line"><span class="ep-rev-lbl">Sin detalle</span></li>';
+  return lineas.map(l => `<li class="ep-rev-line">
+      <span class="ep-rev-lbl">${escHtml(l.label || '')}</span>
+      <span class="ep-rev-chg">${escHtml(_textoLineaPedido(l))}</span>
+    </li>`).join('');
+}
+function _filaPedidoHTML(p){
+  const id = String(p._id || '');
+  const motivo = p.estado === 'rechazado' && p.motivo
+    ? `<span class="ep-hist-motivo">${escHtml(p.motivo)}</span>` : '';
+  const cancelar = p.estado === 'pendiente' && id && id.indexOf('local-') !== 0
+    ? `<button type="button" class="ep-btn ep-hist-cancel" data-onclick="cancelarPedidoDesdeHistorial('${escAttr(id)}')">Cancelar pedido</button>` : '';
+  return `<details class="ep-rev-item ep-hist-item">
+    <summary class="ep-rev-sum ep-hist-sum">
+      <span class="ep-hist-txt">
+        <span class="ep-hist-title">${_tituloPedido(p)}</span>
+        ${motivo}
+      </span>
+      <span class="ep-hist-fecha">${escHtml(_fechaCorta(p.creadoEn))}</span>
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <ul class="ep-rev-det">${_detallePedidoHTML(p)}</ul>
+    ${cancelar}
+  </details>`;
+}
+/* «Cobros al equipo»: fila cerrada con el total de la temporada; al abrir, los movimientos
+   (los reembolsos suman, con +monto). */
+function _filaCobrosHTML(){
+  const movs = _AUDIT.movimientos || [];
+  // El total es el mismo que «Gastado esta temporada»: el desglose pes5 de cada
+  // movimiento (los reembolsos vienen con fromGeneral negativo). Sin desglose, el monto.
+  const total = movs.reduce((s, m) => {
+    const meta = m.pes5 || {};
+    const neto = (meta.fromGeneral != null || meta.fromSub != null)
+      ? Number(meta.fromGeneral || 0) + Number(meta.fromSub || 0)
+      : (meta.reembolso ? -1 : 1) * Number(m.amount || 0);
+    return s + neto;
+  }, 0);
+  const filas = movs.length ? movs.map(m => {
+    const reembolso = !!(m.pes5 && m.pes5.reembolso);
+    const quien = (m.pes5 && m.pes5.playerName) || '';
+    const lbl = reembolso ? 'Reembolso' + (quien ? ' · ' + quien : '') : quien;
+    return `<div class="ep-diffline">
+      <div class="lbl">${escHtml(lbl)}${m.note ? ' &middot; ' + escHtml(m.note) : ''}</div>
+      <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleDateString('es-CL') : '')}</div>
+      <div class="cost">${reembolso ? '+' : '-'}${Number(m.amount || 0).toLocaleString('es-CL')}</div>
+    </div>`;
+  }).join('') : '<div class="ep-hist-vacio">Sin cobros de mejoras esta temporada.</div>';
+  return `<details class="ep-rev-item ep-hist-item ep-hist-cobros">
+    <summary class="ep-rev-sum ep-hist-sum">
+      <span class="ep-hist-txt"><span class="ep-hist-title">Cobros al equipo</span></span>
+      <span class="ep-hist-total">${Number(total).toLocaleString('es-CL')} YC</span>
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <div class="ep-hist-movs">${filas}</div>
+  </details>`;
+}
+function _renderAuditModal(){
   const wrap = document.getElementById('ep-audit-wrap');
+  if (!wrap) return;
+  // PED1: los cancelados (a mano o reemplazados) no son parte del historial visible.
+  const pedidos = (_AUDIT.pedidos || []).filter(p => p.estado !== 'cancelado');
+  const tab = AUDIT_TABS.some(t => t[0] === _AUDIT.tab) ? _AUDIT.tab : 'pendiente';
+  _AUDIT.tab = tab;
+  const cuenta = {
+    pendiente: pedidos.filter(p => p.estado === 'pendiente').length,
+    aplicado: pedidos.filter(p => p.estado === 'aplicado').length,
+    rechazado: pedidos.filter(p => p.estado === 'rechazado').length,
+  };
+  const delTab = pedidos.filter(p => p.estado === tab);
+  const vacio = {
+    pendiente: 'No tienes pedidos en revisión.',
+    aplicado: 'Todavía no hay pedidos aplicados.',
+    rechazado: 'No tienes pedidos rechazados.',
+  }[tab];
+  const filas = delTab.length ? delTab.map(_filaPedidoHTML).join('')
+    : `<div class="ep-hist-vacio">${vacio}</div>`;
+  wrap.innerHTML = `
+  <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeAuditModal)">
+    <div class="ep-modal wide" role="dialog" aria-modal="true" aria-labelledby="ep-audit-tit">
+      <div class="ep-modal-hd">
+        <h2 id="ep-audit-tit">Historial de mejoras</h2>
+        <button class="ep-modal-close" data-onclick="closeAuditModal()" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="ep-modal-body">
+        <div class="ep-hist-tabs" role="tablist" aria-label="Estado de los pedidos">
+          ${AUDIT_TABS.map(([k, l]) => `<button type="button" role="tab" class="ep-hist-tab" aria-selected="${k === tab ? 'true' : 'false'}" data-onclick="setAuditTab('${k}')">${l}<b>${cuenta[k]}</b></button>`).join('')}
+        </div>
+        <div class="ep-hist-list" role="tabpanel">${filas}</div>
+        ${_filaCobrosHTML()}
+      </div>
+    </div>
+  </div>`;
+  actualizarBadgeHistorial(pedidos);
+}
+function setAuditTab(tab){
+  if (!AUDIT_TABS.some(t => t[0] === tab)) return;
+  _AUDIT.tab = tab;
+  _renderAuditModal();
+}
+async function openAuditModal(tab){
+  const wrap = document.getElementById('ep-audit-wrap');
+  if (!wrap) return;
+  const seq = ++_auditSeq;
   wrap.innerHTML = `<div class="ep-overlay"><div class="ep-modal wide"><div class="ep-modal-body">Cargando historial…</div></div></div>`;
   let pedidos = [], movimientos = [];
   try {
@@ -2692,49 +2776,29 @@ async function openAuditModal(){
     renderPending();
   } catch (e) { console.warn('[mejoras] pedidos', e); }
   try {
+    // mismo filtro de temporada que recalcularPresupuestoReal: el total es el de la temporada de cobro
     movimientos = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId)
+      && c.season === (COBRO_TEMPORADA ?? STATE.season)
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
   } catch (e) { console.warn('[mejoras] coins', e); }
-  const ms = v => v && v.toDate ? v.toDate().getTime() : (v ? new Date(v).getTime() : 0);
-  pedidos.sort((a, b) => ms(b.creadoEn) - ms(a.creadoEn));
+  if (seq !== _auditSeq) return;   // se cerró mientras cargaba
+  pedidos.sort((a, b) => _msAudit(b.creadoEn) - _msAudit(a.creadoEn));
   movimientos.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  const ESTADO = { pendiente: 'Pendiente', aplicado: 'Aplicado', rechazado: 'Rechazado', cancelado: 'Cancelado' };
-  const fecha = v => { const t = ms(v); return t ? new Date(t).toLocaleString('es-CL') : ''; };
-  const filasPedidos = pedidos.length ? pedidos.map(p => `
-    <div class="ep-audit-entry">
-      <div class="ep-audit-entry-hd"><b>${escHtml(p.playerName || '')}</b><span>${escHtml(fecha(p.creadoEn))}</span></div>
-      <div class="sum">${(p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)}&rarr;${escHtml(l.to)}`).join(', ')}</div>
-      <div class="sum" style="margin-top:4px;">
-        <span class="badge">${escHtml(ESTADO[p.estado] || p.estado || '')}</span>
-        &middot; ${pedidoCostoTexto(p)}
-        ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${escHtml(p.motivo)}` : ''}
-        ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" data-onclick="cancelarPedidoDesdeHistorial('${escHtml(p._id)}')">Cancelar pedido</button>` : ''}
-      </div>
-    </div>`).join('') : '<div class="sum">Todavía no mandaste pedidos.</div>';
-  const filasMov = movimientos.length ? movimientos.map(m => `
-    <div class="ep-diffline">
-      <div class="lbl">${m.pes5 && m.pes5.reembolso ? 'Reembolso' : escHtml((m.pes5 && m.pes5.playerName) || '')} &middot; ${escHtml(m.note || '')}</div>
-      <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleString('es-CL') : '')}</div>
-      <div class="cost">${m.pes5 && m.pes5.reembolso ? '+' : '-'}${Number(m.amount || 0).toLocaleString('es-CL')}</div>
-    </div>`).join('') : '<div class="sum">Sin cobros de mejoras esta temporada.</div>';
-  wrap.innerHTML = `
-  <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeAuditModal)">
-    <div class="ep-modal wide">
-      <div class="ep-modal-hd">
-        <h2>Historial de mejoras</h2>
-        <button class="ep-modal-close" data-onclick="closeAuditModal()">&times;</button>
-      </div>
-      <div class="ep-modal-body">
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin-bottom:8px;">Mis pedidos</div>
-        ${filasPedidos}
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin:16px 0 8px;">Cobros al equipo</div>
-        ${filasMov}
-      </div>
-    </div>
-  </div>`;
-  actualizarBadgeHistorial(pedidos);
+  _AUDIT = {
+    tab: (tab === 'aplicado' || tab === 'rechazado') ? tab : 'pendiente',
+    pedidos,
+    movimientos,
+  };
+  _renderAuditModal();
 }
+/* La ventana se cierra con X, tocando fuera o con Esc. */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  const wrap = document.getElementById('ep-audit-wrap');
+  if (wrap && wrap.innerHTML) closeAuditModal();
+});
 async function cancelarPedidoDesdeHistorial(id){
+  if (_bloqueadoPorPausa()) return;
   if (!confirm('¿Cancelar este pedido? No se cobra nada.')) return;
   try {
     await cancelarPedido(id);
@@ -2743,13 +2807,13 @@ async function cancelarPedidoDesdeHistorial(id){
     showMiniToast('No se pudo cancelar: ' + (e && e.message ? e.message : e));
   }
   renderAll();
-  openAuditModal();
+  openAuditModal(_AUDIT.tab);
 }
 function actualizarBadgeHistorial(pedidos){
   const el = document.getElementById('ep-hist-badge');
   if (el) el.textContent = (pedidos || []).filter(p => p.estado === 'pendiente').length;
 }
-function closeAuditModal(){ document.getElementById('ep-audit-wrap').innerHTML=''; }
+function closeAuditModal(){ _auditSeq++; document.getElementById('ep-audit-wrap').innerHTML=''; }
 function clearAuditLog(){
   AUDIT_LOG.length = 0;
   saveAuditLog();
@@ -4723,8 +4787,8 @@ window.moveFormationDot = moveFormationDot;
 window.openApplyConfirm = openApplyConfirm;
 window.openReviewAll = openReviewAll;
 window.commitCarrito = commitCarrito;
-window.toggleCarroDetalle = toggleCarroDetalle;
 window.toggleRevisionTodo = toggleRevisionTodo;
+window.setAuditTab = setAuditTab;
 window.descartarCarrito = descartarCarrito;
 window.descartarCarritoJugador = descartarCarritoJugador;
 window.openAuditModal = openAuditModal;
@@ -4749,7 +4813,6 @@ window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;
 window.setSide = setSide;
 window.toggleAbility = toggleAbility;
-window.togglePendDetalle = togglePendDetalle;
 window.togglePosition = togglePosition;
 window.mejToggleTheme = toggleTheme;
 window.setSquadTab = setSquadTab;

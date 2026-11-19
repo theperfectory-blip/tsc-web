@@ -148,56 +148,27 @@
 .ep-root .ep-acc .badge{position:absolute;right:10px;top:10px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
   background:var(--gold);color:var(--ep-on-gold);font-family:'Bebas Neue';font-size:14px;line-height:20px;text-align:center;}
 
-/* MEJUI-3 · panel lateral de cambios: una fila por jugador (nombre + costo), cerrada por
-   defecto; se despliega para ver el detalle. Total general y acceso a Pedidos siempre visibles. */
+/* MEJUI-3 · tarjeta del panel lateral: HIST1 la deja en una sola linea de resumen
+   (la cuenta y el total) con su boton; el detalle vive en la ventana del historial. */
 .ep-root .ep-pend{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;background:var(--gold-l);
   border:1px solid var(--gold-b);font-size:13px;line-height:1.35;color:var(--txt);}
 .ep-root .ep-pend[hidden]{display:none;}
 .ep-root .ep-pend-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
-.ep-root .ep-pend-lbl{font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);}
-.ep-root .ep-pend-tot{font-family:'Bebas Neue';font-weight:400;font-size:20px;line-height:1;color:var(--gold);white-space:nowrap;}
+.ep-root .ep-pend-lbl{font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold-ink);}
 .ep-root .ep-pend-bloq{font-size:12px;color:var(--txt2);}
-.ep-root .ep-pend-list{display:flex;flex-direction:column;gap:4px;}
-.ep-root .ep-pend-item{background:var(--card);border:1px solid var(--brd);border-radius:10px;overflow:clip;}
-.ep-root .ep-pend-row{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0 10px;background:none;border:none;
-  color:var(--txt);font:inherit;text-align:left;cursor:pointer;}
-.ep-root .ep-pend-row:hover{background:var(--card2);}
-.ep-root .ep-pend-name{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ep-root .ep-pend-cost{flex:none;font-family:'Bebas Neue';font-size:16px;color:var(--gold);}
-.ep-root .ep-pend-row .icn{flex:none;width:16px;height:16px;color:var(--txt3);transition:transform .15s ease;}
-.ep-root .ep-pend-row[aria-expanded="true"] .icn{transform:rotate(180deg);}
-.ep-root .ep-pend-det{display:flex;flex-direction:column;gap:2px;padding:2px 10px 8px;font-size:12.5px;color:var(--txt2);}
-.ep-root .ep-pend-det[hidden]{display:none;}
-.ep-root .ep-pend-line{display:flex;justify-content:space-between;gap:10px;min-width:0;}
-.ep-root .ep-pend-line span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.ep-root .ep-pend-line b{flex:none;color:var(--txt);font-weight:500;white-space:nowrap;}
-.ep-root .ep-pend-ver{align-self:flex-start;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--brd2);
+.ep-root .ep-pend-ver{align-self:flex-start;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--brd2);
   background:var(--card);color:var(--txt);font-family:'Barlow Condensed';font-weight:700;font-size:13px;
   letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;}
 .ep-root .ep-pend-ver:hover{border-color:var(--gold-b);color:var(--gold);}
 
-/* CARRO1: carrito de mejoras (borradores de varios jugadores en espera). Mismo lenguaje que
-   el panel «En revisión»: una fila por jugador, detalle desplegable y acciones. */
+/* CARRO1: carrito de mejoras (borradores de varios jugadores en espera). HIST1: la tarjeta
+   solo muestra el resumen y las acciones; el detalle por jugador se ve en «Revisar todo». */
 .ep-root .ep-cart-panel{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;
   background:var(--gold-l);border:1px solid var(--gold-b);}
 .ep-root .ep-cart-panel[hidden]{display:none;}
-.ep-root .ep-cart-panel .ep-pend-list{max-height:200px;overflow-y:auto;}
-.ep-root .ep-carro-row{display:flex;align-items:center;gap:4px;padding-right:4px;}
-.ep-root .ep-carro-open{display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:44px;padding:0 10px;
-  background:none;border:none;color:inherit;font-family:'Barlow';font-size:14px;text-align:left;cursor:pointer;}
-.ep-root .ep-carro-open:hover{background:var(--card2);border-radius:8px;}
-.ep-root .ep-carro-n{flex:none;font-size:11.5px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ep-root .ep-carro-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;text-align:left;}
-.ep-root .ep-carro-txt .ep-pend-name{flex:none;line-height:1.25;}
-.ep-root .ep-carro-open .icn{flex:none;width:16px;height:16px;color:var(--txt3);transition:transform .15s ease;}
-.ep-root .ep-carro-open[aria-expanded="true"] .icn{transform:rotate(180deg);}
-.ep-root .ep-carro-x{flex:none;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;
-  background:none;border:1px solid transparent;color:var(--txt3);cursor:pointer;}
-.ep-root .ep-carro-x:hover{color:var(--red);border-color:var(--brd2);}
-.ep-root .ep-carro-x .icn{width:14px;height:14px;}
 .ep-root .ep-carro-warn{font-size:12px;color:var(--red);}
 .ep-root .ep-carro-act{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
-.ep-root .ep-carro-act .ep-btn{min-height:40px;padding:0 10px;}
+.ep-root .ep-carro-act .ep-btn{min-height:44px;padding:0 10px;}
 .ep-root .ep-pitem-carro{flex:none;display:inline-flex;align-items:center;gap:5px;font-family:'Bebas Neue';
   font-size:16px;line-height:1;color:var(--gold);}
 .ep-root .ep-pitem-carro i{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold-b);}
@@ -215,8 +186,7 @@
 .ep-root .ep-rev-sum:hover{background:var(--card3);}
 .ep-root .ep-rev-sum:focus-visible{outline:2px solid var(--gold-b);outline-offset:-2px;}
 .ep-root .ep-rev-dot{width:8px;height:8px;flex:none;border-radius:50%;}
-.ep-root .ep-rev-item .ep-rev-dot,
-.ep-root .ep-carro-open .ep-rev-dot{background:currentColor;}
+.ep-root .ep-rev-item .ep-rev-dot{background:currentColor;}
 .ep-root .ep-rev-name{flex:1;min-width:0;font-size:14.5px;font-weight:600;color:var(--txt);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ep-root .ep-rev-n{flex:none;font-size:12px;color:var(--txt2);white-space:nowrap;}
@@ -463,6 +433,31 @@
 .ep-root .ep-audit-entry-hd span{color:var(--txt3);font-size:11px;}
 .ep-root .ep-audit-entry .sum{font-size:12.5px;color:var(--txt2);}
 .ep-root .ep-audit-entry .cost{color:var(--gold);font-weight:600;}
+
+/* ---- HIST1: tarjeta de resumen (una linea) en el panel lateral ---- */
+.ep-root .ep-res-line{font-size:13px;line-height:1.35;color:var(--txt);overflow-wrap:anywhere;}
+
+/* ---- HIST1: ventana del historial (pestañas, filas cerradas y cobros) ---- */
+.ep-root .ep-hist-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px;}
+.ep-root .ep-hist-tab{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:44px;padding:0 6px;
+  border:1px solid var(--brd2);border-radius:10px;background:var(--card2);color:var(--txt2);cursor:pointer;
+  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:0.6px;text-transform:uppercase;}
+.ep-root .ep-hist-tab:hover{border-color:var(--gold-b);color:var(--txt);}
+.ep-root .ep-hist-tab:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
+.ep-root .ep-hist-tab[aria-selected="true"]{background:var(--gold);border-color:var(--gold);color:var(--ep-on-gold);}
+.ep-root .ep-hist-tab b{font-family:'Bebas Neue';font-weight:400;font-size:15px;line-height:1;}
+.ep-root .ep-hist-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.ep-root .ep-hist-item{margin:0;}
+.ep-root .ep-hist-sum{gap:10px;}
+.ep-root .ep-hist-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left;}
+.ep-root .ep-hist-title{font-size:14px;font-weight:600;line-height:1.3;color:var(--txt);overflow-wrap:anywhere;}
+.ep-root .ep-hist-motivo{display:block;font-size:11.5px;line-height:1.3;color:var(--txt2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-hist-fecha{flex:none;font-size:11.5px;color:var(--txt3);white-space:nowrap;}
+.ep-root .ep-hist-total{flex:none;font-family:'Bebas Neue';font-weight:400;font-size:17px;line-height:1;color:var(--gold-ink);white-space:nowrap;}
+.ep-root .ep-hist-cancel{margin:0 12px 10px;}
+.ep-root .ep-hist-movs{padding:2px 12px 8px;}
+.ep-root .ep-hist-vacio{padding:10px 2px;font-size:12.5px;color:var(--txt3);}
 .ep-root .ep-pitch-cta-icon{display:flex;flex:none;width:22px;height:15px;border-radius:2px;overflow:hidden;
   border:1px solid rgba(255,255,255,0.3);}
 .ep-root .ep-pitch-cta-icon i{display:block;}
@@ -772,8 +767,7 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.ep-pausado .ep-hint-btn,                     /* «Hacer principal» */
 .ep-root.ep-pausado .ep-cart-btn,                     /* descartar cambios */
 .ep-root.ep-pausado .ep-cart-go,                      /* «Revisar» / «Enviar» */
-.ep-root.ep-pausado .ep-carro-x,                      /* quitar un jugador del carrito */
-.ep-root.ep-pausado .ep-carro-act,                    /* «Descartar todo» / «Revisar todo» */
+.ep-root.ep-pausado .ep-carro-act,                    /* «Descartar» / «Revisar todo» */
 .ep-root.ep-pausado .ep-emparejar-btn,                /* «Emparejar» */
 .ep-root.ep-pausado .ep-acc.formation,                /* abrir la formacion */
 .ep-root.ep-pausado .ep-pitch-field,                  /* cancha: mover y elegir jugadores */
@@ -783,5 +777,6 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.ep-pausado .mc-btn-go,                       /* «Hacer el cambio» del panel comparar */
 .ep-root.ep-pausado [data-onclick*="commitChanges"],  /* enviar el pedido */
 .ep-root.ep-pausado [data-onclick*="confirmarSolicitarEmparejar"],
+.ep-root.ep-pausado [data-onclick*="cancelarPedidoDesdeHistorial"],  /* cancelar desde el historial */
 .ep-root.ep-pausado [data-onclick*="resetFormationDraft"],
 .ep-root.ep-pausado [data-onclick*="confirmFormation"]{opacity:.45;pointer-events:none;cursor:not-allowed;}
