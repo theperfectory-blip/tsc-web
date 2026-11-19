@@ -27,6 +27,7 @@ const ICN = {
   wallet: '<svg class="icn" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
   save: '<svg class="icn" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   alert: '<svg class="icn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  lista: '<svg class="icn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
 };
 
 
@@ -440,6 +441,7 @@ function montar(contenedor){
 
 function salir(){
   _montadoEn = null;
+  cerrarDetallePedido();
   document.getElementById('pt-rech-ov')?.remove();
   RECHAZO_ID = null;
   window.removeEventListener('tsc:auth', _alCambiarAuth);
@@ -1742,26 +1744,78 @@ function _ptGruposPedidos(){
       .map(t => ({ key: t.key, label: t.label, pedidos: g.tipos.get(t.key) })),
   }));
 }
-function _ptLineasPedido(p){
-  return p.tipo === 'formacion'
-    ? ((p.lines && p.lines.length)
-        ? p.lines.map(l => l.from ? `${escHtml(l.label)}: ${escHtml(l.from)} → ${escHtml(l.to)}` : `${escHtml(l.label)}: ${escHtml(l.to)}`).join('<br>')
-        : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
-    : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
-}
-/* PEDPC: el detalle en texto plano (sin HTML) para la fila compacta de escritorio. */
-function _ptDetalleTexto(p){
-  const trozos = [];
-  if (p.tipo === 'formacion'){
-    if (p.lines && p.lines.length){
-      for (const l of p.lines) trozos.push(l.from ? `${l.label}: ${l.from} → ${l.to}` : `${l.label}: ${l.to}`);
-    } else if (p.formacion && p.formacion.nombre){
-      trozos.push('Formación ' + p.formacion.nombre);
-    }
-  } else {
-    for (const l of (p.lines || [])) trozos.push(`${l.label} ${l.from} → ${l.to}`);
+/* TOOLDET (detalle por pedido): todas las líneas del pedido en un solo formato.
+   Se arman desde p.lines (lo que vio el presidente al pedir) y, si un pedido
+   viejo no trae líneas, desde p.cambios para que no quede nada afuera:
+   atributos con antes → después, habilidades nuevas o quitadas, posiciones,
+   lesiones, altura, edad y pie dominante. */
+function _ptLineasDetalle(p){
+  const out = [];
+  const vistos = new Set();
+  const push = (label, from, to) => {
+    const l = String(label == null ? '' : label).trim();
+    if (!l) return;
+    if (vistos.has(l.toLowerCase())) return;
+    vistos.add(l.toLowerCase());
+    out.push({ label: l, from: from == null ? '' : String(from), to: to == null ? '' : String(to) });
+  };
+  for (const l of (p.lines || [])){
+    if (!l) continue;
+    push(l.label, l.from, l.to);
   }
-  return trozos.join(' · ');
+  const c = p.cambios || null;
+  if (c && typeof c === 'object'){
+    const falta = (label) => !vistos.has(String(label).toLowerCase());
+    if (c.atributos) for (const [campo, v] of Object.entries(c.atributos)) if (falta(campo)) push(campo, '—', v);
+    if (c.escala8) for (const [campo, v] of Object.entries(c.escala8)) if (falta(campo)) push(campo, '—', v);
+    if (c.habilidades) for (const [campo, v] of Object.entries(c.habilidades)) if (falta(campo)) push(campo, v ? '—' : 'habilidad', v ? 'habilidad nueva' : 'quitada');
+    const yaHayPosiciones = Array.from(vistos).some(l => l.indexOf('posición') === 0 || l.indexOf('posicion') === 0);
+    if (Array.isArray(c.posiciones) && !yaHayPosiciones && falta('Posiciones')) push('Posiciones', '—', c.posiciones.join(', '));
+    if (c.posicionRegistrada && falta('Posición natural')) push('Posición natural', '—', c.posicionRegistrada);
+    if (c.banda && falta('Banda')) push('Banda', '—', c.banda);
+    if (c.lesiones !== undefined && falta('Res. lesión')) push('Res. lesión', '—', c.lesiones);
+    if (c.pieDominante !== undefined && falta('Pie dominante')) push('Pie dominante', '—', c.pieDominante);
+    if (c.altura !== undefined && falta('Altura')) push('Altura', '—', c.altura + ' cm');
+    if (c.edad !== undefined && falta('Edad')) push('Edad', '—', c.edad);
+  }
+  return out;
+}
+/* TOOLDET: cambios que Luis suele rechazar (esta temporada no se permiten subir
+   altura ni agregar posiciones a jugadores reales, y la edad es de admin). Solo
+   se resaltan: acá no se rechaza nada automáticamente. */
+function _ptRevisarLinea(l){
+  const label = String((l && l.label) || '').toLowerCase();
+  const from = String((l && l.from) || '');
+  const to = String((l && l.to) || '').toLowerCase();
+  if (label.indexOf('altura') === 0) return true;
+  if (label.indexOf('edad') === 0) return true;
+  if (label.indexOf('posición:') === 0 || label.indexOf('posicion:') === 0){
+    if (to === 'agregada') return true;
+    if (from === '—' && to !== 'quitada') return true;
+  }
+  return false;
+}
+/* TOOLDET: título de la fila (equipo › tipo › pedido). */
+function _ptTituloPedido(p){
+  const tipo = _ptTipoPedido(p);
+  if (tipo === 'alineacion') return 'Cambio de alineación';
+  if (tipo === 'formacion'){
+    const nombre = p.formacion && p.formacion.nombre;
+    return 'Cambio de formación' + (nombre ? ' · ' + nombre : '');
+  }
+  if (tipo === 'emparejar'){
+    const nivel = p.nivel != null ? p.nivel : ((p.perfil && p.perfil.max != null) ? p.perfil.max : null);
+    return nivel != null ? 'Emparejar a ' + nivel : 'Emparejar';
+  }
+  return p.playerName || 'Jugador sin nombre';
+}
+function _ptFechaPedido(p){
+  const t = p && p.creadoEn;
+  if (!t) return '';
+  try {
+    const d = t.toDate ? t.toDate() : new Date(t);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('es-CL');
+  } catch (_){ return ''; }
 }
 /* PEDPC: chips de colores por tipo en la fila del equipo (escritorio). */
 function _ptChipsTipoHTML(g){
@@ -1821,42 +1875,29 @@ function _ptPedidoHTML(p, movil){
   const tipo = _ptTipoPedido(p);
   const aplicable = _ptPedidoAplicable(p);
   const eq = _ptClaveEquipo(p);
-  const esFormacion = tipo === 'formacion' || tipo === 'alineacion';
-  const nombre = esFormacion
-    ? (tipo === 'alineacion' ? 'Alineación' : 'Formación') + ((p.formacion && p.formacion.nombre) ? ' · ' + p.formacion.nombre : '')
-    : (p.playerName || 'Jugador sin nombre');
+  const titulo = _ptTituloPedido(p);
+  const nCambios = _ptLineasDetalle(p).length;
   // En PC la casilla elige qué pedidos aplicar. En el teléfono no se aplica nada (3.B).
   const sel = movil ? '' : `<input type="checkbox" class="ped-sel" value="${escAttr(p._id)}" data-eq="${escAttr(eq)}" aria-label="Aplicar este pedido" data-onchange="ptPedSelPedido(this)" ${aplicable ? 'checked' : 'disabled'}>`;
+  const esFormacion = tipo === 'formacion' || tipo === 'alineacion';
   const sub = !esFormacion && p.subscriber ? ' <span class="badge">$</span>' : '';
   const viejo = !movil && !aplicable ? ' <span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : '';
-  const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
-  if (!movil){
-    // PEDPC: fila compacta de escritorio: nombre, detalle en una línea (texto completo en title),
-    // costo y botón de rechazar con ícono X.
-    const detalle = _ptDetalleTexto(p) || 'sin detalle';
-    const titulo = detalle + (fecha ? ' · Enviado: ' + fecha : '');
-    return `<div class="pt-ped-item">
-      <div class="pt-ped-row">
-        ${sel}
-        <span class="pt-ped-nombre">${escHtml(nombre)}${sub}${viejo}</span>
-        <span class="pt-ped-det-uno" title="${escAttr(titulo)}">${escHtml(detalle)}</span>
-        <span class="pt-ped-costo">${_ptCostoTexto(_ptCostoPedido(p))}</span>
-        <button class="btn btn-sm pt-btn-rechazar pt-ped-rech-icn" title="Rechazar pedido" aria-label="Rechazar pedido" data-onclick="ptRechazarPedido('${escAttr(p._id)}')">${ICN.x}</button>
-      </div>
-    </div>`;
-  }
+  // TOOLDET: el emparejar se titula «Emparejar a N»; el jugador va debajo.
+  const nombreJugador = tipo === 'emparejar' && p.playerName ? String(p.playerName) : '';
+  // TOOLDET: la fila ya no corta el detalle: muestra el título, cuántos cambios
+  // trae y un botón «Detalle» que abre todo el pedido en una ventana centrada.
   return `<div class="pt-ped-item">
     <div class="pt-ped-row">
       ${sel}
-      <span class="pt-ped-nombre">${escHtml(nombre)}${sub}${viejo}</span>
+      <span class="pt-ped-nombre">
+        <span class="pt-ped-nombre-t">${escHtml(titulo)}${sub}${viejo}</span>
+        ${nombreJugador ? `<span class="pt-ped-nombre-sub">${escHtml(nombreJugador)}</span>` : ''}
+      </span>
+      <span class="pt-ped-cambios">${nCambios} ${nCambios === 1 ? 'cambio' : 'cambios'}</span>
       <span class="pt-ped-costo">${_ptCostoTexto(_ptCostoPedido(p))}</span>
-      <button class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarPedido('${escAttr(p._id)}')">Rechazar</button>
+      <button type="button" class="btn btn-sm pt-ped-det-btn" data-onclick="ptVerDetallePedido('${escAttr(p._id)}')">${ICN.lista} Detalle</button>
+      <button type="button" class="btn btn-sm pt-btn-rechazar pt-ped-rech-icn" title="Rechazar pedido" aria-label="Rechazar pedido" data-onclick="ptRechazarPedido('${escAttr(p._id)}')">${movil ? 'Rechazar' : ICN.x}</button>
     </div>
-    <details class="pt-ped-det">
-      <summary><span class="pt-ped-chev" aria-hidden="true"></span>Ver detalle</summary>
-      <div class="pt-ped-lineas">${_ptLineasPedido(p) || '<i>sin detalle</i>'}</div>
-      ${fecha ? `<div class="pt-ped-fecha">Enviado: ${escHtml(fecha)}</div>` : ''}
-    </details>
   </div>`;
 }
 function _ptTipoHTML(t, movil){
@@ -1929,6 +1970,90 @@ function ptPedSelPedido(chk){
     todos.indeterminate = marcados > 0 && marcados < sels.length;
   }
   ptPedActualizarPanel();
+}
+
+/* TOOLDET — ventana centrada con TODO el pedido. Bloquea el resto (overlay),
+   tiene scroll propio y cierra con la X, Esc o tocando fuera. No rechaza nada:
+   resalta en ámbar los cambios que Luis suele rechazar (altura, posiciones
+   agregadas y edad) y ofrece el mismo rechazo con motivo que ya existe. */
+function _ptDetalleLineaHTML(l){
+  const revisar = _ptRevisarLinea(l);
+  const hayAntes = l.from !== '' && l.from != null && String(l.from) !== String(l.to);
+  return `<li class="pt-det-line${revisar ? ' pt-det-line--rev' : ''}">
+    <span class="pt-det-lbl">${revisar ? ICN.alert : ''}${escHtml(l.label)}</span>
+    <span class="pt-det-val">${hayAntes ? `<span class="pt-det-from">${escHtml(String(l.from))}</span><span class="pt-det-arrow" aria-hidden="true">→</span>` : ''}<span class="pt-det-to">${escHtml(l.to)}</span>${revisar ? '<span class="pt-det-rev">revisar</span>' : ''}</span>
+  </li>`;
+}
+function _ptDetalleHTML(p){
+  const equipo = p.teamName || (p.teamId != null ? String(p.teamId) : 'Sin equipo');
+  const fecha = _ptFechaPedido(p);
+  const lineas = _ptLineasDetalle(p);
+  const nRevisar = lineas.filter(_ptRevisarLinea).length;
+  const g = Number(p.fromGeneral || 0);
+  const s = Number(p.fromSub || 0);
+  const meta = [
+    `<div class="pt-det-meta-i"><span>Equipo</span><b>${escHtml(equipo)}</b></div>`,
+    p.playerName ? `<div class="pt-det-meta-i"><span>Jugador</span><b>${escHtml(p.playerName)}${p.dorsal != null && p.dorsal !== '' ? ' · #' + escHtml(String(p.dorsal)) : ''}</b></div>` : '',
+    fecha ? `<div class="pt-det-meta-i"><span>Enviado</span><b>${escHtml(fecha)}</b></div>` : '',
+    `<div class="pt-det-meta-i"><span>Costo total</span><b>${_ptCostoTexto(_ptCostoPedido(p))}</b></div>`,
+    (g > 0 || s > 0)
+      ? `<div class="pt-det-meta-i"><span>Reparto</span><b>General ${g.toLocaleString('es-CL')} YC · Bono ${s.toLocaleString('es-CL')} YC</b></div>`
+      : '',
+  ].join('');
+  const cuerpo = lineas.length
+    ? `<ul class="pt-det-list">${lineas.map(_ptDetalleLineaHTML).join('')}</ul>`
+    : '<div class="pt-det-empty">Este pedido no trae detalle de cambios.</div>';
+  return `<div class="pt-det-box" role="dialog" aria-modal="true" aria-labelledby="pt-det-tit" tabindex="-1">
+    <div class="pt-det-hd">
+      <div>
+        <h3 id="pt-det-tit">${escHtml(_ptTituloPedido(p))}</h3>
+        <div class="pt-det-hd-sub">${escHtml(equipo)}</div>
+      </div>
+      <button type="button" class="pt-side-close" data-onclick="ptCerrarDetallePedido()" title="Cerrar" aria-label="Cerrar">${ICN.x}</button>
+    </div>
+    <div class="pt-det-meta">${meta}</div>
+    <div class="pt-det-body">
+      <div class="pt-det-resumen"><b>${lineas.length} ${lineas.length === 1 ? 'cambio' : 'cambios'}</b>${nRevisar ? ` · <span class="pt-det-rev">${nRevisar} para revisar</span>` : ''}${_ptPedidoAplicable(p) ? '' : ' · <span class="pt-det-viejo">pedido viejo, sin datos aplicables</span>'}</div>
+      ${cuerpo}
+    </div>
+    <div class="pt-det-foot">
+      <button type="button" class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarDesdeDetalle('${escAttr(p._id)}')">Rechazar</button>
+      <button type="button" class="btn btn-sm" data-onclick="ptCerrarDetallePedido()">Cerrar</button>
+    </div>
+  </div>`;
+}
+function verDetallePedido(id){
+  const p = PEDIDOS_PENDIENTES.find(x => String(x._id) === String(id));
+  if (!p){ showToast('No se encontró el pedido. Recarga la lista.', 'error'); return; }
+  cerrarDetallePedido();
+  const ov = document.createElement('div');
+  ov.id = 'pt-det-ov';
+  ov.className = 'pt-det-ov';
+  ov.setAttribute('data-onclick', 'ptCerrarDetalleFondo(event)');
+  ov.innerHTML = _ptDetalleHTML(p);
+  (_montadoEn || document.body).appendChild(ov);
+  document.addEventListener('keydown', _ptDetalleEsc);
+  const box = ov.querySelector('.pt-det-box');
+  if (box) box.focus();
+}
+function cerrarDetallePedido(){
+  document.getElementById('pt-det-ov')?.remove();
+  document.removeEventListener('keydown', _ptDetalleEsc);
+}
+function _ptDetalleEsc(e){
+  if (e && e.key === 'Escape'){
+    e.preventDefault();
+    cerrarDetallePedido();
+  }
+}
+function cerrarDetalleFondo(e){
+  if (e && e.target && e.target.id === 'pt-det-ov') cerrarDetallePedido();
+}
+/* El rechazo del modal es el mismo flujo de siempre: cierra el detalle y abre
+   la ventana de motivo obligatorio. */
+function rechazarDesdeDetalle(id){
+  cerrarDetallePedido();
+  rechazarPedido(id);
 }
 
 /* Tras pintar Pedidos: restaura el log de la ultima aplicacion (si vuelve a pintar) y
@@ -3127,6 +3252,10 @@ window.ptPedToggle = ptPedToggle;
 window.ptPedSelEquipo = ptPedSelEquipo;
 window.ptPedSelPedido = ptPedSelPedido;
 window.ptPedAlternarTodo = ptPedAlternarTodo;
+window.ptVerDetallePedido = verDetallePedido;
+window.ptCerrarDetallePedido = cerrarDetallePedido;
+window.ptCerrarDetalleFondo = cerrarDetalleFondo;
+window.ptRechazarDesdeDetalle = rechazarDesdeDetalle;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
 window.ptVincularEquipo = vincularEquipo;
