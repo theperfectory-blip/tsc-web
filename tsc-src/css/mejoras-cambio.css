@@ -187,3 +187,8 @@
 .ep-root .ep-form-bench .ep-form-subbtn{grid-template-columns:44px minmax(0,1fr) 44px auto;}
 .ep-root .ep-form-bench .ep-form-cmpd{display:flex;justify-content:flex-end;min-width:0;}
 .ep-root .ep-form-bench .ep-form-cmpd .mc-delta{font-size:12px;padding:1px 7px;white-space:nowrap;}
+
+/* Jimbo: con un solo jugador elegido la ficha va en AMARILLO (titular o banca).
+   Rojo y verde quedan solo para la comparacion (sale / entra). */
+.mc-ficha{--mc-down:#F2C94C;--mc-up:#F2C94C;}
+:root[data-theme="light"] .mc-ficha{--mc-down:#8A6D12;--mc-up:#8A6D12;}
