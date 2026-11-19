@@ -34,12 +34,13 @@ const MEJ_MARKUP = `
       <section class="ep-saldo" aria-label="YunaCoins del equipo">
         <div class="ep-saldo-lbl">Tu saldo</div>
         <div class="ep-saldo-val" title="YunaCoins cargadas en la cuenta del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
+        <div class="ep-edicion" id="ep-edicion" hidden><span id="ep-edicion-lbl">Esta edición</span><b id="ep-edicion-val"></b><span class="ep-edicion-note" id="ep-edicion-note"></span></div>
         <div class="ep-cap">
           <div class="ep-cap-txt"><span>Tope del equipo: queda <b id="ep-balance-general">0</b> de <span id="ep-hero-general-cap">0</span></span></div>
           <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
           <div class="ep-cap-desg" id="ep-cap-desg" hidden></div>
         </div>
-        <div class="ep-disp">Disponible ahora: <b id="ep-disp-val">0</b> <span id="ep-disp-quien"></span></div>
+        <div class="ep-disp" id="ep-disp" hidden>Puedes gastar hasta <b id="ep-disp-val">0</b> YC: te limita el tope de la temporada</div>
       </section>
 
       <div class="ep-access">
@@ -1600,9 +1601,16 @@ function _topeEquipoDatos(){
 }
 /* la zona de yunacoins vive fuera del editor (es el dato mas importante);
    los numeros bajan en vivo (antes de aplicar/confirmar) y el tope solo
-   cambia cuando cambian los suscriptores, el extra o las reglas. */
+   cambia cuando cambian los suscriptores, el extra o las reglas.
+   SALDO1: es el UNICO bloque de saldo del presidente (el panel grande
+   «Presupuesto de la temporada» se quito de ahi). Muestra: tu saldo, la barra
+   del tope con su desglose chico, «Gastado: N» dentro del desglose, «Esta
+   edición: −N YC» debajo del saldo y, SOLO cuando el tope limita (queda del
+   tope < saldo), la linea «Puedes gastar hasta X». Si limita el saldo no se
+   repite el mismo numero. */
 function renderHero(){
-  const cost = pendingCostSinReservar();
+  const cost = pendingCostSinReservar(); // lo que suma la edicion en curso (lo reservado no se cuenta dos veces)
+  const costPedido = pendingCost();      // costo total de los cambios en curso
   const d = _topeEquipoDatos();
   const r = d.r;
   // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
@@ -1614,22 +1622,47 @@ function renderHero(){
   document.getElementById('ep-hero-general-cap').textContent = _fmtYC(d.total);
   document.getElementById('ep-balance-general').textContent = _fmtYC(queda);
   document.getElementById('ep-balance-total').textContent = _fmtYC(saldo);
+  // desglose chico del tope; «Gastado: N» entra aca (solo si hay algo gastado)
   const desg = document.getElementById('ep-cap-desg');
-  if (desg){ desg.textContent = d.desglose; desg.hidden = !d.desglose; }
-  // disponible para gastar ahora: el menor entre el saldo y lo que queda del
-  // tope, sin superar lo que la edicion en curso todavia no desconto (BONO-2).
+  if (desg){
+    const gastado = (r.gastadoGeneral || 0) + (r.gastadoSub || 0);
+    const partes = [];
+    if (d.desglose) partes.push(d.desglose);
+    if (gastado > 0) partes.push('Gastado: ' + _fmtYC(gastado));
+    desg.textContent = partes.join(' · ');
+    desg.hidden = !partes.length;
+  }
+  // «Esta edición: −N YC»: el costo de lo que se esta editando ahora, solo si suma.
+  const ed = document.getElementById('ep-edicion');
+  if (ed){
+    const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(currentPlayer());
+    ed.hidden = !(costPedido > 0);
+    const lbl = document.getElementById('ep-edicion-lbl');
+    if (lbl) lbl.textContent = pendiente ? 'Tu pedido' : 'Esta edición';
+    const val = document.getElementById('ep-edicion-val');
+    if (val) val.textContent = costPedido > 0 ? '−' + _fmtYC(costPedido) + ' YC' : '';
+    const note = document.getElementById('ep-edicion-note');
+    if (note) note.textContent = pendiente && costPedido > 0 ? '· reemplaza tu pedido pendiente' : '';
+  }
+  // «Disponible ahora» solo si el tope es el que limita; si limita el saldo, el
+  // numero ya esta en «Tu saldo» y no se repite (BONO-2).
+  const disponible = Math.max(0, Math.min(saldoBruto, quedaBruto) - cost);
+  const disp = document.getElementById('ep-disp');
+  if (disp) disp.hidden = !(quedaBruto < saldoBruto);
   const dv = document.getElementById('ep-disp-val');
-  if (dv) dv.textContent = _fmtYC(Math.max(0, Math.min(saldoBruto, quedaBruto) - cost));
-  const dq = document.getElementById('ep-disp-quien');
-  if (dq) dq.textContent = '(' + (saldoBruto < quedaBruto ? 'limita tu saldo' : 'limita el tope') + ')';
+  if (dv) dv.textContent = _fmtYC(disponible);
   // barra del tope del equipo: lo que queda sobre el tope TOTAL
   const fill = document.getElementById('ep-cap-fill');
   if (fill) fill.style.width = d.total > 0 ? Math.min(100, Math.max(0, queda / d.total * 100)) + '%' : '0%';
 }
-/* ================= Slice 2.1-A: aviso grande de presupuesto =================
-   Arriba del editor, en el presidente y en la Tool (modo admin). Los numeros salen de
-   YUNACOINS_RULES.resumenPresupuesto (pura, con tests en tools/test-aviso-presupuesto.js).
-   Modo admin: la Tool pasa gastado, extra, motivo, pendientesOtros y equipo.gratis. */
+/* ================= Slice 2.1-A: aviso de presupuesto (solo Tool PES5) =================
+   SALDO1: en el editor del PRESIDENTE este panel ya no se pinta (su bloque compacto
+   «Tu saldo» muestra los mismos numeros una sola vez). En la Tool del admin se
+   conserva porque ahi la plantilla —y con ella el bloque compacto— esta oculta, y
+   porque tiene avisos propios («Edición gratis», «sin cobro», pendientes de otros).
+   Los numeros salen de YUNACOINS_RULES.resumenPresupuesto (pura, con tests en
+   tools/test-aviso-presupuesto.js). Modo admin: la Tool pasa gastado, extra,
+   motivo, pendientesOtros y equipo.gratis. */
 function resumenAviso(){
   const extra = APP.extra || 0;
   return YUNACOINS_RULES.resumenPresupuesto({
@@ -1644,6 +1677,11 @@ function resumenAviso(){
 function renderAviso(){
   const el = document.getElementById('ep-aviso');
   if (!el) return;
+  // SALDO1: el panel grande no existe en el editor del presidente (el bloque
+  // compacto de «Tu saldo» muestra los mismos numeros, sin repetirlos). Solo la
+  // Tool del admin lo conserva: ahi la plantilla esta oculta y el aviso es el
+  // unico lugar con los numeros y con «Edición gratis» / «sin cobro».
+  if (!ADMIN_EMBED){ el.hidden = true; el.className = 'ep-aviso'; el.innerHTML = ''; return; }
   const e = EQUIPO_TSC;
   if (!e || !APP.draft){ el.hidden = true; el.innerHTML = ''; return; }
   const fmt = n => Math.round(n || 0).toLocaleString('es-CL');

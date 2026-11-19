@@ -85,6 +85,15 @@
 .ep-root .ep-saldo-val{display:flex;align-items:baseline;gap:8px;}
 .ep-root .ep-saldo-val b{font-family:'Bebas Neue';font-weight:400;font-size:54px;line-height:0.9;color:var(--gold);}
 .ep-root .ep-saldo-val span{font-family:'Barlow Condensed';font-weight:700;font-size:16px;color:var(--gold-lo);}
+/* SALDO1 · «Esta edición: −N YC»: debajo del saldo, solo cuando la edición suma.
+   El costo es una linea chica; no compite con el saldo grande. */
+.ep-root .ep-edicion{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;margin-top:-4px;
+  font-family:'Barlow Condensed';font-weight:600;font-size:13px;letter-spacing:0.7px;text-transform:uppercase;color:var(--txt2);}
+.ep-root .ep-edicion[hidden]{display:none;}
+.ep-root .ep-edicion b{font-family:'Bebas Neue';font-weight:400;font-size:22px;line-height:1;letter-spacing:0.5px;
+  text-transform:none;color:var(--gold);}
+.ep-root .ep-edicion-note{font-family:'Barlow';font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--txt3);}
+.ep-root .ep-edicion-note:empty{display:none;}
 .ep-root .ep-cap{display:flex;flex-direction:column;gap:6px;}
 .ep-root .ep-cap-txt{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;font-size:13px;color:var(--txt2);}
 .ep-root .ep-cap-txt b{color:var(--gold);font-weight:600;}
@@ -92,13 +101,19 @@
 .ep-root .ep-cap-bar i{display:block;height:100%;min-width:0;border-radius:3px;background:var(--gold);}
 .ep-root .ep-cap-desg{font-size:11.5px;line-height:1.35;color:var(--txt2);}
 .ep-root .ep-cap-desg[hidden]{display:none;}
-.ep-root .ep-disp{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 6px;padding-top:12px;border-top:1px solid var(--brd);
-  font-size:13px;color:var(--txt2);}
-.ep-root .ep-disp b{font-family:'Bebas Neue';font-weight:400;font-size:20px;line-height:1;color:var(--txt);}
-.ep-root .ep-disp span{font-size:12px;color:var(--txt2);}
+/* SALDO1 · linea de aviso corta: «Puedes gastar hasta X: te limita el tope de la
+   temporada». Solo aparece cuando el tope limita (queda del tope < saldo); si limita
+   el saldo no se muestra nada, porque el numero ya esta en «Tu saldo». */
+.ep-root .ep-disp{padding-top:12px;border-top:1px solid var(--brd);
+  font-size:12.5px;line-height:1.35;color:var(--txt2);}
+.ep-root .ep-disp[hidden]{display:none;}
+.ep-root .ep-disp b{font-family:'Barlow Condensed';font-weight:700;font-size:13.5px;color:var(--txt);}
 
-/* aviso grande de presupuesto (slice 2.1-A): arriba del editor, presidente y Tool.
+/* aviso de presupuesto (slice 2.1-A): SOLO en la Tool del admin (SALDO1). En el
+   editor del presidente el panel esta oculto: sus numeros ya estan en el bloque
+   compacto de «Tu saldo» y repetirlos era el problema de la captura de Jimbo.
    Una columna en el telefono (375 px), dos desde 560 px. Sin scroll horizontal. */
+.ep-root:not(.admin-embed) .ep-aviso{display:none;}
 .ep-root .ep-aviso{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px;background:var(--card);
   border:1px solid var(--gold-b);min-width:0;max-width:100%;overflow-wrap:anywhere;}
 .ep-root .ep-aviso[hidden]{display:none;}
