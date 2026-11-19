@@ -109,6 +109,7 @@ function mejora(uid, teamId, extra = {}){
     cambios: { atributos: { ataque: 70 } }, dorsal: '10', subscriber: false,
     lines: [{ label: 'Ataque', from: '60', to: '70', cost: 100 }],
     totalCost: 100, fromGeneral: 100, fromSub: 0,
+    cliente: 2,
     estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
   };
 }
@@ -118,7 +119,7 @@ function formacion(uid, teamId, extra = {}){
     uid, teamId: String(teamId), teamName: 'Club', pes5Club: 'Club', tipo: 'formacion', pes5ClubIdx: teamId,
     formacion: { nombre: '4-4-2', slots: [{ slot: 0, jugador: 1, prof: 1, lat: null, posNombre: 'PT' }] },
     lines: [{ label: 'Formación', from: '4-3-3', to: '4-4-2' }],
-    totalCost: 0, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
+    totalCost: 0, cliente: 2, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
   };
 }
 
@@ -217,7 +218,7 @@ async function main(){
     playerId: 'r1', playerName: 'Juan', registro: 1, dorsal: null, subscriber: false, perfil: 'base', nivel: 80,
     cambios: { atributos: { Ataque: 80, Salto: 80 } },
     lines: [{ label: 'Ataque', from: 79, to: 80 }, { label: 'Salto', from: 40, to: 80 }],
-    totalCost: 0, fromGeneral: 0, fromSub: 0, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
+    totalCost: 0, fromGeneral: 0, fromSub: 0, cliente: 2, estado: 'pendiente', creadoEn: '2026-06-01T00:00:00.000Z', ...extra,
   });
   // Sin doc pes5_config/reglas, nadie puede emparejar (el tope de cada perfil es 0).
   await expect('emparejar: sin reglas en el servidor, presidente NO pide emparejar (cierra por defecto)', 403,
@@ -376,6 +377,36 @@ async function main(){
   await expect('save-meta: presidente NO borra los metadatos', 403, await op.del('pes5_config/save', AS.pres5));
   await expect('save-meta: admin reemplaza los metadatos (nueva subida)', 200,
     await op.update('pes5_config/save', { subidoEn: '2026-11-18T09:00:00.000Z', tamano: 1250400 }, AS.admin));
+
+  // ---- MINVER · version minima del cliente: pes5_config/app = { minCliente } ----
+  // El editor manda `cliente` (MEJORAS_CLIENTE) en todo pedido y las reglas lo comparan con
+  // pes5_config/app.minCliente. Sin documento no hay minimo; una APK vieja (sin campo o con
+  // un numero menor) se rechaza en cuanto el admin fija el minimo. El admin nunca queda bloqueado.
+  const sinCliente = o => { const c = { ...o }; delete c.cliente; return c; };
+  await expect('minver: sin pes5_config/app, el pedido con cliente 2 se crea', 200,
+    await op.create(`pedidos_pes5/${nuevoId('minver-sin-doc')}`, mejora('pres5', 5), AS.pres5));
+  await expect('minver: admin fija el minimo (pes5_config/app.minCliente = 2)', 200,
+    await op.create('pes5_config/app', { minCliente: 2 }, AS.admin));
+  await expect('minver: el presidente lee el minimo (lo usa el aviso del editor)', 200,
+    await op.get('pes5_config/app', AS.pres5));
+  await expect('minver: anonimo no lee el minimo', 403,
+    await op.get('pes5_config/app', AS.anon));
+  await expect('minver: cliente 2 (el minimo) se crea', 200,
+    await op.create(`pedidos_pes5/${nuevoId('minver-ok')}`, mejora('pres5', 5), AS.pres5));
+  await expect('minver: formacion con cliente 2 se crea', 200,
+    await op.create(`pedidos_pes5/${nuevoId('minver-form')}`, formacion('pres5', 5), AS.pres5));
+  await expect('minver: cliente 1 (menor que el minimo) se rechaza', 403,
+    await op.create(`pedidos_pes5/${nuevoId('minver-viejo')}`, mejora('pres5', 5, { cliente: 1 }), AS.pres5));
+  await expect('minver: pedido sin campo cliente (APK vieja) se rechaza', 403,
+    await op.create(`pedidos_pes5/${nuevoId('minver-sin-campo')}`, sinCliente(mejora('pres5', 5)), AS.pres5));
+  await expect('minver: formacion sin campo cliente (APK vieja) se rechaza', 403,
+    await op.create(`pedidos_pes5/${nuevoId('minver-form-vieja')}`, sinCliente(formacion('pres5', 5)), AS.pres5));
+  await expect('minver: el admin crea su pedido aunque no mande cliente', 200,
+    await op.create(`pedidos_pes5/${nuevoId('minver-admin')}`, sinCliente(mejora('admin5', 5)), AS.admin5));
+  await expect('minver: admin quita el minimo', 200,
+    await op.del('pes5_config/app', AS.admin));
+  await expect('minver: sin minimo, el pedido sin cliente vuelve a pasar', 200,
+    await op.create(`pedidos_pes5/${nuevoId('minver-libre')}`, sinCliente(mejora('pres5', 5)), AS.pres5));
 
   console.log(`\nrules-pes5: ${total - fallos}/${total} casos OK`);
   if (fallos) { console.log(`${fallos} FALLO(S)`); process.exit(1); }

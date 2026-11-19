@@ -95,6 +95,27 @@
   border-top:1px solid var(--brd);font-size:12.5px;color:var(--txt2);}
 #page-pes5-admin .pt-cobro-total b{font-family:'Bebas Neue';font-size:18px;color:var(--gold);}
 #page-pes5-admin .pt-cobro-faltante{font-size:11.5px;color:#f87171;}
+/* BONO4: las mismas dos barras del editor (bono y general) en la barra de
+   escritura del plantel; la que baja se ilumina ~400 ms. Sin animación con
+   prefers-reduced-motion. */
+#page-pes5-admin .pt-barras{display:flex;flex-direction:column;gap:10px;margin-top:8px;max-width:560px;}
+#page-pes5-admin .pt-barra{display:flex;flex-direction:column;gap:5px;border-radius:10px;padding:2px 4px;margin:0 -4px;}
+#page-pes5-admin .pt-barra[hidden]{display:none;}
+#page-pes5-admin .pt-barra-txt{font-size:12px;color:var(--txt2);}
+#page-pes5-admin .pt-barra-txt b{color:var(--gold);font-weight:600;}
+#page-pes5-admin .pt-barra-bar{display:block;height:5px;border-radius:3px;background:var(--card3);overflow:hidden;}
+#page-pes5-admin .pt-barra-bar i{display:block;height:100%;min-width:0;border-radius:3px;background:var(--gold);
+  transition:width 300ms ease-out;}
+@keyframes pt-barra-destello{
+  0%{background:transparent;}
+  25%{background:var(--gold-l);box-shadow:0 0 0 1px var(--gold-b);}
+  100%{background:transparent;box-shadow:0 0 0 0 transparent;}
+}
+#page-pes5-admin .pt-barra.pt-barra-baja{animation:pt-barra-destello 400ms ease-out;}
+@media (prefers-reduced-motion:reduce){
+  #page-pes5-admin .pt-barra-bar i{transition:none;}
+  #page-pes5-admin .pt-barra.pt-barra-baja{animation:none;}
+}
 #page-pes5-admin .pt-empty{padding:50px 20px;text-align:center;color:var(--txt3);border:1px dashed var(--brd);border-radius:var(--rl);}
 #page-pes5-admin .pt-empty .icn{width:30px;height:30px;margin-bottom:8px;}
 #page-pes5-admin .pt-log{font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow:auto;
@@ -151,22 +172,61 @@
 #page-pes5-admin .btn:disabled:not(.btn-primary):hover{border-color:var(--brd2);background:transparent;}
 #page-pes5-admin .pt-acciones{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;}
 
-/* 3.B — pedidos en tarjetas bajo 640 px (en los dos modos). La tabla sigue siendo la
-   misma: solo cambia el layout, con data-label en cada celda. */
-@media(max-width:639px){
-#page-pes5-admin .pt-tbl-pedidos thead{display:none;}
-#page-pes5-admin .pt-tbl-pedidos,
-#page-pes5-admin .pt-tbl-pedidos tbody{display:block;width:100%;}
-#page-pes5-admin .pt-tbl-pedidos tr{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);padding:12px 14px;margin-bottom:10px;}
-#page-pes5-admin .pt-tbl-pedidos td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:0;border:none;text-align:left !important;white-space:normal;word-break:break-word;}
-#page-pes5-admin .pt-tbl-pedidos td::before{content:attr(data-label);flex:none;color:var(--txt3);font-size:12px;}
-#page-pes5-admin .pt-tbl-pedidos td[data-label="Aplicar"]{justify-content:flex-start;}
-#page-pes5-admin .pt-tbl-pedidos td.pt-td-accion{display:block;margin-top:4px;}
-#page-pes5-admin .pt-tbl-pedidos td.pt-td-accion::before{content:none;}
-#page-pes5-admin .pt-tbl-pedidos .pt-btn-rechazar{width:100%;min-height:44px;}
 /* Bloque Publicar plantillas dentro de Pedidos (antes su propia pestaña). */
+@media(max-width:639px){
 #page-pes5-admin .pt-pub-block{margin-top:22px;padding-top:16px;border-top:1px solid var(--brd);}
 #page-pes5-admin .pt-pub-title{font-family:'Bebas Neue';font-size:20px;letter-spacing:0.5px;margin:0 0 4px;}
+}
+
+/* PEDIDOS-3N — acordeón de pedidos: equipo › tipo › pedido.
+   Cada nivel nace cerrado. Los colores salen de las variables del tema, así que
+   sirve en claro y oscuro sin reglas extra. */
+#page-pes5-admin .pt-ped-acc{display:flex;flex-direction:column;gap:10px;}
+#page-pes5-admin .pt-ped-team{border:1px solid var(--brd2);border-radius:var(--rl);background:var(--card);overflow:hidden;}
+#page-pes5-admin .pt-ped-team-hd{display:flex;align-items:center;gap:8px;padding:0 10px;}
+#page-pes5-admin .pt-ped-team-hd:hover{background:var(--card2);}
+#page-pes5-admin .pt-ped-toggle{display:flex;align-items:center;gap:8px;flex:1;min-width:0;width:100%;background:none;
+  border:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
+#page-pes5-admin .pt-ped-team-toggle{flex-wrap:wrap;padding:10px 0;min-height:44px;}
+#page-pes5-admin .pt-ped-toggle:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;border-radius:4px;}
+#page-pes5-admin .pt-ped-chev{width:0;height:0;flex:none;border-left:6px solid var(--txt3);border-top:4px solid transparent;
+  border-bottom:4px solid transparent;transition:transform var(--dur-fast) var(--ease-out);}
+#page-pes5-admin .pt-ped-toggle[aria-expanded="true"] .pt-ped-chev{transform:rotate(90deg);}
+#page-pes5-admin .pt-ped-allchk{width:18px;height:18px;flex:none;margin:0;accent-color:var(--gold);cursor:pointer;}
+#page-pes5-admin .pt-ped-team-nombre{flex:1 1 130px;min-width:0;font-family:'Barlow Condensed';font-weight:700;
+  font-size:15px;letter-spacing:0.4px;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-ped-team-meta{flex:none;font-size:12px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-team-body{display:flex;flex-direction:column;gap:6px;padding:8px 10px 10px;}
+#page-pes5-admin .pt-ped-team-body[hidden],
+#page-pes5-admin .pt-ped-type-body[hidden]{display:none;}
+#page-pes5-admin .pt-ped-type{border:1px solid var(--brd);border-radius:var(--r);background:var(--card2);overflow:hidden;}
+#page-pes5-admin .pt-ped-type-toggle{padding:8px 10px;min-height:40px;}
+#page-pes5-admin .pt-ped-type-toggle:hover{background:var(--card3);}
+#page-pes5-admin .pt-ped-type-nombre{flex:1;min-width:0;font-family:'Barlow Condensed';font-weight:700;font-size:13px;
+  letter-spacing:0.8px;text-transform:uppercase;color:var(--txt2);}
+#page-pes5-admin .pt-ped-cant{flex:none;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;
+  background:var(--card3);border:1px solid var(--brd);color:var(--txt2);font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-type-body{display:flex;flex-direction:column;}
+#page-pes5-admin .pt-ped-item{border-top:1px solid var(--brd);background:var(--card);}
+#page-pes5-admin .pt-ped-item:first-child{border-top:none;}
+#page-pes5-admin .pt-ped-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;}
+#page-pes5-admin .pt-ped-row .ped-sel{width:18px;height:18px;flex:none;margin:0;accent-color:var(--gold);cursor:pointer;}
+#page-pes5-admin .pt-ped-nombre{display:flex;flex-direction:column;gap:1px;flex:1 1 130px;min-width:0;font-size:13.5px;line-height:1.3;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-ped-nombre-t{min-width:0;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-ped-nombre-sub{font-size:11.5px;color:var(--txt3);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-ped-cambios{flex:none;font-size:11px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-costo{flex:none;font-size:12.5px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-row .badge{white-space:nowrap;}
+#page-pes5-admin .pt-ped-det-btn{display:inline-flex;align-items:center;gap:5px;flex:none;padding:4px 8px;font-size:11.5px;}
+#page-pes5-admin .pt-ped-det-btn .icn{width:13px;height:13px;}
+@media(max-width:639px){
+#page-pes5-admin .pt-ped-team-hd{padding:0 8px;}
+#page-pes5-admin .pt-ped-team-body{padding:8px;}
+#page-pes5-admin .pt-ped-type-toggle{min-height:44px;}
+#page-pes5-admin .pt-ped-row{padding:10px;}
+#page-pes5-admin .pt-ped-nombre{font-size:14px;}
+#page-pes5-admin .pt-ped-row .pt-btn-rechazar{flex:1 1 auto;min-height:44px;margin-top:2px;}
+#page-pes5-admin .pt-ped-row .pt-ped-det-btn{flex:1 1 auto;justify-content:center;min-height:44px;margin-top:2px;}
 }
 
 /* 3.C — layout angosto: sin scroll horizontal a 375 px */
@@ -235,3 +295,168 @@
 .confirm-box .pt-aviso.fuerte{border-color:var(--red);background:transparent;color:var(--red);}
 .confirm-box .pt-aviso svg.icn{flex:0 0 auto;margin-top:2px;}
 .confirm-box .pt-chk{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:14px;color:var(--txt);}
+
+/* ============================================================
+   PEDPC — Pedidos en escritorio.
+   Lista en tabla (casilla · equipo · pedidos · tipos · costo) a la izquierda y
+   panel fijo de selección a la derecha. A partir de 861 px; por debajo queda el
+   acordeón de una columna de siempre. Los colores de los chips salen de estos
+   tokens, con su versión de modo claro.
+   ============================================================ */
+#page-pes5-admin{
+  --pt-chip-mejoras:var(--gold);
+  --pt-chip-mejoras-bg:var(--gold-l);
+  --pt-chip-mejoras-brd:var(--gold-b);
+  --pt-chip-alineacion:#7EB0FF;
+  --pt-chip-alineacion-bg:rgba(59,130,246,0.14);
+  --pt-chip-alineacion-brd:rgba(59,130,246,0.38);
+  --pt-chip-formacion:#46D98A;
+  --pt-chip-formacion-bg:rgba(37,168,100,0.14);
+  --pt-chip-formacion-brd:rgba(37,168,100,0.4);
+  --pt-chip-emparejar:#B49CFA;
+  --pt-chip-emparejar-bg:rgba(139,92,246,0.15);
+  --pt-chip-emparejar-brd:rgba(139,92,246,0.42);
+  /* TOOLDET: ámbar de «revisar» (altura, posiciones agregadas, edad). */
+  --pt-amber:#E9A93C;
+  --pt-amber-bg:rgba(233,169,60,0.13);
+  --pt-amber-brd:rgba(233,169,60,0.45);
+}
+[data-theme="light"] #page-pes5-admin{
+  --pt-chip-mejoras:var(--gold-ink);
+  --pt-chip-mejoras-bg:rgba(201,168,76,0.14);
+  --pt-chip-mejoras-brd:rgba(122,95,30,0.35);
+  --pt-chip-alineacion:#1D4ED8;
+  --pt-chip-alineacion-bg:rgba(59,130,246,0.1);
+  --pt-chip-alineacion-brd:rgba(29,78,216,0.3);
+  --pt-chip-formacion:#166F42;
+  --pt-chip-formacion-bg:rgba(37,168,100,0.1);
+  --pt-chip-formacion-brd:rgba(22,111,66,0.3);
+  --pt-chip-emparejar:#6D28D9;
+  --pt-chip-emparejar-bg:rgba(139,92,246,0.1);
+  --pt-chip-emparejar-brd:rgba(109,40,217,0.3);
+  --pt-amber:#8A5400;
+  --pt-amber-bg:rgba(217,119,6,0.12);
+  --pt-amber-brd:rgba(138,84,0,0.34);
+}
+#page-pes5-admin .pt-ped-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;
+  border:1px solid transparent;font-size:11px;font-weight:600;line-height:1;white-space:nowrap;
+  font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-chip b{font-weight:700;}
+#page-pes5-admin .pt-ped-chip.pt-tipo-mejoras{color:var(--pt-chip-mejoras);background:var(--pt-chip-mejoras-bg);border-color:var(--pt-chip-mejoras-brd);}
+#page-pes5-admin .pt-ped-chip.pt-tipo-alineacion{color:var(--pt-chip-alineacion);background:var(--pt-chip-alineacion-bg);border-color:var(--pt-chip-alineacion-brd);}
+#page-pes5-admin .pt-ped-chip.pt-tipo-formacion{color:var(--pt-chip-formacion);background:var(--pt-chip-formacion-bg);border-color:var(--pt-chip-formacion-brd);}
+#page-pes5-admin .pt-ped-chip.pt-tipo-emparejar{color:var(--pt-chip-emparejar);background:var(--pt-chip-emparejar-bg);border-color:var(--pt-chip-emparejar-brd);}
+
+#page-pes5-admin .pt-ped-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start;}
+#page-pes5-admin .pt-ped-main{min-width:0;}
+#page-pes5-admin .pt-ped-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+#page-pes5-admin .pt-ped-bar-txt{font-size:12px;color:var(--txt3);font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-todo{display:inline-flex;align-items:center;gap:6px;flex:none;}
+#page-pes5-admin .pt-ped-side{position:sticky;top:14px;display:flex;flex-direction:column;gap:12px;
+  padding:14px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);
+  max-height:calc(100vh - 28px);overflow:auto;}
+#page-pes5-admin .pt-ped-side-title{font-family:'Bebas Neue';font-size:19px;letter-spacing:0.5px;margin:0;}
+#page-pes5-admin .pt-ped-res{display:flex;flex-direction:column;gap:6px;}
+#page-pes5-admin .pt-ped-res-line{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:12.5px;color:var(--txt2);}
+#page-pes5-admin .pt-ped-res-line b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-res-total{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:2px;padding-top:8px;border-top:1px solid var(--brd);font-size:13px;color:var(--txt2);}
+#page-pes5-admin .pt-ped-res-total b{font-family:'Bebas Neue';font-size:22px;color:var(--gold-ink);}
+#page-pes5-admin .pt-ped-cerrado{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;
+  font-size:13px;color:var(--txt2);background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
+#page-pes5-admin .pt-ped-cerrado input{width:16px;height:16px;margin:0;flex:none;accent-color:var(--gold);cursor:pointer;}
+#page-pes5-admin .pt-ped-side .btn{justify-content:center;}
+#page-pes5-admin .pt-ped-side .pt-log{margin-top:0;max-height:190px;}
+#page-pes5-admin .pt-ped-side .pt-log:empty{display:none;}
+
+@media(min-width:861px){
+#page-pes5-admin .pt-ped-head,
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-hd{display:grid;align-items:center;gap:8px;padding:0 12px;
+  grid-template-columns:26px minmax(0,1fr) 64px minmax(0,1.1fr) 84px;}
+#page-pes5-admin .pt-ped-head{min-height:30px;font-family:'Barlow Condensed';font-weight:700;font-size:11px;
+  letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+#page-pes5-admin .pt-ped-head span:nth-child(3),
+#page-pes5-admin .pt-ped-head span:nth-child(5){text-align:right;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-hd{min-height:46px;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-toggle{padding:10px 0;min-height:44px;flex-wrap:nowrap;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-meta{display:none;}
+#page-pes5-admin .pt-ped-team-cant{font-size:12.5px;color:var(--txt2);text-align:right;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-team-tipos{display:flex;flex-wrap:wrap;gap:4px;min-width:0;}
+#page-pes5-admin .pt-ped-team-costo{font-size:12.5px;color:var(--txt);text-align:right;white-space:nowrap;
+  font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-body{display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;padding:10px;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-body[hidden]{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle{min-height:36px;cursor:default;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle .pt-ped-chev{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-body{display:flex;flex-direction:column;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-row{display:grid;align-items:center;gap:8px;padding:6px 10px;
+  grid-template-columns:18px minmax(0,1fr) 56px 64px auto 30px;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-cambios,
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-costo{text-align:right;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-det-btn{justify-self:end;}
+#page-pes5-admin .pt-ped-rech-icn{justify-self:end;display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;padding:0;background:transparent;border:1px solid transparent;color:var(--txt3);}
+#page-pes5-admin .pt-ped-rech-icn:hover{color:var(--red);border-color:var(--red);background:var(--red-l);}
+#page-pes5-admin .pt-ped-rech-icn .icn{width:14px;height:14px;}
+}
+@media(max-width:860px){
+#page-pes5-admin .pt-ped-layout{grid-template-columns:1fr;}
+#page-pes5-admin .pt-ped-side{position:static;max-height:none;overflow:visible;}
+#page-pes5-admin .pt-ped-head{display:none;}
+#page-pes5-admin .pt-ped-team-cant,
+#page-pes5-admin .pt-ped-team-tipos,
+#page-pes5-admin .pt-ped-team-costo{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle{cursor:pointer;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-body{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle[aria-expanded="true"] + .pt-ped-type-body{display:flex;flex-direction:column;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;}
+#page-pes5-admin .pt-ped-rech-icn{width:auto;height:auto;padding:4px 8px;}
+}
+
+/* TOOLDET — ventana centrada con el pedido completo (botón «Detalle»).
+   Overlay fijo que bloquea el resto, caja con scroll propio y pie con
+   Rechazar / Cerrar. Los cambios a revisar van en ámbar (--pt-amber). */
+#page-pes5-admin .pt-det-ov{position:fixed;inset:0;z-index:965;background:rgba(4,6,10,0.72);
+  display:flex;align-items:center;justify-content:center;padding:16px;}
+#page-pes5-admin .pt-det-box{width:min(620px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+  background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);
+  box-shadow:0 18px 60px rgba(0,0,0,0.45);outline:none;overflow:hidden;}
+#page-pes5-admin .pt-det-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 6px;}
+#page-pes5-admin .pt-det-hd h3{font-family:'Bebas Neue';font-size:20px;letter-spacing:0.5px;margin:0;line-height:1.15;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-det-hd-sub{font-size:12.5px;color:var(--txt3);margin-top:2px;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-det-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 14px;
+  padding:8px 16px 12px;border-bottom:1px solid var(--brd);}
+#page-pes5-admin .pt-det-meta-i span{display:block;font-family:'Barlow Condensed';font-weight:700;font-size:10.5px;
+  letter-spacing:0.9px;text-transform:uppercase;color:var(--txt3);}
+#page-pes5-admin .pt-det-meta-i b{display:block;font-size:13px;font-weight:600;color:var(--txt);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-det-body{flex:1 1 auto;min-height:0;overflow:auto;padding:10px 16px 12px;}
+#page-pes5-admin .pt-det-resumen{font-size:12px;color:var(--txt2);margin-bottom:6px;}
+#page-pes5-admin .pt-det-resumen b{color:var(--txt);font-weight:700;}
+#page-pes5-admin .pt-det-viejo{color:var(--red);}
+#page-pes5-admin .pt-det-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
+#page-pes5-admin .pt-det-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:6px 8px;border-radius:6px;font-size:12.5px;line-height:1.45;}
+#page-pes5-admin .pt-det-line + .pt-det-line{border-top:1px solid var(--brd);}
+#page-pes5-admin .pt-det-lbl{display:flex;align-items:center;gap:6px;min-width:0;color:var(--txt2);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-det-lbl .icn{width:13px;height:13px;flex:none;color:var(--pt-amber);}
+#page-pes5-admin .pt-det-val{flex:none;max-width:62%;text-align:right;color:var(--txt);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-det-from{color:var(--txt3);text-decoration:line-through;text-decoration-thickness:1px;}
+#page-pes5-admin .pt-det-arrow{color:var(--txt3);margin:0 5px;}
+#page-pes5-admin .pt-det-to{font-weight:600;}
+#page-pes5-admin .pt-det-line--rev{background:var(--pt-amber-bg);box-shadow:inset 2px 0 0 var(--pt-amber);}
+#page-pes5-admin .pt-det-line--rev .pt-det-lbl{color:var(--pt-amber);font-weight:600;}
+#page-pes5-admin .pt-det-rev{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
+  border:1px solid var(--pt-amber-brd);color:var(--pt-amber);font-size:10px;font-weight:700;
+  letter-spacing:0.4px;text-transform:uppercase;white-space:nowrap;}
+#page-pes5-admin .pt-det-empty{padding:14px 4px;font-size:12.5px;color:var(--txt3);}
+#page-pes5-admin .pt-det-foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+  padding:10px 16px 14px;border-top:1px solid var(--brd);background:var(--card2);}
+@media(max-width:639px){
+#page-pes5-admin .pt-det-ov{padding:12px;}
+#page-pes5-admin .pt-det-box{max-height:calc(100vh - 24px);}
+#page-pes5-admin .pt-det-line{flex-wrap:wrap;gap:2px 12px;padding:7px 8px;}
+#page-pes5-admin .pt-det-val{max-width:100%;text-align:left;}
+#page-pes5-admin .pt-det-foot .btn{flex:1 1 auto;justify-content:center;min-height:44px;}
+}

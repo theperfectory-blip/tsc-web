@@ -1,0 +1,194 @@
+/* ============================================================
+   Comparar antes de cambiar — tarjeta EN LÍNEA (slice CMP2).
+   Prefijo mc-. Acompaña a js/mejoras-cambio.js.
+
+   Ya no es una hoja inferior ni un panel lateral: se monta dentro del
+   modal de formación (#ep-form-stats), debajo de la banca y las reservas,
+   como parte del flujo de la página (la página se alarga; la cancha nunca
+   queda tapada). En celular y en escritorio es lo mismo.
+
+   Colores: variables propias con respaldo en css/variables.css; el tema
+   claro se redefine con :root[data-theme="light"], igual que
+   css/mejoras-editor.css.
+   ============================================================ */
+
+:root{
+  --mc-panel-line:var(--brd2,rgba(255,255,255,0.13));
+  --mc-track:rgba(255,255,255,0.08);
+  --mc-up:#46D98A;
+  --mc-down:#FF6B6B;
+  --mc-eq:var(--txt2,#8B8F9A);
+  --mc-best-bg:rgba(201,168,76,0.18);
+  --mc-best-txt:var(--gold-hi,#E8D48B);
+  --mc-chip:rgba(255,255,255,0.05);
+  --mc-pos-gk:var(--linea-gk,#E0B84C);
+  --mc-pos-def:var(--linea-def,#8DB6DA);
+  --mc-pos-mid:var(--linea-mid,#5FCB8B);
+  --mc-pos-att:var(--linea-att,#E39A72);
+}
+:root[data-theme="light"]{
+  --mc-panel-line:rgba(0,0,0,0.15);
+  --mc-track:rgba(0,0,0,0.09);
+  --mc-up:#166F42;
+  --mc-down:#B3261E;
+  --mc-best-bg:rgba(201,168,76,0.22);
+  --mc-best-txt:#6E5416;
+  --mc-chip:rgba(0,0,0,0.04);
+  --mc-pos-gk:#8A6D12;
+  --mc-pos-def:#2F5F8A;
+  --mc-pos-mid:#1F7A4A;
+  --mc-pos-att:#A4522A;
+}
+
+/* ---------- tarjeta en línea ---------- */
+.mc-panel,.mc-panel *{box-sizing:border-box;}
+.mc-panel{
+  position:relative;width:100%;min-width:0;
+  display:flex;flex-direction:column;gap:6px;
+  color:var(--txt,#F0EDE6);
+  text-align:left;
+}
+
+/* ---------- encabezado en 3 columnas (comparación) ---------- */
+.mc-head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;}
+.mc-side{display:flex;flex-direction:column;min-width:0;gap:1px;}
+.mc-side-out{align-items:flex-start;text-align:left;}
+.mc-side-in{align-items:flex-end;text-align:right;}
+.mc-tag{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;
+  letter-spacing:1.4px;text-transform:uppercase;}
+.mc-side-out .mc-tag{color:var(--mc-down);}
+.mc-side-in .mc-tag{color:var(--mc-up);}
+.mc-name{max-width:100%;font-family:'Bebas Neue',sans-serif;font-size:20px;line-height:1.05;
+  letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mc-meta{max-width:100%;font-family:'Barlow Condensed',sans-serif;font-weight:600;
+  font-size:12px;letter-spacing:0.4px;color:var(--txt2,#8B8F9A);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mc-swap{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;background:var(--mc-chip);color:var(--txt2,#8B8F9A);}
+.mc-swap svg{width:18px;height:18px;}
+
+/* ---------- pastilla de diferencia ---------- */
+.mc-deltaline{display:flex;justify-content:center;padding:2px 0 4px;}
+.mc-delta{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  letter-spacing:0.3px;padding:2px 9px;border-radius:999px;background:var(--mc-chip);}
+.mc-delta.mc-up{color:var(--mc-up);}
+.mc-delta.mc-down{color:var(--mc-down);}
+.mc-delta.mc-eq{color:var(--mc-eq);}
+
+/* ---------- títulos chicos y filas ---------- */
+.mc-grp{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.mc-grp-hd{margin:6px 0 1px;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--txt3,#555A66);}
+.mc-stats{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.mc-row{display:grid;align-items:center;
+  grid-template-columns:34px minmax(0,1fr) minmax(96px,34%) minmax(0,1fr) 34px;
+  gap:6px;min-height:21px;}
+.mc-row-sm{min-height:19px;}
+.mc-row-data .mc-lbl{color:var(--txt2,#8B8F9A);}
+.mc-spacer{min-width:0;}
+.mc-val{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;
+  line-height:1;padding:2px 4px;border-radius:5px;background:transparent;
+  font-variant-numeric:tabular-nums;}
+.mc-val-out{color:var(--mc-down);text-align:right;}
+.mc-val-in{color:var(--mc-up);text-align:left;}
+.mc-val.mc-best{background:var(--mc-best-bg);color:var(--mc-best-txt);}
+.mc-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12px;
+  letter-spacing:0.4px;color:var(--txt2,#8B8F9A);text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+.mc-bar{position:relative;display:flex;height:6px;border-radius:999px;
+  background:var(--mc-track);overflow:hidden;}
+.mc-bar i{display:block;height:100%;border-radius:999px;}
+.mc-bar-out{justify-content:flex-end;}
+.mc-bar-out i{background:var(--mc-down);}
+.mc-bar-in{justify-content:flex-start;}
+.mc-bar-in i{background:var(--mc-up);}
+
+/* ---------- dos mitades (habilidades y posiciones) ---------- */
+.mc-halves{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;min-width:0;}
+.mc-half{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.mc-half-out{align-items:flex-start;text-align:left;}
+.mc-half-in{align-items:flex-end;text-align:right;}
+.mc-half-tag{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:1px;text-transform:uppercase;}
+.mc-pl-out{color:var(--mc-down);}
+.mc-pl-in{color:var(--mc-up);}
+.mc-list{display:flex;flex-wrap:wrap;gap:3px;margin:0;padding:0;list-style:none;min-width:0;}
+.mc-half-in .mc-list{justify-content:flex-end;}
+.mc-pos{display:inline-flex;align-items:center;gap:3px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10.5px;
+  letter-spacing:0.4px;line-height:1;padding:2px 5px;border-radius:4px;
+  background:var(--mc-chip);border:1px solid transparent;}
+.mc-pos-gk{color:var(--mc-pos-gk);border-color:currentColor;}
+.mc-pos-def{color:var(--mc-pos-def);border-color:currentColor;}
+.mc-pos-mid{color:var(--mc-pos-mid);border-color:currentColor;}
+.mc-pos-att{color:var(--mc-pos-att);border-color:currentColor;}
+.mc-pos-main{background:var(--mc-best-bg);}
+.mc-pos-mark{width:10px;height:10px;flex:none;}
+.mc-hab{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:10.5px;
+  letter-spacing:0.3px;line-height:1.1;padding:2px 5px;border-radius:4px;
+  background:var(--mc-chip);color:var(--txt,#F0EDE6);}
+.mc-none{font-size:12px;color:var(--txt3,#555A66);}
+
+/* ---------- ficha de un solo jugador (mismas piezas, todo el ancho) ---------- */
+.mc-fhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.mc-fid{display:flex;flex-direction:column;min-width:0;gap:1px;}
+.mc-fname{font-family:'Bebas Neue',sans-serif;font-size:20px;line-height:1.05;
+  letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mc-fsub{display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12px;
+  letter-spacing:0.4px;color:var(--txt2,#8B8F9A);}
+.mc-fpos{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:21px;
+  border-radius:5px;background:var(--mc-chip);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:12px;letter-spacing:0.5px;}
+.mc-fdorsal{font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--txt,#F0EDE6);}
+.mc-ftag{color:var(--txt3,#555A66);}
+.mc-ayuda{margin-top:2px;font-size:12px;line-height:1.35;color:var(--gold,#C9A84C);}
+
+/* La ficha usa las mismas filas que la comparación, pero con un solo jugador:
+   etiqueta a la izquierda, barra a todo el ancho (de izquierda a derecha) y
+   valor a la derecha. */
+.mc-ficha .mc-row{grid-template-columns:minmax(88px,30%) minmax(0,1fr) 62px;gap:8px;}
+.mc-ficha .mc-lbl{text-align:left;}
+.mc-ficha .mc-val{text-align:right;}
+.mc-ficha .mc-bar-out{justify-content:flex-start;}
+.mc-ficha .mc-row-data .mc-spacer{height:6px;border-radius:999px;
+  background:var(--mc-track);opacity:.55;}
+
+/* Color del rol, igual que en la comparación: el titular del 11 (el que
+   saldría) va en rojo y el suplente o reserva (el que entraría) en verde. */
+.mc-ficha-sale .mc-fname,
+.mc-ficha-sale .mc-fpos,
+.mc-ficha-sale .mc-fdorsal,
+.mc-ficha-sale .mc-delta{color:var(--mc-down);}
+.mc-ficha-entra .mc-fname,
+.mc-ficha-entra .mc-fpos,
+.mc-ficha-entra .mc-fdorsal,
+.mc-ficha-entra .mc-delta{color:var(--mc-up);}
+
+/* ---------- acciones (al final de la tarjeta, dentro del flujo) ---------- */
+.mc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:7px;
+  border-top:1px solid var(--mc-panel-line);}
+.mc-btn{min-height:44px;padding:0 10px;border-radius:var(--rl,10px);cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13.5px;
+  letter-spacing:0.6px;text-transform:uppercase;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+  background:var(--card3,#222838);color:var(--txt,#F0EDE6);
+  border:1px solid var(--mc-panel-line);
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.mc-btn:hover{filter:brightness(1.08);}
+.mc-btn:focus-visible{outline:2px solid var(--focus-ring,var(--gold,#C9A84C));outline-offset:2px;}
+.mc-btn-go{background:var(--green,#25A864);border-color:transparent;color:#06120B;}
+.mc-btn[disabled]{opacity:.45;pointer-events:none;cursor:not-allowed;}
+
+/* ---------- integración con la formación ---------- */
+/* Pastilla de diferencia en la lista de banca y reservas: cuarta columna de
+   la fila, a la derecha de la sigla. Sin pastilla la columna mide 0 y nada se mueve. */
+.ep-root .ep-form-bench .ep-form-subbtn{grid-template-columns:44px minmax(0,1fr) 44px auto;}
+.ep-root .ep-form-bench .ep-form-cmpd{display:flex;justify-content:flex-end;min-width:0;}
+.ep-root .ep-form-bench .ep-form-cmpd .mc-delta{font-size:12px;padding:1px 7px;white-space:nowrap;}
+
+/* Jimbo: con un solo jugador elegido la ficha va en AMARILLO (titular o banca).
+   Rojo y verde quedan solo para la comparacion (sale / entra). */
+.mc-ficha{--mc-down:#F2C94C;--mc-up:#F2C94C;}
+:root[data-theme="light"] .mc-ficha{--mc-down:#8A6D12;--mc-up:#8A6D12;}

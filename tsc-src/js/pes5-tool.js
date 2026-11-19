@@ -27,6 +27,7 @@ const ICN = {
   wallet: '<svg class="icn" viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
   save: '<svg class="icn" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   alert: '<svg class="icn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  lista: '<svg class="icn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
 };
 
 
@@ -65,10 +66,11 @@ let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habil
      - el wallet real de cada equipo es SIEMPRE `team.yunacoin` (nunca un
        numero de regla — `techoPresupuesto`/`presidentWallet` del editor no
        se usan aca, la tool ya tenia el saldo real).
-     - orden de consumo INVERTIDO: un jugador suscriptor (`j.subscriber`,
-       viene de `leerJugadorCompleto` — nombre que empieza con "$") gasta
-       primero el bono de suscriptores; el resto (o el total si no es
-       suscriptor) sale del tope general. Ver YUNACOINS_RULES.distribuirCosto.
+     - BONO-3: el bono de suscriptores es SOLO para jugadores con «$» (suscriptor,
+       `j.subscriber` de `leerJugadorCompleto` — nombre que empieza con "$"). Un
+       suscriptor gasta primero el bono y, agotado, sigue con el tope general; un
+       jugador sin «$» gasta solo del tope general. Ver
+       YUNACOINS_RULES.distribuirCosto.
      - los topes de TEMPORADA no se guardan en `teams`: se derivan del
        libro `coins` (season actual + reason que empieza con 'mejora PES5')
        cada vez que se elige un club en la pestaña Plantilla — ver
@@ -249,17 +251,28 @@ function _reglasEquipo(teamId){
 // el club elegido (onTeamSelect) y se fuerza de nuevo justo antes de cobrar
 // de verdad (confirmarEscribirAlSave) para no confiar en una foto vieja si
 // otra sesion ya gasto presupuesto de este equipo mientras tanto.
-let GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
+let GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0, transacciones: [] };
 
 async function _refrescarGastoTemporadaEquipo(team, forzar){
-  if (!team){ GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 }; return; }
+  if (!team){ GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0, transacciones: [] }; return; }
   const temp = _temporadaCobro();
   if (!forzar && GASTO_TEMPORADA_CACHE.teamId === team.id && GASTO_TEMPORADA_CACHE.season === temp) return;
   const transacciones = await dbGetAll('coins', c =>
     String(c.teamId) === String(team.id) && c.season === temp &&
     typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
   const gastado = YUNACOINS_RULES.gastoTemporada(transacciones);
-  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: temp, general: gastado.general, sub: gastado.sub };
+  // BONO-5: se guarda tambien el libro (por jugador) para calcular el bono restante de CADA «$».
+  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: temp, general: gastado.general, sub: gastado.sub, transacciones: transacciones };
+}
+// BONO-5: bono que le queda a UN jugador del plantel abierto (su cuota de la temporada menos
+// lo que ya consumió de su bono en el libro `coins`). 0 si no tiene «$». Si el cache es de
+// otro equipo, se usa el libro vacío (bono completo) en vez de mezclar equipos.
+function _bonoRestanteJugadorTool(registro, esSuscriptor, teamId){
+  if (!esSuscriptor || registro == null) return 0;
+  const cachePropio = teamId == null || String(GASTO_TEMPORADA_CACHE.teamId) === String(teamId);
+  const cuota = (_reglasEquipo(teamId != null ? teamId : GASTO_TEMPORADA_CACHE.teamId) || YC_RULES).budgetSubscribers;
+  return YUNACOINS_RULES.bonoRestanteJugador(
+    cachePropio ? (GASTO_TEMPORADA_CACHE.transacciones || []) : [], [], registro, cuota, true);
 }
 
 // Equipo TSC (si existe) al que pertenece el club actualmente abierto en la
@@ -294,26 +307,25 @@ function _nSuscriptoresDelEquipo(teamId){
   return PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx)
     .filter(id => PES5_EDITOR.nombreDeRegistro(PLANO, id).startsWith('$')).length;
 }
-// Reparte TODOS los cambios pendientes del plantel abierto entre bono de
-// suscriptores y tope general, con el orden nuevo (punto 5b): itera
-// PLANTILLA_ACTUAL en orden de roster y va descontando el bono restante
-// jugador por jugador — el orden de asignacion del bono entre varios
-// suscriptores editados en un mismo lote no esta especificado en el doc,
-// es una decision de esta implementacion (documentada tambien en
-// distribuirCosto, js/yunacoins-rules.js). Devuelve
+// Reparte TODOS los cambios pendientes del plantel abierto entre bono de CADA jugador y
+// tope general (BONO-5). El bono es diferencial por jugador: cada «$» gasta primero SU
+// propio bono restante (su cuota menos lo que ya gastó de su bono esta temporada) y,
+// agotado, el resto va al general; un jugador sin «$» va entero al general. Lo que gasta
+// un suscriptor no le quita bono a otro. Si el mismo jugador tiene varios pedidos en el
+// lote, se descuenta lo ya asignado a su bono en los anteriores. Devuelve
 // {totalCosto, fromGeneral, fromSub, porJugador:{[id]:{playerId,playerName,
 // subscriber,total,lineas,fromGeneral,fromSub}}}.
 function repartoPendienteEquipo(){
-  const restantes = _restantesTemporada();
-  let subUsadoAcum = 0, totalGeneral = 0, totalSub = 0, totalCosto = 0;
+  let totalGeneral = 0, totalSub = 0, totalCosto = 0;
+  const usadoSubPorJugador = {};
   const porJugador = {};
   (PLANTILLA_ACTUAL || []).forEach(j => {
     if (!CAMBIOS_PENDIENTES[j.id]) return;
     const { total, lineas } = _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id]);
     if (total <= 0) return;
-    const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
+    const disponibleSub = Math.max(0, _bonoRestanteJugadorTool(j.id, j.subscriber, (equipoTSCActual() || {}).id) - (usadoSubPorJugador[j.id] || 0));
     const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
-    subUsadoAcum += reparto.fromSub;
+    usadoSubPorJugador[j.id] = (usadoSubPorJugador[j.id] || 0) + reparto.fromSub;
     totalGeneral += reparto.fromGeneral;
     totalSub += reparto.fromSub;
     totalCosto += total;
@@ -378,11 +390,22 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
   }
   await dbPut('teams', { ...team, yunacoin: current });
   team.yunacoin = current; // reflejar en el objeto cacheado en EQUIPOS_TSC (mismo patron que vincularEquipo)
-  // lo recien cobrado ya cuenta para los topes de temporada de este equipo
+  // lo recien cobrado ya cuenta para los topes de temporada de este equipo.
+  // BONO-5: tambien entra al libro en memoria, para que el bono restante por jugador
+  // (repartoPendienteEquipo / _opcionesEditor) quede al dia sin releer Firestore.
+  if (!Array.isArray(GASTO_TEMPORADA_CACHE.transacciones)) GASTO_TEMPORADA_CACHE.transacciones = [];
+  Object.values(reparto.porJugador).forEach(function(info){
+    if (!info || !(info.total > 0)) return;
+    GASTO_TEMPORADA_CACHE.transacciones.push({
+      reason: reason, mode: 'sub', amount: info.total,
+      pes5: { playerId: info.playerId, fromSub: info.fromSub, fromGeneral: info.fromGeneral },
+    });
+  });
   GASTO_TEMPORADA_CACHE = {
     teamId: team.id, season: _temporadaCobro(),
     general: GASTO_TEMPORADA_CACHE.general + reparto.fromGeneral,
     sub: GASTO_TEMPORADA_CACHE.sub + reparto.fromSub,
+    transacciones: GASTO_TEMPORADA_CACHE.transacciones,
   };
   return current;
 }
@@ -440,6 +463,7 @@ function montar(contenedor){
 
 function salir(){
   _montadoEn = null;
+  cerrarDetallePedido();
   document.getElementById('pt-rech-ov')?.remove();
   RECHAZO_ID = null;
   window.removeEventListener('tsc:auth', _alCambiarAuth);
@@ -1089,9 +1113,18 @@ function _opcionesEditor(j){
     const otrosGeneral = reparto.fromGeneral - (info ? info.fromGeneral : 0);
     const otrosSub = reparto.fromSub - (info ? info.fromSub : 0);
     const restantes = _restantesTemporada();
+    // BONO-5: el bono que el editor muestra y descuenta es el DEL JUGADOR abierto
+    // (su cuota menos lo que ya gastó de su bono en el libro coins de la temporada).
+    const bonoJugador = _bonoRestanteJugadorTool(j.id, j.subscriber, team.id);
+    // Dato del equipo para la barra cuando se edita un jugador sin «$»: suma de bonos restantes.
+    const bonoEquipo = (PLANTILLA_ACTUAL || []).reduce(function(s, x){
+      return s + _bonoRestanteJugadorTool(x.id, x.subscriber, team.id);
+    }, 0);
     presupuesto = {
       general: Math.max(0, Math.min((team.yunacoin || 0) - otrosTotal, restantes.general - otrosGeneral)),
-      subscribers: Math.max(0, restantes.subscribers - otrosSub),
+      subscribers: bonoJugador,
+      bonoJugador: bonoJugador,
+      bonoEquipo: bonoEquipo,
       saldo: Math.max(0, (team.yunacoin || 0) - otrosTotal),
     };
     const delEquipo = GASTO_TEMPORADA_CACHE.teamId === team.id;
@@ -1177,10 +1210,147 @@ function toggleEdicionGratis(el){
 
 // Barra de escritura del plantel abierto: estado de cobro, cambios pendientes,
 // checkbox "PES5 esta cerrado" y botones. Vive en #pl-writebar, fuera de #pl-body.
+/* ================= BONO4 · las mismas dos barras del editor =================
+   Copia chica de la animación de js/mejoras-page.js: la Tool no comparte un
+   archivo de UI con el editor (solo lo monta), así que la función va duplicada
+   con el mismo comportamiento — el número cuenta y la barra se achica en ~300 ms,
+   la barra que baja se ilumina ~400 ms, y sin animación con prefers-reduced-motion.
+   El bono baja primero y, agotado, sigue el general (BONO-3). */
+const BARRA_MS = 300;
+const BARRA_DESTELLO_MS = 400;
+function _ptSinMovimiento(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function _ptFmt(n){ return Math.max(0, Math.round(n || 0)).toLocaleString('es-CL'); }
+function _ptNumero(el, def){
+  const n = Number(String((el && el.textContent) || '').replace(/[^\d-]/g, ''));
+  return Number.isFinite(n) ? n : (def || 0);
+}
+const _ptAnimNumero = new WeakMap();
+function ptAnimarNumero(el, desde, hasta, opts){
+  if (!el) return;
+  const o = opts || {};
+  const dur = Math.max(0, o.duracion == null ? BARRA_MS : o.duracion);
+  const retraso = Math.max(0, o.retraso || 0);
+  const previo = _ptAnimNumero.get(el);
+  if (previo){
+    if (previo.raf) cancelAnimationFrame(previo.raf);
+    if (previo.timer) clearTimeout(previo.timer);
+    _ptAnimNumero.delete(el);
+  }
+  const fin = Math.round(Number(hasta) || 0);
+  const ini = desde == null ? _ptNumero(el, fin) : Math.round(Number(desde) || 0);
+  if (!dur || _ptSinMovimiento() || ini === fin){ el.textContent = _ptFmt(fin); return; }
+  const estado = { raf: 0, timer: 0 };
+  const arrancar = function(){
+    const t0 = performance.now();
+    const paso = function(t){
+      const p = Math.min(1, (t - t0) / dur);
+      const v = Math.round(ini + (fin - ini) * (1 - Math.pow(1 - p, 3)));
+      el.textContent = _ptFmt(p < 1 ? v : fin);
+      if (p < 1) estado.raf = requestAnimationFrame(paso);
+      else if (_ptAnimNumero.get(el) === estado) _ptAnimNumero.delete(el);
+    };
+    estado.raf = requestAnimationFrame(paso);
+  };
+  _ptAnimNumero.set(el, estado);
+  if (retraso) estado.timer = setTimeout(arrancar, retraso);
+  else arrancar();
+}
+const _ptDestellos = new WeakMap();
+function ptDestelloBarra(row, retraso){
+  if (!row || _ptSinMovimiento()) return;
+  const previo = _ptDestellos.get(row);
+  if (previo){ clearTimeout(previo.t1); clearTimeout(previo.t2); }
+  row.classList.remove('pt-barra-baja');
+  const estado = { t1: 0, t2: 0 };
+  estado.t1 = setTimeout(function(){
+    row.classList.remove('pt-barra-baja');
+    void row.offsetWidth;
+    row.classList.add('pt-barra-baja');
+    estado.t2 = setTimeout(function(){ row.classList.remove('pt-barra-baja'); }, BARRA_DESTELLO_MS + 60);
+  }, Math.max(0, retraso || 0));
+  _ptDestellos.set(row, estado);
+}
+const _ptTimerBarra = new WeakMap();
+function ptPintarBarra(cfg){
+  if (!cfg) return;
+  const total = Math.max(0, Number(cfg.total) || 0);
+  const queda = Math.max(0, Number(cfg.queda) || 0);
+  const retraso = Math.max(0, cfg.retraso || 0);
+  if (cfg.cap) cfg.cap.textContent = _ptFmt(total);
+  if (cfg.val) ptAnimarNumero(cfg.val, cfg.desde, queda, { retraso: retraso });
+  if (cfg.fill){
+    const pct = total > 0 ? Math.min(100, Math.max(0, queda / total * 100)) : 0;
+    if (_ptSinMovimiento()){
+      cfg.fill.style.transition = 'none';
+      cfg.fill.style.width = pct + '%';
+    } else {
+      cfg.fill.style.transition = '';
+      const previo = _ptTimerBarra.get(cfg.fill);
+      if (previo) clearTimeout(previo);
+      if (retraso){
+        const t = setTimeout(function(){
+          cfg.fill.style.width = pct + '%';
+          _ptTimerBarra.delete(cfg.fill);
+        }, retraso);
+        _ptTimerBarra.set(cfg.fill, t);
+      } else cfg.fill.style.width = pct + '%';
+    }
+  }
+  if (cfg.baja) ptDestelloBarra(cfg.row, retraso);
+}
+/* BONO4: totales de la temporada (general con su tope extra y bono de
+   suscriptores) para las dos barras del plantel abierto. */
+function _topesTemporadaEquipo(team){
+  const reglas = _reglasEquipo(team ? team.id : null);
+  const n = _nSuscriptoresDelEquipo(team ? team.id : null);
+  return YUNACOINS_RULES.topesRestantes({ general: 0, sub: 0 }, reglas, n);
+}
+/* BONO4: dos barras «queda X de Y» del reparto del equipo, con la animación del
+   editor. Se pintan después de escribir el markup (id base 'pt-barra-...'). */
+function _ptPintarBarras(datos){
+  if (!datos) return;
+  const barBono = document.getElementById('pt-barra-bono');
+  if (barBono) barBono.hidden = !(datos.bonoTotal > 0);
+  const bajaBono = datos.subDespues < datos.subAntes;
+  const bajaGeneral = datos.genDespues < datos.genAntes;
+  ptPintarBarra({
+    row: barBono,
+    fill: document.getElementById('pt-barra-bono-fill'),
+    val: document.getElementById('pt-barra-bono-val'),
+    cap: document.getElementById('pt-barra-bono-cap'),
+    total: datos.bonoTotal, queda: datos.subDespues, desde: datos.prevBono, baja: bajaBono, retraso: 0,
+  });
+  ptPintarBarra({
+    row: document.getElementById('pt-barra-general'),
+    fill: document.getElementById('pt-barra-general-fill'),
+    val: document.getElementById('pt-barra-general-val'),
+    cap: document.getElementById('pt-barra-general-cap'),
+    total: datos.generalTotal, queda: datos.genDespues, desde: datos.prevGeneral, baja: bajaGeneral,
+    retraso: (bajaBono && bajaGeneral) ? BARRA_MS : 0,
+  });
+}
+function _ptBarrasHTML(){
+  return `<div class="pt-barras" id="pt-barras">
+    <div class="pt-barra" id="pt-barra-bono" hidden>
+      <span class="pt-barra-txt">Bono de suscriptores (cada uno solo para su jugador): queda <b id="pt-barra-bono-val">0</b> de <span id="pt-barra-bono-cap">0</span></span>
+      <span class="pt-barra-bar" aria-hidden="true"><i id="pt-barra-bono-fill"></i></span>
+    </div>
+    <div class="pt-barra" id="pt-barra-general">
+      <span class="pt-barra-txt">Tope general: queda <b id="pt-barra-general-val">0</b> de <span id="pt-barra-general-cap">0</span></span>
+      <span class="pt-barra-bar" aria-hidden="true"><i id="pt-barra-general-fill"></i></span>
+    </div>
+  </div>`;
+}
 function renderWriteBar(){
   const el = document.getElementById('pl-writebar');
   if (!el) return;
   if (PLANTILLA_INDICE == null || !PLANTILLA_ACTUAL){ el.innerHTML = ''; return; }
+  // BONO4: lo que se ve ahora en las barras, para contar desde ahí y no desde 0
+  // cuando el bloque se rehace.
+  const prevBono = _ptNumero(document.getElementById('pt-barra-bono-val'), 0);
+  const prevGeneral = _ptNumero(document.getElementById('pt-barra-general-val'), 0);
   const cerrado = !!document.getElementById('pes5-cerrado')?.checked;
   const equipoTSC = equipoTSCActual();
   const presidente = tienePresidente(equipoTSC);
@@ -1188,20 +1358,31 @@ function renderWriteBar(){
   const total = Object.keys(CAMBIOS_PENDIENTES).length;
   const modoDescarga = !PES5_SAVE.tieneSoporte();
   let cobroHtml;
+  let barras = null;
   if (!equipoTSC){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
   } else if (!presidente){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${escHtml(equipoTSC.name)} · sin presidente · edición libre</span>`;
   } else if (!cobra){
-    cobroHtml = `<span class="pt-cobro-badge gratis">${ICN.unlock} Edición gratis · no se cobra a ${escHtml(equipoTSC.name)} (saldo ${(equipoTSC.yunacoin || 0).toLocaleString('es-AR')})</span>`;
+    cobroHtml = `<span class="pt-cobro-badge gratis">${ICN.unlock} Edición gratis · no se cobra a ${escHtml(equipoTSC.name)} (saldo ${(equipoTSC.yunacoin || 0).toLocaleString('es-CL')})</span>`;
   } else {
     const reparto = repartoPendienteEquipo();
     const restantes = _restantesTemporada();
     const saldo = equipoTSC.yunacoin || 0;
     const ev = YUNACOINS_RULES.evaluarPago(saldo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
-    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${escHtml(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-AR')}</span>
-      <span class="pt-cobro-txt">Total a cobrar: ${reparto.totalCosto.toLocaleString('es-AR')} · tope gral. restante ${restantes.general.toLocaleString('es-AR')} · bono restante ${restantes.subscribers.toLocaleString('es-AR')}</span>
-      ${ev.excedeSaldo ? `<span class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente: faltan ${(reparto.totalCosto - saldo).toLocaleString('es-AR')}</span>` : ''}
+    const tot = _topesTemporadaEquipo(equipoTSC);
+    const subAntes = Math.max(0, restantes.subscribers);
+    const genAntes = Math.max(0, restantes.general);
+    barras = {
+      bonoTotal: tot.subscribers, generalTotal: tot.general,
+      subAntes: subAntes, genAntes: genAntes,
+      subDespues: Math.max(0, subAntes - reparto.fromSub),
+      genDespues: Math.max(0, genAntes - reparto.fromGeneral),
+      prevBono: prevBono, prevGeneral: prevGeneral,
+    };
+    cobroHtml = `<span class="pt-cobro-badge pagando">${ICN.wallet} Se cobra a ${escHtml(equipoTSC.name)} · saldo ${saldo.toLocaleString('es-CL')}</span>
+      <span class="pt-cobro-txt">Total a cobrar: ${reparto.totalCosto.toLocaleString('es-CL')} · tope gral. restante ${restantes.general.toLocaleString('es-CL')} · bono restante ${restantes.subscribers.toLocaleString('es-CL')}</span>
+      ${ev.excedeSaldo ? `<span class="pt-cobro-faltante">${ICN.alert} Saldo insuficiente: faltan ${(reparto.totalCosto - saldo).toLocaleString('es-CL')}</span>` : ''}
       ${(!ev.excedeSaldo && ev.excedeTopeGeneral) ? `<span class="pt-cobro-faltante">${ICN.alert} Supera el tope general de temporada</span>` : ''}`;
   }
   el.innerHTML = `
@@ -1213,7 +1394,9 @@ function renderWriteBar(){
       <label><input type="checkbox" id="pes5-cerrado" ${cerrado ? 'checked' : ''}> PES5 está cerrado</label>
       <button class="btn btn-primary btn-sm" id="btn-escribir-save" disabled data-onclick="ptConfirmarEscribirAlSave()">${ICN.save} ${modoDescarga ? 'Descargar save editado' : 'Escribir al save'}</button>
       <button class="btn btn-sm" ${total ? '' : 'disabled'} data-onclick="ptDescartarTodo()">Descartar cambios</button>
-    </div>`;
+    </div>
+    ${barras ? _ptBarrasHTML() : ''}`;
+  if (barras) requestAnimationFrame(function(){ _ptPintarBarras(barras); });
   document.getElementById('pes5-cerrado').addEventListener('change', actualizarBotonEscritura);
   actualizarBotonEscritura();
 }
@@ -1644,52 +1827,414 @@ async function renderPedidosTab(opts){
     _despuesDeRenderPedidos(movil, opts);
     return;
   }
-  const filas = PEDIDOS_PENDIENTES.map(p => {
-    const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
-    const esFormacion = p.tipo === 'formacion';
-    const lineas = esFormacion
-      ? ((p.lines && p.lines.length)
-          ? p.lines.map(l => l.from ? `${escHtml(l.label)}: ${escHtml(l.from)} → ${escHtml(l.to)}` : `${escHtml(l.label)}: ${escHtml(l.to)}`).join('<br>')
-          : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
-      : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
-    const aplicable = esFormacion
-      ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
-      : !!(p.cambios && p.registro != null);
-    const jugador = esFormacion
-      ? ((p.lines || []).some(l => l.label === 'Cambio de alineación') ? '<i>Alineación</i>' : '<i>Formación</i>')
-      : `${escHtml(p.playerName || '')}${p.subscriber ? ' <span class="badge">$</span>' : ''}`;
-    // En PC la casilla elige que pedidos aplicar. En el telefono no se aplica nada (3.B).
-    const celdaSel = movil ? '' : `<td data-label="Aplicar"><input type="checkbox" class="ped-sel" value="${escHtml(p._id)}" ${aplicable ? 'checked' : 'disabled'}></td>`;
-    return `<tr>
-      ${celdaSel}
-      <td data-label="Equipo">${escHtml(p.teamName || String(p.teamId))}</td>
-      <td data-label="Jugador">${jugador}</td>
-      <td data-label="Cambios" style="font-size:12px;">${lineas || '<i>sin detalle</i>'}${!movil && !aplicable ? '<br><span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : ''}</td>
-      <td data-label="Costo" style="text-align:right;">${esFormacion ? 'gratis' : Number(p.totalCost || 0).toLocaleString('es-CL')}</td>
-      <td data-label="Enviado" style="font-size:12px;">${escHtml(fecha)}</td>
-      <td class="pt-td-accion"><button class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarPedido('${escHtml(p._id)}')">Rechazar</button></td>
-    </tr>`;
-  }).join('');
-  const cabecera = movil
-    ? '<th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th style="text-align:right;">Costo estimado</th><th>Enviado</th><th></th>'
-    : '<th></th><th>Equipo</th><th>Jugador</th><th>Cambios pedidos</th><th style="text-align:right;">Costo estimado</th><th>Enviado</th><th></th>';
+  const grupos = _ptGruposPedidos();
+  const acordeon = grupos.map(g => _ptEquipoHTML(g, movil)).join('');
   const intro = movil
     ? `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes.</div>
        <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
     : `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
        ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Carga el save para poder aplicar.</div>`}`;
-  const aplicar = movil ? '' : `
-    <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
-      <input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado
-    </label>
-    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>`;
+  if (movil){
+    cont.innerHTML = `
+      ${intro}
+      <div class="pt-ped-acc">${acordeon}</div>
+      <div class="pt-log" id="ped-log"></div>`;
+    _despuesDeRenderPedidos(movil, opts);
+    return;
+  }
+  // PEDPC: en escritorio, lista en tabla a la izquierda y panel fijo de selección a la derecha.
+  // En angosto (≤ 860 px) el CSS apila todo en una columna y oculta el encabezado de la tabla.
+  const nEquipos = grupos.length, nPedidos = PEDIDOS_PENDIENTES.length;
   cont.innerHTML = `
     ${intro}
-    <div class="pt-tbl-wrap"><table class="tbl pt-tbl-pedidos"><thead><tr>${cabecera}</tr></thead><tbody>${filas}</tbody></table></div>
-    ${aplicar}
-    <div class="pt-log" id="ped-log"></div>
+    <div class="pt-ped-layout">
+      <div class="pt-ped-main">
+        <div class="pt-ped-bar">
+          <span class="pt-ped-bar-txt">${nEquipos} ${nEquipos === 1 ? 'equipo' : 'equipos'} · ${nPedidos} ${nPedidos === 1 ? 'pedido' : 'pedidos'}</span>
+          <button type="button" class="btn btn-sm pt-ped-todo" id="btn-ped-todo" data-estado="cerrado" data-onclick="ptPedAlternarTodo(this)">${PT_PED_ICON.abrir} Abrir todo</button>
+        </div>
+        <div class="pt-ped-acc pt-ped-acc--escritorio">
+          <div class="pt-ped-head" aria-hidden="true">
+            <span></span><span>Equipo</span><span>Pedidos</span><span>Tipos</span><span>Costo</span>
+          </div>
+          ${acordeon}
+        </div>
+      </div>
+      ${_ptPanelHTML()}
+    </div>
     ${bloquePub}`;
   _despuesDeRenderPedidos(movil, opts);
+}
+
+/* Acordeón de pedidos (3 niveles: equipo › tipo › pedido). Solo arma HTML: las
+   casillas .ped-sel conservan value = id del pedido y aplicarPedidosSeleccionados
+   las lee igual que antes. Los grupos nacen cerrados. */
+const PT_PED_TIPOS = [
+  { key: 'mejoras', label: 'Mejoras' },
+  { key: 'alineacion', label: 'Alineación' },
+  { key: 'formacion', label: 'Formación' },
+  { key: 'emparejar', label: 'Emparejar' },
+];
+const PT_PED_ICON = {
+  abrir: '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 6 12 11 17 6"/><polyline points="7 13 12 18 17 13"/></svg>',
+  cerrar: '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 11 12 6 17 11"/><polyline points="7 18 12 13 17 18"/></svg>',
+};
+function _ptClaveEquipo(p){
+  return p.teamId != null && p.teamId !== '' ? String(p.teamId) : 'n:' + String(p.teamName || 'sin-equipo');
+}
+function _ptTipoPedido(p){
+  if (p.tipo === 'emparejar') return 'emparejar';
+  if (p.tipo === 'formacion'){
+    return (p.lines || []).some(l => l && l.label === 'Cambio de alineación') ? 'alineacion' : 'formacion';
+  }
+  return 'mejoras';
+}
+function _ptPedidoAplicable(p){
+  return p.tipo === 'formacion'
+    ? !!(p.formacion && Array.isArray(p.formacion.slots) && p.pes5ClubIdx != null)
+    : !!(p.cambios && p.registro != null);
+}
+function _ptCostoPedido(p){
+  return _ptTipoPedido(p) === 'mejoras' ? Number(p.totalCost || 0) : 0;
+}
+function _ptCostoTexto(n){
+  const v = Number(n || 0);
+  return v > 0 ? v.toLocaleString('es-CL') + ' YC' : 'gratis';
+}
+function _ptGruposPedidos(){
+  const porEquipo = new Map();
+  for (const p of PEDIDOS_PENDIENTES){
+    const key = _ptClaveEquipo(p);
+    if (!porEquipo.has(key)){
+      porEquipo.set(key, {
+        key: key, nombre: String(p.teamName || p.teamId || 'Sin equipo'),
+        total: 0, aplicables: 0, tipos: new Map(), pedidos: [],
+      });
+    }
+    const g = porEquipo.get(key);
+    g.pedidos.push(p);
+    g.total += _ptCostoPedido(p);
+    if (_ptPedidoAplicable(p)) g.aplicables++;
+    const tipo = _ptTipoPedido(p);
+    if (!g.tipos.has(tipo)) g.tipos.set(tipo, []);
+    g.tipos.get(tipo).push(p);
+  }
+  return Array.from(porEquipo.values()).map(g => ({
+    key: g.key, nombre: g.nombre, total: g.total, aplicables: g.aplicables, pedidos: g.pedidos,
+    tipos: PT_PED_TIPOS.filter(t => g.tipos.has(t.key))
+      .map(t => ({ key: t.key, label: t.label, pedidos: g.tipos.get(t.key) })),
+  }));
+}
+/* TOOLDET (detalle por pedido): todas las líneas del pedido en un solo formato.
+   Se arman desde p.lines (lo que vio el presidente al pedir) y, si un pedido
+   viejo no trae líneas, desde p.cambios para que no quede nada afuera:
+   atributos con antes → después, habilidades nuevas o quitadas, posiciones,
+   lesiones, altura, edad y pie dominante. */
+function _ptLineasDetalle(p){
+  const out = [];
+  const vistos = new Set();
+  const push = (label, from, to) => {
+    const l = String(label == null ? '' : label).trim();
+    if (!l) return;
+    if (vistos.has(l.toLowerCase())) return;
+    vistos.add(l.toLowerCase());
+    out.push({ label: l, from: from == null ? '' : String(from), to: to == null ? '' : String(to) });
+  };
+  for (const l of (p.lines || [])){
+    if (!l) continue;
+    push(l.label, l.from, l.to);
+  }
+  const c = p.cambios || null;
+  if (c && typeof c === 'object'){
+    const falta = (label) => !vistos.has(String(label).toLowerCase());
+    if (c.atributos) for (const [campo, v] of Object.entries(c.atributos)) if (falta(campo)) push(campo, '—', v);
+    if (c.escala8) for (const [campo, v] of Object.entries(c.escala8)) if (falta(campo)) push(campo, '—', v);
+    if (c.habilidades) for (const [campo, v] of Object.entries(c.habilidades)) if (falta(campo)) push(campo, v ? '—' : 'habilidad', v ? 'habilidad nueva' : 'quitada');
+    const yaHayPosiciones = Array.from(vistos).some(l => l.indexOf('posición') === 0 || l.indexOf('posicion') === 0);
+    if (Array.isArray(c.posiciones) && !yaHayPosiciones && falta('Posiciones')) push('Posiciones', '—', c.posiciones.join(', '));
+    if (c.posicionRegistrada && falta('Posición natural')) push('Posición natural', '—', c.posicionRegistrada);
+    if (c.banda && falta('Banda')) push('Banda', '—', c.banda);
+    if (c.lesiones !== undefined && falta('Res. lesión')) push('Res. lesión', '—', c.lesiones);
+    if (c.pieDominante !== undefined && falta('Pie dominante')) push('Pie dominante', '—', c.pieDominante);
+    if (c.altura !== undefined && falta('Altura')) push('Altura', '—', c.altura + ' cm');
+    if (c.edad !== undefined && falta('Edad')) push('Edad', '—', c.edad);
+  }
+  return out;
+}
+/* TOOLDET: cambios que Luis suele rechazar (esta temporada no se permiten subir
+   altura ni agregar posiciones a jugadores reales, y la edad es de admin). Solo
+   se resaltan: acá no se rechaza nada automáticamente. */
+function _ptRevisarLinea(l){
+  const label = String((l && l.label) || '').toLowerCase();
+  const from = String((l && l.from) || '');
+  const to = String((l && l.to) || '').toLowerCase();
+  if (label.indexOf('altura') === 0) return true;
+  if (label.indexOf('edad') === 0) return true;
+  if (label.indexOf('posición:') === 0 || label.indexOf('posicion:') === 0){
+    if (to === 'agregada') return true;
+    if (from === '—' && to !== 'quitada') return true;
+  }
+  return false;
+}
+/* TOOLDET: título de la fila (equipo › tipo › pedido). */
+function _ptTituloPedido(p){
+  const tipo = _ptTipoPedido(p);
+  if (tipo === 'alineacion') return 'Cambio de alineación';
+  if (tipo === 'formacion'){
+    const nombre = p.formacion && p.formacion.nombre;
+    return 'Cambio de formación' + (nombre ? ' · ' + nombre : '');
+  }
+  if (tipo === 'emparejar'){
+    const nivel = p.nivel != null ? p.nivel : ((p.perfil && p.perfil.max != null) ? p.perfil.max : null);
+    return nivel != null ? 'Emparejar a ' + nivel : 'Emparejar';
+  }
+  return p.playerName || 'Jugador sin nombre';
+}
+function _ptFechaPedido(p){
+  const t = p && p.creadoEn;
+  if (!t) return '';
+  try {
+    const d = t.toDate ? t.toDate() : new Date(t);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('es-CL');
+  } catch (_){ return ''; }
+}
+/* PEDPC: chips de colores por tipo en la fila del equipo (escritorio). */
+function _ptChipsTipoHTML(g){
+  return g.tipos.map(t => `<span class="pt-ped-chip pt-tipo-${t.key}">${escHtml(t.label)} <b>${t.pedidos.length}</b></span>`).join('');
+}
+/* PEDPC: panel derecho con el resumen de la selección, la confirmación de PES5 cerrado,
+   el botón de aplicar y el log de la última aplicación (mismo #ped-log de siempre). */
+function _ptPanelHTML(){
+  return `<aside class="pt-ped-side" aria-label="Pedidos seleccionados">
+    <h3 class="pt-ped-side-title">Selección</h3>
+    <div class="pt-ped-res">
+      <div class="pt-ped-res-line"><span>Pedidos seleccionados</span><b id="ped-sel-n">0</b></div>
+      <div class="pt-ped-res-line"><span>Equipos seleccionados</span><b id="ped-sel-equipos">0</b></div>
+      <div class="pt-ped-res-total"><span>Total a cobrar</span><b id="ped-sel-total">gratis</b></div>
+    </div>
+    <label class="pt-ped-cerrado"><input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado</label>
+    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>
+    <div class="pt-log" id="ped-log"></div>
+  </aside>`;
+}
+/* PEDPC: resumen de lo marcado, con las mismas casillas .ped-sel que aplica
+   aplicarPedidosSeleccionados (no se toca esa función). */
+function _ptResumenSeleccion(){
+  const ids = new Set(Array.from(document.querySelectorAll('#pt-tabcontent .ped-sel:checked')).map(el => el.value));
+  const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.has(p._id));
+  const equipos = new Set(pedidos.map(p => _ptClaveEquipo(p)));
+  const total = pedidos.reduce((s, p) => s + _ptCostoPedido(p), 0);
+  return { pedidos: pedidos.length, equipos: equipos.size, total: total };
+}
+function ptPedActualizarPanel(){
+  const n = document.getElementById('ped-sel-n');
+  if (!n) return;
+  const r = _ptResumenSeleccion();
+  n.textContent = String(r.pedidos);
+  const eq = document.getElementById('ped-sel-equipos');
+  if (eq) eq.textContent = String(r.equipos);
+  const total = document.getElementById('ped-sel-total');
+  if (total) total.textContent = _ptCostoTexto(r.total);
+}
+/* PEDPC: abre o cierra todos los equipos de la lista de escritorio. En angosto también
+   abre los tipos (que siguen siendo plegables ahí); en ancho los tipos ya van abiertos. */
+function ptPedAlternarTodo(btn){
+  const cont = document.querySelector('#pt-tabcontent .pt-ped-acc--escritorio');
+  if (!btn || !cont) return;
+  const abrir = btn.dataset.estado !== 'abierto';
+  for (const team of cont.querySelectorAll(':scope > .pt-ped-team')){
+    const cab = team.querySelector(':scope > .pt-ped-team-hd .pt-ped-team-toggle');
+    const cuerpo = team.querySelector(':scope > .pt-ped-team-body');
+    if (cab) cab.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (cuerpo) cuerpo.hidden = !abrir;
+    for (const t of team.querySelectorAll('.pt-ped-type-toggle')) t.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  }
+  btn.dataset.estado = abrir ? 'abierto' : 'cerrado';
+  btn.innerHTML = abrir ? `${PT_PED_ICON.cerrar} Cerrar todo` : `${PT_PED_ICON.abrir} Abrir todo`;
+}
+function _ptPedidoHTML(p, movil){
+  const tipo = _ptTipoPedido(p);
+  const aplicable = _ptPedidoAplicable(p);
+  const eq = _ptClaveEquipo(p);
+  const titulo = _ptTituloPedido(p);
+  const nCambios = _ptLineasDetalle(p).length;
+  // En PC la casilla elige qué pedidos aplicar. En el teléfono no se aplica nada (3.B).
+  const sel = movil ? '' : `<input type="checkbox" class="ped-sel" value="${escAttr(p._id)}" data-eq="${escAttr(eq)}" aria-label="Aplicar este pedido" data-onchange="ptPedSelPedido(this)" ${aplicable ? 'checked' : 'disabled'}>`;
+  const esFormacion = tipo === 'formacion' || tipo === 'alineacion';
+  const sub = !esFormacion && p.subscriber ? ' <span class="badge">$</span>' : '';
+  const viejo = !movil && !aplicable ? ' <span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : '';
+  // TOOLDET: el emparejar se titula «Emparejar a N»; el jugador va debajo.
+  const nombreJugador = tipo === 'emparejar' && p.playerName ? String(p.playerName) : '';
+  // TOOLDET: la fila ya no corta el detalle: muestra el título, cuántos cambios
+  // trae y un botón «Detalle» que abre todo el pedido en una ventana centrada.
+  return `<div class="pt-ped-item">
+    <div class="pt-ped-row">
+      ${sel}
+      <span class="pt-ped-nombre">
+        <span class="pt-ped-nombre-t">${escHtml(titulo)}${sub}${viejo}</span>
+        ${nombreJugador ? `<span class="pt-ped-nombre-sub">${escHtml(nombreJugador)}</span>` : ''}
+      </span>
+      <span class="pt-ped-cambios">${nCambios} ${nCambios === 1 ? 'cambio' : 'cambios'}</span>
+      <span class="pt-ped-costo">${_ptCostoTexto(_ptCostoPedido(p))}</span>
+      <button type="button" class="btn btn-sm pt-ped-det-btn" data-onclick="ptVerDetallePedido('${escAttr(p._id)}')">${ICN.lista} Detalle</button>
+      <button type="button" class="btn btn-sm pt-btn-rechazar pt-ped-rech-icn" title="Rechazar pedido" aria-label="Rechazar pedido" data-onclick="ptRechazarPedido('${escAttr(p._id)}')">${movil ? 'Rechazar' : ICN.x}</button>
+    </div>
+  </div>`;
+}
+function _ptTipoHTML(t, movil){
+  // PEDPC: en escritorio la tarjeta va abierta (sin hidden; el CSS la mantiene visible) y en
+  // angosto se pliega con aria-expanded. En el teléfono sigue el acordeón de siempre.
+  return `<div class="pt-ped-type">
+    <button type="button" class="pt-ped-type-toggle pt-ped-toggle" aria-expanded="false" data-onclick="ptPedToggle(this)">
+      <span class="pt-ped-chev" aria-hidden="true"></span>
+      <span class="pt-ped-type-nombre">${escHtml(t.label)}</span>
+      <span class="pt-ped-cant">${t.pedidos.length}</span>
+    </button>
+    <div class="pt-ped-type-body"${movil ? ' hidden' : ''}>${t.pedidos.map(p => _ptPedidoHTML(p, movil)).join('')}</div>
+  </div>`;
+}
+function _ptEquipoHTML(g, movil){
+  const n = g.pedidos.length;
+  const todos = movil ? '' : `<input type="checkbox" class="pt-ped-allchk" data-eq="${escAttr(g.key)}" aria-label="Seleccionar todos los pedidos de este equipo" data-onchange="ptPedSelEquipo(this)" ${g.aplicables ? 'checked' : 'disabled'}>`;
+  const meta = `${n} ${n === 1 ? 'pedido' : 'pedidos'} · ${_ptCostoTexto(g.total)}`;
+  return `<div class="pt-ped-team">
+    <div class="pt-ped-team-hd">
+      ${todos}
+      <button type="button" class="pt-ped-team-toggle pt-ped-toggle" aria-expanded="false" data-onclick="ptPedToggle(this)">
+        <span class="pt-ped-chev" aria-hidden="true"></span>
+        <span class="pt-ped-team-nombre">${escHtml(g.nombre)}</span>
+        <span class="pt-ped-team-meta">${meta}</span>
+      </button>
+      ${movil ? '' : `
+        <span class="pt-ped-team-cant">${n}</span>
+        <span class="pt-ped-team-tipos">${_ptChipsTipoHTML(g)}</span>
+        <span class="pt-ped-team-costo">${_ptCostoTexto(g.total)}</span>`}
+    </div>
+    <div class="pt-ped-team-body" hidden>${g.tipos.map(t => _ptTipoHTML(t, movil)).join('')}</div>
+  </div>`;
+}
+/* Abre/cierra un nivel del acordeón (equipo o tipo). El panel es hijo del
+   contenedor del botón, no su hermano (el encabezado del equipo lo envuelve). */
+function ptPedToggle(btn){
+  if (!btn) return;
+  const grupo = btn.closest('.pt-ped-team, .pt-ped-type');
+  const body = grupo ? grupo.querySelector(':scope > .pt-ped-team-body, :scope > .pt-ped-type-body') : null;
+  if (!body) return;
+  const abierto = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+  // PEDPC: en la lista de escritorio el cuerpo del tipo no usa hidden: lo muestra u oculta
+  // el CSS según aria-expanded (ancho) o lo deja siempre abierto (escritorio).
+  if (body.classList.contains('pt-ped-type-body') && btn.closest('.pt-ped-acc--escritorio')) return;
+  body.hidden = abierto;
+}
+function _ptSelsDeEquipo(eq){
+  return Array.from(document.querySelectorAll('#pt-tabcontent .ped-sel')).filter(el => el.dataset && el.dataset.eq === eq);
+}
+function _ptAllChkDeEquipo(eq){
+  return Array.from(document.querySelectorAll('#pt-tabcontent .pt-ped-allchk')).find(el => el.dataset && el.dataset.eq === eq) || null;
+}
+/* Casilla del equipo: marca o desmarca todas sus casillas aplicables. */
+function ptPedSelEquipo(chk){
+  const eq = (chk.dataset && chk.dataset.eq) || '';
+  for (const el of _ptSelsDeEquipo(eq)) if (!el.disabled) el.checked = !!chk.checked;
+  chk.indeterminate = false;
+  ptPedActualizarPanel();
+}
+/* Casilla de un pedido: deja la del equipo en marcada / indeterminada / vacía. */
+function ptPedSelPedido(chk){
+  const eq = (chk.dataset && chk.dataset.eq) || '';
+  const sels = _ptSelsDeEquipo(eq).filter(el => !el.disabled);
+  const todos = _ptAllChkDeEquipo(eq);
+  if (todos){
+    const marcados = sels.filter(el => el.checked).length;
+    todos.checked = sels.length > 0 && marcados === sels.length;
+    todos.indeterminate = marcados > 0 && marcados < sels.length;
+  }
+  ptPedActualizarPanel();
+}
+
+/* TOOLDET — ventana centrada con TODO el pedido. Bloquea el resto (overlay),
+   tiene scroll propio y cierra con la X, Esc o tocando fuera. No rechaza nada:
+   resalta en ámbar los cambios que Luis suele rechazar (altura, posiciones
+   agregadas y edad) y ofrece el mismo rechazo con motivo que ya existe. */
+function _ptDetalleLineaHTML(l){
+  const revisar = _ptRevisarLinea(l);
+  const hayAntes = l.from !== '' && l.from != null && String(l.from) !== String(l.to);
+  return `<li class="pt-det-line${revisar ? ' pt-det-line--rev' : ''}">
+    <span class="pt-det-lbl">${revisar ? ICN.alert : ''}${escHtml(l.label)}</span>
+    <span class="pt-det-val">${hayAntes ? `<span class="pt-det-from">${escHtml(String(l.from))}</span><span class="pt-det-arrow" aria-hidden="true">→</span>` : ''}<span class="pt-det-to">${escHtml(l.to)}</span>${revisar ? '<span class="pt-det-rev">revisar</span>' : ''}</span>
+  </li>`;
+}
+function _ptDetalleHTML(p){
+  const equipo = p.teamName || (p.teamId != null ? String(p.teamId) : 'Sin equipo');
+  const fecha = _ptFechaPedido(p);
+  const lineas = _ptLineasDetalle(p);
+  const nRevisar = lineas.filter(_ptRevisarLinea).length;
+  const g = Number(p.fromGeneral || 0);
+  const s = Number(p.fromSub || 0);
+  const meta = [
+    `<div class="pt-det-meta-i"><span>Equipo</span><b>${escHtml(equipo)}</b></div>`,
+    p.playerName ? `<div class="pt-det-meta-i"><span>Jugador</span><b>${escHtml(p.playerName)}${p.dorsal != null && p.dorsal !== '' ? ' · #' + escHtml(String(p.dorsal)) : ''}</b></div>` : '',
+    fecha ? `<div class="pt-det-meta-i"><span>Enviado</span><b>${escHtml(fecha)}</b></div>` : '',
+    `<div class="pt-det-meta-i"><span>Costo total</span><b>${_ptCostoTexto(_ptCostoPedido(p))}</b></div>`,
+    (g > 0 || s > 0)
+      ? `<div class="pt-det-meta-i"><span>Reparto</span><b>General ${g.toLocaleString('es-CL')} YC · Bono ${s.toLocaleString('es-CL')} YC</b></div>`
+      : '',
+  ].join('');
+  const cuerpo = lineas.length
+    ? `<ul class="pt-det-list">${lineas.map(_ptDetalleLineaHTML).join('')}</ul>`
+    : '<div class="pt-det-empty">Este pedido no trae detalle de cambios.</div>';
+  return `<div class="pt-det-box" role="dialog" aria-modal="true" aria-labelledby="pt-det-tit" tabindex="-1">
+    <div class="pt-det-hd">
+      <div>
+        <h3 id="pt-det-tit">${escHtml(_ptTituloPedido(p))}</h3>
+        <div class="pt-det-hd-sub">${escHtml(equipo)}</div>
+      </div>
+      <button type="button" class="pt-side-close" data-onclick="ptCerrarDetallePedido()" title="Cerrar" aria-label="Cerrar">${ICN.x}</button>
+    </div>
+    <div class="pt-det-meta">${meta}</div>
+    <div class="pt-det-body">
+      <div class="pt-det-resumen"><b>${lineas.length} ${lineas.length === 1 ? 'cambio' : 'cambios'}</b>${nRevisar ? ` · <span class="pt-det-rev">${nRevisar} para revisar</span>` : ''}${_ptPedidoAplicable(p) ? '' : ' · <span class="pt-det-viejo">pedido viejo, sin datos aplicables</span>'}</div>
+      ${cuerpo}
+    </div>
+    <div class="pt-det-foot">
+      <button type="button" class="btn btn-sm pt-btn-rechazar" data-onclick="ptRechazarDesdeDetalle('${escAttr(p._id)}')">Rechazar</button>
+      <button type="button" class="btn btn-sm" data-onclick="ptCerrarDetallePedido()">Cerrar</button>
+    </div>
+  </div>`;
+}
+function verDetallePedido(id){
+  const p = PEDIDOS_PENDIENTES.find(x => String(x._id) === String(id));
+  if (!p){ showToast('No se encontró el pedido. Recarga la lista.', 'error'); return; }
+  cerrarDetallePedido();
+  const ov = document.createElement('div');
+  ov.id = 'pt-det-ov';
+  ov.className = 'pt-det-ov';
+  ov.setAttribute('data-onclick', 'ptCerrarDetalleFondo(event)');
+  ov.innerHTML = _ptDetalleHTML(p);
+  (_montadoEn || document.body).appendChild(ov);
+  document.addEventListener('keydown', _ptDetalleEsc);
+  const box = ov.querySelector('.pt-det-box');
+  if (box) box.focus();
+}
+function cerrarDetallePedido(){
+  document.getElementById('pt-det-ov')?.remove();
+  document.removeEventListener('keydown', _ptDetalleEsc);
+}
+function _ptDetalleEsc(e){
+  if (e && e.key === 'Escape'){
+    e.preventDefault();
+    cerrarDetallePedido();
+  }
+}
+function cerrarDetalleFondo(e){
+  if (e && e.target && e.target.id === 'pt-det-ov') cerrarDetallePedido();
+}
+/* El rechazo del modal es el mismo flujo de siempre: cierra el detalle y abre
+   la ventana de motivo obligatorio. */
+function rechazarDesdeDetalle(id){
+  cerrarDetallePedido();
+  rechazarPedido(id);
 }
 
 /* Tras pintar Pedidos: restaura el log de la ultima aplicacion (si vuelve a pintar) y
@@ -1699,6 +2244,7 @@ function _despuesDeRenderPedidos(movil, opts){
     const el = document.getElementById('ped-log');
     if (el) el.innerHTML = opts.logHtml;
   }
+  ptPedActualizarPanel();   // PEDPC: panel derecho en vivo con lo que nace marcado
   if (!movil && PLANO) cargarEstadoPublicacion(_equiposPublicables());
 }
 
@@ -1788,6 +2334,45 @@ function _motivoSinVistaPublicada(pub, pedido){
 function _motivoCambioFormacion(c){
   return 'la formación del save cambió desde la publicada que vio el presidente: slot ' + c.slot + ', ' + c.campo + ' era ' + c.era + ', ahora ' + c.ahora + ' (plantilla desactualizada)';
 }
+/* ============================================================
+   PED2 — dos pedidos del mismo jugador en un mismo lote
+   ------------------------------------------------------------
+   Los pedidos de un equipo se aplican del mas viejo al mas nuevo
+   (creadoEn) y, si dos tocan al mismo jugador, el segundo se valida
+   contra «lo publicado + lo que este lote ya aplico», no contra lo
+   publicado solo: al aplicarse el primero, la copia del save deja de
+   coincidir con la publicacion en esos campos y antes se rechazaba
+   como «plantilla desactualizada» (bug de produccion, San Martin de
+   Mendoza: Niang, Ribery, Cana — el que «cambio» fue el otro pedido
+   del mismo presidente, no Luis).
+   Regla de costo: cada pedido paga lo suyo, medido contra el save como
+   esta al aplicarlo. Lo que otro pedido del lote ya subio no se cobra
+   dos veces (mismo valor: 0) y, si este pedido sube mas arriba, paga
+   solo el tramo nuevo. El precio declarado (totalCost) se compara con
+   el save actual y, cuando hay otro pedido del mismo jugador antes en
+   el lote, tambien con la publicacion sola: el pedido pudo armarse
+   antes de que el lote aplicara lo suyo (el presidente lo arma sobre
+   lo publicado, no sobre la copia del save).
+   ============================================================ */
+// Cambios que este lote ya escribio en la copia para un jugador (registro), en orden.
+function _cambiosDelLoteDe(cambiosDelLote, registro){
+  return (registro == null ? null : cambiosDelLote[String(registro)]) || [];
+}
+// Anota los cambios de un pedido ya aplicado en la copia.
+function _anotarCambiosDelLote(cambiosDelLote, registro, cambios){
+  if (registro == null || !cambios) return;
+  (cambiosDelLote[String(registro)] = cambiosDelLote[String(registro)] || []).push(cambios);
+}
+// Base contra la que se valida un pedido: lo publicado + los cambios previos del lote.
+function _baseDelPedido(jPub, cambiosPrevios){
+  return cambiosPrevios.length ? PES5_PLANTILLA.publicadoConAplicados(jPub, cambiosPrevios) : jPub;
+}
+// Costo de un pedido contra una base que no es el save (la plantilla publicada), con el MISMO
+// perfil que se usa para cobrarle al jugador del save (`_costoTool` usa el perfil del jugador
+// del save; aca se pasa explicito para no depender de leer un perfil de una base sintetica).
+function _costoContraBase(teamId, jugadorDelSave, base, cambios){
+  return YUNACOINS_RULES.costoCambios(base, cambios, YC_RULES, { perfil: _perfilTool(teamId, jugadorDelSave), cfg: _emparejarCfg() });
+}
 async function aplicarPedidosSeleccionados(){
   const logEl = document.getElementById('ped-log');
   const log = (msg, cls) => { if (!logEl) return; const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); };
@@ -1824,6 +2409,12 @@ async function aplicarPedidosSeleccionados(){
   const rechazados = [];  // {pedido, motivo}
   const porEquipo = {};
   pedidos.forEach(p => { (porEquipo[p.teamId] = porEquipo[p.teamId] || []).push(p); });
+  // PED2: dentro de cada equipo se procesan del pedido mas viejo al mas nuevo (creadoEn); antes
+  // el orden dependia de la lista. Asi «lo ya aplicado por el lote» es lo que el presidente ya
+  // habia mandado antes, no lo que vino primero en la seleccion.
+  Object.keys(porEquipo).forEach(t => { porEquipo[t] = PES5_PLANTILLA.pedidosEnOrdenDeCreacion(porEquipo[t]); });
+  // PED2: cambios que este lote ya escribio en la copia, por jugador (registro).
+  const cambiosDelLote = {};
   // PES5-TOPE-1: tope de atributos de la temporada actual (null = sin tope)
   const topeTemporada = _topeAtributoVigente();
   for (const teamId of Object.keys(porEquipo)){
@@ -1831,7 +2422,17 @@ async function aplicarPedidosSeleccionados(){
     if (!team){ porEquipo[teamId].forEach(p => rechazados.push({ pedido: p, motivo: 'el equipo ya no existe' })); continue; }
     await _refrescarGastoTemporadaEquipo(team, true);
     const restantes = _restantesTemporada();
-    let usadoGeneral = 0, usadoSub = 0, usadoTotal = 0;
+    let usadoGeneral = 0, usadoTotal = 0;
+    // BONO-5: el bono es de cada jugador. Los pedidos pendientes de ESTE equipo que no
+    // estan en este lote siguen reservando su bono; los del lote se recalculan ahora, asi
+    // que no cuentan (su fromSub viejo no se usa). `usadoSubPorJugador` suma lo asignado
+    // en este mismo lote cuando un jugador tiene mas de un pedido.
+    const idsDelLote = new Set(porEquipo[teamId].map(x => x._id));
+    const pendientesFuera = PEDIDOS_PENDIENTES
+      .filter(x => x && x.estado === 'pendiente' && !idsDelLote.has(x._id)
+        && String(x.teamId) === String(teamId) && x.registro != null)
+      .map(x => ({ playerId: x.registro, fromSub: Number(x.fromSub) || 0, estado: 'pendiente' }));
+    const usadoSubPorJugador = {};
     for (const p of porEquipo[teamId]){
       if (p.tipo === 'formacion'){
         if (!p.formacion || !Array.isArray(p.formacion.slots)){ rechazados.push({ pedido: p, motivo: 'sin datos de formación' }); continue; }
@@ -1918,7 +2519,9 @@ async function aplicarPedidosSeleccionados(){
         const jPubE = (pubE.data.jugadores || []).find(x => x && x.id === 'r' + p.registro);
         if (!jPubE){ rechazados.push({ pedido: p, motivo: 'el jugador no está en la plantilla publicada' }); continue; }
         const jSaveE = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, p.registro, 0);
-        const cambioE = PES5_PLANTILLA.cambiosContraSave(jPubE, jSaveE, p.cambios);
+        // PED2: si otro pedido del lote ya toco este jugador, la base suma lo que el lote aplico.
+        const previosE = _cambiosDelLoteDe(cambiosDelLote, p.registro);
+        const cambioE = PES5_PLANTILLA.cambiosContraSave(_baseDelPedido(jPubE, previosE), jSaveE, p.cambios);
         if (cambioE){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioE.campo }); continue; }
         // Perfil y maximo se recalculan con las reglas actuales y el save actual (no se confia en el pedido).
         const cfgE = _emparejarCfg();
@@ -1936,6 +2539,7 @@ async function aplicarPedidosSeleccionados(){
           rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
         }
         const lineasE = YUNACOINS_RULES.cambiosEmparejar(jE, cfgE, fijadoE).lineas;
+        _anotarCambiosDelLote(cambiosDelLote, p.registro, p.cambios);   // PED2: el lote ya lo escribio
         aplicados.push({ pedido: p, team, info: {
           pedidoId: p._id, playerId: p.registro, playerName: jE.nombre, subscriber: !!jE.subscriber,
           total: 0, lineas: lineasE, fromGeneral: 0, fromSub: 0, emparejar: true, nivel: nivelCfg,
@@ -1953,19 +2557,44 @@ async function aplicarPedidosSeleccionados(){
       const jPub = (pubM.data.jugadores || []).find(x => x && x.id === 'r' + p.registro);
       if (!jPub){ rechazados.push({ pedido: p, motivo: 'el jugador no está en la plantilla publicada' }); continue; }
       const jSave = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, copia, p.registro, 0);
-      const cambioM = PES5_PLANTILLA.cambiosContraSave(jPub, jSave, p.cambios);
+      // PED2: base de la validacion = lo publicado + lo que este lote ya aplico a este jugador.
+      const previosM = _cambiosDelLoteDe(cambiosDelLote, p.registro);
+      const cambioM = PES5_PLANTILLA.cambiosContraSave(_baseDelPedido(jPub, previosM), jSave, p.cambios);
       if (cambioM){ rechazados.push({ pedido: p, motivo: 'el jugador cambió desde el pedido (plantilla desactualizada): ' + cambioM.campo + ' era ' + cambioM.era + ', ahora ' + cambioM.ahora }); continue; }
       const j = PES5_EDITOR.leerJugadorCompleto(copia, p.registro);
+      // PED2: `total` es el delta contra el save de ahora: lo que otro pedido del lote ya subio
+      // a este jugador no se cobra dos veces y, si este pedido sube mas arriba, paga solo el
+      // tramo nuevo. Si no hay otro pedido del mismo jugador antes en el lote, es el costo de
+      // siempre (contra lo publicado, porque el save tiene que seguir igual en esos campos).
       const { total, lineas } = _costoTool(team.id, j, p.cambios);
       // EMP-80-2: el pedido tiene que costar lo mismo que hoy con la misma funcion (tramo gratis incluido).
       // Un pedido armado con otra tarifa se rechaza y el presidente lo arma de nuevo.
-      if (p.totalCost != null && Number(p.totalCost) !== total){
+      // PED2: con otro pedido del mismo jugador antes en el lote, el precio declarado tambien
+      // puede ser el de la publicacion sola (el pedido se armo antes de que el lote aplicara lo
+      // suyo). Se acepta cualquiera de los dos y se cobra `total` (el delta).
+      let precioDelPedido = total;   // el que se usa para la defensa de «cambio sin costo»
+      if (previosM.length){
+        const totalPublicado = _costoContraBase(team.id, j, PES5_PLANTILLA.jugadorReglasDeEditor(jPub), p.cambios).total;
+        if (p.totalCost != null && Number(p.totalCost) !== total && Number(p.totalCost) !== totalPublicado){
+          rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + totalPublicado.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
+          continue;
+        }
+        // Un pedido cuyos campos ya subio otro pedido del lote queda en 0 a proposito (no se
+        // cobra dos veces): el precio contra lo publicado dice que el pedido si sube algo.
+        precioDelPedido = totalPublicado;
+      } else if (p.totalCost != null && Number(p.totalCost) !== total){
         rechazados.push({ pedido: p, motivo: 'costo desactualizado: el pedido costaba ' + Number(p.totalCost).toLocaleString('es-CL') + ' y hoy cuesta ' + total.toLocaleString('es-CL') + ' (se armó con otra tarifa)' });
         continue;
       }
-      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, total, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
+      const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, precioDelPedido, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
-      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
+      // BONO-5: el bono que puede usar este pedido es el del JUGADOR (su cuota menos lo que
+      // ya gastó de su bono en el libro coins, menos los otros pedidos pendientes del mismo
+      // equipo que no están en este lote y menos lo ya asignado en el lote).
+      const bonoJugador = YUNACOINS_RULES.bonoRestanteJugador(
+        GASTO_TEMPORADA_CACHE.transacciones || [], pendientesFuera, p.registro,
+        _reglasEquipo(team.id).budgetSubscribers, !!j.subscriber);
+      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, bonoJugador - (usadoSubPorJugador[p.registro] || 0)), !!j.subscriber);
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
       if (!pago.ok){ rechazados.push({ pedido: p, motivo: pago.excedeSaldo ? 'saldo insuficiente' : 'se superó el tope de temporada' }); continue; }
       try {
@@ -1973,7 +2602,9 @@ async function aplicarPedidosSeleccionados(){
       } catch (e) {
         rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
       }
-      usadoGeneral += reparto.fromGeneral; usadoSub += reparto.fromSub; usadoTotal += total;
+      _anotarCambiosDelLote(cambiosDelLote, p.registro, p.cambios);   // PED2: el lote ya lo escribio
+      usadoGeneral += reparto.fromGeneral; usadoTotal += total;
+      usadoSubPorJugador[p.registro] = (usadoSubPorJugador[p.registro] || 0) + reparto.fromSub;
       aplicados.push({ pedido: p, team, info: {
         pedidoId: p._id, playerId: p.registro, playerName: j.nombre, subscriber: !!j.subscriber,
         total, lineas, fromGeneral: reparto.fromGeneral, fromSub: reparto.fromSub,
@@ -2062,7 +2693,7 @@ async function aplicarPedidosSeleccionados(){
     log('publicando la formación aplicada...');
     await publicarPlantillas(equiposFormacion);
   }
-  GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
+  GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0, transacciones: [] };
   showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
   if (aplicados.some(a => !a.info.formacion)) log('Publica para que el presidente vea los cambios.');
   // El save cambió: los equipos tocados quedan desactualizados. El aviso y el bloque Publicar lo muestran.
@@ -2343,7 +2974,7 @@ function renderReglasTab(){
         <div class="pt-field">
           <label>Bono por jugador suscriptor</label>
           <input type="number" min="0" step="500" id="rg-budgetSubscribers" value="${r.budgetSubscribers}" style="width:100px;">
-          <div class="pt-field-hint">se multiplica por los suscriptores del equipo</div>
+          <div class="pt-field-hint">se multiplica por los suscriptores («$») del equipo; solo esos jugadores gastan el bono</div>
         </div>
       </div>
 
@@ -2815,6 +3446,14 @@ window.ptRechazarPedido = rechazarPedido;
 window.ptCerrarRechazo = cerrarRechazo;
 window.ptConfirmarRechazo = confirmarRechazo;
 window.ptRechazoMotivoInput = rechazoMotivoInput;
+window.ptPedToggle = ptPedToggle;
+window.ptPedSelEquipo = ptPedSelEquipo;
+window.ptPedSelPedido = ptPedSelPedido;
+window.ptPedAlternarTodo = ptPedAlternarTodo;
+window.ptVerDetallePedido = verDetallePedido;
+window.ptCerrarDetallePedido = cerrarDetallePedido;
+window.ptCerrarDetalleFondo = cerrarDetalleFondo;
+window.ptRechazarDesdeDetalle = rechazarDesdeDetalle;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
 window.ptVincularEquipo = vincularEquipo;

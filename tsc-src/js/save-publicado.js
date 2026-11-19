@@ -6,7 +6,7 @@
    y los metadatos en Firestore `pes5_config/save` = {subidoPor, subidoEn, tamano,
    nombreArchivo}.
    - Sube la Tool (solo admin), con el save que ya tiene abierta (PES5_SAVE.leer()).
-   - Baja el presidente desde Mejoras («Descargar save»).
+   - Baja el presidente desde Mejoras (boton «Save del …»).
    Reglas: firebase/storage.rules (pes5_save/actual: escribe admin, tope 4 MiB; lee
    presidente y admin) y firebase/firestore.rules (pes5_config: lee cualquier sesion,
    escribe admin; no se cambio).
@@ -104,15 +104,22 @@ const SAVE_PUBLICADO = (() => {
   const ICN_DESCARGA = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
   let _turnoBarra = 0;   // descarta respuestas viejas si la barra se repinta mientras se pide la URL
 
+  // MEJUI-5: una sola linea corta («Save 18/11»). El detalle y el aviso de hacer una copia
+  // van en el title del boton, no en un bloque de texto.
+  function _diaCorto(d){
+    return d ? d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—';
+  }
+  function _avisoCopia(meta){
+    const quien = meta.subidoPor ? ` por ${meta.subidoPor}` : '';
+    return `Save del ${fechaCorta(meta.subidoEn)}${quien}. Se descarga como ${NOMBRE_JUEGO}: haz una copia del tuyo antes de reemplazarlo.`;
+  }
+
   async function _pintarBarra(el, meta){
     const turno = ++_turnoBarra;
     if (!meta){
-      el.innerHTML = `<button type="button" class="btn btn-sm" disabled>Aún no hay save publicado</button>`;
+      el.innerHTML = `<span class="msp-empty">Aún no hay save publicado</span>`;
       return;
     }
-    const info = `<span class="msp-txt">Último save publicado: <b>${escHtml(fechaCorta(meta.subidoEn))}</b>
-        · por ${escHtml(meta.subidoPor || '—')}
-        <small>Se descarga como ${NOMBRE_JUEGO}: reemplaza el de la carpeta del juego (haz una copia del tuyo antes).</small></span>`;
     let url = null;
     try {
       const st = await asegurarStorage();
@@ -122,10 +129,10 @@ const SAVE_PUBLICADO = (() => {
     }
     if (turno !== _turnoBarra) return;
     if (!url){
-      el.innerHTML = `${info}<button type="button" class="btn btn-sm" disabled>No se pudo preparar la descarga</button>`;
+      el.innerHTML = `<span class="msp-empty">No se pudo preparar la descarga</span>`;
       return;
     }
-    el.innerHTML = `${info}<a class="btn btn-sm btn-primary" href="${escAttr(url)}">${ICN_DESCARGA} Descargar save</a>`;
+    el.innerHTML = `<a class="msp-btn" href="${escAttr(url)}" title="${escAttr(_avisoCopia(meta))}">${ICN_DESCARGA}<span>Save del ${escHtml(_diaCorto(meta.subidoEn))}</span></a>`;
   }
 
   // Muestra la barra en `el` y la mantiene al día. Sin sesion (o sin permiso) la oculta.
@@ -135,7 +142,7 @@ const SAVE_PUBLICADO = (() => {
     const user = firebase.auth && firebase.auth().currentUser;
     if (!user){ el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = '<span class="msp-txt">Cargando el save publicado…</span>';
+    el.innerHTML = '<span class="msp-empty">Cargando el save…</span>';
     try {
       _suscripcion = suscribir(
         meta => _pintarBarra(el, meta),

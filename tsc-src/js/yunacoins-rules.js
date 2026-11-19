@@ -33,19 +33,18 @@
      - `presidentWallet` DEJA de ser un valor de regla: el saldo real de
        cada equipo es `teams.yunacoin`, se pasa explicito a
        `techoPresupuesto(walletReal, rules)`. Nunca se lee de DEFAULT_RULES.
-     - Orden de consumo INVERTIDO: un jugador suscriptor gasta primero el
-       bono de suscriptores; agotado el bono, sigue con el tope general. Un
-       jugador NO suscriptor solo ve el tope general. Ver `distribuirCosto`.
+     - Orden de consumo (BONO-3): SOLO un jugador con «$» (suscriptor,
+       `subscriber: true`) gasta primero el bono de suscriptores; agotado el
+       bono, el resto sale del tope general. Un jugador sin «$» gasta solo del
+       tope general: nunca toca el bono. Ver `distribuirCosto`.
      - Los topes de temporada (`budgetGeneral`/`budgetSubscribers`) no se
        guardan en `teams`: se derivan del libro `coins` (`gastoTemporada`)
        filtrando `season` actual + `reason` que empieza con 'mejora PES5'.
      - `puedePagar` real = saldo real >= total Y los topes de temporada no
-       se exceden (general para todos, bono solo para suscriptores) — ver
-       `evaluarPago`.
-     - 4.F (techo de suscriptor, decision de Jimbo): el TECHO de un jugador
-       nunca supera el saldo real del equipo.
-         suscriptor:    techo = min(saldo, topeGeneralRestante + bonoRestante)
-         no suscriptor: techo = min(saldo, topeGeneralRestante)
+       se exceden (general para todos, bono solo para suscriptores) — ver `evaluarPago`.
+     - 4.F + BONO-3: el TECHO de un jugador nunca supera el saldo real del equipo.
+         suscriptor («$»): techo = min(saldo, topeGeneralRestante + bonoRestante)
+         sin «$»: techo = min(saldo, topeGeneralRestante)
        Lo calcula `bonoSuscriptor(pool, esSuscriptor)` con pool = {saldo,
        general, subscribers}. `saldo` es `teams.yunacoin` (en el editor del
        presidente, menos lo reservado en pedidos pendientes). El COBRO NO
@@ -164,26 +163,24 @@
      400.000 yunas acumuladas (`teams.yunacoin`, el saldo REAL, un solo
      numero). Por temporada puede gastar en mejoras hasta un TOPE GENERAL
      (regla, ej. 100.000) sobre cualquier jugador, mas un BONO DE
-     SUSCRIPTORES (regla, ej. 20.000) que solo se puede gastar en jugadores
-     suscriptores. Todo descuenta del saldo real: la transaccion en `coins`
+     SUSCRIPTORES (regla, ej. 20.000) que SOLO pueden usar los jugadores con
+     «$» del equipo. Todo descuenta del saldo real: la transaccion en `coins`
      lleva `amount = fromGeneral + fromSub`.
 
-     Orden de consumo (INVERTIDO respecto de la primera version de este
-     modulo — la vieja gastaba el general primero siempre):
-       - jugador SUSCRIPTOR: primero el bono; agotado el bono, el resto
-         sigue con el tope general sin problema.
-       - jugador NO suscriptor: solo el tope general, nunca toca el bono.
-     Asi un suscriptor puede terminar por encima del nivel base del resto
-     del plantel — es el incentivo buscado (dato del usuario, 15/09).
+     BONO-3 (decision de Jimbo y Luis, reemplaza a BONO-2): el bono vuelve a ser
+     SOLO para suscriptores («$»). Un jugador con «$» consume primero el bono y,
+     agotado, sigue con el tope general; uno sin «$» gasta solo del tope general.
+     El tamaño del bono sigue siendo del equipo: `budgetSubscribers` × suscriptores
+     del equipo (`bonoEquipo`). El cobro sale siempre del saldo real (el bono no
+     regala monedas).
 
      `techoPresupuesto(walletReal, rules)` arma el pool `{general,
      subscribers}` de una sesion: `general` es `Math.min(walletReal,
      rules.budgetGeneral)` — el saldo real SIEMPRE se pasa como parametro
      (nunca se lee de un numero de regla, punto 5a). `bonoSuscriptor(pool,
-     esSuscriptor)` sigue siendo el TECHO visible para un jugador (cuanto
-     puede llegar a gastar en total, sin importar el orden) — no cambia con
-     la inversion de orden, que solo afecta COMO se reparte un costo ya
-     calculado entre bono y general (`distribuirCosto`, mas abajo).
+     esSuscriptor)` es el TECHO visible para un jugador (cuanto puede llegar a
+     gastar en total, sin importar el orden); el orden solo afecta COMO se reparte
+     un costo ya calculado entre bono y general (`distribuirCosto`, mas abajo).
      4.F: el techo nunca supera el saldo real (`bonoSuscriptor` lo aplica; ver cabecera).
 
      Los topes de TEMPORADA (`budgetGeneral`/`budgetSubscribers`) no se
@@ -213,9 +210,12 @@
       subscribers: bonoEquipo(r, nSuscriptores),
     };
   }
-  /* 4.F: TECHO de gasto de UN jugador, nunca mayor que el saldo real del equipo.
-     pool = {saldo, general, subscribers} (general y subscribers son lo que queda
-     de cada tope de temporada). Sin `saldo` en el pool no hay tope por saldo. */
+  /* 4.F + BONO-3: TECHO de gasto de UN jugador, nunca mayor que el saldo real.
+     pool = {saldo, general, subscribers} (general y subscribers son lo que queda de cada
+     tope de temporada). BONO-3: el bono es solo para suscriptores («$»), así que el techo es
+     general + bono para un suscriptor y solo general para el resto (ej.: general 120.000 +
+     3 suscriptores × 10.000 = 150.000 para un «$», 120.000 para uno sin «$»).
+     Sin `saldo` en el pool no hay tope por saldo. */
   function bonoSuscriptor(pool, esSuscriptor) {
     if (!pool) return 0;
     const general = pool.general || 0;
@@ -227,22 +227,18 @@
 
   /* ============================================================
      distribuirCosto — reparte el costo TOTAL ya calculado (costoCambios)
-     de la edicion de UN jugador entre bono de suscriptores y tope general,
-     con el ORDEN NUEVO (punto 5b del macro-slice, invierte la logica vieja
-     de este archivo):
-       - suscriptor: `fromSub = min(cost, subscribersRestantes)`,
+     de la edicion de UN jugador entre bono de suscriptores y tope general.
+     BONO-3: el bono es solo para suscriptores («$»):
+       - suscriptor (`esSuscriptor` true): `fromSub = min(cost, subscribersRestantes)`,
          `fromGeneral = cost - fromSub` (el resto, sin techo propio aca —
          si excede el tope general de temporada, eso lo detecta
          `evaluarPago`/`topesRestantes`, no esta funcion).
        - no suscriptor: todo `fromGeneral`, `fromSub` siempre 0.
+     El bono va primero para el suscriptor (el orden que ya usaba la regla).
      `subscribersRestantes` es lo que queda del BONO en este momento (tope
      de regla menos lo ya gastado esta temporada y, si se estan repartiendo
      varios jugadores en un mismo lote, menos lo ya asignado a jugadores
-     anteriores del mismo lote — ver pes5-tool.html > repartoPendienteEquipo,
-     que itera el plantel en orden de roster y va descontando el bono
-     disponible jugador por jugador; ese orden de asignacion entre varios
-     suscriptores simultaneos no esta especificado en el doc, es una
-     decision de esta implementacion).
+     anteriores del mismo lote — ver pes5-tool.js > repartoPendienteEquipo).
      ============================================================ */
   function distribuirCosto(cost, subscribersRestantes, esSuscriptor) {
     const c = cost || 0;
@@ -314,6 +310,52 @@
   }
 
   /* ============================================================
+     BONO-5 · bono POR JUGADOR (reemplaza la bolsa del equipo de BONO-3)
+     ------------------------------------------------------------
+     Cada jugador con «$» tiene su PROPIO bono de `budgetSubscribers` por
+     temporada y solo se puede gastar en ESE jugador. No es una bolsa común:
+     lo que gasta A no le quita bono a B. El cobro sigue saliendo del saldo del
+     equipo; el bono solo amplía cuánto de un jugador puede salir del bono en
+     lugar del tope general.
+
+     `gastoBonoJugador` suma lo que ESE jugador ya consumió de su bono:
+       - movimientos del libro `coins` de la temporada (el llamador ya filtró
+         temporada/equipo y `reason` que empieza con 'mejora PES5') con
+         `pes5.playerId` == `playerId`: se suma `pes5.fromSub` (un reembolso
+         trae `fromSub` negativo y devuelve bono);
+       - sus pedidos pendientes (`estado` 'pendiente' o sin estado): se suma
+         su `fromSub` ya repartido.
+     `bonoRestanteJugador` devuelve max(0, porJugador - gasto) si el jugador
+     tiene «$»; 0 si no. Sin `porJugador` usa la regla `budgetSubscribers`.
+     Comparaciones por String: `playerId` puede venir como número o texto.
+     ============================================================ */
+  function gastoBonoJugador(transacciones, pendientes, playerId) {
+    if (playerId == null) return 0;
+    const id = String(playerId);
+    let gastado = 0;
+    (transacciones || []).forEach(function (t) {
+      if (!t || !t.pes5 || t.pes5.playerId == null) return;
+      if (typeof t.reason === 'string' && t.reason.indexOf('mejora PES5') !== 0) return;
+      if (String(t.pes5.playerId) !== id) return;
+      gastado += Number(t.pes5.fromSub) || 0;
+    });
+    (pendientes || []).forEach(function (p) {
+      if (!p || p.playerId == null) return;
+      if (p.estado && p.estado !== 'pendiente') return;
+      if (String(p.playerId) !== id) return;
+      gastado += Number(p.fromSub) || 0;
+    });
+    return gastado;
+  }
+  function bonoRestanteJugador(transacciones, pendientes, playerId, porJugador, esSuscriptor) {
+    if (!esSuscriptor) return 0;
+    const cuota = porJugador == null
+      ? Math.max(0, Number(DEFAULT_RULES.budgetSubscribers) || 0)
+      : Math.max(0, Number(porJugador) || 0);
+    return Math.max(0, cuota - gastoBonoJugador(transacciones, pendientes, playerId));
+  }
+
+  /* ============================================================
      resumenPresupuesto (slice 2.1-A) — arma los numeros del aviso grande del
      editor de mejoras. Puro: no lee Firestore ni el DOM.
        - saldo: saldo real del equipo (teams.yunacoin).
@@ -328,9 +370,11 @@
        topeGeneral, extra, topeTotal   tope general de base, extra y su suma.
        gastadoGeneral, gastadoSub      lo gastado de la temporada.
        restanteGeneral, restanteSub    lo que queda de cada tope (ya descontado lo reservado).
-       disponibleAhora       min(saldoDisponible, restanteGeneral): limite para un no suscriptor.
-       disponibleSuscriptor  min(saldoDisponible, restanteGeneral + restanteSub): limite para un suscriptor.
+        disponibleBase         min(saldoDisponible, restanteGeneral): techo de un jugador SIN «$».
+        disponibleAhora        min(saldoDisponible, restanteGeneral + restanteSub): techo de un jugador CON «$».
+        disponibleSuscriptor   alias de disponibleAhora (BONO-3: el bono es solo para «$»).
        limitaPor             'saldo' o 'tope': cual de los dos es el limite de disponibleAhora.
+       bonoSoloSuscriptores  true: la UI puede aclarar que el bono es solo para «$».
      ============================================================ */
   function resumenPresupuesto(opts) {
     const o = opts || {};
@@ -356,9 +400,68 @@
       gastadoSub: gastadoSub,
       restanteGeneral: restanteGeneral,
       restanteSub: restanteSub,
-      disponibleAhora: Math.min(saldoDisponible, restanteGeneral),
+      disponibleBase: Math.min(saldoDisponible, restanteGeneral),
+      disponibleAhora: Math.min(saldoDisponible, restanteGeneral + restanteSub),
       disponibleSuscriptor: Math.min(saldoDisponible, restanteGeneral + restanteSub),
-      limitaPor: saldoDisponible < restanteGeneral ? 'saldo' : 'tope',
+      limitaPor: saldoDisponible < restanteGeneral + restanteSub ? 'saldo' : 'tope',
+      bonoSoloSuscriptores: true,
+    };
+  }
+
+  /* ============================================================
+     COINS1 · resumenCarga — lo que le SIRVE cargar a Luis a un equipo en el
+     modal de Agregar YuNaCoins (el «banco»: pasa coins de Streamlabs a la
+     web). Puro: no lee Firestore ni el DOM, todo viene en `opts`:
+       reglas         reglas base de la temporada (budgetGeneral, budgetSubscribers).
+       extra          tope extra del equipo esta temporada (0 si no tiene).
+       nSuscriptores  jugadores con «$» en la plantilla publicada del equipo.
+       gastado        {general, sub} de gastoTemporada (libro coins).
+       saldo          saldo real del equipo (teams.yunacoin).
+     Devuelve:
+       topeGeneral   tope base de la temporada.
+       extra         tope extra del equipo (premio).
+       bono          bono de suscriptores (regla por jugador × suscriptores).
+       topeTotal     topeGeneral + extra + bono.
+       gastadoTotal  lo gastado en la temporada (general + bono).
+       restanteGeneral  lo que queda del tope general (base + extra, sin negativo).
+       restanteBono     lo que queda del bono de suscriptores (sin negativo).
+       restante      restanteGeneral + restanteBono: lo que todavía puede gastar
+                     en mejoras (por tope, sin compensar uno con el otro).
+       restanteSuscriptor  alias de restante (BONO-3: el máximo lo alcanza un «$»).
+       saldo         saldo actual del equipo.
+       sirveCargar   lo que le falta de saldo para llegar a `restante`; nunca
+                     negativo (si ya le alcanza, 0). No mira el saldo del
+                     bono aparte: es un solo numero para el modal.
+       bonoSoloSuscriptores  true: el bono es solo para jugadores con «$».
+     Un reembolso resta del gasto (`fromGeneral`/`fromSub` negativos), asi que
+     `restante` vuelve a subir sin tocar `teams`.
+     ============================================================ */
+  function resumenCarga(opts) {
+    const o = opts || {};
+    const r = o.reglas || DEFAULT_RULES;
+    const saldo = Math.max(0, Number(o.saldo) || 0);
+    const extra = Math.max(0, Math.floor(Number(o.extra) || 0));
+    const gastado = o.gastado || {};
+    const topeGeneral = Math.max(0, Number(r.budgetGeneral) || 0);
+    const bono = bonoEquipo(r, o.nSuscriptores);
+    const gastadoGeneral = Number(gastado.general) || 0;
+    const gastadoSub = Number(gastado.sub) || 0;
+    const restanteGeneral = Math.max(0, topeGeneral + extra - gastadoGeneral);
+    const restanteBono = Math.max(0, bono - gastadoSub);
+    const restante = restanteGeneral + restanteBono;
+    return {
+      topeGeneral: topeGeneral,
+      extra: extra,
+      bono: bono,
+      topeTotal: topeGeneral + extra + bono,
+      gastadoTotal: gastadoGeneral + gastadoSub,
+      restanteGeneral: restanteGeneral,
+      restanteBono: restanteBono,
+      restante: restante,
+      restanteSuscriptor: restante,
+      saldo: saldo,
+      sirveCargar: Math.max(0, restante - saldo),
+      bonoSoloSuscriptores: true,
     };
   }
 
@@ -1080,7 +1183,10 @@
     distribuirCosto: distribuirCosto,
     gastoTemporada: gastoTemporada,
     topesRestantes: topesRestantes,
+    gastoBonoJugador: gastoBonoJugador,
+    bonoRestanteJugador: bonoRestanteJugador,
     resumenPresupuesto: resumenPresupuesto,
+    resumenCarga: resumenCarga,
     normalizarTopesExtra: normalizarTopesExtra,
     extraDeEquipo: extraDeEquipo,
     reglasConExtra: reglasConExtra,

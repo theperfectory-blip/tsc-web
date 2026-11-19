@@ -385,7 +385,81 @@
     return r;
   }
 
+  /* ============================================================
+     PED2 — varios pedidos del MISMO jugador en un mismo lote
+     ------------------------------------------------------------
+     Un lote (lo que se aplica de una vez en la Tool) puede traer dos o
+     mas pedidos del mismo jugador. Se aplican en orden de `creadoEn`
+     (el mas viejo primero: ver `pedidosEnOrdenDeCreacion`) y la Tool
+     lleva, por jugador, los cambios que el lote ya escribio en la copia
+     del save. La validacion de un pedido posterior compara el save
+     contra «lo publicado + lo que este lote ya aplico»
+     (`publicadoConAplicados`), nunca contra lo publicado solo: un campo
+     que movio otro pedido del lote NO es una edicion de Luis. Un save
+     con un valor distinto de los dos si lo es (y se rechaza).
+     ============================================================ */
+
+  /* Copia de lo publicado por el presidente con los cambios de este lote ya aplicados, en
+     orden (misma forma que `publicadoJugador`, la del editor). No muta la entrada. Es contra
+     esto que se valida un pedido que llega despues en el mismo lote. */
+  function publicadoConAplicados(publicadoJugador, listaDeCambios) {
+    if (!publicadoJugador) return null;
+    let j = aplicarCambiosAlJugador(publicadoJugador, null);   // copia, sin tocar el original
+    for (const cambios of (listaDeCambios || [])) {
+      if (cambios) j = aplicarCambiosAlJugador(j, cambios);
+    }
+    return j;
+  }
+
+  /* Jugador publicado (forma del editor) pasado a la forma que lee el costo
+     (`leerJugadorCompleto`): atributos / escala8 / habilidades / lesiones / altura / edad /
+     pieDominante. Es el mapeo inverso de `cambiosDesdeEditor`, con los mismos mapas, y sirve
+     para costear un pedido contra una base que no es el save (la plantilla publicada). */
+  function jugadorReglasDeEditor(p) {
+    const q = p || {};
+    const stats = q.stats || {}, sec = q.sec || {};
+    const ESCALA8 = { cons: true, cond: true, wff: true, wfa: true };
+    const atributos = {}, escala8 = {}, habilidades = {};
+    for (const [k, campo] of Object.entries(STAT_MAP)) {
+      if (typeof stats[k] === 'number') atributos[campo] = stats[k];
+    }
+    for (const [k, campo] of Object.entries(SEC_MAP)) {
+      if (typeof sec[k] !== 'number') continue;
+      if (ESCALA8[k]) escala8[campo] = sec[k]; else atributos[campo] = sec[k];
+    }
+    if (q.abilities) for (const [k, campo] of Object.entries(ABILITY_MAP)) habilidades[campo] = q.abilities[k] === true;
+    return {
+      id: registroDeId(q.id),
+      nombre: q.name == null ? '' : String(q.name),
+      subscriber: q.subscriber === true || String(q.name || '').startsWith('$'),
+      atributos: atributos,
+      escala8: escala8,
+      habilidades: habilidades,
+      lesiones: sec.inj === undefined ? null : sec.inj,
+      altura: q.height,
+      edad: q.age,
+      pieDominante: q.favfoot === 'I' ? 'izq' : 'der',
+    };
+  }
+
+  /* Pedidos de un equipo en orden de creacion: el mas viejo primero (`creadoEn` ascendente).
+     Sin fecha (pedido local recien creado) va al final, igual que formacionPendienteMasReciente.
+     Sort estable: dos pedidos con la misma fecha conservan el orden en que llegaron. */
+  function pedidosEnOrdenDeCreacion(pedidos) {
+    return (pedidos || [])
+      .map((p, i) => ({ p: p, i: i, ms: msDeFecha(p && p.creadoEn) }))
+      .sort((a, b) => {
+        const ta = a.ms == null ? Number.MAX_SAFE_INTEGER : a.ms;
+        const tb = b.ms == null ? Number.MAX_SAFE_INTEGER : b.ms;
+        return ta === tb ? a.i - b.i : ta - tb;
+      })
+      .map(x => x.p);
+  }
+
   return {
+    publicadoConAplicados: publicadoConAplicados,
+    jugadorReglasDeEditor: jugadorReglasDeEditor,
+    pedidosEnOrdenDeCreacion: pedidosEnOrdenDeCreacion,
     rosterTrasTitulares: rosterTrasTitulares,
     cambiosDeAlineacion: cambiosDeAlineacion,
     formacionPendienteMasReciente: formacionPendienteMasReciente,

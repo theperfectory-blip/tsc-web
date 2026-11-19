@@ -32,19 +32,29 @@ const MEJ_MARKUP = `
   <div class="ep-layout">
     <aside class="ep-roster">
       <section class="ep-saldo" aria-label="YunaCoins del equipo">
-        <div class="ep-saldo-lbl">Saldo del equipo</div>
-        <div class="ep-saldo-val" title="Saldo total de YunaCoins del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
-        <div class="ep-cap">
-          <div class="ep-cap-txt"><span>Queda del tope de la temporada</span><span><b id="ep-balance-general">0</b> / <span id="ep-hero-general-cap">0</span></span></div>
-          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
+        <div class="ep-saldo-lbl">Tu saldo</div>
+        <div class="ep-saldo-val" title="YunaCoins cargadas en la cuenta del equipo"><b id="ep-balance-total">0</b><span>YC</span></div>
+        <div class="ep-edicion" id="ep-edicion" hidden><span id="ep-edicion-lbl">Esta edición</span><b id="ep-edicion-val"></b><span class="ep-edicion-note" id="ep-edicion-note"></span></div>
+        <div class="ep-cap ep-cap-doble">
+          <div class="ep-bar" id="ep-bar-bono" hidden>
+            <div class="ep-cap-txt"><span><span id="ep-bono-lbl">Bono de suscriptores</span>: queda <b id="ep-balance-bono">0</b> de <span id="ep-hero-bono-cap">0</span></span></div>
+            <div class="ep-cap-bar" aria-hidden="true"><i id="ep-bono-fill"></i></div>
+          </div>
+          <div class="ep-bar" id="ep-bar-general">
+            <div class="ep-cap-txt"><span>Tope general: queda <b id="ep-balance-general">0</b> de <span id="ep-hero-general-cap">0</span></span></div>
+            <div class="ep-cap-bar" aria-hidden="true"><i id="ep-cap-fill"></i></div>
+          </div>
+          <div class="ep-cap-desg" id="ep-cap-desg" hidden></div>
         </div>
-        <div class="ep-bono"><span>Bono suscriptores</span><b id="ep-balance-sub">0</b></div>
+        <div class="ep-disp" id="ep-disp" hidden>Puedes gastar hasta <b id="ep-disp-val">0</b> YC: te limita el tope de la temporada</div>
       </section>
 
       <div class="ep-access">
         <button class="ep-acc formation" data-onclick="openFormationModal()"><span class="ep-acc-t">Formación</span><span class="ep-acc-s" id="ep-form-sub">Gratis</span></button>
         <button class="ep-acc" data-onclick="openAuditModal()"><span class="ep-acc-t">Pedidos</span><span class="ep-acc-s" id="ep-pedidos-sub">Sin pendientes</span><span class="badge" id="ep-hist-badge">0</span></button>
       </div>
+
+      <div class="ep-cart-panel" id="ep-cart-panel" hidden></div>
 
       <div class="ep-pend" id="ep-pend" hidden></div>
 
@@ -83,7 +93,7 @@ const MEJ_MARKUP = `
       </nav>
 
       <div class="ep-rows" id="ep-rows"></div>
-      <div class="ep-hint" id="ep-hint" hidden></div>
+      <div class="ep-hint" id="ep-hint" aria-live="polite"></div>
 
       <div class="ep-cart">
         <div class="ep-cart-info">
@@ -94,7 +104,7 @@ const MEJ_MARKUP = `
         <div id="ep-warn" class="ep-warn"></div>
         <div class="ep-cart-actions">
           <button class="ep-cart-btn" data-onclick="discardChanges()" aria-label="Descartar cambios" title="Descartar cambios"><svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg></button>
-          <button class="ep-cart-go" id="ep-apply" data-onclick="openApplyConfirm()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Revisar</button>
+          <button class="ep-cart-go" id="ep-apply" data-onclick="openReviewAll()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Revisar</button>
         </div>
       </div>
     </section>
@@ -110,6 +120,18 @@ const MEJ_MARKUP = `
 /* Cierra un modal solo si el click fue en el fondo (reemplaza onclick="if(event.target===this)..."; ver js/events.js). */
 function closeIfBackdrop(e, fn){ if(e.target===e.currentTarget) fn(); }
 function jsq(s){ return String(s).replace(/'/g,"\\'"); }
+
+/* ================= MINVER: version minima del cliente de mejoras =================
+   MEJORAS_CLIENTE es la version de las reglas de costo/bono/pedidos que entiende este
+   cliente. TODO pedido que crea el editor la manda en el campo `cliente` de
+   pedidos_pes5, y las reglas lo comparan con pes5_config/app.minCliente:
+   - Cuando cambian las reglas de costo, bono o el formato de los pedidos, se sube este
+     numero a mano (junto con el cambio) y se publica una APK/nueva version web.
+   - El minimo aceptado lo decide y lo escribe aparte Jimbo/coordinador a mano en
+     pes5_config/app = { minCliente: <entero> }: nadie puede crear pedidos con un
+     cliente menor. No hay UI para ese valor, ni en la Tool ni en el panel.
+   - Sin pes5_config/app no hay minimo: cualquier cliente puede pedir. */
+const MEJORAS_CLIENTE = 2;
 
 /* ================= auth (Firebase) — reusa js/auth.js del proyecto ================= */
 /* auth.js necesita estos globales minimos: STATE.mode, openModal/closeModal (toggle
@@ -140,6 +162,11 @@ let _gatePlantillaClub = undefined; // club PES5 con el que se cargo PLAYERS act
 
 async function renderAuthUI(){
   if (ADMIN_EMBED) return; // modo admin: no hay gate, los datos los manda la tool
+  // CARRO1: el carrito es de la cuenta que lo armo. Si cambia la sesion, no se hereda.
+  if (AUTH.user && AUTH.user.uid !== _carritoUid){
+    APP.drafts = {}; APP.draftsBase = {};
+    _carritoUid = AUTH.user.uid;
+  }
   const el = document.getElementById('ep-auth-status');
   if (el){
     if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" data-onclick="openAuthModal()">Iniciar sesion</button>`;
@@ -201,7 +228,9 @@ async function renderAuthUI(){
     // EMP-80-2: perfiles fijados de la temporada de cobro (si el admin ya los fijo). Sin doc: calculo en vivo.
     try { PERFILES_FIJADOS = await cargarPerfilesFijados(AUTH.teamId, COBRO_TEMPORADA ?? STATE.season); }
     catch(e){ console.warn('[mejoras] no se pudieron leer los perfiles fijados', e); PERFILES_FIJADOS = null; }
-    APP.playerId = PLAYERS[0].id;
+    // CARRO1: recuperar los borradores en espera guardados en este navegador.
+    _carritoCargar();
+    APP.playerId = PLAYER_BY_ID[APP.playerId] ? APP.playerId : PLAYERS[0].id;
     loadDraft();
   }
   // Slice Q4: un solo editor a la vez por equipo. Si el admin lo esta editando, se muestra el aviso.
@@ -557,9 +586,6 @@ function formacionPorDefecto(){
    actual (Luis pudo republicar o cambiar el club vinculado). */
 /* FORM-4: alineacion y formacion. Una sola lectura para la cancha, la lista y la ficha:
    1) el borrador (modal abierto), 2) el pedido de formacion pendiente, 3) la publicada, 4) la local. */
-function _textoLinea(l){
-  return l.from ? `${l.label}: ${l.from} → ${l.to}` : `${l.label}: ${l.to}`;
-}
 /* Lineas del pedido: un "Cambio de alineacion" por cada cambio de quien juega, y "Formacion" solo si
    se movieron los puntos o la posicion de un lugar (4-3-3, etc.). */
 function _lineasFormacion(base, nueva, nombreNueva){
@@ -717,6 +743,20 @@ async function cargarTopeExtraEquipo(teamId){
 function _nSuscriptoresPlantel(){
   return PLAYERS.filter(p => p.subscriber).length;
 }
+/* BONO-5 · bono restante de UN jugador esta temporada, antes de la edición en curso.
+   Cada jugador con «$» tiene su propio bono de `budgetSubscribers` y solo se gasta en
+   ÉL: lo que gastó A no le quita bono a B. La cuota se descuenta con lo que ese jugador
+   ya consumió de su bono en el libro `coins` (`pes5.playerId` = registro del save); los
+   reembolsos (`fromSub` negativo) lo devuelven. No se resta su pedido pendiente: el
+   borrador ya incluye esos cambios y el pedido nuevo lo reemplaza.
+   En modo admin la Tool pasa el bono restante del jugador en `m.bonoJugador`. */
+function bonoRestanteDeJugador(p){
+  if (!p || !p.subscriber) return 0;
+  if (ADMIN_EMBED) return Math.max(0, Number(APP.bonoJugador) || 0);
+  const registro = registroPres(p);
+  if (registro == null) return Math.max(0, Number(RULES.budgetSubscribers) || 0);
+  return YUNACOINS_RULES.bonoRestanteJugador(APP.coinTx || [], [], registro, RULES.budgetSubscribers, true);
+}
 async function recalcularPresupuestoReal(){
   const wallet = EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0;
   let gastado = { general: 0, sub: 0 };
@@ -724,9 +764,10 @@ async function recalcularPresupuestoReal(){
     const tx = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId) && c.season === (COBRO_TEMPORADA ?? STATE.season)
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
     gastado = YUNACOINS_RULES.gastoTemporada(tx);
+    APP.coinTx = tx; // BONO-5: bono restante por jugador (gastoBonoJugador usa pes5.playerId = registro)
     // EMP-80-1: jugadores con mejoras PAGADAS en la temporada de cobro (bloquea «Solicitar emparejar»)
-    APP.pagadosRegistro = new Set(tx.filter(c => c.pes5 && Number(c.amount) > 0).map(c => Number(c.pes5.playerId)));
-  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); APP.pagadosRegistro = null; }
+    APP.pagadosRegistro = new Set(tx.filter(c => c.pes5 && !c.pes5.reembolso && c.pes5.playerId != null && Number(c.amount) > 0).map(c => Number(c.pes5.playerId)));
+  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); APP.pagadosRegistro = null; APP.coinTx = []; }
   let pendG = 0, pendS = 0, pendTotal = 0;
   APP.pendientes = [];
   try {
@@ -786,21 +827,17 @@ function perfilPres(p){
   if (fijado != null) return YUNACOINS_RULES.perfilParaJugador(null, cfg, fijado);
   return YUNACOINS_RULES.perfilEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
 }
+function costoStatDe(p, campo, from, to){
+  return YUNACOINS_RULES.costoAtributoConPerfil(campo, from, to, perfilPres(p), emparejarCfgPres(), RULES);
+}
 function costoStatPres(campo, from, to){
-  return YUNACOINS_RULES.costoAtributoConPerfil(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres(), RULES);
+  return costoStatDe(currentPlayer(), campo, from, to);
 }
 function costoPuntoPres(campo, v){ return costoStatPres(campo, v-1, v); }
-function gratisStatPres(campo, from, to){
-  return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres());
+function gratisStatDe(p, campo, from, to){
+  return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(p), emparejarCfgPres());
 }
 const PERFIL_LABEL = { base: 'Base', suscriptor: 'Suscriptor' };
-// Costo de un pedido en la lista: «sin costo (perfil X)» si todo fue tramo gratis; si no, los YunaCoins.
-function pedidoCostoTexto(p){
-  const total = Number(p.costoFinal != null ? p.costoFinal : (p.totalCost || 0));
-  const gratisLine = (p.lines || []).find(l => Number(l.gratis || 0) > 0 && PERFIL_LABEL[l.perfil]);
-  if (total === 0 && gratisLine) return 'sin costo (perfil ' + PERFIL_LABEL[gratisLine.perfil] + ')';
-  return total.toLocaleString('es-CL') + ' YunaCoins';
-}
 // Texto del costo de una linea. Con tramo gratis: «+200 · 1 sin costo (perfil Base)»; sin costo: «sin costo (perfil X)».
 function lineaCostoTexto(l){
   const g = Number(l.gratis || 0);
@@ -912,7 +949,7 @@ const PLAYERS_DEMO = [
     abilities:['playmaker','pkKick'],
     positions:[]}),
 
-  /* --- Suscriptores (4) — editable, con acceso al bono de 25k una vez agotado el general --- */
+  /* --- Suscriptores (4) — editable, con acceso al bono de suscriptores (solo jugadores $) --- */
   mkPlayer({id:'wwhite',name:'Walter White',dorsal:'99',posTag:'CT',bucket:'DE',locked:false,subscriber:true,country:'FK Tupadre',height:205,age:26,foot:'Der.',
     sec:{ment:85,cons:7,gk:85,teq:85,cond:8,wff:4,wfa:4,inj:'C'},
     stats:{atk:85,def:85,equ:85,res:85,vm:85,ace:85,rsp:85,agi:85,pcd:85,vcd:85,ppc:85,vpc:85,ppl:85,vpl:85,pre:85,pot:85,ted:85,psf:85,efe:85,cab:85,sal:85,tec:85,agr:85},
@@ -1026,29 +1063,293 @@ const APP = {
   // renderAuthUI() > "if (_gateTeamId !== AUTH.teamId)".
   budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES, 0), // BONO-1: el conteo llega con recalcularPresupuestoReal
   gastado: { general: 0, sub: 0 },              // slice 2.1-A: gastado de la temporada (libro coins)
+  // BONO-5: movimientos del libro coins de la temporada (mejoras PES5 del equipo), para
+  // calcular el bono restante de CADA jugador con «$». Se llena en recalcularPresupuestoReal.
+  coinTx: [],
+  // BONO-5 (modo admin): bono restante del jugador abierto, que lo pasa la Tool PES5.
+  bonoJugador: 0,
+  // BONO-5 (modo admin): suma de bonos restantes de los «$» del equipo (dato de la barra).
+  bonoEquipo: 0,
   pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
   draft: null,
-  hint: 'Selecciona un atributo para ver su descripcion.',
+  // CARRO1: un borrador por jugador, en espera hasta mandarlos todos. APP.draft es
+  // siempre el del jugador abierto (misma referencia que su entrada del carrito).
+  drafts: {},
+  draftsBase: {}, // firma de lo publicado con la que se armo cada borrador del carrito
+  hint: 'Selecciona un atributo para ver su descripción.',
+  // MEJUI2: posición cuya descripción está abierta. Solo ella muestra «Hacer principal»
+  // en la línea fija de abajo (la forma discreta de cambiar la posición natural).
+  posSel: null,
 };
 
 function currentPlayer(){ return PLAYER_BY_ID[APP.playerId]; }
-function loadDraft(){
-  const p = currentPlayer();
-  // Modo admin: el borrador arranca desde el original + lo ya guardado en la tool.
-  const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : p;
-  APP.draft = JSON.parse(JSON.stringify({
-    stats:src.stats, sec:src.sec, abilities:src.abilities, positions:src.positions, primaryPos:src.primaryPos, side:src.side, favfoot:src.favfoot, height:src.height, age:src.age,
-  }));
+
+/* ================= PED1 · un solo pedido pendiente de mejoras por jugador =================
+   Antes el borrador partia siempre del jugador publicado y `APP.pendientes` solo se usaba para
+   pintar la marca «Pedido»: si el presidente volvia a mandar cambios del mismo jugador sin
+   cancelar el anterior, quedaban dos pedidos pendientes solapados y la Tool aplicaba uno y
+   rechazaba el otro («el jugador cambio desde el pedido») con perdida de cambios.
+   Ahora: el borrador parte de lo publicado + los cambios del pedido pendiente, y al enviar se
+   manda UN pedido nuevo con TODOS los cambios respecto de lo publicado, cancelando el pendiente
+   anterior en el mismo paso. El pedido de mejoras no lleva 'tipo' (formacion y emparejar si). */
+function pendientesMejoraDeJugador(p){
+  if (!p) return [];
+  const registro = registroPres(p);
+  return (APP.pendientes || []).filter(x => x && x.estado === 'pendiente' && !x.tipo
+    && (x.playerId === p.id
+        || (registro != null && x.registro != null && Number(x.registro) === Number(registro))));
+}
+/* El pedido de mejoras pendiente mas reciente del jugador (null si no hay ninguno). */
+function pedidoMejoraPendiente(p){
+  const lista = pendientesMejoraDeJugador(p).slice().sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b));
+  return lista.length ? lista[lista.length - 1] : null;
+}
+/* Pedidos de emparejar pendientes del jugador (EMP-80-1). */
+function pendientesEmparejarDeJugador(p){
+  if (!p) return [];
+  const registro = registroPres(p);
+  return (APP.pendientes || []).filter(x => x && x.estado === 'pendiente' && x.tipo === 'emparejar'
+    && (x.playerId === p.id
+        || (registro != null && x.registro != null && Number(x.registro) === Number(registro))));
+}
+/* Jugador del que parte el borrador: lo publicado + los cambios de los pedidos pendientes.
+   Lo normal es uno solo; si quedaron pedidos viejos solapados (el bug PED1) se aplican en
+   orden y se conservan los cambios de todos hasta que se mande el pedido unico. */
+function jugadorBaseBorrador(p){
+  const lista = pendientesMejoraDeJugador(p)
+    .filter(x => x.cambios)
+    .sort((a, b) => _tiempoPedido(a) - _tiempoPedido(b));
+  let j = p;
+  lista.forEach(x => {
+    try { j = PES5_PLANTILLA.aplicarCambiosAlJugador(j, x.cambios); }
+    catch(e){ console.warn('[mejoras] pedido pendiente ilegible', e); }
+  });
+  return j;
+}
+/* YunaCoins que el pedido pendiente ya tiene reservados para este jugador. */
+function costoReservadoJugador(p){
+  return pendientesMejoraDeJugador(p).reduce((s, x) => s + Number(x.totalCost || 0), 0);
+}
+/* Costo que el pedido nuevo suma sobre lo ya reservado (la reserva no se cuenta dos veces). */
+function pendingCostSinReservar(){
+  return Math.max(0, pendingCost() - costoReservadoJugador(currentPlayer()));
+}
+/* Reparto general/suscriptores del pedido nuevo: BONO-5, el bono que se consume es el
+   DEL JUGADOR (su cuota menos lo que ya gastó de su bono esta temporada). El pedido
+   pendiente que se reemplaza no cambia ese cálculo: el borrador ya incluye sus cambios. */
+function repartoDelPedidoNuevo(p, cost){
+  return YUNACOINS_RULES.distribuirCosto(cost, bonoRestanteDeJugador(p), !!(p && p.subscriber));
+}
+/* Cambios del borrador respecto de lo PUBLICADO: es lo que lleva el pedido nuevo. */
+function cambiosDelBorrador(p, d){
+  return PES5_PLANTILLA.cambiosDesdeEditor(p, {
+    stats: Object.assign({}, p.stats, d.stats),
+    sec: Object.assign({}, p.sec, d.sec),
+    abilities: Object.assign({}, p.abilities, d.abilities),
+    positions: d.positions, primaryPos: d.primaryPos, side: d.side,
+    height: d.height, favfoot: d.favfoot, age: d.age,
+  });
+}
+/* ¿El borrador es exactamente el pedido que ya esta pendiente? (no hay nada nuevo que mandar) */
+function borradorYaPedido(p){
+  if (!p || !APP.draft) return false;
+  const pedido = pedidoMejoraPendiente(p);
+  if (!pedido || !pedido.cambios) return false;
+  const cambios = cambiosDelBorrador(p, APP.draft);
+  if (!Object.keys(cambios).length) return false;
+  return PES5_PLANTILLA.canonicoJSON(cambios) === PES5_PLANTILLA.canonicoJSON(pedido.cambios);
 }
 
-function pendingCost(){
-  const p = currentPlayer(), d = APP.draft;
+/* ================= CARRO1 · carrito de mejoras (varios jugadores a la vez) =================
+   Un borrador por jugador en APP.drafts[playerId]. Al cambiar de jugador se guarda el que
+   se deja (solo si tiene cambios respecto de su base) y al volver se recupera. APP.draft es
+   siempre el del jugador abierto, asi que todo el editor de atributos sigue igual.
+   El carrito se persiste en localStorage (clave por uid + equipo) y se borra al enviarlo. */
+const CARRO_PREFIJO = 'tsc_ep_carrito_';
+let _carritoUltimo = null;   // ultimo JSON escrito: evita reescribir si nada cambio
+let _carritoUid = null;      // uid dueno del carrito en memoria (se limpia al cambiar de cuenta)
+
+function _clonarDraft(d){ return JSON.parse(JSON.stringify(d)); }
+function _draftComparable(d){
+  return {
+    stats: d.stats, sec: d.sec, abilities: d.abilities, positions: d.positions,
+    primaryPos: d.primaryPos, side: d.side, height: d.height, favfoot: d.favfoot, age: d.age,
+  };
+}
+function _firmaDraft(d){ return PES5_PLANTILLA.canonicoJSON(_draftComparable(d || {})); }
+/* Firma de lo PUBLICADO del jugador: si cambio (Luis republico), los borradores guardados
+   de ese jugador se descartan al recuperar el carrito. */
+function _firmaPublicada(p){
+  return PES5_PLANTILLA.canonicoJSON({
+    stats: p.stats, sec: p.sec, abilities: p.abilities, positions: p.positions,
+    primaryPos: p.primaryPos, side: p.side, height: p.height, favfoot: p.favfoot, age: p.age,
+  });
+}
+function _carritoActivo(){
+  return !ADMIN_EMBED && !!(AUTH && AUTH.user && AUTH.user.uid === _carritoUid && AUTH.teamId != null) && PLAYERS.length > 0;
+}
+function _carritoClave(){
+  if (!AUTH || !AUTH.user || AUTH.teamId == null) return null;
+  return CARRO_PREFIJO + AUTH.user.uid + '_' + AUTH.teamId;
+}
+/* Jugador base del borrador: publicado + los cambios del pedido pendiente (PED1).
+   En modo admin: el original + lo ya guardado en la tool. */
+function _draftBase(p){
+  const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : jugadorBaseBorrador(p);
+  return _clonarDraft({
+    stats:src.stats, sec:src.sec, abilities:src.abilities, positions:src.positions, primaryPos:src.primaryPos, side:src.side, favfoot:src.favfoot, height:src.height, age:src.age,
+  });
+}
+function _draftDifiereDelBase(p, d){
+  return _firmaDraft(d) !== _firmaDraft(_draftBase(p));
+}
+/* Borrador vivo de un jugador: el abierto (APP.draft) o el guardado en el carrito. */
+function _draftVigenteDe(p){
+  if (!p) return null;
+  if (p.id === APP.playerId && APP.draft) return APP.draft;
+  return (APP.drafts && APP.drafts[p.id]) || null;
+}
+/* Entradas del carrito, en el orden del plantel: {p, d, costo}. Solo las que tienen
+   cambios propios respecto de su base (publicado + pedido pendiente). */
+function _carritoEntradas(){
+  if (!_carritoActivo()) return [];
+  const out = [];
+  plantelOrdenado().forEach(p => {
+    const d = _draftVigenteDe(p);
+    if (!d || !_draftDifiereDelBase(p, d)) return;
+    out.push({ p: p, d: d, costo: pendingCostDe(p, d) });
+  });
+  return out;
+}
+function _carritoCosto(){
+  return _carritoEntradas().reduce((s, e) => s + e.costo, 0);
+}
+function _carritoReservado(){
+  return _carritoEntradas().reduce((s, e) => s + costoReservadoJugador(e.p), 0);
+}
+/* Lo que el carrito suma de verdad al saldo: el costo de los pedidos nuevos menos lo que
+   los pedidos pendientes que reemplaza ya tenian reservado (no se cuenta dos veces). */
+function _carritoNeto(){
+  return Math.max(0, _carritoCosto() - _carritoReservado());
+}
+function _carritoExcede(){
+  return _carritoFalta() > 0;
+}
+/* BONO-5: cuánto le sobra al carrito por encima de lo disponible. Cada jugador consume
+   SU bono (el de su propia cuota) y después el tope general del equipo, así que se revisan
+   el tope general y el saldo; el bono por jugador ya lo acota `distribuirCosto` con
+   `bonoRestanteDeJugador`. Lo que los pedidos reemplazados ya reservaban vuelve a estar libre. */
+function _carritoFalta(){
+  if (!_carritoActivo()) return 0;
+  const neto = _carritoNeto();
+  if (!(neto > 0)) return 0;
+  const entradas = _carritoEntradas();
+  if (!entradas.length) return 0;
+  const rep = _repartoCarrito(entradas);
+  const faltaGeneral = rep.totalGeneral - (APP.budget.general || 0) - rep.liberadoGeneral;
+  const faltaSaldo = neto - (APP.saldo || 0);
+  return Math.max(0, faltaGeneral, faltaSaldo);
+}
+/* Guarda el borrador abierto en el carrito (si cambio respecto de su base) y persiste. */
+function guardarDraftActual(){
+  if (!_carritoActivo() || !APP.playerId) return;
+  const p = PLAYER_BY_ID[APP.playerId];
+  if (!p || !APP.draft) return;
+  if (_draftDifiereDelBase(p, APP.draft)){
+    APP.drafts[p.id] = _clonarDraft(APP.draft);
+    APP.draftsBase[p.id] = _firmaPublicada(p);
+  } else {
+    delete APP.drafts[p.id];
+    delete APP.draftsBase[p.id];
+  }
+  _carritoGuardar();
+}
+function _carritoGuardar(){
+  if (!_carritoActivo()) return;
+  const clave = _carritoClave();
+  if (!clave) return;
+  const drafts = {};
+  Object.keys(APP.drafts).forEach(id => {
+    const p = PLAYER_BY_ID[id], d = APP.drafts[id];
+    if (!p || !d) return;
+    drafts[id] = { nombre: p.name, base: APP.draftsBase[id] || _firmaPublicada(p), draft: d };
+  });
+  const vacio = !Object.keys(drafts).length;
+  const raw = vacio ? null : JSON.stringify({ v: 1, drafts: drafts });
+  if (raw === _carritoUltimo) return;
+  try {
+    if (vacio) localStorage.removeItem(clave);
+    else localStorage.setItem(clave, raw);
+    _carritoUltimo = raw;
+  } catch(e){ /* sin localStorage: el carrito sigue en memoria */ }
+}
+/* Recupera el carrito guardado. Descarta borradores de jugadores que ya no estan en el
+   plantel publicado o cuya base cambio (plantilla republicada despues de armarlo). */
+function _carritoCargar(){
+  APP.drafts = {};
+  APP.draftsBase = {};
+  _carritoUltimo = null;
+  _carritoUid = (AUTH && AUTH.user) ? AUTH.user.uid : null;
+  const clave = _carritoClave();
+  if (!clave) return;
+  let raw = null;
+  try { raw = localStorage.getItem(clave); } catch(e){ raw = null; }
+  if (!raw) return;
+  let data = null;
+  try { data = JSON.parse(raw); } catch(e){ data = null; }
+  if (!data || data.v !== 1 || !data.drafts) return;
+  const descartados = [];
+  Object.keys(data.drafts).forEach(id => {
+    const e = data.drafts[id] || {};
+    const p = PLAYER_BY_ID[id];
+    if (!p){ descartados.push(e.nombre || 'un jugador'); return; }
+    if (!e.draft || e.base !== _firmaPublicada(p)){ descartados.push(p.name); return; }
+    APP.drafts[id] = e.draft;
+    APP.draftsBase[id] = e.base;
+  });
+  _carritoUltimo = raw;
+  if (descartados.length){
+    const nombres = descartados.slice(0, 3).join(', ') + (descartados.length > 3 ? ' y ' + (descartados.length - 3) + ' mas' : '');
+    showMiniToast('Se descartaron cambios de ' + nombres + ': la plantilla se actualizó');
+    _carritoGuardar();
+  }
+}
+/* Descarta los borradores cuyo jugador ya no esta o cuyo publicado cambio (p. ej. al recargar
+   la plantilla despues de aplicar/cancelar un pedido). */
+function _carritoValidar(){
+  if (!_carritoActivo()) return;
+  const descartados = [];
+  Object.keys(APP.drafts).forEach(id => {
+    const p = PLAYER_BY_ID[id];
+    if (!p || (APP.draftsBase[id] && APP.draftsBase[id] !== _firmaPublicada(p))){
+      descartados.push(p ? p.name : 'un jugador');
+      delete APP.drafts[id];
+      delete APP.draftsBase[id];
+    }
+  });
+  if (!descartados.length) return;
+  _carritoGuardar();
+  const nombres = descartados.slice(0, 3).join(', ') + (descartados.length > 3 ? ' y ' + (descartados.length - 3) + ' mas' : '');
+  showMiniToast('Se descartaron cambios de ' + nombres + ': la plantilla se actualizó');
+}
+
+function loadDraft(){
+  const p = currentPlayer();
+  if (!p){ APP.draft = null; return; }
+  // CARRO1: al volver a un jugador se recupera su borrador guardado; si no hay, la base
+  // de siempre (admin: original + tool; presidente PED1: publicado + pedido pendiente).
+  const guardado = (!ADMIN_EMBED && APP.drafts[p.id]) ? APP.drafts[p.id] : null;
+  APP.draft = _clonarDraft(guardado || _draftBase(p));
+}
+
+/* Costo del borrador de UN jugador contra lo publicado (cada uno con su perfil). */
+function pendingCostDe(p, d){
   if(!p || !d) return 0;
   let total=0;
-  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costoStatPres(s.k, p.stats[s.k], d.stats[s.k]); });
+  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costoStatDe(p, s.k, p.stats[s.k], d.stats[s.k]); });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costoStatPres(s.k, p.sec[s.k], d.sec[s.k]); }
+    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costoStatDe(p, s.k, p.sec[s.k], d.sec[s.k]); }
     else if(s.sc===8){ if(d.sec[s.k]>p.sec[s.k]) total += (d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost; }
     else if(s.sc==='inj'){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1058,19 +1359,25 @@ function pendingCost(){
   ALL_ABILITY_KEYS.forEach(k=>{ if(d.abilities[k] && !p.abilities[k]) total += RULES.abilityCost; });
   return total;
 }
-/* techo de gasto del jugador (4.F): los suscriptores suman el bono exclusivo al tope general;
-   el resto del plantel solo ve el general. Los dos quedan acotados por el saldo real del equipo.
-   Formula en YUNACOINS_RULES.bonoSuscriptor (ver cabecera de yunacoins-rules.js). APP.saldo ya
-   descuenta lo reservado en pedidos pendientes. La edicion libre de la tool (equipo sin cobro)
-   no tiene saldo que limite. */
+
+function pendingCost(){
+  return pendingCostDe(currentPlayer(), APP.draft);
+}
+/* techo de gasto del jugador (4.F + BONO-5): el bono que amplía su techo es EL SUYO
+   (cuota de la temporada menos lo que ya gastó de su bono); un jugador sin «$» solo tiene
+   el tope general. Los dos quedan acotados por el saldo real del equipo.
+   APP.saldo ya descuenta lo reservado en pedidos pendientes. La edición libre de la tool
+   (equipo sin cobro) no tiene saldo que limite. */
 function remainingForPlayer(p){
   if(!p) return 0;
   const cobra = !(EQUIPO_TSC && EQUIPO_TSC.cobra === false);
-  const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
-  return YUNACOINS_RULES.bonoSuscriptor(pool, !!p.subscriber);
+  const techo = Math.max(0, APP.budget.general || 0) + bonoRestanteDeJugador(p);
+  return cobra ? Math.min(Math.max(0, APP.saldo || 0), techo) : techo;
 }
-/* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual */
-function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCost(); }
+/* saldo disponible EN VIVO — ya descuenta lo acumulado en TODO el carrito (BONO-3: cada
+   jugador consume su propio tope, el bono solo si tiene «$»), sin contar dos veces los
+   pedidos pendientes que ya venian reservados */
+function remainingBalance(){ return remainingForPlayer(currentPlayer()) - (ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto()); }
 function canAfford(nextCost){ return nextCost <= remainingBalance(); }
 
 /* ================= render: roster (agrupado por posicion, estilo PES5) ================= */
@@ -1084,6 +1391,9 @@ function renderRoster(){
   const list = document.getElementById('ep-roster-list');
   const secs = _seccionesPlantel();
   const ordenPlantel = plantelOrdenado();
+  // CARRO1: marca de los jugadores que tienen un borrador en espera (punto + costo).
+  const carro = {};
+  _carritoEntradas().forEach(e => { carro[e.p.id] = e; });
   // conteos y estado del segmentado (siempre sobre todo el plantel)
   SQUAD_SECTIONS.forEach(sec=>{
     const n = PLAYERS.filter(p => secs[p.id] === sec.key).length;
@@ -1099,12 +1409,14 @@ function renderRoster(){
     const codigo = sp ? (sp.pos || CODIGO_POS[pos] || pos) : (CODIGO_POS[pos] || pos);
     const linea = sp ? (PITCH_POS_LINEA[sp.pos] || LINEA_POS[pos] || 'mid') : (LINEA_POS[pos] || 'mid');
     const pendiente = (APP.pendientes||[]).some(x => x.playerId === p.id && x.estado === 'pendiente');
+    const enCarro = carro[p.id];
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" data-onclick="selectPlayer('${p.id}')">
       <span class="ep-pitem-pos ep-line-${linea}">${escHtml(codigo)}</span>
       <span class="ep-pitem-info">
         <span class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</span>
         <span class="ep-pitem-tag">${escHtml(sp ? _tagLugar(sp.pos, p.primaryPos) : ((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || ''))}</span>
       </span>
+      ${enCarro ? `<span class="ep-pitem-carro" title="Cambios en espera: ${enCarro.costo.toLocaleString('es-CL')} YC"><i aria-hidden="true"></i>${enCarro.costo.toLocaleString('es-CL')}</span>` : ''}
       ${pendiente ? '<span class="ep-pitem-pedido">Pedido</span>' : ''}
     </div>`;
   }
@@ -1127,9 +1439,12 @@ function renderRoster(){
 }
 
 function selectPlayer(id){
+  // CARRO1: el borrador que se deja queda en el carrito (solo si tiene cambios).
+  if (id !== APP.playerId) guardarDraftActual();
   APP.playerId = id;
   APP.page = 1;
-  APP.hint = 'Selecciona un atributo para ver su descripcion.';
+  APP.posSel = null;
+  APP.hint = 'Selecciona un atributo para ver su descripción.';
   const jugador = PLAYER_BY_ID[id];
   if (jugador) APP.squadTab = _seccionesPlantel()[id] || 'titular'; // el segmentado sigue al jugador elegido
   loadDraft();
@@ -1229,7 +1544,7 @@ function emparejarBtnHTML(p){
   </div>`;
 }
 function solicitarEmparejar(playerId){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   if (ADMIN_EMBED) return;
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);
@@ -1265,7 +1580,7 @@ function solicitarEmparejar(playerId){
   </div>`;
 }
 async function confirmarSolicitarEmparejar(playerId){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   closeApplyConfirm();
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
@@ -1275,13 +1590,28 @@ async function confirmarSolicitarEmparejar(playerId){
   if (!r.perfil || !r.lineas.length){ showMiniToast(r.motivo || 'No hay atributos que emparejar.'); return; }
   const nivel = YUNACOINS_RULES.rangoEmparejar(cfg, r.perfil).max;
   const registro = PES5_PLANTILLA.registroDeId(p.id);
+  const fs = firebase.firestore();
+  const nuevoRef = fs.collection('pedidos_pes5').doc();
+  const viejos = pendientesEmparejarDeJugador(p);   // PED1: un solo emparejar pendiente por jugador
   try {
-    await firebase.firestore().collection('pedidos_pes5').add({
+    /* PED1: si por lo que sea ya habia un emparejar pendiente de este jugador (dos pestanas,
+       lista vieja), se cancela en el mismo batch para no dejar dos pendientes. Las reglas ya
+       permiten crear y cancelar el propio en la misma escritura. */
+    const batch = fs.batch();
+    viejos.forEach(x => {
+      if (x._id && String(x._id).indexOf('local-') !== 0){
+        batch.update(fs.collection('pedidos_pes5').doc(x._id), {
+          estado: 'cancelado', canceladoEn: new Date().toISOString(),
+        });
+      }
+    });
+    batch.set(nuevoRef, {
       uid: AUTH.user.uid,
       teamId: String(AUTH.teamId),
       teamName: EQUIPO_TSC?.name || null,
       pes5Club: EQUIPO_TSC?.pes5Club || null,
       tipo: 'emparejar',
+      cliente: MEJORAS_CLIENTE,
       pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
       playerId: p.id,
       playerName: p.name,
@@ -1298,12 +1628,14 @@ async function confirmarSolicitarEmparejar(playerId){
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   } catch (e) {
-    showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
+    await _avisarErrorPedido(e, 'No se pudo mandar el pedido: ');
     return;
   }
   // presentacion: el pedido ya cuenta como pendiente (boton, aviso y globito). No reserva saldo.
-  APP.pendientes.push({ _id: 'local-' + Date.now(), tipo: 'emparejar', playerId: p.id, registro, perfil: r.perfil, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
+  APP.pendientes = (APP.pendientes || []).filter(x => viejos.indexOf(x) < 0);
+  APP.pendientes.push({ _id: nuevoRef.id, tipo: 'emparejar', playerId: p.id, registro, perfil: r.perfil, nivel, lines: [], totalCost: 0, estado: 'pendiente' });
   renderCard();
   renderPending();
   showMiniToast('Pedido de emparejar enviado. Luis lo revisa.');
@@ -1366,7 +1698,8 @@ function renderPager(){
   // marcas de pagina como en el juego: una activa (larga) y el resto
   document.getElementById('ep-pgdots').innerHTML = PAGES.map((_, i) => `<i class="${i===APP.page-1?'on':''}"></i>`).join('');
 }
-/* Aviso del pedido pendiente (presentacion): usa los pedidos que ya carga el editor. */
+/* HIST1: tarjeta de resumen del panel lateral, una sola linea y un boton. El detalle
+   (y la cancelacion) vive en la ventana del historial, que se abre en Pendientes. */
 function renderPending(){
   const pend = (APP.pendientes||[]).filter(x => x.estado === 'pendiente');
   const sub = document.getElementById('ep-pedidos-sub');
@@ -1377,61 +1710,346 @@ function renderPending(){
   const box = document.getElementById('ep-pend');
   if (!box) return;
   const bloqueo = !ADMIN_EMBED && !!APP.bloqueoPorAplicado;
-  const avisoBloqueo = 'Luis aplicó cambios que todavía no publicó. Espera a que publique para pedir más.';
   if (ADMIN_EMBED || (!pend.length && !bloqueo)){ box.hidden = true; box.innerHTML = ''; return; }
-  if (!pend.length){
-    box.hidden = false;
-    box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${avisoBloqueo}</span>`;
-    return;
-  }
-  const x = pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a))[0]; // el mas reciente
-  const resumen = (x.lines||[]).map(l => l.label + (typeof l.from === 'number' && typeof l.to === 'number' ? ' ' + (l.to - l.from > 0 ? '+' : '') + (l.to - l.from) : '')).join(', ') || 'cambios';
-  const mas = pend.length > 1 ? ' (+' + (pend.length - 1) + ' más)' : '';
-  // pedido de formacion: no tiene jugador, va con el nombre de la formacion
-  const nombreForm = x.tipo === 'formacion' ? ((x.formacion && x.formacion.nombre) || (x.lines && x.lines[0] && x.lines[0].to) || '') : '';
-  const frase = x.tipo === 'formacion'
-    ? `${(x.lines || []).map(l => escHtml(_textoLinea(l))).join(' · ') || 'Formación ' + escHtml(nombreForm)} espera que Luis la aplique.`
-    : `${escHtml(x.playerName || 'Jugador')} · ${escHtml(resumen)} espera que Luis lo aplique.`;
+
+  const total = pend.reduce((s, x) => s + Number(x.totalCost || 0), 0);
+  const linea = pend.length
+    ? pend.length + (pend.length === 1 ? ' pedido en revisión' : ' pedidos en revisión')
+      + ' · ' + Number(total).toLocaleString('es-CL') + ' YC'
+    : '';
   box.hidden = false;
-  box.innerHTML = `<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>${bloqueo ? avisoBloqueo + ' ' : ''}${frase}${mas} Puedes cancelarlo desde Pedidos mientras siga pendiente.</span>`;
+  box.innerHTML = `
+    <div class="ep-pend-hd">
+      <span class="ep-pend-lbl">${pend.length ? 'En revisión' : 'Esperando publicación'}</span>
+    </div>
+    ${linea ? `<div class="ep-pend-fila"><span class="ep-res-line">${linea}</span><button type="button" class="ep-pend-ver" data-onclick="openAuditModal('pendiente')">Ver</button></div>` : ''}
+    ${bloqueo ? '<div class="ep-pend-bloq">Luis aplicó cambios que todavía no publicó.</div>' : ''}`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
   if(next<1 || next>PAGES.length) return;
   APP.page = next;
+  APP.posSel = null;
+  // MEJUI-1: la linea fija arranca con una ayuda corta de la pagina abierta.
+  APP.hint = ['Toca un atributo para ver su descripción.',
+    'Toca un atributo para ver su descripción.',
+    'Toca una habilidad para ver qué hace.',
+    'Toca una posición para ver qué significa.'][APP.page-1];
   renderAll();
 }
+function _pintarHint(text){
+  const el = document.getElementById('ep-hint');
+  if (!el) return;
+  el.title = text || '';
+  el.classList.remove('accion');
+  el.textContent = text || '';
+  // MEJUI2: con una posición secundaria abierta, la línea de descripción ofrece
+  // «Hacer principal» (forma discreta de cambiar la posición natural). La principal
+  // no lleva botón: no se puede quitar.
+  const pos = APP.posSel && APP.page === 4 ? POS_BY_KEY[APP.posSel] : null;
+  if (!pos || !APP.draft || !APP.draft.positions[pos.k] || pos.k === APP.draft.primaryPos) return;
+  const txt = document.createElement('span');
+  txt.className = 'ep-hint-txt';
+  txt.textContent = text || '';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'ep-hint-btn';
+  btn.textContent = 'Hacer principal';
+  btn.setAttribute('data-onclick', `hacerPrincipal('${pos.k}')`);
+  el.textContent = '';
+  el.append(txt, btn);
+  el.classList.add('accion');
+}
 function setHint(text){
+  APP.posSel = null;
   APP.hint = text;
-  document.getElementById('ep-hint').textContent = text;
+  _pintarHint(text);
   renderRows();
 }
-/* la zona de yunacoins vive fuera del editor (es el dato mas importante);
-   el numerador baja en vivo (antes de aplicar/confirmar), el "/ tope" solo
-   cambia cuando el admin guarda reglas nuevas. */
-function renderHero(){
-  const cost = pendingCost();
-  // Slice D.R punto 5b: orden INVERTIDO — un suscriptor gasta primero el
-  // bono, el resto (o todo, si no es suscriptor) sale del general. Mismo
-  // YUNACOINS_RULES.distribuirCosto que usa la tool (pes5-tool.html).
-  const p = currentPlayer();
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!(p && p.subscriber));
-  document.getElementById('ep-hero-general-cap').textContent = RULES.budgetGeneral.toLocaleString('es-CL');
-  document.getElementById('ep-balance-total').textContent = Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL');
-  document.getElementById('ep-balance-general').textContent = (APP.budget.general - fromGeneral).toLocaleString('es-CL');
-  document.getElementById('ep-balance-sub').textContent = (APP.budget.subscribers - fromSub).toLocaleString('es-CL');
-  // barra del tope de temporada: lo que queda sobre el tope, mismos datos que el texto de arriba
-  const cap = RULES.budgetGeneral || 0;
-  const quedaGeneral = APP.budget.general - fromGeneral;
-  const fill = document.getElementById('ep-cap-fill');
-  if (fill) fill.style.width = cap > 0 ? Math.min(100, Math.max(0, quedaGeneral / cap * 100)) + '%' : '0%';
+function _fmtYC(n){ return Math.max(0, Math.round(n || 0)).toLocaleString('es-CL'); }
+
+/* ================= BONO4 · los topes bajan a la vista =================
+   Mientras se edita, el número cuenta y la barra se achica en ~300 ms; la barra
+   que está bajando se ilumina ~400 ms para que el ojo vaya a ella. Con un
+   jugador con «$» el bono baja primero y, cuando llega a 0, sigue el general;
+   sin «$» solo baja el general. Sin animación con prefers-reduced-motion.
+
+   UNA sola función de animación de números para el editor (la Tool del admin
+   tiene una copia chica: no comparten archivo, ver js/pes5-tool.js). Cancela la
+   animación anterior del mismo elemento; `desde: null` arranca desde lo que se
+   ve en pantalla (así un clic rápido no salta). */
+const BARRA_MS = 300;
+const BARRA_DESTELLO_MS = 400;
+function _sinMovimiento(){
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
-/* ================= Slice 2.1-A: aviso grande de presupuesto =================
-   Arriba del editor, en el presidente y en la Tool (modo admin). Los numeros salen de
-   YUNACOINS_RULES.resumenPresupuesto (pura, con tests en tools/test-aviso-presupuesto.js).
-   Modo admin: la Tool pasa gastado, extra, motivo, pendientesOtros y equipo.gratis. */
-// Icono Lucide "trophy" (SVG inline, sin emojis: AGENTS.md).
-const ICN_AVISO_TROFEO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>';
+const _animNumero = new WeakMap();
+function animarNumero(el, desde, hasta, opts){
+  if (!el) return;
+  const o = opts || {};
+  const dur = Math.max(0, o.duracion == null ? BARRA_MS : o.duracion);
+  const retraso = Math.max(0, o.retraso || 0);
+  const fmt = typeof o.formato === 'function' ? o.formato : _fmtYC;
+  const previo = _animNumero.get(el);
+  if (previo){
+    if (previo.raf) cancelAnimationFrame(previo.raf);
+    if (previo.timer) clearTimeout(previo.timer);
+    _animNumero.delete(el);
+  }
+  const fin = Math.round(Number(hasta) || 0);
+  const ini = desde == null ? _numeroVisible(el, fin) : Math.round(Number(desde) || 0);
+  if (!dur || _sinMovimiento() || ini === fin){ el.textContent = fmt(fin); return; }
+  const estado = { raf: 0, timer: 0 };
+  const arrancar = function(){
+    const t0 = performance.now();
+    const paso = function(t){
+      const p = Math.min(1, (t - t0) / dur);
+      const v = Math.round(ini + (fin - ini) * (1 - Math.pow(1 - p, 3)));
+      el.textContent = fmt(p < 1 ? v : fin);
+      if (p < 1) estado.raf = requestAnimationFrame(paso);
+      else if (_animNumero.get(el) === estado) _animNumero.delete(el);
+    };
+    estado.raf = requestAnimationFrame(paso);
+  };
+  _animNumero.set(el, estado);
+  if (retraso) estado.timer = setTimeout(arrancar, retraso);
+  else arrancar();
+}
+/* Valor que se ve ahora en el elemento (los números van con separador es-CL). */
+function _numeroVisible(el, def){
+  const n = Number(String((el && el.textContent) || '').replace(/[^\d-]/g, ''));
+  return Number.isFinite(n) ? n : (def || 0);
+}
+/* Destello suave de la barra que baja (400 ms). Repetirlo reinicia la animación. */
+const _destellosBarra = new WeakMap();
+function destelloBarra(row, retraso){
+  if (!row || _sinMovimiento()) return;
+  const previo = _destellosBarra.get(row);
+  if (previo){ clearTimeout(previo.t1); clearTimeout(previo.t2); }
+  row.classList.remove('ep-barra-baja');
+  const estado = { t1: 0, t2: 0 };
+  estado.t1 = setTimeout(function(){
+    row.classList.remove('ep-barra-baja');
+    void row.offsetWidth; // reinicia la animación si se repite seguido
+    row.classList.add('ep-barra-baja');
+    estado.t2 = setTimeout(function(){ row.classList.remove('ep-barra-baja'); }, BARRA_DESTELLO_MS + 60);
+  }, Math.max(0, retraso || 0));
+  _destellosBarra.set(row, estado);
+}
+/* Pinta una barra «queda X de Y»: número animado + ancho con transition 300 ms. */
+const _timerBarra = new WeakMap();
+function pintarBarra(cfg){
+  if (!cfg) return;
+  const total = Math.max(0, Number(cfg.total) || 0);
+  const queda = Math.max(0, Number(cfg.queda) || 0);
+  const retraso = Math.max(0, cfg.retraso || 0);
+  if (cfg.cap) cfg.cap.textContent = _fmtYC(total);
+  if (cfg.val) animarNumero(cfg.val, cfg.desde, queda, { retraso: retraso });
+  if (cfg.fill){
+    const pct = total > 0 ? Math.min(100, Math.max(0, queda / total * 100)) : 0;
+    if (_sinMovimiento()){
+      cfg.fill.style.transition = 'none';
+      cfg.fill.style.width = pct + '%';
+    } else {
+      cfg.fill.style.transition = '';
+      const previo = _timerBarra.get(cfg.fill);
+      if (previo) clearTimeout(previo);
+      if (retraso){
+        const t = setTimeout(function(){
+          cfg.fill.style.width = pct + '%';
+          _timerBarra.delete(cfg.fill);
+        }, retraso);
+        _timerBarra.set(cfg.fill, t);
+      } else cfg.fill.style.width = pct + '%';
+    }
+  }
+  if (cfg.baja) destelloBarra(cfg.row, retraso);
+}
+/* BONO4/BONO-5: datos de la barra de bono.
+   - jugador abierto con «$»: SU bono (cuota de la temporada, ej. 10.000); queda = lo que
+     le queda después de la edición en curso. Si el jugador abierto no es «$», su edición
+     no toca el bono: solo baja el general.
+   - jugador abierto sin «$»: el bono del equipo como dato (suma de los bonos que les quedan
+     a los «$», con lo que ya tengan en el carrito). */
+function _bonoDatosBarra(usadoPropio, repCarrito){
+  const p = currentPlayer();
+  const cuota = Math.max(0, Number(RULES.budgetSubscribers) || 0);
+  if (p && p.subscriber){
+    const antes = bonoRestanteDeJugador(p);
+    return {
+      esSub: true, total: cuota, antes: antes,
+      queda: Math.max(0, antes - (usadoPropio || 0)),
+      etiqueta: 'Bono de ' + p.name,
+    };
+  }
+  const n = _nSuscriptoresPlantel();
+  const total = YUNACOINS_RULES.bonoEquipo(RULES, n);
+  // Modo admin: la Tool pasa la suma de bonos restantes del equipo (APP.bonoEquipo).
+  if (ADMIN_EMBED){
+    const antesEquipo = Math.max(0, Number(APP.bonoEquipo) || 0);
+    return {
+      esSub: false, total: total, antes: antesEquipo, queda: antesEquipo,
+      etiqueta: 'Bono del equipo (' + n + ' × ' + _fmtYC(cuota) + ')',
+    };
+  }
+  const filas = (repCarrito && repCarrito.filas) ? repCarrito.filas : [];
+  let antes = 0, queda = 0;
+  PLAYERS.filter(x => x.subscriber).forEach(function(x){
+    const b = bonoRestanteDeJugador(x);
+    antes += b;
+    const f = filas.find(y => y.p.id === x.id);
+    queda += Math.max(0, b - (f ? f.fromSub : 0));
+  });
+  return {
+    esSub: false, total: total, antes: antes, queda: queda,
+    etiqueta: 'Bono del equipo (' + n + ' × ' + _fmtYC(cuota) + ')',
+  };
+}
+/* BONO4: cuánto queda de cada tope DESPUÉS de la edición en curso. BONO-5: el bono
+   que baja es el DEL JUGADOR abierto (si tiene «$»); con carrito se reparte el carrito
+   completo jugador por jugador y vuelven las reservas que reemplaza. */
+function _repartoBarras(r){
+  const genAntes = Math.max(0, r.restanteGeneral || 0);
+  if (ADMIN_EMBED){
+    const p = currentPlayer();
+    let libGen = 0;
+    pendientesMejoraDeJugador(p).forEach(function(x){
+      libGen += Number(x.fromGeneral || 0);
+    });
+    const rep = YUNACOINS_RULES.distribuirCosto(pendingCostSinReservar(), bonoRestanteDeJugador(p), !!(p && p.subscriber));
+    const bono = _bonoDatosBarra(rep.fromSub, null);
+    return {
+      subTotal: bono.total, subEtiqueta: bono.etiqueta,
+      subAntes: bono.antes, subDespues: bono.queda,
+      genAntes: genAntes, genDespues: Math.max(0, genAntes + libGen - rep.fromGeneral),
+    };
+  }
+  const rep = _repartoCarrito(_carritoEntradas());
+  const p = currentPlayer();
+  const fila = p ? rep.filas.find(f => f.p.id === p.id) : null;
+  const bono = _bonoDatosBarra(fila ? fila.fromSub : 0, rep);
+  return {
+    subTotal: bono.total, subEtiqueta: bono.etiqueta,
+    subAntes: bono.antes, subDespues: bono.queda,
+    genAntes: genAntes, genDespues: Math.max(0, genAntes + rep.liberadoGeneral - rep.totalGeneral),
+  };
+}
+/* TOPE-1: el tope del equipo de la temporada es base + bono de suscriptores +
+   tope extra (premio o reembolso): el bono y el extra AMPLÍAN el tope, no son
+   YunaCoins que se regalen (se pagan con el saldo del equipo). BONO-5: cada
+   bono es de su jugador («cada uno solo para su jugador»); el total del equipo
+   se muestra como dato. Los números salen de YUNACOINS_RULES: resumenPresupuesto
+   (mismos del aviso grande) y bonoEquipo (regla por suscriptor × suscriptores
+   del plantel). El desglose solo trae las partes que existen: sin suscriptores ni
+   extra no hay desglose. */
+function _topeEquipoDatos(){
+  const r = resumenAviso();
+  const n = _nSuscriptoresPlantel();
+  const bono = YUNACOINS_RULES.bonoEquipo(RULES, n);
+  const partes = [];
+  if (bono > 0 || r.extra > 0) partes.push('Base ' + _fmtYC(r.topeGeneral));
+  if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono) + ' (cada uno solo para su jugador)');
+  if (r.extra > 0) partes.push('Extra ' + _fmtYC(r.extra));   // sin motivo: Jimbo prefiere solo «Extra N»
+  return { r: r, bono: bono, total: r.topeTotal + bono, desglose: partes.join(' + ') };
+}
+/* la zona de yunacoins vive fuera del editor (es el dato mas importante);
+   los numeros bajan en vivo (antes de aplicar/confirmar) y el tope solo
+   cambia cuando cambian los suscriptores, el extra o las reglas.
+   SALDO1: es el UNICO bloque de saldo del presidente (el panel grande
+   «Presupuesto de la temporada» se quito de ahi). Muestra: tu saldo, la barra
+   del tope con su desglose chico, «Gastado: N» dentro del desglose, «Esta
+   edición: −N YC» debajo del saldo y, SOLO cuando el tope limita (queda del
+   tope < saldo), la linea «Puedes gastar hasta X». Si limita el saldo no se
+   repite el mismo numero. */
+function renderHero(){
+  // CARRO1: el saldo baja con TODO el carrito (cada borrador con el costo de su jugador);
+  // lo que los pedidos pendientes ya reservaban no se cuenta dos veces.
+  const cost = ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto();
+  const costPedido = ADMIN_EMBED ? pendingCost() : _carritoCosto(); // costo total de los cambios en curso
+  const d = _topeEquipoDatos();
+  const r = d.r;
+  // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
+  // edicion en curso todavia no esta aplicada, asi que se resta aparte.
+  const saldoBruto = Math.max(0, APP.saldo || 0);
+  // BONO-5: «Queda del tope» muestra el tope del EQUIPO (base + bono + extra) para el
+  // general; «Puedes gastar hasta» usa el techo del jugador abierto (general + SU bono si
+  // tiene «$»). Un jugador sin «$» no puede usar ningún bono.
+  const jugadorAbierto = currentPlayer();
+  const esSub = !!(jugadorAbierto && jugadorAbierto.subscriber);
+  const topeJugador = r.restanteGeneral + (esSub ? bonoRestanteDeJugador(jugadorAbierto) : 0);
+  const saldo = Math.max(0, saldoBruto - cost);
+  animarNumero(document.getElementById('ep-balance-total'), null, saldo);
+  // BONO4: dos barras debajo de «Tu saldo». Con un jugador con «$» abierto la barra del
+  // bono es la SUYA («Bono de <jugador>: queda X de 10.000»); sin «$» abierto se muestra
+  // el total de bonos del equipo como dato y solo baja el general. Con carrito, las dos
+  // muestran lo que queda después de TODO el carrito.
+  const rep = _repartoBarras(r);
+  const bonoTotal = rep.subTotal;
+  const generalTotal = r.topeTotal;
+  const barBono = document.getElementById('ep-bar-bono');
+  if (barBono) barBono.hidden = !(bonoTotal > 0);
+  const lblBono = document.getElementById('ep-bono-lbl');
+  if (lblBono) lblBono.textContent = rep.subEtiqueta || 'Bono de suscriptores';
+  const bajaBono = rep.subDespues < rep.subAntes;
+  const bajaGeneral = rep.genDespues < rep.genAntes;
+  pintarBarra({
+    row: barBono,
+    fill: document.getElementById('ep-bono-fill'),
+    val: document.getElementById('ep-balance-bono'),
+    cap: document.getElementById('ep-hero-bono-cap'),
+    total: bonoTotal, queda: rep.subDespues, desde: null, baja: bajaBono, retraso: 0,
+  });
+  pintarBarra({
+    row: document.getElementById('ep-bar-general'),
+    fill: document.getElementById('ep-cap-fill'),
+    val: document.getElementById('ep-balance-general'),
+    cap: document.getElementById('ep-hero-general-cap'),
+    total: generalTotal, queda: rep.genDespues, desde: null, baja: bajaGeneral,
+    retraso: (bajaBono && bajaGeneral) ? BARRA_MS : 0,
+  });
+  // desglose chico del tope; «Gastado: N» entra aca (solo si hay algo gastado)
+  const desg = document.getElementById('ep-cap-desg');
+  if (desg){
+    const gastado = (r.gastadoGeneral || 0) + (r.gastadoSub || 0);
+    const partes = [];
+    if (d.desglose) partes.push(d.desglose);
+    if (gastado > 0) partes.push('Gastado: ' + _fmtYC(gastado));
+    desg.textContent = partes.join(' · ');
+    desg.hidden = !partes.length;
+  }
+  // «Esta edición / Tu carrito: −N YC»: el costo de lo que se esta editando ahora, solo si suma.
+  const ed = document.getElementById('ep-edicion');
+  if (ed){
+    const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(currentPlayer());
+    const entradasEd = ADMIN_EMBED ? [] : _carritoEntradas();
+    const hayPend = !!pendiente || entradasEd.some(e => !!pedidoMejoraPendiente(e.p));
+    ed.hidden = !(costPedido > 0);
+    const lbl = document.getElementById('ep-edicion-lbl');
+    if (lbl) lbl.textContent = pendiente ? 'Tu pedido' : (entradasEd.length > 1 ? 'Tu carrito' : 'Esta edición');
+    const val = document.getElementById('ep-edicion-val');
+    if (val) val.textContent = costPedido > 0 ? '−' + _fmtYC(costPedido) + ' YC' : '';
+    const note = document.getElementById('ep-edicion-note');
+    if (note) note.textContent = (hayPend && costPedido > 0)
+      ? (pendiente ? '· reemplaza tu pedido pendiente' : '· reemplaza tus pedidos pendientes')
+      : '';
+  }
+  // «Disponible ahora» solo si el tope es el que limita; si limita el saldo, el
+  // numero ya esta en «Tu saldo» y no se repite. BONO-3: el techo es el del
+  // jugador abierto (un jugador sin «$» no puede usar el bono).
+  const disponible = Math.max(0, Math.min(saldoBruto, topeJugador) - cost);
+  const disp = document.getElementById('ep-disp');
+  if (disp) disp.hidden = !(topeJugador < saldoBruto);
+  const dv = document.getElementById('ep-disp-val');
+  if (dv) animarNumero(dv, null, disponible);
+}
+/* ================= Slice 2.1-A: aviso de presupuesto (solo Tool PES5) =================
+   SALDO1: en el editor del PRESIDENTE este panel ya no se pinta (su bloque compacto
+   «Tu saldo» muestra los mismos numeros una sola vez). En la Tool del admin se
+   conserva porque ahi la plantilla —y con ella el bloque compacto— esta oculta, y
+   porque tiene avisos propios («Edición gratis», «sin cobro», pendientes de otros).
+   Los numeros salen de YUNACOINS_RULES.resumenPresupuesto (pura, con tests en
+   tools/test-aviso-presupuesto.js). Modo admin: la Tool pasa gastado, extra,
+   motivo, pendientesOtros y equipo.gratis. */
 function resumenAviso(){
   const extra = APP.extra || 0;
   return YUNACOINS_RULES.resumenPresupuesto({
@@ -1443,95 +2061,327 @@ function resumenAviso(){
     pendientes: APP.pend,
   });
 }
+let _avisoFirma = '';
 function renderAviso(){
   const el = document.getElementById('ep-aviso');
   if (!el) return;
+  // SALDO1: el panel grande no existe en el editor del presidente (el bloque
+  // compacto de «Tu saldo» muestra los mismos numeros, sin repetirlos). Solo la
+  // Tool del admin lo conserva: ahi la plantilla esta oculta y el aviso es el
+  // unico lugar con los numeros y con «Edición gratis» / «sin cobro».
+  if (!ADMIN_EMBED){ el.hidden = true; el.className = 'ep-aviso'; el.innerHTML = ''; _avisoFirma = ''; return; }
   const e = EQUIPO_TSC;
-  if (!e || !APP.draft){ el.hidden = true; el.innerHTML = ''; return; }
+  if (!e || !APP.draft){ el.hidden = true; el.innerHTML = ''; _avisoFirma = ''; return; }
   const fmt = n => Math.round(n || 0).toLocaleString('es-CL');
   el.hidden = false;
-  if (ADMIN_EMBED && e.gratis){
-    el.className = 'ep-aviso gratis';
-    el.innerHTML = `<div class="ep-aviso-big">Edición gratis: no se cobra</div>
-      <p class="ep-aviso-sub">No se descuentan YunaCoins de ${escHtml(e.name || 'este equipo')} por estos cambios.</p>`;
-    return;
-  }
-  if (ADMIN_EMBED && !e.cobra){
-    el.className = 'ep-aviso libre';
-    el.innerHTML = `<div class="ep-aviso-big">Edición libre: no se cobra</div>
+  if (e.gratis || !e.cobra){
+    const firma = e.gratis ? 'gratis' : 'libre';
+    if (firma === _avisoFirma && el.firstChild) return;
+    _avisoFirma = firma;
+    el.className = 'ep-aviso ' + firma;
+    el.innerHTML = e.gratis
+      ? `<div class="ep-aviso-big">Edición gratis: no se cobra</div>
+      <p class="ep-aviso-sub">No se descuentan YunaCoins de ${escHtml(e.name || 'este equipo')} por estos cambios.</p>`
+      : `<div class="ep-aviso-big">Edición libre: no se cobra</div>
       <p class="ep-aviso-sub">El equipo no tiene presidente: sin costo ni topes.</p>`;
     return;
   }
-  const r = resumenAviso();
-  const p = currentPlayer();
-  const esSub = !!(p && p.subscriber);
-  const cost = pendingCost();
-  const motivo = APP.motivo || 'Tope extra';
-  const extraHtml = r.extra > 0
-    ? `<div class="ep-aviso-extra"><span class="ep-aviso-trofeo">${ICN_AVISO_TROFEO}</span><span><b>+${fmt(r.extra)}</b> · ${escHtml(motivo)}</span></div>`
-    : '';
-  el.className = 'ep-aviso';
-  el.innerHTML = `
-    <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span>${ADMIN_EMBED ? `<span class="ep-aviso-team">${escHtml(e.name || '')}</span>` : ''}</div>
+  const d = _topeEquipoDatos();
+  const r = d.r;
+  // PED1: los números bajan con lo que el pedido nuevo suma de verdad (el pendiente del
+  // jugador ya está reservado y se reemplaza: no se cuenta dos veces).
+  const cost = pendingCostSinReservar();
+  const costPedido = pendingCost();
+  const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(currentPlayer());
+  // misma foto que el bloque de saldo: los números bajan en vivo con la
+  // edición en curso (todavía no enviada), y «Esta edición» dice cuánto suma.
+  const saldoBruto = r.saldoDisponible;
+  // BONO-5: «Queda del tope» es del EQUIPO para el general; «Disponible ahora» es el
+  // techo del jugador abierto (general + SU bono si tiene «$»).
+  const jugadorAbierto = currentPlayer();
+  const esSub = !!(jugadorAbierto && jugadorAbierto.subscriber);
+  const topeJugador = r.restanteGeneral + (esSub ? bonoRestanteDeJugador(jugadorAbierto) : 0);
+  const saldo = Math.max(0, saldoBruto - cost);
+  const disponible = Math.max(0, Math.min(saldoBruto, topeJugador) - cost);
+  // BONO4: mismas dos barras que el bloque de saldo del presidente. Con un jugador con
+  // «$» abierto la barra del bono es la SUYA; sin «$» es el dato del equipo. El markup
+  // se rehace solo si cambia la forma (edición gratis/libre, desglose o si hay bono);
+  // los números y las barras se actualizan en sitio para que la animación no se corte.
+  const rep = _repartoBarras(r);
+  const bonoTotal = rep.subTotal;
+  const generalTotal = r.topeTotal;
+  const firma = 'aviso|' + (e.name || '') + '|' + (d.desglose ? 'd' : '') + '|' + (bonoTotal > 0 ? 'b' : '');
+  const nuevo = firma !== _avisoFirma || !document.getElementById('ep-aviso-general-v');
+  const prevSaldo = _numeroVisible(document.getElementById('ep-aviso-saldo-v'), saldo);
+  const prevDisp = _numeroVisible(document.getElementById('ep-aviso-disp-v'), disponible);
+  const prevBono = _numeroVisible(document.getElementById('ep-aviso-bono-v'), rep.subDespues);
+  const prevGen = _numeroVisible(document.getElementById('ep-aviso-general-v'), rep.genDespues);
+  if (nuevo){
+    _avisoFirma = firma;
+    el.className = 'ep-aviso';
+    el.innerHTML = `
+    <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span><span class="ep-aviso-team">${escHtml(e.name || '')}</span></div>
     <div class="ep-aviso-grid">
       <div class="ep-aviso-cell">
-        <span class="ep-aviso-k">Saldo actual</span>
-        <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(r.saldoDisponible)}</b><span class="ep-aviso-u">YC</span></span>
-        <span class="ep-aviso-note">Sin lo reservado en pedidos o cambios pendientes</span>
+        <span class="ep-aviso-k">Tu saldo</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n" id="ep-aviso-saldo-v">0</b><span class="ep-aviso-u">YC</span></span>
       </div>
       <div class="ep-aviso-cell">
-        <span class="ep-aviso-k">Tope de la temporada</span>
-        <div class="ep-aviso-row"><span>General</span><b>${fmt(r.topeGeneral)}</b></div>
-        ${extraHtml}
-        <div class="ep-aviso-row ep-aviso-total"><span>Total</span><b>${fmt(r.topeTotal)}</b></div>
+        <span class="ep-aviso-k">Tope del equipo esta temporada</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n" id="ep-aviso-tope-v">0</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note" id="ep-aviso-desg"></span>
       </div>
-      <div class="ep-aviso-cell">
-        <span class="ep-aviso-k">Gastado en la temporada</span>
-        <div class="ep-aviso-row"><span>General</span><b>${fmt(r.gastadoGeneral)}</b></div>
-        <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.gastadoSub)}</b></div>
+      <div class="ep-aviso-cell ep-aviso-barras">
+        <span class="ep-aviso-k">Queda del tope</span>
+        <div class="ep-bar" id="ep-aviso-bar-bono" hidden>
+          <div class="ep-cap-txt"><span><span id="ep-aviso-bono-lbl">Bono de suscriptores</span>: queda <b id="ep-aviso-bono-v">0</b> de <span id="ep-aviso-bono-cap">0</span></span></div>
+          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-aviso-bono-fill"></i></div>
+        </div>
+        <div class="ep-bar" id="ep-aviso-bar-general">
+          <div class="ep-cap-txt"><span>Tope general: queda <b id="ep-aviso-general-v">0</b> de <span id="ep-aviso-general-cap">0</span></span></div>
+          <div class="ep-cap-bar" aria-hidden="true"><i id="ep-aviso-general-fill"></i></div>
+        </div>
+        <span class="ep-aviso-note" id="ep-aviso-gastado"></span>
       </div>
       <div class="ep-aviso-cell ep-aviso-disp">
-        <span class="ep-aviso-k">Disponible para gastar ahora</span>
-        <div class="ep-aviso-row"><span>General${r.extra > 0 ? ' (con extra)' : ''}</span><b>${fmt(r.restanteGeneral)}</b></div>
-        <div class="ep-aviso-row"><span>Bono suscriptores</span><b>${fmt(r.restanteSub)}</b></div>
-        <p class="ep-aviso-lim">Límite real: <b>${fmt(r.disponibleAhora)} YC</b>, el menor entre el saldo y el tope restante${r.limitaPor === 'saldo' ? ' (manda el saldo)' : ' (manda el tope)'}.</p>
-        ${esSub ? `<p class="ep-aviso-lim">Jugador suscriptor: el bono suma hasta <b>${fmt(r.disponibleSuscriptor)} YC</b>, sin pasar el saldo.</p>` : ''}
+        <span class="ep-aviso-k">Disponible ahora</span>
+        <span class="ep-aviso-saldo"><b class="ep-aviso-n" id="ep-aviso-disp-v">0</b><span class="ep-aviso-u">YC</span></span>
+        <span class="ep-aviso-note" id="ep-aviso-limite"></span>
       </div>
     </div>
-    <div class="ep-aviso-cost">${cost > 0
-      ? `Esta edición: <b>−${fmt(cost)} YC</b> · queda ${fmt(Math.max(0, r.saldoDisponible - cost))} YC`
-      : 'Esta edición: sin costo'}</div>`;
+    <div class="ep-aviso-cost" id="ep-aviso-cost"></div>`;
+  }
+  const pintar = function(){
+    const topeEl = document.getElementById('ep-aviso-tope-v');
+    if (topeEl) topeEl.textContent = fmt(d.total);
+    const desg = document.getElementById('ep-aviso-desg');
+    if (desg){ desg.textContent = d.desglose || ''; desg.hidden = !d.desglose; }
+    const gast = document.getElementById('ep-aviso-gastado');
+    if (gast) gast.textContent = 'Gastado esta temporada ' + fmt(r.gastadoGeneral + r.gastadoSub);
+    const lim = document.getElementById('ep-aviso-limite');
+    if (lim) lim.textContent = saldoBruto < topeJugador ? 'Limita tu saldo' : 'Limita el tope';
+    const costEl = document.getElementById('ep-aviso-cost');
+    if (costEl) costEl.innerHTML = costPedido > 0
+      ? `${pendiente ? 'Tu pedido' : 'Esta edición'}: <b>−${fmt(costPedido)} YC</b>${pendiente ? ' · reemplaza tu pedido pendiente' : ''}`
+      : 'Esta edición: sin costo';
+    animarNumero(document.getElementById('ep-aviso-saldo-v'), nuevo ? prevSaldo : null, saldo);
+    animarNumero(document.getElementById('ep-aviso-disp-v'), nuevo ? prevDisp : null, disponible);
+    const barBono = document.getElementById('ep-aviso-bar-bono');
+    if (barBono) barBono.hidden = !(bonoTotal > 0);
+    const lblBono = document.getElementById('ep-aviso-bono-lbl');
+    if (lblBono) lblBono.textContent = rep.subEtiqueta || 'Bono de suscriptores';
+    const bajaBono = rep.subDespues < rep.subAntes;
+    const bajaGeneral = rep.genDespues < rep.genAntes;
+    pintarBarra({
+      row: barBono,
+      fill: document.getElementById('ep-aviso-bono-fill'),
+      val: document.getElementById('ep-aviso-bono-v'),
+      cap: document.getElementById('ep-aviso-bono-cap'),
+      total: bonoTotal, queda: rep.subDespues, desde: prevBono, baja: bajaBono, retraso: 0,
+    });
+    pintarBarra({
+      row: document.getElementById('ep-aviso-bar-general'),
+      fill: document.getElementById('ep-aviso-general-fill'),
+      val: document.getElementById('ep-aviso-general-v'),
+      cap: document.getElementById('ep-aviso-general-cap'),
+      total: generalTotal, queda: rep.genDespues, desde: prevGen, baja: bajaGeneral,
+      retraso: (bajaBono && bajaGeneral) ? BARRA_MS : 0,
+    });
+  };
+  if (nuevo) requestAnimationFrame(pintar);
+  else pintar();
 }
 function renderCart(){
-  const cost = pendingCost();
-  const n = pendingChangeLines().length;
+  // CARRO1: el borrador abierto queda en el carrito en cada cambio (y se persiste).
+  if (!ADMIN_EMBED) guardarDraftActual();
+  const entradas = ADMIN_EMBED ? [] : _carritoEntradas();
+  const cost = ADMIN_EMBED ? pendingCost() : _carritoCosto();
+  const neto = ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto();
+  const n = ADMIN_EMBED
+    ? pendingChangeLines().length
+    : entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
+  const p = currentPlayer();
+  // PED1: si el jugador ya tiene un pedido pendiente, el borrador (y el pedido nuevo) lo
+  // incluyen: el texto lo dice para que el presidente no crea que se perdio lo que ya pidio.
+  const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(p);
+  const yaPedido = !ADMIN_EMBED && borradorYaPedido(p);
+  const excede = !ADMIN_EMBED && _carritoExcede();
   document.getElementById('ep-cost').textContent = cost > 0 ? '−' + cost.toLocaleString('es-CL') : '0';
-  document.getElementById('ep-cart-count').textContent = n ? n + (n === 1 ? ' cambio' : ' cambios') : 'Sin cambios';
-  document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - cost).toLocaleString('es-CL') + ' YC' : '';
+  let texto;
+  if (ADMIN_EMBED){
+    texto = n
+      ? (p ? p.name + ' · ' : '') + n + (n === 1 ? ' cambio' : ' cambios') + (pendiente ? ' · reemplaza tu pedido pendiente' : '')
+      : 'Sin cambios';
+  } else if (yaPedido && !entradas.length){
+    texto = (p ? p.name + ' · ' : '') + 'pedido enviado (sin cambios nuevos)';
+  } else if (!entradas.length){
+    texto = 'Sin cambios';
+  } else if (entradas.length === 1){
+    const e = entradas[0];
+    const nE = pendingChangeLinesDe(e.p, e.d).length;
+    texto = e.p.name + ' · ' + nE + (nE === 1 ? ' cambio' : ' cambios')
+      + (pedidoMejoraPendiente(e.p) ? ' · reemplaza tu pedido pendiente' : '');
+  } else {
+    const hayPend = entradas.some(e => !!pedidoMejoraPendiente(e.p));
+    texto = entradas.length + ' jugadores en espera · ' + n + (n === 1 ? ' cambio' : ' cambios')
+      + (hayPend ? ' · reemplaza pedidos pendientes' : '');
+  }
+  document.getElementById('ep-cart-count').textContent = texto;
+  document.getElementById('ep-cart-left').textContent = cost > 0
+    ? 'queda ' + Math.max(0, (APP.saldo || 0) - neto).toLocaleString('es-CL') + ' YC'
+    : '';
   renderHero();
   renderAviso();
+  renderCarritoPanel();
   const applyBtn = document.getElementById('ep-apply');
-  applyBtn.disabled = (pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)) || (!ADMIN_EMBED && !!APP.bloqueoPorAplicado);
-  document.getElementById('ep-warn').textContent = '';
+  const sinNada = !entradas.length && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
+  applyBtn.disabled = sinNada || (!ADMIN_EMBED && (yaPedido || !!APP.bloqueoPorAplicado || excede));
+  applyBtn.title = ADMIN_EMBED
+    ? ''
+    : (excede ? 'El carrito supera el saldo disponible' : (entradas.length ? 'Revisar y mandar todos los cambios en espera' : ''));
+  document.getElementById('ep-warn').textContent = excede
+    ? 'El carrito supera lo disponible: quita ' + _carritoFalta().toLocaleString('es-CL') + ' YC.'
+    : '';
+}
+
+/* ================= CARRO1 · tarjeta de cambios en espera =================
+   HIST1: solo el resumen en una linea y dos botones («Descartar» y «Revisar todo»).
+   El detalle por jugador se ve en la hoja de revision (CARRO2). Se puede mirar con
+   mejoras pausadas; descartar y enviar siguen bloqueados por la pausa. */
+/* CARRO2: texto «antes → después» de un cambio (compartido por la hoja de revision). */
+function _textoCambio(l){
+  return (l.from === '' || l.from == null || l.from === '—')
+    ? String(l.to == null ? '' : l.to)
+    : `${l.from} → ${l.to}`;
+}
+function _pluralCambios(n){
+  return (n || 0) + (n === 1 ? ' cambio' : ' cambios');
+}
+/* CARRO2: color de la línea del jugador (el mismo de su posición en la plantilla), para el
+   punto que abre la fila plegable de la revisión. */
+function _lineaDeJugador(p){
+  if (!p) return 'mid';
+  const sp = titularSpot(p.id);
+  return (sp ? PITCH_POS_LINEA[sp.pos] : null) || LINEA_POS[p.primaryPos] || 'mid';
+}
+/* CARRO2: una fila plegable por jugador (cerrada salvo que se pida abierta): nombre con el
+   color de su línea, cantidad de cambios y costo; al desplegarla, una línea por cambio
+   (atributo antes → después, habilidad, posición, lesión) con su costo. */
+function _filaRevisionHTML(e, opts){
+  if (!e || !e.p || !e.d) return '';
+  const abierto = !!(opts && opts.abierto);
+  const lineas = pendingChangeLinesDe(e.p, e.d);
+  const id = String(e.p.id);
+  const detalle = lineas.length
+    ? lineas.map(l => {
+        const costoTxt = lineaCostoTexto(l);
+        return `<li class="ep-rev-line">
+        <span class="ep-rev-lbl">${escHtml(l.label || '')}</span>
+        <span class="ep-rev-chg">${escHtml(_textoCambio(l))}</span>
+        <span class="ep-rev-cost" title="${escAttr(costoTxt)}">${escHtml(costoTxt)}</span>
+      </li>`;
+      }).join('')
+    : '<li class="ep-rev-line"><span class="ep-rev-lbl">Sin detalle</span></li>';
+  return `<details class="ep-rev-item" data-jugador="${escAttr(id)}"${abierto ? ' open' : ''}>
+    <summary class="ep-rev-sum">
+      <span class="ep-rev-dot ep-line-${_lineaDeJugador(e.p)}" aria-hidden="true"></span>
+      <span class="ep-rev-name">${escHtml(e.p.name)}</span>
+      <span class="ep-rev-n">${_pluralCambios(lineas.length)}</span>
+      <span class="ep-rev-cost">${_fmtYC(e.costo)} YC</span>
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <ul class="ep-rev-det">${detalle}</ul>
+  </details>`;
+}
+/* CARRO2: «Abrir todo / Cerrar todo» de la hoja de revisión (solo con más de 3 jugadores).
+   Las filas son <details>, así que el estado se lee de su atributo open. */
+function _revSyncToggle(){
+  const btn = document.getElementById('ep-rev-toggle');
+  if (!btn) return;
+  const box = document.getElementById('ep-rev-body');
+  const items = box ? Array.from(box.querySelectorAll('details.ep-rev-item')) : [];
+  const abiertos = items.filter(d => d.open).length;
+  const todos = items.length > 0 && abiertos === items.length;
+  btn.textContent = todos ? 'Cerrar todo' : 'Abrir todo';
+  btn.setAttribute('aria-expanded', String(abiertos > 0));
+  btn.title = todos ? 'Cerrar el detalle de todos los jugadores' : 'Abrir el detalle de todos los jugadores';
+}
+function toggleRevisionTodo(){
+  const box = document.getElementById('ep-rev-body');
+  if (!box) return;
+  const items = Array.from(box.querySelectorAll('details.ep-rev-item'));
+  if (!items.length) return;
+  const abrir = items.some(d => !d.open);
+  items.forEach(d => { d.open = abrir; });
+  _revSyncToggle();
+}
+/* El estado del botón también sigue a los clics en cada fila. */
+document.addEventListener('toggle', function(){ _revSyncToggle(); }, true);
+function renderCarritoPanel(){
+  const box = document.getElementById('ep-cart-panel');
+  if (!box) return;
+  const entradas = ADMIN_EMBED ? [] : _carritoEntradas();
+  if (!entradas.length){ box.hidden = true; box.innerHTML = ''; return; }
+  const total = _carritoCosto();
+  const excede = _carritoExcede();
+  const nCambios = entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
+  // HIST1: una sola linea. Con un jugador se lo nombra; con varios, la cuenta y el total.
+  const linea = entradas.length === 1
+    ? escHtml(entradas[0].p.name) + ' · ' + _pluralCambios(nCambios) + ' · ' + _fmtYC(total) + ' YC'
+    : entradas.length + ' jugadores · ' + _fmtYC(total) + ' YC';
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="ep-pend-hd">
+      <span class="ep-pend-lbl">Cambios en espera</span>
+    </div>
+    <div class="ep-res-line">${linea}</div>
+    ${excede ? '<div class="ep-carro-warn">El carrito supera lo disponible.</div>' : ''}
+    <div class="ep-carro-act">
+      <button type="button" class="ep-btn" data-onclick="descartarCarrito()">Descartar</button>
+      <button type="button" class="ep-btn primary" data-onclick="openReviewAll()"${excede ? ' disabled' : ''}>Revisar todo</button>
+    </div>`;
 }
 
 function discardChanges(){
+  // CARRO1: descarta solo el jugador abierto; el resto del carrito queda.
+  if (_bloqueadoPorPausa()) return;
+  const p = currentPlayer();
+  if (p){ delete APP.drafts[p.id]; delete APP.draftsBase[p.id]; }
   loadDraft();
-  renderCard();   // la ficha (casilla de altura) vuelve al jugador
-  renderRows();
-  renderCart();
+  _carritoGuardar();
+  renderAll();
   showMiniToast('Cambios descartados');
 }
+function descartarCarritoJugador(id){
+  if (_bloqueadoPorPausa()) return;
+  const p = PLAYER_BY_ID[id];
+  delete APP.drafts[id];
+  delete APP.draftsBase[id];
+  if (id === APP.playerId) loadDraft();
+  _carritoGuardar();
+  renderAll();
+  if (p) showMiniToast('Se descartaron los cambios de ' + p.name);
+}
+function descartarCarrito(){
+  if (_bloqueadoPorPausa()) return;
+  if (!_carritoEntradas().length){ showMiniToast('No hay cambios en espera.'); return; }
+  APP.drafts = {};
+  APP.draftsBase = {};
+  loadDraft();
+  _carritoGuardar();
+  renderAll();
+  showMiniToast('Carrito vacío');
+}
 
-/* ---- diff entre borrador y jugador actual (para el modal de confirmacion / historial) ---- */
-function pendingChangeLines(){
-  const p = currentPlayer(), d = APP.draft;
+/* ---- diff entre un borrador y lo publicado (modal de confirmacion / historial / carrito) ---- */
+function pendingChangeLinesDe(p, d){
+  if (!p || !d) return [];
   const lines = [];
   MAIN_STATS.forEach(s=>{
-    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costoStatPres(s.k, p.stats[s.k], d.stats[s.k]), gratis:(d.stats[s.k]>p.stats[s.k] ? gratisStatPres(s.k, p.stats[s.k], d.stats[s.k]) : 0), perfil:perfilPres(p)});
+    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costoStatDe(p, s.k, p.stats[s.k], d.stats[s.k]), gratis:(d.stats[s.k]>p.stats[s.k] ? gratisStatDe(p, s.k, p.stats[s.k], d.stats[s.k]) : 0), perfil:perfilPres(p)});
   });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costoStatPres(s.k, p.sec[s.k], d.sec[s.k]), gratis:(d.sec[s.k]>p.sec[s.k] ? gratisStatPres(s.k, p.sec[s.k], d.sec[s.k]) : 0), perfil:perfilPres(p)}); }
+    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costoStatDe(p, s.k, p.sec[s.k], d.sec[s.k]), gratis:(d.sec[s.k]>p.sec[s.k] ? gratisStatDe(p, s.k, p.sec[s.k], d.sec[s.k]) : 0), perfil:perfilPres(p)}); }
     else if(s.sc===8){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:Math.max(0,d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost}); }
     else if(d.sec.inj!==p.sec.inj){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1562,11 +2412,16 @@ function pendingChangeLines(){
   if(d.height!==p.height) lines.push({label:'Altura', from:p.height+' cm', to:d.height+' cm', cost:0});
   return lines;
 }
+function pendingChangeLines(){
+  return pendingChangeLinesDe(currentPlayer(), APP.draft);
+}
 
 /* ================= modal: confirmar aplicar ================= */
 
+/* CARRO2: misma fila plegable que «Revisar todo», pero con un solo jugador la fila va ABIERTA:
+   no hay lista que recortar y el pedido se confirma con los cambios a la vista. */
 function openApplyConfirm(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const lines = pendingChangeLines();
   if(lines.length===0){
@@ -1574,13 +2429,27 @@ function openApplyConfirm(){
     if(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length) commitChangesAdmin();
     return;
   }
+  if (!ADMIN_EMBED && pendientesEmparejarDeJugador(p).length){
+    showMiniToast('Este jugador tiene un pedido de emparejar pendiente: espera a que Luis lo aplique o cancélalo en Pedidos antes de mandar mejoras.');
+    return;
+  }
+  if (!ADMIN_EMBED && borradorYaPedido(p)){
+    showMiniToast('Ya mandaste estos cambios para ' + p.name + ': edita algo para mandar un pedido nuevo.');
+    return;
+  }
   const cost = pendingCost();
+  // PED1: el pedido pendiente del jugador ya reserva su costo; el pedido nuevo lo reemplaza.
+  const reservado = ADMIN_EMBED ? 0 : costoReservadoJugador(p);
+  const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(p);
+  const costoSinReservar = Math.max(0, cost - reservado);
   // saldo, tope y bono antes y despues del pedido: los mismos datos que muestra el saldo
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!p.subscriber);
+  const { fromSub } = repartoDelPedidoNuevo(p, cost);
   const saldoAntes = APP.saldo || 0;
-  const saldoDespues = Math.max(0, saldoAntes - cost);
-  const cap = RULES.budgetGeneral || 0;
-  const quedaGeneral = APP.budget.general - fromGeneral;
+  const saldoDespues = Math.max(0, saldoAntes - costoSinReservar);
+  const d = _topeEquipoDatos();
+  // BONO-5: el tope que puede usar este pedido = general del equipo + SU bono restante.
+  const topeAntes = Math.max(0, d.r.restanteGeneral + bonoRestanteDeJugador(p));
+  const topeDespues = Math.max(0, topeAntes - costoSinReservar);
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
   <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
@@ -1588,19 +2457,17 @@ function openApplyConfirm(){
       <div class="ep-grab" aria-hidden="true"></div>
       <div class="ep-sheet-hd">
         <h2 id="ep-sheet-tit">${ADMIN_EMBED ? 'Revisar cambios' : 'Revisar pedido'}</h2>
-        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.' : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo puedes cancelar.'}</span>
+        <span>${ADMIN_EMBED ? 'Queda como cambio pendiente en la Tool PES5.'
+          : (pendiente
+              ? 'Reemplaza tu pedido anterior de ' + escHtml(p.name) + ': se cancela al enviar. Se cobra cuando Luis lo aplica en el juego.'
+              : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo puedes cancelar.')}</span>
       </div>
-      <ul class="ep-sheet-list">
-        ${lines.map(l=>`<li class="ep-sheet-line">
-          <span class="lbl">${escHtml(p.name)} · ${escHtml(l.label)}</span>
-          <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
-          <span class="cost">${lineaCostoTexto(l)}</span>
-        </li>`).join('')}
-      </ul>
+      <div class="ep-rev-body">${_filaRevisionHTML({ p: p, d: APP.draft, costo: cost }, { abierto: true })}</div>
       ${ADMIN_EMBED ? '' : `<dl class="ep-sheet-saldo">
+        <div><dt>Total del pedido</dt><dd><b>${cost.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
-        <div><dt>Queda del tope</dt><dd>${quedaGeneral.toLocaleString('es-CL')} / ${cap.toLocaleString('es-CL')}</dd></div>
-        <div><dt>Bono suscriptores usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Tope del equipo</dt><dd>${topeAntes.toLocaleString('es-CL')} <span>→</span> <b>${topeDespues.toLocaleString('es-CL')} YC</b> de ${d.total.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Bono del jugador usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
       </dl>`}
       <div class="ep-sheet-act">
         <button class="ep-btn" data-onclick="closeApplyConfirm()">Seguir editando</button>
@@ -1611,49 +2478,341 @@ function openApplyConfirm(){
 }
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
+/* ================= CARRO1 · «Revisar todo» (todos los jugadores en espera) =================
+   Reparto bono/general del carrito (BONO-5): CADA jugador con «$» usa SU propio bono
+   restante (su cuota menos lo que ya gastó de su bono); un jugador sin «$» va entero al
+   tope general. No hay bolsa común: lo que gasta A no le quita bono a B. Se usa
+   YUNACOINS_RULES.distribuirCosto por jugador (igual que la Tool). */
+function _repartoCarrito(entradas){
+  const liberadoGeneral = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromGeneral || 0), 0), 0);
+  const liberadoSub = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromSub || 0), 0), 0);
+  const filas = entradas.map(e => {
+    const r = YUNACOINS_RULES.distribuirCosto(e.costo, bonoRestanteDeJugador(e.p), !!(e.p && e.p.subscriber));
+    return Object.assign({}, e, { fromGeneral: r.fromGeneral, fromSub: r.fromSub });
+  });
+  return {
+    filas: filas,
+    liberadoGeneral: liberadoGeneral,
+    liberadoSub: liberadoSub,
+    totalCost: filas.reduce((s, f) => s + f.costo, 0),
+    totalGeneral: filas.reduce((s, f) => s + f.fromGeneral, 0),
+    totalSub: filas.reduce((s, f) => s + f.fromSub, 0),
+  };
+}
+function _idsPendientesDe(p){
+  return pendientesMejoraDeJugador(p).map(x => String(x._id)).sort().join('|');
+}
+function openReviewAll(){
+  if (ADMIN_EMBED) return openApplyConfirm();
+  // HIST1: en pausa se puede mirar el carrito; el envio lo corta commitCarrito.
+  if (APP.bloqueoPorAplicado){
+    showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.');
+    return;
+  }
+  if (!puedeMandarPedido()){
+    showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
+    return;
+  }
+  guardarDraftActual();
+  const entradas = _carritoEntradas();
+  if (!entradas.length){ showMiniToast('No tienes cambios en espera: edita un jugador para sumarlo al carrito.'); return; }
+  const conEmparejar = entradas.filter(e => pendientesEmparejarDeJugador(e.p).length);
+  if (conEmparejar.length){
+    showMiniToast('Quita del carrito a ' + conEmparejar.map(e => e.p.name).join(', ') + ': tiene un pedido de emparejar pendiente.');
+    return;
+  }
+  if (_carritoExcede()){
+    const falta = _carritoFalta();
+    showMiniToast('El carrito supera el saldo disponible: quita ' + falta.toLocaleString('es-CL') + ' YC.');
+    return;
+  }
+  const rep = _repartoCarrito(entradas);
+  const neto = Math.max(0, rep.totalCost - rep.liberadoGeneral - rep.liberadoSub);
+  const saldoAntes = APP.saldo || 0;
+  const saldoDespues = Math.max(0, saldoAntes - neto);
+  const d = _topeEquipoDatos();
+  // BONO-5: cada jugador del carrito suma su propio bono restante al general del equipo.
+  const topeAntes = Math.max(0, d.r.restanteGeneral + entradas.reduce((s, e) => s + bonoRestanteDeJugador(e.p), 0));
+  const topeDespues = Math.max(0, topeAntes - neto);
+  const totalCambios = entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
+  const grupos = entradas.map(e => _filaRevisionHTML(e)).join('');
+  const muchos = entradas.length > 3;
+  const wrap = document.getElementById('ep-confirm-wrap');
+  wrap.innerHTML = `
+  <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
+    <section class="ep-sheet ep-sheet-largo" role="dialog" aria-modal="true" aria-labelledby="ep-sheet-carro">
+      <div class="ep-grab" aria-hidden="true"></div>
+      <div class="ep-sheet-hd">
+        <h2 id="ep-sheet-carro">Revisar todo el carrito</h2>
+        <span>Se manda un pedido por jugador, con todos sus cambios contra lo publicado. Los pedidos pendientes que reemplazas se cancelan al enviar y se cobra cuando Luis los aplica.</span>
+      </div>
+      ${muchos ? `<div class="ep-rev-bar">
+        <span class="ep-rev-bar-txt">${entradas.length} jugadores · ${_pluralCambios(totalCambios)}</span>
+        <button type="button" class="ep-rev-toggle" id="ep-rev-toggle" aria-expanded="false" aria-controls="ep-rev-body" data-onclick="toggleRevisionTodo()" title="Abrir el detalle de todos los jugadores">Abrir todo</button>
+      </div>` : ''}
+      <div class="ep-rev-body" id="ep-rev-body">${grupos}</div>
+      <dl class="ep-sheet-saldo">
+        <div><dt>Total del carrito</dt><dd><b>${rep.totalCost.toLocaleString('es-CL')} YC</b></dd></div>
+        <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
+        <div><dt>Tope del equipo</dt><dd>${topeAntes.toLocaleString('es-CL')} <span>→</span> <b>${topeDespues.toLocaleString('es-CL')} YC</b> de ${d.total.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Bono de los jugadores usado</dt><dd>${rep.totalSub.toLocaleString('es-CL')}</dd></div>
+      </dl>
+      <div class="ep-sheet-act">
+        <button class="ep-btn" data-onclick="closeApplyConfirm()">Seguir editando</button>
+        <button class="ep-btn primary" data-onclick="commitCarrito()">Enviar todo</button>
+      </div>
+    </section>
+  </div>`;
+}
+/* Envia UN pedido por jugador del carrito. Cancelaciones + altas van en el MISMO batch: si
+   falla, no se manda nada y el carrito queda intacto (las reglas ya permiten cada operacion). */
+async function commitCarrito(){
+  if (_bloqueadoPorPausa()) return;
+  if (ADMIN_EMBED) return commitChangesAdmin();
+  if (APP.bloqueoPorAplicado){
+    closeApplyConfirm();
+    showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.');
+    return;
+  }
+  if (!puedeMandarPedido()){
+    closeApplyConfirm();
+    showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
+    return;
+  }
+  const entradas = _carritoEntradas();
+  if (!entradas.length){ closeApplyConfirm(); return; }
+  const conEmparejar = entradas.filter(e => pendientesEmparejarDeJugador(e.p).length);
+  if (conEmparejar.length){
+    closeApplyConfirm();
+    showMiniToast('Quita del carrito a ' + conEmparejar.map(e => e.p.name).join(', ') + ': tiene un pedido de emparejar pendiente.');
+    return;
+  }
+  const sinRegistro = entradas.filter(e => registroPres(e.p) == null);
+  if (sinRegistro.length){
+    closeApplyConfirm();
+    showMiniToast('No se pudo mandar: ' + sinRegistro.map(e => e.p.name).join(', ') + ' no está en el save.');
+    return;
+  }
+  if (_carritoExcede()){
+    closeApplyConfirm();
+    showMiniToast('El carrito supera el saldo disponible: quita cambios antes de enviarlo.');
+    return;
+  }
+  // PED1 · la lista se relee justo antes de armar el envio: si otra pestana dejo o cancelo
+  // un pendiente de algun jugador del carrito, se corta para no perder esos cambios.
+  const antes = entradas.map(e => String(e.p.id) + ':' + _idsPendientesDe(e.p)).join('||');
+  await _refrescarPendientes();
+  const despues = entradas.map(e => String(e.p.id) + ':' + _idsPendientesDe(e.p)).join('||');
+  if (antes !== despues){
+    closeApplyConfirm();
+    renderAll();
+    showMiniToast('Se actualizaron tus pedidos pendientes: vuelve a abrir los jugadores para sumar esos cambios.');
+    return;
+  }
+  const filas = entradas.map(e => {
+    const pend = pedidoMejoraPendiente(e.p);
+    return {
+      p: e.p, d: e.d, costo: pendingCostDe(e.p, e.d),
+      cambios: cambiosDelBorrador(e.p, e.d),
+      lineas: pendingChangeLinesDe(e.p, e.d),
+      viejos: pendientesMejoraDeJugador(e.p),
+      pend: pend,
+    };
+  }).filter(f => f.cambios && Object.keys(f.cambios).length
+    && !(f.pend && f.pend.cambios && PES5_PLANTILLA.canonicoJSON(f.cambios) === PES5_PLANTILLA.canonicoJSON(f.pend.cambios)));
+  if (!filas.length){
+    closeApplyConfirm();
+    showMiniToast('No hay cambios aplicables para mandar.');
+    return;
+  }
+  const rep = _repartoCarrito(filas.map(f => ({ p: f.p, d: f.d, costo: f.costo })));
+  filas.forEach((f, i) => { f.fromGeneral = rep.filas[i].fromGeneral; f.fromSub = rep.filas[i].fromSub; });
+  const neto = Math.max(0, rep.totalCost - rep.liberadoGeneral - rep.liberadoSub);
+  // BONO-5: cada jugador ya trae el reparto con SU bono restante (distribuirCosto lo
+  // acota); el tope que se revisa en el equipo es el general y el saldo.
+  const excedeGeneral = rep.totalGeneral > (APP.budget.general || 0) + rep.liberadoGeneral;
+  const excedeSaldo = neto > (APP.saldo || 0);
+  if (excedeGeneral || excedeSaldo){
+    closeApplyConfirm();
+    showMiniToast('El carrito supera lo disponible: quita cambios antes de enviarlo.');
+    return;
+  }
+  const btn = document.querySelector('#ep-confirm-wrap .ep-btn.primary');
+  if (btn) btn.disabled = true;
+  const fs = firebase.firestore();
+  const refs = filas.map(() => fs.collection('pedidos_pes5').doc());
+  try {
+    const batch = fs.batch();
+    filas.forEach((f, i) => {
+      f.viejos.forEach(x => {
+        if (x._id && String(x._id).indexOf('local-') !== 0){
+          batch.update(fs.collection('pedidos_pes5').doc(x._id), {
+            estado: 'cancelado', canceladoEn: new Date().toISOString(),
+          });
+        }
+      });
+      batch.set(refs[i], {
+        uid: AUTH.user.uid,
+        teamId: String(AUTH.teamId),
+        teamName: EQUIPO_TSC?.name || null,
+        pes5Club: EQUIPO_TSC?.pes5Club || null,
+        cliente: MEJORAS_CLIENTE,
+        playerId: f.p.id,
+        playerName: f.p.name,
+        registro: registroPres(f.p),
+        pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
+        cambios: f.cambios,
+        dorsal: f.p.dorsal,
+        subscriber: !!f.p.subscriber,
+        lines: f.lineas,
+        totalCost: f.costo,
+        fromGeneral: f.fromGeneral,
+        fromSub: f.fromSub,
+        estado: 'pendiente',
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  } catch(e){
+    if (btn) btn.disabled = false;
+    await _avisarErrorPedido(e, 'No se pudo mandar el carrito: ');
+    return;
+  }
+  /* Reserva de YunaCoins: los pendientes viejos dejan de reservar y los nuevos reservan una
+     sola vez. Se ajusta en memoria y despues se recalcula del servidor. */
+  const reservadoTotal = rep.liberadoGeneral + rep.liberadoSub;
+  APP.budget.general = Math.max(0, (APP.budget.general || 0) + rep.liberadoGeneral - rep.totalGeneral);
+  APP.budget.subscribers = Math.max(0, (APP.budget.subscribers || 0) + rep.liberadoSub - rep.totalSub);
+  APP.saldo = Math.max(0, (APP.saldo || 0) + reservadoTotal - rep.totalCost);
+  const idsViejos = new Set();
+  filas.forEach(f => f.viejos.forEach(x => idsViejos.add(x)));
+  APP.pendientes = (APP.pendientes || []).filter(x => !idsViejos.has(x));
+  const locales = filas.map((f, i) => ({
+    _id: refs[i].id, playerId: f.p.id, playerName: f.p.name, registro: registroPres(f.p),
+    cambios: f.cambios, lines: f.lineas, totalCost: f.costo, fromGeneral: f.fromGeneral, fromSub: f.fromSub,
+    estado: 'pendiente', creadoEn: new Date().toISOString(),
+  }));
+  APP.pendientes.push(...locales);
+  filas.forEach(f => {
+    AUDIT_LOG.push({
+      ts: Date.now(), playerId: f.p.id, playerName: f.p.name, dorsal: f.p.dorsal, subscriber: !!f.p.subscriber,
+      lines: f.lineas, totalCost: f.costo, fromGeneral: f.fromGeneral, fromSub: f.fromSub,
+      reemplaza: f.pend ? String(f.pend._id || '') : '',
+      budgetAfter: { general: APP.budget.general, subscribers: APP.budget.subscribers },
+    });
+  });
+  saveAuditLog();
+  APP.drafts = {};
+  APP.draftsBase = {};
+  _carritoGuardar();
+  await recalcularPresupuestoReal();
+  // lectura eventual: conservar los pedidos recien creados si el servidor aun no los trae
+  locales.forEach(x => {
+    if (!APP.pendientes.some(y => String(y._id) === String(x._id))) APP.pendientes.push(x);
+  });
+  loadDraft();
+  closeApplyConfirm();
+  renderAll();
+  showMiniToast(filas.length === 1
+    ? `Pedido enviado a Luis: -${rep.totalCost.toLocaleString('es-CL')} YunaCoins`
+    : `Carrito enviado a Luis: ${filas.length} jugadores · -${rep.totalCost.toLocaleString('es-CL')} YunaCoins`);
+}
+
+/* Relee los pedidos pendientes del presidente (la misma consulta que
+   recalcularPresupuestoReal) y deja APP.pendientes igual que el servidor. Se usa antes de
+   mandar un pedido: si otra pestana dejo un pendiente del mismo jugador, se cancela igual. */
+async function _refrescarPendientes(){
+  try {
+    const q = await firebase.firestore().collection('pedidos_pes5')
+      .where('uid', '==', AUTH.user.uid).where('estado', '==', 'pendiente').get();
+    APP.pendientes = q.docs.map(d => Object.assign({ _id: d.id }, d.data()));
+  } catch(e){ console.warn('[editor] no se pudieron releer los pedidos pendientes', e); }
+}
+
 async function commitChanges(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   if (ADMIN_EMBED) return commitChangesAdmin();
   if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.'); return; }
   const p = currentPlayer();
   const lines = pendingChangeLines();
   const cost = pendingCost();
-  if(lines.length===0 || cost>remainingForPlayer(p)){ closeApplyConfirm(); return; }
+  if(lines.length===0){ closeApplyConfirm(); return; }
   if(!puedeMandarPedido()){
     closeApplyConfirm();
     showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
     return;
   }
+  // PED1 · un solo pedido pendiente por jugador: la lista se relee del servidor justo antes
+  // de armar el envio, para reemplazar tambien lo que haya quedado de otra pestana.
+  const antes = pendientesMejoraDeJugador(p).map(x => String(x._id)).sort().join('|');
+  await _refrescarPendientes();
+  if (pendientesMejoraDeJugador(p).map(x => String(x._id)).sort().join('|') !== antes){
+    // Otra pestana dejo un pendiente de este jugador: si se manda este pedido, ese se cancela
+    // y sus cambios se perderfan. Se corta aca y el presidente vuelve a abrir al jugador.
+    closeApplyConfirm();
+    renderPending();
+    showMiniToast('Se actualizó tu pedido pendiente de ' + p.name + ': vuelve a abrirlo para sumar esos cambios.');
+    return;
+  }
+  // PED1: el pedido pendiente del jugador ya reserva su costo; el nuevo lo reemplaza (no suma dos veces).
+  const reservado = costoReservadoJugador(p);
+  const costoSinReservar = Math.max(0, cost - reservado);
+  if (costoSinReservar > remainingForPlayer(p)){ closeApplyConfirm(); return; }
+  if (pendientesEmparejarDeJugador(p).length){
+    closeApplyConfirm();
+    showMiniToast('Este jugador tiene un pedido de emparejar pendiente: espera a que Luis lo aplique o cancélalo en Pedidos antes de mandar mejoras.');
+    return;
+  }
 
-  const draftJugador = {
-    stats: Object.assign({}, p.stats, APP.draft.stats),
-    sec: Object.assign({}, p.sec, APP.draft.sec),
-    abilities: Object.assign({}, p.abilities, APP.draft.abilities),
-    positions: APP.draft.positions, primaryPos: APP.draft.primaryPos, side: APP.draft.side,
-    height: APP.draft.height, favfoot: APP.draft.favfoot,
-  };
-  const cambios = PES5_PLANTILLA.cambiosDesdeEditor(p, draftJugador);
+  const viejos = pendientesMejoraDeJugador(p);  // PED1: los que este pedido reemplaza
+  const pendiente = pedidoMejoraPendiente(p);
+  const cambios = cambiosDelBorrador(p, APP.draft);
   const registro = PES5_PLANTILLA.registroDeId(p.id);
   if (registro == null || !Object.keys(cambios).length){
     closeApplyConfirm();
     showMiniToast('No hay cambios aplicables para mandar.');
     return;
   }
+  if (pendiente && pendiente.cambios
+      && PES5_PLANTILLA.canonicoJSON(cambios) === PES5_PLANTILLA.canonicoJSON(pendiente.cambios)){
+    closeApplyConfirm();
+    showMiniToast('Ya mandaste estos cambios para ' + p.name + ': edita algo para mandar un pedido nuevo.');
+    return;
+  }
 
-  /* Slice D.R punto 5b (orden INVERTIDO, 15/09): si es suscriptor, primero
-     se gasta el bono exclusivo; agotado el bono, el resto sigue con el
-     general. Si no es suscriptor, todo sale del general. */
-  const { fromGeneral, fromSub } = YUNACOINS_RULES.distribuirCosto(cost, APP.budget.subscribers, !!p.subscriber);
+  /* BONO-5: si es suscriptor, primero se gasta SU bono (lo que le queda de su cuota
+     esta temporada); agotado, el resto sigue con el tope general del equipo. Si no es
+     suscriptor, todo sale del general. El pedido pendiente que se reemplaza no cambia
+     el bono: el borrador ya incluye sus cambios (repartoDelPedidoNuevo). */
+  const { fromGeneral, fromSub } = repartoDelPedidoNuevo(p, cost);
+  const liberadoGeneral = viejos.reduce((s, x) => s + Number(x.fromGeneral || 0), 0);
+  const liberadoSub = viejos.reduce((s, x) => s + Number(x.fromSub || 0), 0);
 
   const btn = document.getElementById('ep-apply');
   if (btn) btn.disabled = true;
+  const fs = firebase.firestore();
+  const nuevoRef = fs.collection('pedidos_pes5').doc();
   try {
-    /* el pedido a Firestore es lo que el admin aplica con la tool; el presidente solo puede cancelarlo mientras esta pendiente (ver firebase/firestore.rules). */
-    await firebase.firestore().collection('pedidos_pes5').add({
+    /* PED1 · un solo pedido pendiente de mejoras por jugador: el pedido nuevo (todos los
+       cambios contra lo publicado) y la cancelación del anterior van en el MISMO batch, asi
+       nunca quedan dos pendientes del mismo jugador. Las reglas de Firestore ya permiten las
+       dos operaciones por separado (crear y cancelar el propio mientras esta pendiente), asi
+       que el batch no necesita cambios de reglas: si una falla no se escribe ninguna y el
+       pedido anterior sigue pendiente. Mismo update que cancelarPedidoDesdeHistorial. */
+    const batch = fs.batch();
+    viejos.forEach(x => {
+      if (x._id && String(x._id).indexOf('local-') !== 0){
+        batch.update(fs.collection('pedidos_pes5').doc(x._id), {
+          estado: 'cancelado', canceladoEn: new Date().toISOString(),
+        });
+      }
+    });
+    batch.set(nuevoRef, {
       uid: AUTH.user.uid,
       teamId: String(AUTH.teamId),
       teamName: EQUIPO_TSC?.name || null,
       pes5Club: EQUIPO_TSC?.pes5Club || null,
+      cliente: MEJORAS_CLIENTE,
       playerId: p.id,
       playerName: p.name,
       registro,
@@ -1667,42 +2826,43 @@ async function commitChanges(){
       estado: 'pendiente',
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    await batch.commit();
   } catch(e){
     if (btn) btn.disabled = false;
-    showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
+    await _avisarErrorPedido(e, 'No se pudo mandar el pedido: ');
     return;
   }
 
-  APP.budget.general -= fromGeneral;
-  APP.budget.subscribers -= fromSub;
-  APP.saldo = Math.max(0, (APP.saldo || 0) - cost);
-
-  Object.assign(p.stats, APP.draft.stats);
-  Object.assign(p.sec, APP.draft.sec);
-  Object.assign(p.abilities, APP.draft.abilities);
-  Object.assign(p.positions, APP.draft.positions);
-  p.primaryPos = APP.draft.primaryPos;
-  if(APP.draft.side !== undefined) p.side = APP.draft.side;
-  p.tag = POS_BY_KEY[p.primaryPos]?.l || p.primaryPos;
-  p.favfoot = APP.draft.favfoot;
-  p.height = APP.draft.height;
+  /* Reserva de YunaCoins (PED1): el pedido viejo deja de reservar y el nuevo reserva una sola
+     vez. Se ajusta en memoria y despues se recalcula del servidor (pedidos pendientes + coins). */
+  APP.budget.general = Math.max(0, (APP.budget.general || 0) + liberadoGeneral - fromGeneral);
+  APP.budget.subscribers = Math.max(0, (APP.budget.subscribers || 0) + liberadoSub - fromSub);
+  APP.saldo = Math.max(0, (APP.saldo || 0) + reservado - cost);
+  APP.pendientes = (APP.pendientes || []).filter(x => viejos.indexOf(x) < 0);
+  const nuevoLocal = {
+    _id: nuevoRef.id, playerId: p.id, playerName: p.name, registro,
+    cambios, lines, totalCost: cost, fromGeneral, fromSub, estado: 'pendiente',
+    creadoEn: new Date().toISOString(),
+  };
+  APP.pendientes.push(nuevoLocal);
 
   AUDIT_LOG.push({
     ts: Date.now(), playerId:p.id, playerName:p.name, dorsal:p.dorsal, subscriber:!!p.subscriber,
     lines, totalCost:cost, fromGeneral, fromSub,
+    reemplaza: pendiente ? String(pendiente._id || '') : '',
     budgetAfter:{general:APP.budget.general, subscribers:APP.budget.subscribers},
   });
   saveAuditLog();
 
-  // presentacion: el pedido recien enviado ya cuenta como pendiente (marca «Pedido» y aviso)
-  APP.pendientes.push({ _id: 'local-' + Date.now(), playerId: p.id, playerName: p.name, lines, totalCost: cost, estado: 'pendiente' });
+  // el jugador publicado NO se toca: lo que se ve es lo publicado + el pedido pendiente (loadDraft).
+  await recalcularPresupuestoReal();
+  if (!pendientesMejoraDeJugador(p).length) APP.pendientes.push(nuevoLocal); // lectura eventual: no perder el pedido recien creado
+  loadDraft();
   closeApplyConfirm();
-  renderCard();
-  renderRows();
-  renderCart();
-  renderRoster();
-  renderPending();
-  showMiniToast(`Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins`);
+  renderAll();
+  showMiniToast(pendiente
+    ? `Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins · reemplaza tu pedido anterior de ${p.name}`
+    : `Pedido enviado a Luis: -${cost.toLocaleString('es-CL')} YunaCoins`);
 }
 
 let _toastTimer=null;
@@ -1752,8 +2912,167 @@ function saveAuditLog(){
 }
 const AUDIT_LOG = loadAuditLog();
 
-async function openAuditModal(){
+/* ================= HIST1 · ventana del historial de pedidos =================
+   Los cancelados no se muestran (los cancelados a mano y los que PED1 reemplazó al
+   mandar un pedido nuevo del mismo jugador). Pestañas Pendientes / Aplicados /
+   Rechazados; cada pedido es una fila cerrada (se abre para ver el detalle) y al
+   final «Cobros al equipo», también cerrada. */
+let _AUDIT = { tab: 'pendiente', pedidos: [], movimientos: [] };
+let _auditSeq = 0;   // sube al cerrar: una carga vieja no vuelve a abrir la ventana
+const AUDIT_TABS = [['pendiente', 'Pendientes'], ['aplicado', 'Aplicados'], ['rechazado', 'Rechazados']];
+const _msAudit = v => v && v.toDate ? v.toDate().getTime() : (v ? new Date(v).getTime() : 0);
+/* fecha corta de la derecha de cada fila */
+function _fechaCorta(v){
+  const t = _msAudit(v);
+  return t ? new Date(t).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+}
+/* «antes → después» de una linea guardada en el pedido */
+function _textoLineaPedido(l){
+  if (!l) return '';
+  return (l.from === '' || l.from == null || l.from === '—')
+    ? String(l.to == null ? '' : l.to)
+    : String(l.from) + ' → ' + String(l.to);
+}
+/* Las lineas de alineacion vienen como «Entra X por Y» o «X ↔ Y». */
+function _textoAlineacionPedido(t){
+  const s = String(t == null ? '' : t);
+  let m = /^Entra (.+) por (.+)$/.exec(s);
+  if (m) return 'entra ' + m[1] + ', sale ' + m[2];
+  m = /^(.+?) ↔ (.+)$/.exec(s);
+  if (m) return m[1] + ' y ' + m[2] + ' cambian de lugar';
+  return s;
+}
+/* Titulo de una linea: un pedido de mejoras, formacion/alineacion o emparejar. */
+function _tituloPedido(p){
+  const lineas = Array.isArray(p.lines) ? p.lines : [];
+  if (p.tipo === 'emparejar'){
+    const nivel = Number(p.nivel);
+    return escHtml(p.playerName || 'Jugador')
+      + (Number.isFinite(nivel) && nivel > 0 ? ' · Emparejar a ' + nivel : ' · Emparejar');
+  }
+  if (p.tipo === 'formacion'){
+    const linForm = lineas.find(l => l && l.label === 'Formación');
+    const alin = lineas.filter(l => l && l.label === 'Cambio de alineación');
+    if (linForm){
+      const antes = linForm.from ? String(linForm.from) : '';
+      const despues = linForm.to ? String(linForm.to) : ((p.formacion && p.formacion.nombre) || '');
+      return 'Cambio de formación: ' + escHtml(antes ? antes + ' → ' + despues : despues);
+    }
+    if (alin.length === 1) return 'Cambio de alineación: ' + escHtml(_textoAlineacionPedido(alin[0].to));
+    if (alin.length > 1) return alin.length + ' cambios de alineación';
+    const nombre = (p.formacion && p.formacion.nombre) || '';
+    return 'Cambio de formación' + (nombre ? ': ' + escHtml(nombre) : '');
+  }
+  return escHtml(p.playerName || 'Jugador') + ' · ' + _pluralCambios(lineas.length)
+    + ' · ' + _fmtYC(p.totalCost) + ' YC';
+}
+/* El detalle de la fila: una linea por cambio (atributo, habilidad, posicion, lesion, altura). */
+function _detallePedidoHTML(p){
+  const lineas = Array.isArray(p.lines) ? p.lines : [];
+  if (!lineas.length) return '<li class="ep-rev-line"><span class="ep-rev-lbl">Sin detalle</span></li>';
+  return lineas.map(l => `<li class="ep-rev-line">
+      <span class="ep-rev-lbl">${escHtml(l.label || '')}</span>
+      <span class="ep-rev-chg">${escHtml(_textoLineaPedido(l))}</span>
+    </li>`).join('');
+}
+function _filaPedidoHTML(p){
+  const id = String(p._id || '');
+  const motivo = p.estado === 'rechazado' && p.motivo
+    ? `<span class="ep-hist-motivo">${escHtml(p.motivo)}</span>` : '';
+  const cancelar = p.estado === 'pendiente' && id && id.indexOf('local-') !== 0
+    ? `<button type="button" class="ep-btn ep-hist-cancel" data-onclick="cancelarPedidoDesdeHistorial('${escAttr(id)}')">Cancelar pedido</button>` : '';
+  return `<details class="ep-rev-item ep-hist-item">
+    <summary class="ep-rev-sum ep-hist-sum">
+      <span class="ep-hist-txt">
+        <span class="ep-hist-title">${_tituloPedido(p)}</span>
+        ${motivo}
+      </span>
+      <span class="ep-hist-fecha">${escHtml(_fechaCorta(p.creadoEn))}</span>
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <ul class="ep-rev-det">${_detallePedidoHTML(p)}</ul>
+    ${cancelar}
+  </details>`;
+}
+/* «Cobros al equipo»: fila cerrada con el total de la temporada; al abrir, los movimientos
+   (los reembolsos suman, con +monto). */
+function _filaCobrosHTML(){
+  const movs = _AUDIT.movimientos || [];
+  // El total es el mismo que «Gastado esta temporada»: el desglose pes5 de cada
+  // movimiento (los reembolsos vienen con fromGeneral negativo). Sin desglose, el monto.
+  const total = movs.reduce((s, m) => {
+    const meta = m.pes5 || {};
+    const neto = (meta.fromGeneral != null || meta.fromSub != null)
+      ? Number(meta.fromGeneral || 0) + Number(meta.fromSub || 0)
+      : (meta.reembolso ? -1 : 1) * Number(m.amount || 0);
+    return s + neto;
+  }, 0);
+  const filas = movs.length ? movs.map(m => {
+    const reembolso = !!(m.pes5 && m.pes5.reembolso);
+    const quien = (m.pes5 && m.pes5.playerName) || '';
+    const lbl = reembolso ? 'Reembolso' + (quien ? ' · ' + quien : '') : quien;
+    return `<div class="ep-diffline">
+      <div class="lbl">${escHtml(lbl)}${m.note ? ' &middot; ' + escHtml(m.note) : ''}</div>
+      <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleDateString('es-CL') : '')}</div>
+      <div class="cost">${reembolso ? '+' : '-'}${Number(m.amount || 0).toLocaleString('es-CL')}</div>
+    </div>`;
+  }).join('') : '<div class="ep-hist-vacio">Sin cobros de mejoras esta temporada.</div>';
+  return `<details class="ep-rev-item ep-hist-item ep-hist-cobros">
+    <summary class="ep-rev-sum ep-hist-sum">
+      <span class="ep-hist-txt"><span class="ep-hist-title">Cobros al equipo</span></span>
+      <span class="ep-hist-total">${Number(total).toLocaleString('es-CL')} YC</span>
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <div class="ep-hist-movs">${filas}</div>
+  </details>`;
+}
+function _renderAuditModal(){
   const wrap = document.getElementById('ep-audit-wrap');
+  if (!wrap) return;
+  // PED1: los cancelados (a mano o reemplazados) no son parte del historial visible.
+  const pedidos = (_AUDIT.pedidos || []).filter(p => p.estado !== 'cancelado');
+  const tab = AUDIT_TABS.some(t => t[0] === _AUDIT.tab) ? _AUDIT.tab : 'pendiente';
+  _AUDIT.tab = tab;
+  const cuenta = {
+    pendiente: pedidos.filter(p => p.estado === 'pendiente').length,
+    aplicado: pedidos.filter(p => p.estado === 'aplicado').length,
+    rechazado: pedidos.filter(p => p.estado === 'rechazado').length,
+  };
+  const delTab = pedidos.filter(p => p.estado === tab);
+  const vacio = {
+    pendiente: 'No tienes pedidos en revisión.',
+    aplicado: 'Todavía no hay pedidos aplicados.',
+    rechazado: 'No tienes pedidos rechazados.',
+  }[tab];
+  const filas = delTab.length ? delTab.map(_filaPedidoHTML).join('')
+    : `<div class="ep-hist-vacio">${vacio}</div>`;
+  wrap.innerHTML = `
+  <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeAuditModal)">
+    <div class="ep-modal wide" role="dialog" aria-modal="true" aria-labelledby="ep-audit-tit">
+      <div class="ep-modal-hd">
+        <h2 id="ep-audit-tit">Historial de mejoras</h2>
+        <button class="ep-modal-close" data-onclick="closeAuditModal()" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="ep-modal-body">
+        <div class="ep-hist-tabs" role="tablist" aria-label="Estado de los pedidos">
+          ${AUDIT_TABS.map(([k, l]) => `<button type="button" role="tab" class="ep-hist-tab" aria-selected="${k === tab ? 'true' : 'false'}" data-onclick="setAuditTab('${k}')">${l}<b>${cuenta[k]}</b></button>`).join('')}
+        </div>
+        <div class="ep-hist-list" role="tabpanel">${filas}</div>
+        ${_filaCobrosHTML()}
+      </div>
+    </div>
+  </div>`;
+  actualizarBadgeHistorial(pedidos);
+}
+function setAuditTab(tab){
+  if (!AUDIT_TABS.some(t => t[0] === tab)) return;
+  _AUDIT.tab = tab;
+  _renderAuditModal();
+}
+async function openAuditModal(tab){
+  const wrap = document.getElementById('ep-audit-wrap');
+  if (!wrap) return;
+  const seq = ++_auditSeq;
   wrap.innerHTML = `<div class="ep-overlay"><div class="ep-modal wide"><div class="ep-modal-body">Cargando historial…</div></div></div>`;
   let pedidos = [], movimientos = [];
   try {
@@ -1764,49 +3083,29 @@ async function openAuditModal(){
     renderPending();
   } catch (e) { console.warn('[mejoras] pedidos', e); }
   try {
+    // mismo filtro de temporada que recalcularPresupuestoReal: el total es el de la temporada de cobro
     movimientos = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId)
+      && c.season === (COBRO_TEMPORADA ?? STATE.season)
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
   } catch (e) { console.warn('[mejoras] coins', e); }
-  const ms = v => v && v.toDate ? v.toDate().getTime() : (v ? new Date(v).getTime() : 0);
-  pedidos.sort((a, b) => ms(b.creadoEn) - ms(a.creadoEn));
+  if (seq !== _auditSeq) return;   // se cerró mientras cargaba
+  pedidos.sort((a, b) => _msAudit(b.creadoEn) - _msAudit(a.creadoEn));
   movimientos.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  const ESTADO = { pendiente: 'Pendiente', aplicado: 'Aplicado', rechazado: 'Rechazado', cancelado: 'Cancelado' };
-  const fecha = v => { const t = ms(v); return t ? new Date(t).toLocaleString('es-CL') : ''; };
-  const filasPedidos = pedidos.length ? pedidos.map(p => `
-    <div class="ep-audit-entry">
-      <div class="ep-audit-entry-hd"><b>${escHtml(p.playerName || '')}</b><span>${escHtml(fecha(p.creadoEn))}</span></div>
-      <div class="sum">${(p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)}&rarr;${escHtml(l.to)}`).join(', ')}</div>
-      <div class="sum" style="margin-top:4px;">
-        <span class="badge">${escHtml(ESTADO[p.estado] || p.estado || '')}</span>
-        &middot; ${pedidoCostoTexto(p)}
-        ${p.estado === 'rechazado' && p.motivo ? `&middot; motivo: ${escHtml(p.motivo)}` : ''}
-        ${p.estado === 'pendiente' ? `<button class="ep-btn" style="margin-left:8px;" data-onclick="cancelarPedidoDesdeHistorial('${escHtml(p._id)}')">Cancelar pedido</button>` : ''}
-      </div>
-    </div>`).join('') : '<div class="sum">Todavía no mandaste pedidos.</div>';
-  const filasMov = movimientos.length ? movimientos.map(m => `
-    <div class="ep-diffline">
-      <div class="lbl">${escHtml((m.pes5 && m.pes5.playerName) || '')} &middot; ${escHtml(m.note || '')}</div>
-      <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleString('es-CL') : '')}</div>
-      <div class="cost">-${Number(m.amount || 0).toLocaleString('es-CL')}</div>
-    </div>`).join('') : '<div class="sum">Sin cobros de mejoras esta temporada.</div>';
-  wrap.innerHTML = `
-  <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeAuditModal)">
-    <div class="ep-modal wide">
-      <div class="ep-modal-hd">
-        <h2>Historial de mejoras</h2>
-        <button class="ep-modal-close" data-onclick="closeAuditModal()">&times;</button>
-      </div>
-      <div class="ep-modal-body">
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin-bottom:8px;">Mis pedidos</div>
-        ${filasPedidos}
-        <div style="font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin:16px 0 8px;">Cobros al equipo</div>
-        ${filasMov}
-      </div>
-    </div>
-  </div>`;
-  actualizarBadgeHistorial(pedidos);
+  _AUDIT = {
+    tab: (tab === 'aplicado' || tab === 'rechazado') ? tab : 'pendiente',
+    pedidos,
+    movimientos,
+  };
+  _renderAuditModal();
 }
+/* La ventana se cierra con X, tocando fuera o con Esc. */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  const wrap = document.getElementById('ep-audit-wrap');
+  if (wrap && wrap.innerHTML) closeAuditModal();
+});
 async function cancelarPedidoDesdeHistorial(id){
+  if (_bloqueadoPorPausa()) return;
   if (!confirm('¿Cancelar este pedido? No se cobra nada.')) return;
   try {
     await cancelarPedido(id);
@@ -1815,13 +3114,13 @@ async function cancelarPedidoDesdeHistorial(id){
     showMiniToast('No se pudo cancelar: ' + (e && e.message ? e.message : e));
   }
   renderAll();
-  openAuditModal();
+  openAuditModal(_AUDIT.tab);
 }
 function actualizarBadgeHistorial(pedidos){
   const el = document.getElementById('ep-hist-badge');
   if (el) el.textContent = (pedidos || []).filter(p => p.estado === 'pendiente').length;
 }
-function closeAuditModal(){ document.getElementById('ep-audit-wrap').innerHTML=''; }
+function closeAuditModal(){ _auditSeq++; document.getElementById('ep-audit-wrap').innerHTML=''; }
 function clearAuditLog(){
   AUDIT_LOG.length = 0;
   saveAuditLog();
@@ -1835,13 +3134,19 @@ function clearAuditLog(){
 
 const FORM = { draft:null, sel:0, motivo:null };
 let FORM_DRAG = null; // arrastre en curso de un punto de la cancha (slice 2.0-2)
+let FORM_FLASH = null; // MEJUI-4: jugador que acaba de cambiar (animacion corta de un solo render)
 let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (base del pedido)
 let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
 // ORD-4: los intercambios de banca del borrador van en FORM.bancaPares (pares de ids, en el orden en que se hicieron).
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
+let FORM_COORDS_HASTA = 0; // FORM4: hasta cuando se ve «Columna/Fila» despues de mover un punto
+let FORM_COORDS_T = 0;     // temporizador que lo esconde
+// INTEG: cambio titular↔banca/reserva pendiente de confirmar en el panel de comparacion.
+let FORM_CMP = null;  // { slot, entra, prev:{sel,armado,banca,verId} } con el panel abierto
+let FORM_CMP_HTML = ''; // ultimo HTML pintado del panel: no se rehace en cada render
 
 function openFormationModal(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   if (PLAYERS.length < FORMATION_COORDS.length){
     showMiniToast('El plantel todavía no tiene 11 jugadores para armar la formación.');
     return;
@@ -1856,7 +3161,11 @@ function openFormationModal(){
   FORM.sel = 0;
   FORM.motivo = null;
   FORM_DRAG = null;
-  FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
+  FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
+  // Sin selección explícita del usuario no hay ficha: FORM.verId queda vacío
+  // hasta que toque un jugador del 11 o de la banca/reservas (CMP3).
+  FORM.armado = false; FORM.banca = null; FORM.verId = null;
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = [];
   _pitchSyncOrientation();
   _montarModalCancha();
@@ -1864,9 +3173,9 @@ function openFormationModal(){
 /* Arma o rehace el modal con el borrador actual: al abrir y al cambiar la orientacion
    (slice 3d). No reinicia el borrador ni la seleccion. */
 function _montarModalCancha(){
-  // En pantalla tactil la ayuda habla de arrastrar; con mouse, de las flechas.
-  const toqueFino = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const wrap = document.getElementById('ep-pitch-wrap');
+  FORM_CMP_HTML = ''; // el contenedor de la ficha se rehace con el modal: se vuelve a pintar
+  _formCmpVisto = false;
   // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
   // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
   const franjas = PITCH_ZONES.map(z => {
@@ -1882,51 +3191,52 @@ function _montarModalCancha(){
         <button class="ep-modal-close" data-onclick="closeFormationModal()">&times;</button>
       </div>
       <div class="ep-modal-body">
-        <div class="ep-pitch-crest">
-          <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
-          ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineación
-          <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineación según las líneas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
-        </div>
-        <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
-          ${franjas}
-          <div class="ep-pitch-halfline"></div>
-          <div class="ep-pitch-circle"></div>
-          <div class="ep-pitch-box left"></div>
-          <div class="ep-pitch-box right"></div>
-          <div class="ep-pitch-arc left"></div>
-          <div class="ep-pitch-arc right"></div>
-          <div class="ep-pitch-goal left"></div>
-          <div class="ep-pitch-goal right"></div>
-          <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
-          <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
-        </div>
-        <div class="ep-pitch-info">
-          <div class="ep-pitch-info-name" id="ep-form-name"></div>
-          <div class="ep-pitch-posrow">
-            <span class="ep-pitch-info-zone">Posición</span>
-            <select id="ep-form-pos" class="ep-pitch-possel" data-onchange="setFormationPos(this.value)"></select>
+        <div class="ep-pitch-top">
+          <div class="ep-pitch-crest">
+            <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
+            ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineación
+            <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineación según las líneas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
+            <button type="button" class="ep-pitch-info-btn" data-onclick="openFormationHelp()" aria-label="Cómo usar la formación" title="Cómo usar la formación">
+              <span class="ep-pitch-info-ic" aria-hidden="true">
+                <svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.9h.01"/></svg>
+              </span>
+            </button>
           </div>
-          <div class="ep-pitch-selctl">
-            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(-1)" title="Jugador anterior" aria-label="Jugador anterior">
-              <svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
-            <span class="ep-pitch-info-zone" id="ep-form-zone"></span>
-            <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(1)" title="Jugador siguiente" aria-label="Jugador siguiente">
-              <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+          <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
+            ${franjas}
+            <div class="ep-pitch-halfline"></div>
+            <div class="ep-pitch-circle"></div>
+            <div class="ep-pitch-box left"></div>
+            <div class="ep-pitch-box right"></div>
+            <div class="ep-pitch-arc left"></div>
+            <div class="ep-pitch-arc right"></div>
+            <div class="ep-pitch-goal left"></div>
+            <div class="ep-pitch-goal right"></div>
+            <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
+            <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
+            <div id="ep-form-coords" class="ep-pitch-coords" hidden></div>
           </div>
         </div>
-        <div class="ep-form-bancawrap">
-          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(-1)" title="Jugadores anteriores" aria-label="Jugadores anteriores">
-            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Plantel: toca un jugador para verlo"></div>
-          <button type="button" class="ep-form-scrollbtn" data-onclick="formacionBancaDesplazar(1)" title="Jugadores siguientes" aria-label="Jugadores siguientes">
-            <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
-        </div>
-        <div class="ep-form-stats" id="ep-form-stats" hidden></div>
-        <div class="ep-pitch-hint">
-          <span>${toqueFino ? 'Toca un jugador para ver su ficha. Toca otro para cambiarlo de lugar (titular con titular, o suplente con titular).' : 'Clic en un jugador para ver su ficha; clic en otro para cambiarlo de lugar (titular con titular, o suplente con titular). Flechas: mueven el punto del teclado.'}</span>
-          <span id="ep-form-coords"></span>
+        <div class="ep-form-lista" id="ep-form-lista">
+          <div class="ep-pitch-info">
+            <div class="ep-pitch-info-name" id="ep-form-name"></div>
+            <div class="ep-pitch-posrow">
+              <span class="ep-pitch-info-zone">Posición</span>
+              <select id="ep-form-pos" class="ep-pitch-possel" data-onchange="setFormationPos(this.value)"></select>
+            </div>
+            <div class="ep-pitch-selctl">
+              <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(-1)" title="Jugador anterior" aria-label="Jugador anterior">
+                <svg class="icn" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+              <span class="ep-pitch-info-zone" id="ep-form-zone"></span>
+              <button class="ep-pgbtn" data-onclick="cycleFormationPlayer(1)" title="Jugador siguiente" aria-label="Jugador siguiente">
+                <svg class="icn" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+            </div>
+          </div>
+          <div class="ep-form-bench" id="ep-form-bench" role="group" aria-label="Banca y reservas"></div>
+          <div class="ep-form-stats" id="ep-form-stats" hidden></div>
         </div>
       </div>
+      <div class="ep-form-swapbar" id="ep-form-swapbar" aria-live="polite" hidden></div>
       <div class="ep-modal-foot">
         <button class="ep-btn" data-onclick="resetFormationDraft()">Restablecer</button>
         <button class="ep-btn" data-onclick="closeFormationModal()">Cancelar</button>
@@ -1934,16 +3244,18 @@ function _montarModalCancha(){
           <svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Confirmar</button>
       </div>
     </div>
+    <div class="ep-form-help" id="ep-form-help"></div>
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
-  const bancaWheel = document.getElementById('ep-form-bench');
-  if (bancaWheel) bancaWheel.addEventListener('wheel', _formBancaRueda, { passive: false });
   _formObservarAlto();
 }
 function closeFormationModal(){
   FORM_ABIERTO = false;
   FORM.bancaOrden = null;
+  FORM_CMP = null; FORM_CMP_HTML = '';   // INTEG: la comparacion se va con el modal
+  _formCmpVisto = false;
+  _formPararCoords();
   renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
@@ -1988,16 +3300,26 @@ function _formPuedeIntercambiar(a, b){
   return a !== b && !!FORM.draft[a] && !!FORM.draft[b] && _formEsArqueroSlot(a) === _formEsArqueroSlot(b);
 }
 function intercambiarTitulares(a, b){
+  if (_bloqueadoPorPausa()) return;
+  const nombre = id => (PLAYER_BY_ID[id] && PLAYER_BY_ID[id].name) || 'Jugador';
+  const idA = FORM.draft[a].id, idB = FORM.draft[b].id;
   const tmp = FORM.draft[a].id;
   FORM.draft[a].id = FORM.draft[b].id;
   FORM.draft[b].id = tmp;
-  FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[b].id; FORM.motivo = null;
+  FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = null; FORM.motivo = null;
+  FORM_FLASH = FORM.draft[b].id;
+  showMiniToast('Entra ' + nombre(idB) + ', sale ' + nombre(idA));
 }
 /* El jugador id ocupa el lugar i; el que estaba en ese lugar queda fuera del 11 (banca). */
 function _formEntrar(id, i){
-  _formCambiarEnBanca(id, FORM.draft[i].id);
+  if (_bloqueadoPorPausa()) return;
+  const nombre = pid => (PLAYER_BY_ID[pid] && PLAYER_BY_ID[pid].name) || 'Jugador';
+  const sale = FORM.draft[i].id;
+  _formCambiarEnBanca(id, sale);
   FORM.draft[i].id = id;
-  FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
+  FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = null; FORM.motivo = null;
+  FORM_FLASH = id;
+  showMiniToast('Entra ' + nombre(id) + ', sale ' + nombre(sale));
 }
 /* ORD-4: un jugador con un intercambio de banca en este pedido no entra al 11 hasta deshacerlo. */
 function _formEnParBanca(id){ return (FORM.bancaPares || []).some(p => p[0] === id || p[1] === id); }
@@ -2007,34 +3329,57 @@ function _formMensajeIlegal(id){
 }
 /* Toque en un jugador del 11 (cancha o lista). Devuelve true si cambio la formacion. */
 function formacionTocarTitular(i){
+  if (_bloqueadoPorPausa()) return false;
   if (!FORM.draft[i]) return false;
   // 1) hay un suplente armado: entra en este lugar
   if (FORM.banca){
     if (!_formLegalEntrada(FORM.banca, i)){ _formMensajeIlegal(FORM.banca); FORM.verId = FORM.banca; renderFormationModal(); return false; }
+    // INTEG: primero se compara (panel SALE/ENTRA); el cambio se aplica al confirmar
+    if (_formCmpAbrir(FORM.banca, i)){ renderFormationModal(); return false; }
     _formEntrar(FORM.banca, i); renderFormationModal(); return true;
   }
-  // 2) hay un titular armado: se intercambian
-  if (FORM.armado && FORM.sel !== i){
+  // 2) ya estaba marcado este mismo titular: el toque lo desmarca
+  if (FORM.armado && FORM.sel === i){
+    FORM.armado = false; FORM.motivo = null;
+    renderFormationModal();
+    return false;
+  }
+  // 3) hay un titular armado: se intercambian
+  if (FORM.armado){
     if (_formPuedeIntercambiar(FORM.sel, i)){ intercambiarTitulares(FORM.sel, i); renderFormationModal(); return true; }
     _formMensajeIlegal();
   }
-  // 3) seleccionar: muestra la ficha y queda armado
+  // 4) seleccionar: muestra la ficha, marca la fila y abre la franja de cambio
   FORM.sel = i; FORM.armado = true; FORM.banca = null; FORM.verId = FORM.draft[i].id; FORM.motivo = null;
   renderFormationModal();
   return false;
 }
 /* Toque en un jugador de la lista (data-jugador). Los que estan en el 11 van por formacionTocarTitular. */
 function formacionTocarBanca(el){
+  if (_bloqueadoPorPausa()) return;
   const id = el && el.dataset ? el.dataset.jugador : null;
   if (!id || !PLAYER_BY_ID[id]) return;
   const i = _formIdxDeId(id);
   if (i >= 0){ formacionTocarTitular(i); return; }
+  // CMP2: con la comparación abierta, tocar otro jugador de la banca o reservas
+  // cambia solo el que ENTRA (el que SALE sigue siendo el del 11), sin cerrarla.
+  if (FORM_CMP){
+    if (!_formLegalEntrada(id, FORM_CMP.slot)){ _formMensajeIlegal(id); return; }
+    _formCmpAbrir(id, FORM_CMP.slot);
+    renderFormationModal();
+    return;
+  }
+  // MEJUI-4: tocar de nuevo al marcado anula la seleccion (igual que «Cancelar»)
+  if (FORM.banca === id){ formacionCancelarArmado(); return; }
   // ORD-3: con un suplente o reserva armado, otro suplente o reserva lo intercambia de lugar en la banca
   if (FORM.banca && FORM.banca !== id){ _formSwapBanca(FORM.banca, id); renderFormationModal(); return; }
-  if (FORM.banca === id){ FORM.verId = id; renderFormationModal(); return; }
   // ya hay un titular armado: el suplente entra en su lugar, si la combinacion es valida
   if (FORM.armado && !FORM.banca){
-    if (_formLegalEntrada(id, FORM.sel)){ _formEntrar(id, FORM.sel); renderFormationModal(); return; }
+    if (_formLegalEntrada(id, FORM.sel)){
+      // INTEG: primero se compara (panel SALE/ENTRA); el cambio se aplica al confirmar
+      if (_formCmpAbrir(id, FORM.sel)){ renderFormationModal(); return; }
+      _formEntrar(id, FORM.sel); renderFormationModal(); return;
+    }
     _formMensajeIlegal(id);
   }
   FORM.banca = id; FORM.armado = true; FORM.verId = id; FORM.motivo = null;
@@ -2046,13 +3391,14 @@ function formacionTocarBanca(el){
    inversa, asi que la banca vuelve a como estaba). Un par anterior no se quita: quitarlo cambiaria el orden de los
    demas intercambios que se aplican despues. */
 function _formSwapBanca(a, b){
+  if (_bloqueadoPorPausa()) return;
   const ia = FORM.bancaOrden.indexOf(a), ib = FORM.bancaOrden.indexOf(b);
   if (ia < 0 || ib < 0 || ia === ib) return;
   const ultimo = FORM.bancaPares[FORM.bancaPares.length - 1];
   if (ultimo && ((ultimo[0] === a && ultimo[1] === b) || (ultimo[0] === b && ultimo[1] === a))) FORM.bancaPares.pop();
   else FORM.bancaPares.push([a, b]);
   [FORM.bancaOrden[ia], FORM.bancaOrden[ib]] = [FORM.bancaOrden[ib], FORM.bancaOrden[ia]];
-  FORM.banca = null; FORM.armado = false; FORM.verId = b; FORM.motivo = null;
+  FORM.banca = null; FORM.armado = false; FORM.verId = null; FORM.motivo = null;
 }
 /* Cuando un suplente entra al 11, el que sale ocupa su lugar en la banca (igual que la Tool). */
 function _formCambiarEnBanca(entra, sale){
@@ -2062,92 +3408,211 @@ function _formCambiarEnBanca(entra, sale){
 }
 function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
+  FORM.verId = null;   // CMP3: sin selección no queda ficha
+  FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
   renderFormationModal();
 }
-/* Desplaza la lista de jugadores un paso (botones de 44 px). */
-function formacionBancaDesplazar(dir){
-  const el = document.getElementById('ep-form-bench');
-  if (!el) return;
-  el.scrollBy({ left: dir * Math.max(120, el.clientWidth * 0.8), behavior: 'smooth' });
+/* ================= INTEG: comparar antes de cambiar (ficha CMP2) =================
+   Con js/mejoras-cambio.js cargado (window.MEJORAS_CAMBIO), el segundo toque de un
+   cambio titular↔banca/reserva ya no aplica el cambio: la ficha que está debajo de
+   la banca y las reservas (#ep-form-stats) pasa a la comparación SALE/ENTRA del
+   componente, EN LÍNEA (sin velo ni panel flotante), y el cambio se hace al
+   confirmar. Si el componente no está cargado, el segundo toque aplica como siempre.
+   Mientras la comparación está abierta, FORM_CMP = { slot, entra, prev }:
+     slot  lugar del 11 que se cambia
+     entra id del jugador de banca o reservas que ocuparía ese lugar
+     prev  selección de antes de abrir la comparación (a donde vuelve «Elegir otro») */
+function _formCmpDisponible(){
+  return !!(window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlPanel === 'function'
+    && typeof window.MEJORAS_CAMBIO.htmlFicha === 'function');
 }
-/* Rueda del mouse sobre la lista: se desplaza en horizontal. */
-function _formBancaRueda(e){
-  const el = e.currentTarget;
-  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)){ el.scrollLeft += e.deltaY; e.preventDefault(); }
+/* Abre la comparación para el cambio entra ↔ draft[slot]. Devuelve true si la abrió;
+   en ese caso el cambio NO se aplica todavía. */
+function _formCmpAbrir(entra, slot){
+  if (!_formCmpDisponible() || !FORM.draft[slot]) return false;
+  const sale = FORM.draft[slot].id;
+  if (!PLAYER_BY_ID[sale] || !PLAYER_BY_ID[entra]) return false;
+  // Si ya hay una comparación abierta (el usuario toca otro jugador de la banca)
+  // se conserva la selección original: «Elegir otro» vuelve a donde estaba.
+  const prev = FORM_CMP ? FORM_CMP.prev
+    : { sel: FORM.sel, armado: FORM.armado, banca: FORM.banca, verId: FORM.verId };
+  FORM_CMP = { slot, entra, prev };
+  return true;
 }
-const _FORM_ICO_SI = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
-const _FORM_ICO_NO = '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
-/* Lista completa del plantel (todos, con su nombre) y la ficha del jugador elegido. */
+/* Rol del jugador en la ficha (CMP3): 'sale' si está en el 11 (titular, el que
+   saldría; rojo) y 'entra' si es de la banca o las reservas (verde). */
+function _formRolFicha(p){
+  return p && _formIdxDeId(p.id) >= 0 ? 'sale' : 'entra';
+}
+/* Pinta la tarjeta de #ep-form-stats: la comparación si está abierta; si no, la
+   ficha del jugador elegido (mismas piezas que la comparación, a todo el ancho).
+   Sin selección explícita no pinta nada y el contenedor queda oculto.
+   Solo reescribe si cambió el HTML: así no se reinicia nada en cada render de la cancha.
+   Al abrirse la comparación se lleva la tarjeta a la vista con un scroll suave
+   (sin animación si el usuario prefiere menos movimiento). */
+let _formCmpVisto = false; // en el render anterior ya había comparación abierta
+function _formRenderFicha(){
+  const cont = document.getElementById('ep-form-stats');
+  if (!cont) return;
+  const p = FORM.verId ? PLAYER_BY_ID[FORM.verId] : null;
+  let html = '';
+  let esCmp = false;
+  if (FORM_CMP && _formCmpDisponible() && FORM.draft[FORM_CMP.slot]){
+    const sale = PLAYER_BY_ID[FORM.draft[FORM_CMP.slot].id];
+    const entra = PLAYER_BY_ID[FORM_CMP.entra];
+    if (sale && entra){
+      html = window.MEJORAS_CAMBIO.htmlPanel(sale, entra, {
+        onVolver: 'mejCmpVolver',
+        onConfirmar: 'mejCmpConfirmar',
+        bloqueado: _pausaSinAviso(),
+      });
+      esCmp = true;
+    }
+  }
+  if (!html && p){
+    html = window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlFicha === 'function'
+      ? window.MEJORAS_CAMBIO.htmlFicha(p, { ayuda: _formAyudaFicha(), rol: _formRolFicha(p) })
+      : _formFichaSimple(p);
+  }
+  if (html !== FORM_CMP_HTML){
+    FORM_CMP_HTML = html;
+    cont.innerHTML = html;
+  }
+  cont.hidden = !html;
+  if (esCmp && !_formCmpVisto){
+    // block:'nearest': basta con que la tarjeta quede a la vista, sin saltar al tope.
+    try {
+      const sinAnimacion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      cont.scrollIntoView({ block: 'nearest', behavior: sinAnimacion ? 'auto' : 'smooth' });
+    } catch (err) {}
+  }
+  _formCmpVisto = esCmp;
+}
+/* Pausa (o cliente viejo) sin lanzar el toast de _bloqueadoPorPausa: la ficha se
+   puede VER siempre, pero «Hacer el cambio» queda apagado. */
+function _pausaSinAviso(){
+  return _pausadasAhora() || _desactualizadoAhora();
+}
+/* Ayuda corta encima de la ficha de un solo jugador, según lo que está armado. */
+function _formAyudaFicha(){
+  if (FORM.banca) return 'Toca un titular para que entre en su lugar.';
+  if (FORM.armado) return 'Toca otro jugador para intercambiarlo con este.';
+  return '';
+}
+/* Ficha mínima de respaldo si el componente no se cargó (nunca debería pasar en
+   el flujo real: mejoras-cambio.js va antes de este archivo). */
+function _formFichaSimple(p){
+  return '<div class="mc-panel mc-ficha"><div class="mc-fhead"><div class="mc-fid">'
+    + '<span class="mc-fname">' + escHtml(p.name) + '</span>'
+    + '<span class="mc-fsub">' + escHtml(p.tag || p.primaryPos || '') + '</span>'
+    + '</div></div></div>';
+}
+/* «Elegir otro» de la comparación: la cierra, no cambia nada y deja elegido el
+   primer jugador (vuelve a su ficha de un solo jugador). */
+function mejCmpVolver(){
+  if (!FORM_CMP) return;
+  const prev = FORM_CMP.prev;
+  FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
+  FORM.sel = prev.sel; FORM.armado = prev.armado; FORM.banca = prev.banca;
+  FORM.verId = prev.verId; FORM.motivo = null;
+  renderFormationModal();
+}
+/* «Hacer el cambio» de la comparación: la cierra y aplica el cambio con la misma
+   función del cambio en dos toques (_formEntrar: respeta la regla del arquero y
+   bancaSwaps, y avisa «Entra X, sale Y»). */
+function mejCmpConfirmar(){
+  if (_bloqueadoPorPausa()) return;
+  if (!FORM_CMP) return;
+  const slot = FORM_CMP.slot, entra = FORM_CMP.entra;
+  FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
+  if (!FORM.draft[slot]){ renderFormationModal(); return; }
+  if (!_formLegalEntrada(entra, slot)){ _formMensajeIlegal(entra); renderFormationModal(); return; }
+  _formEntrar(entra, slot);
+  renderFormationModal();
+}
+/* Esc = «Elegir otro»: cierra la comparación, no el modal. En captura, para que
+   ninguna otra capa lo consuma antes (el resto de la app cierra modales con
+   Escape en burbuja). */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape' || !FORM_CMP || _formAyudaAbierta()) return;
+  e.stopPropagation();
+  mejCmpVolver();
+}, true);
+/* FORM4: Esc cierra solo la ayuda (encima queda la formación tal como estaba). */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape' || !_formAyudaAbierta()) return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeFormationHelp();
+}, true);
+/* Banca y reservas (y la ficha del jugador elegido), en la mitad inferior del modal.
+   MEJUI-4: una fila por jugador, con el dorsal y las iniciales de posicion en el color de
+   su linea (clases ep-line-*, como el editor); banca en celeste/azul y reservas en verde.
+   MEJUI2: los titulares no se repiten acá (están en la cancha).
+   Con un jugador marcado, los destinos validos se resaltan (.puede) y el resto se
+   atenua (.no), sin bloquear el toque: si no vale, el toast explica por que. */
+function _lineaFormacion(p, slot, i){
+  if (i === 0 || (slot && slot.pos === 'PT')) return 'gk';
+  return PITCH_POS_LINEA[slot && slot.pos] || LINEA_POS[p.primaryPos] || 'mid';
+}
 function _formRenderBancaYPanel(){
   const bancaEl = document.getElementById('ep-form-bench');
   const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
+  // INTEG: con un TITULAR elegido, cada jugador de banca o reservas que puede entrar
+  // muestra a la derecha la diferencia de promedio (componente MEJORAS_CAMBIO).
+  const MC = _formCmpDisponible() ? window.MEJORAS_CAMBIO : null;
+  const titular = (MC && FORM.armado && !FORM.banca && FORM.draft[FORM.sel])
+    ? PLAYER_BY_ID[FORM.draft[FORM.sel].id] : null;
   if (bancaEl){
-    const plantel = plantelOrdenado(); const secs = _seccionesPlantel();
-    bancaEl.innerHTML = plantel.map(p => {
+    const secs = _seccionesPlantel();
+    const fila = (p, seccion) => {
       const i = _formIdxDeId(p.id);
-      const cod = (i >= 0 && FORM.draft[i].pos) ? FORM.draft[i].pos : (CODIGO_POS[p.primaryPos] || p.primaryPos || '');
-      const etiqueta = i >= 0 ? 'En el 11' : (secs[p.id] === 'reserva' ? 'Reserva' : 'Suplente');
-      const cls = ['ep-form-subbtn', i >= 0 ? 'en11' : '', p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : ''].filter(Boolean).join(' ');
-      return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)" data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
+      const slot = i >= 0 ? FORM.draft[i] : null;
+      const linea = _lineaFormacion(p, slot, i);
+      const cod = (slot && slot.pos) || CODIGO_POS[p.primaryPos] || p.primaryPos || '';
+      const dorsal = p.dorsal && p.dorsal !== '?' ? '#' + p.dorsal : '';
+      const puede = !armadoId || p.id === armadoId || (
+        FORM.banca
+          ? (i >= 0 ? _formLegalEntrada(FORM.banca, i) : true)
+          : (i >= 0 ? _formPuedeIntercambiar(FORM.sel, i) : _formLegalEntrada(p.id, FORM.sel)));
+      const cls = ['ep-form-subbtn', 'es-' + seccion, i >= 0 ? 'en11' : '',
+        p.id === FORM.verId ? 'ver' : '', p.id === armadoId ? 'armado' : '',
+        armadoId && !puede ? 'no' : '', armadoId && puede && p.id !== armadoId ? 'puede' : '',
+        FORM_FLASH === p.id ? 'flash' : ''].filter(Boolean).join(' ');
+      const delta = (titular && i < 0 && puede && p.id !== titular.id)
+        ? `<span class="ep-form-cmpd">${MC.htmlDelta(titular, p)}</span>` : '';
+      return `<button type="button" class="${cls}" data-onclick="formacionTocarBanca(this)"
+        data-jugador="${escAttr(p.id)}" title="${escAttr(p.name)}" aria-pressed="${p.id === armadoId ? 'true' : 'false'}">
+        <span class="ep-form-num ep-line-${linea}${dorsal ? '' : ' vacia'}">${dorsal ? escHtml(dorsal) : ''}</span>
         <span class="ep-form-subname">${escHtml(p.name)}</span>
-        <span class="ep-form-subtag">${escHtml(etiqueta)} · ${escHtml(cod)}</span>
+        <span class="ep-form-cod ep-line-${linea}">${escHtml(cod)}</span>${delta}
       </button>`;
+    };
+    // MEJUI2: abajo de la cancha va solo la banca y los reservas (los titulares ya están
+    // en la cancha y se tocan ahí): así la lista de cambios queda a la vista en la mitad
+    // inferior de la pantalla.
+    const grupos = [['suplente', 'Banca'], ['reserva', 'Reservas']];
+    bancaEl.innerHTML = grupos.map(([sec, titulo]) => {
+      const ids = _rosterVisible().filter(id => secs[id] === sec && PLAYER_BY_ID[id]);
+      if (!ids.length) return '';
+      return `<div class="ep-form-grp">${titulo}</div>` + ids.map(id => fila(PLAYER_BY_ID[id], sec)).join('');
     }).join('') || '<span class="ep-form-subnone">Sin jugadores en el plantel.</span>';
   }
-  const panel = document.getElementById('ep-form-stats');
-  if (panel){
-    const p = FORM.verId ? PLAYER_BY_ID[FORM.verId] : null;
-    if (!p){ panel.hidden = true; panel.innerHTML = ''; }
-    else { panel.hidden = false; panel.innerHTML = _formFichaCompleta(p); }
-  }
+  _formRenderFicha();
 }
-/* Ficha con todo: atributos 0-99, secundarios (0-99, escala 1-8 y resistencia a lesiones), posiciones,
-   habilidades especiales (si tiene o no). Usa las mismas definiciones que el editor: MAIN_STATS,
-   SEC_NEW, POSITIONS y ALL_ABILITIES. Solo esta panel tiene scroll vertical propio. */
-function _formFichaCompleta(p){
-  const val = (v) => (v === undefined || v === null || v === '') ? '—' : escHtml(String(v));
-  const valor99 = (v) => typeof v === 'number' ? `<span style="color:${TIER_COLOR[tierClass99(v)]};">${v}</span>` : val(v);
-  const fila = (lab, v) => `<div class="ep-fs-row"><span>${escHtml(lab)}</span><b>${v}</b></div>`;
-  const atributos = MAIN_STATS.map(s => fila(s.l, valor99((p.stats || {})[s.k]))).join('');
-  const secundarios = SEC_NEW.map(s => {
-    const raw = (p.sec || {})[s.k];
-    return fila(s.l, s.sc === 99 ? valor99(raw) : val(raw));
-  }).join('');
-  const posiciones = POSITIONS.map(ps => {
-    const on = !!(p.positions || {})[ps.k];
-    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(ps.l)}</span></li>`;
-  }).join('');
-  const habil = ALL_ABILITIES.map(a => {
-    const on = !!(p.abilities || {})[a.k];
-    return `<li class="${on ? 'on' : ''}">${on ? _FORM_ICO_SI : _FORM_ICO_NO}<span>${escHtml(a.l)}</span><b>${on ? 'Sí' : 'No'}</b></li>`;
-  }).join('');
-  const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
-  const cuerpo = `${escHtml(cod)} · ${escHtml((POS_BY_KEY[p.primaryPos] && POS_BY_KEY[p.primaryPos].l) || p.tag || '')}`
-    + (p.dorsal && p.dorsal !== '?' ? ` · #${escHtml(p.dorsal)}` : '');
-  const ayuda = FORM.banca ? 'Toca un titular para que entre en su lugar.'
-    : FORM.armado ? 'Toca otro jugador para intercambiarlo con este.' : '';
-  return `
-    <div class="ep-fs-head">
-      <div class="ep-fs-id">
-        <div class="ep-fs-name">${escHtml(p.name)}</div>
-        <div class="ep-fs-sub">${cuerpo}</div>
-        <div class="ep-fs-sub">Altura ${val(p.height)} cm · Edad ${val(p.age)} · Pie ${val(p.foot)} · Banda ${val(p.side)}</div>
-      </div>
-      ${FORM.armado ? `<button type="button" class="ep-fs-cancel" data-onclick="formacionCancelarArmado()">Cancelar</button>` : ''}
-    </div>
-    ${ayuda ? `<div class="ep-fs-ayuda">${escHtml(ayuda)}</div>` : ''}
-    <div class="ep-fs-sec"><h4>Atributos</h4><div class="ep-fs-grid">${atributos}</div></div>
-    <div class="ep-fs-sec"><h4>Secundarios y lesiones</h4><div class="ep-fs-grid">${secundarios}</div></div>
-    <div class="ep-fs-sec"><h4>Posiciones</h4><ul class="ep-fs-list">${posiciones}</ul></div>
-    <div class="ep-fs-sec"><h4>Habilidades especiales</h4><ul class="ep-fs-list">${habil}</ul></div>`;
-}
+/* Ficha del jugador: la arma js/mejoras-cambio.js (htmlFicha / htmlPanel), la misma
+   tarjeta para la ficha de un jugador y para la comparación SALE/ENTRA. */
 
 function _formProgramarRender(){
   if (_formRaf) return;
   _formRaf = requestAnimationFrame(() => { _formRaf = 0; renderFormationModal(); });
 }
 function _formPointerDown(e){
-  if (e.button !== 0 || FORM_DRAG) return;
+  if (e.button !== 0 || FORM_DRAG || FORM_CMP) return;
+  if (_bloqueadoPorPausa()) return;   // PAUSA-2: con la pausa no se mueve ningun jugador
   const campo = e.currentTarget;
   let mejor = -1, mejorDist = Infinity;
   FORM.draft.forEach((slot, i) => {
@@ -2158,6 +3623,8 @@ function _formPointerDown(e){
   if (mejor < 0 || mejorDist > FORM_RADIO_TOQUE) return; // toque lejos de los puntos: no hace nada
   // FORM-2: el toque decide (seleccionar, intercambiar o entrar). Si cambio la formacion, no hay arrastre.
   if (formacionTocarTitular(mejor)) return;
+  // INTEG: si ese toque abrio el panel de comparacion, el gesto termina aca (no hay arrastre).
+  if (FORM_CMP) return;
   const slot = FORM.draft[mejor];
   const c = _centroPunto(campo, slot);
   // Captura en todos los tipos de puntero: si se suelta fuera de la cancha, el clic
@@ -2177,6 +3644,8 @@ function _formPointerDown(e){
 function _formPointerMove(e){
   const d = FORM_DRAG;
   if (!d || e.pointerId !== d.id) return;
+  // PAUSA-2: si la pausa empieza con un arrastre en curso, el gesto se corta (un solo aviso).
+  if (_bloqueadoPorPausa()){ FORM_DRAG = null; return; }
   if (!d.activo){
     if (Math.hypot(e.clientX - d.inicioX, e.clientY - d.inicioY) < 4) return; // temblor, no es arrastre
     d.activo = true;
@@ -2219,7 +3688,7 @@ function renderFormationModal(){
     const isSel = i===FORM.sel;
     const label = slot.pos || pitchLabelFor(slot.x, slot.y, slot.id);
     const arrastrando = FORM_DRAG && FORM_DRAG.activo && FORM_DRAG.idx === i && !isKeeperSlot(slot);
-    return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''} ${arrastrando?'dragging':''}"
+    return `<div class="ep-pitch-dot ${isSel?'me':''} ${isKeeperSlot(slot)?'gk':''} ${arrastrando?'dragging':''} ${FORM_FLASH===slot.id?'flash':''}"
       style="left:${xPct}%;top:${yPct}%;" title="${escHtml(pl.name)}">
       ${isSel?`<span class="ep-pitch-tag">${label}</span>`:''}
     </div>`;
@@ -2227,6 +3696,25 @@ function renderFormationModal(){
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
   _formRenderBancaYPanel();
+
+  // MEJUI-4: franja fija con la instruccion del cambio y «Cancelar». Reservada: solo
+  // aparece mientras hay un jugador marcado, asi no cambia el alto del resto al tocar.
+  // FORM4: con la comparación abierta sobra (ya tiene «Elegir otro» y «Hacer el cambio»).
+  const bar = document.getElementById('ep-form-swapbar');
+  if (bar){
+    const armadoId = FORM_CMP ? null
+      : (FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null));
+    if (!armadoId){ bar.hidden = true; bar.innerHTML = ''; }
+    else {
+      const nom = (PLAYER_BY_ID[armadoId] && PLAYER_BY_ID[armadoId].name) || 'Jugador';
+      const texto = FORM.banca
+        ? `Entra ${nom}: elige a quién reemplaza`
+        : `Cambiar a ${nom}: elige quién entra`;
+      bar.hidden = false;
+      bar.innerHTML = `<span class="ep-form-swaptxt">${escHtml(texto)}</span>
+        <button type="button" class="ep-btn" data-onclick="formacionCancelarArmado()">Cancelar</button>`;
+    }
+  }
 
   // Alineacion en vivo (defensas-mediocampistas-delanteros segun las franjas).
   const lineupEl = document.getElementById('ep-form-lineup');
@@ -2256,8 +3744,9 @@ function renderFormationModal(){
   document.getElementById('ep-form-zone').textContent = keeper
     ? 'Arquero (posición fija)'
     : PITCH_ZONE_BY_KEY[pitchThird(slot.x)].label;
-  document.getElementById('ep-form-coords').textContent =
-    `Columna ${slot.x}/${PITCH_COLS} · Fila ${slot.y}/${PITCH_ROWS}`;
+  // FORM4: la columna y la fila son una etiqueta chica que se ve solo mientras se
+  // mueve o se ajusta el punto (arrastre, cruz o flechas del teclado). No ocupa lugar.
+  _formPintarCoords(slot);
   // selector de posicion: solo las que corresponden al bloque donde cae,
   // mas la que ya tiene (aunque haya quedado fuera de zona), sin repetir
   // las de banda.
@@ -2269,6 +3758,7 @@ function renderFormationModal(){
     ).join('');
     sel.disabled = keeper;
   }
+  FORM_FLASH = null; // la animacion corre una sola vez en este render
   _formAjustarAlto();
 }
 
@@ -2300,8 +3790,9 @@ function _formObservarAlto(){
   _formAjustarAlto();
 }
 function _formDejarDeObservar(){ if (FORM_RO){ FORM_RO.disconnect(); FORM_RO = null; } }
-/* Alto de la cancha vertical: toma el alto que sobra del modal. La ficha del jugador (#ep-form-stats)
-   va debajo de la cancha, dentro del scroll del modal, y no le resta alto. Horizontal: sin alto fijo. */
+/* MEJUI2: alto de la cancha vertical. La cancha ocupa algo menos de la mitad superior de
+   la pantalla del celular y la lista de banca/reservas se queda con el resto, con su
+   propio scroll (ver .ep-form-lista). Horizontal: sin alto fijo. */
 function _formAjustarAlto(){
   const wrap = document.getElementById('ep-pitch-wrap');
   const body = wrap && wrap.querySelector('.ep-modal-body');
@@ -2310,13 +3801,21 @@ function _formAjustarAlto(){
   if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); return; }
   campo.style.removeProperty('--campo-h');
   const cs = getComputedStyle(body);
+  const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
   const gap = parseFloat(cs.rowGap) || 10;
-  const libreTot = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  // lo que no es la cancha ni la ficha ocupa su alto; cada bloque suma un espacio
-  const fijosEls = [...body.children].filter(el => el !== campo && el.id !== 'ep-form-stats' && el.offsetHeight > 0);
-  const fijos = fijosEls.reduce((s, el) => s + el.offsetHeight, 0);
-  const h = libreTot - fijos - fijosEls.length * gap;
-  campo.style.setProperty('--campo-h', Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(h))) + 'px');
+  const util = body.clientHeight - pad;
+  // Lo que no es la cancha arriba (franja del equipo y ayuda), con sus separaciones.
+  const top = campo.parentElement;
+  const topEls = top ? [...top.children].filter(el => el !== campo) : [];
+  const otrosTop = topEls.reduce((s, el) => s + el.offsetHeight, 0);
+  const gapTop = parseFloat(top ? getComputedStyle(top).rowGap : 0) || gap;
+  const gapsTop = Math.max(0, top ? top.children.length - 1 : 0) * gapTop;
+  // Unos 44% del alto de la pantalla; el tope evita que la lista quede sin espacio en
+  // pantallas muy bajas (en un telefono normal no recorta la cancha).
+  const altoPantalla = window.innerHeight || body.clientHeight || 640;
+  const topePorLista = util - otrosTop - gapsTop - gap - 60;
+  const h = Math.max(FORM_CAMPO_MIN, Math.min(FORM_CAMPO_MAX, Math.floor(altoPantalla * 0.44), Math.floor(topePorLista)));
+  campo.style.setProperty('--campo-h', h + 'px');
 }
 
 function opcionesPosicion(slot){
@@ -2391,6 +3890,7 @@ function ajustarPosicionAlMover(slot){
   return false; // la linea de destino ya esta llena
 }
 function setFormationPos(valor){
+  if (_bloqueadoPorPausa()) return;
   const slot = FORM.draft[FORM.sel];
   if (!slot || !valor) return;
   const antes = contarLineas(FORM.draft);
@@ -2405,11 +3905,107 @@ function setFormationPos(valor){
     renderFormationModal();
     return;
   }
+  _formAvisarCoords(); // FORM4: al ajustar la posición también se ve la columna/fila un momento
   renderFormationModal();
 }
+/* ================= FORM4: etiqueta «Columna/Fila» y ayuda del (i) =================
+   La columna y la fila dejan de ocupar una franja fija: se ven solo mientras se
+   mueve o se ajusta el punto (arrastre en curso, cruz o flechas del teclado) y se
+   van solas a los ~1,6 s. La ayuda larga pasa a un modal que abre el (i) del
+   encabezado (mismo estilo de modal del editor). */
+function _formCoordsVisibles(){
+  return !!((FORM_DRAG && FORM_DRAG.activo) || FORM_COORDS_HASTA > Date.now());
+}
+function _formPararCoords(){
+  if (FORM_COORDS_T){ clearTimeout(FORM_COORDS_T); FORM_COORDS_T = 0; }
+  FORM_COORDS_HASTA = 0;
+}
+function _formPintarCoords(slot){
+  const el = document.getElementById('ep-form-coords');
+  if (!el) return;
+  const ver = !!slot && _formCoordsVisibles();
+  el.hidden = !ver;
+  if (ver) el.textContent = `Columna ${slot.x}/${PITCH_COLS} · Fila ${slot.y}/${PITCH_ROWS}`;
+}
+/* Un movimiento con la cruz o el teclado muestra la etiqueta un momento. */
+function _formAvisarCoords(){
+  FORM_COORDS_HASTA = Date.now() + 1600;
+  if (FORM_COORDS_T) clearTimeout(FORM_COORDS_T);
+  FORM_COORDS_T = setTimeout(() => {
+    FORM_COORDS_T = 0; FORM_COORDS_HASTA = 0;
+    _formPintarCoords(FORM.draft[FORM.sel]);
+  }, 1700);
+}
+function _formAyudaAbierta(){
+  const el = document.getElementById('ep-form-help');
+  return !!(el && el.innerHTML);
+}
+function openFormationHelp(){
+  const el = document.getElementById('ep-form-help');
+  if (!el) return;
+  el.innerHTML = `
+  <div class="ep-overlay ep-help-velo" data-onclick="closeIfBackdrop(event,closeFormationHelp)">
+    <section class="ep-modal ep-help-modal" role="dialog" aria-modal="true" aria-labelledby="ep-help-tit">
+      <div class="ep-modal-hd">
+        <h2 id="ep-help-tit">Cómo usar la formación</h2>
+        <button class="ep-modal-close" data-onclick="closeFormationHelp()" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="ep-modal-body">
+        <ul class="ep-help-list">
+          <li>Toca un jugador del 11 y después a quién entra (o al revés): queda marcado.</li>
+          <li>Toca otra vez al marcado, o «Cancelar», para anular el cambio.</li>
+          <li>Antes de cambiar ves la comparación: «Hacer el cambio» la confirma.</li>
+          <li>Las flechas ‹ › cambian de jugador y el selector «Posición» ajusta su puesto.</li>
+          <li>Arrastra un punto para moverlo por la cancha. El arquero no se mueve.</li>
+        </ul>
+      </div>
+      <div class="ep-modal-foot">
+        <button class="ep-btn primary" id="ep-help-listo" data-onclick="closeFormationHelp()">Entendido</button>
+      </div>
+    </section>
+  </div>`;
+  const listo = document.getElementById('ep-help-listo');
+  if (listo) listo.focus();
+}
+function closeFormationHelp(){
+  const el = document.getElementById('ep-form-help');
+  if (el) el.innerHTML = '';
+}
 function selectFormationPlayer(i){ FORM.sel = i; renderFormationModal(); }
+/* FORM4: la flecha ‹ › mueve la única selección de la formación. Con la
+   comparación abierta, la comparación pasa al titular nuevo si ese cambio es
+   legal (arquero solo por portero); si no, se cierra y queda la ficha del
+   titular con un aviso corto. En pausa se puede mirar, pero no se arma nada. */
+function _formIrATitular(i){
+  const slot = FORM.draft && FORM.draft[i];
+  if (!slot) return;
+  FORM.sel = i;
+  FORM.verId = slot.id;
+  FORM.motivo = null;
+  if (FORM_CMP){
+    if (_formLegalEntrada(FORM_CMP.entra, i)){
+      // La comparación sigue al titular elegido y «Elegir otro» deja armado a ese
+      // mismo titular (no al que estaba cuando se abrió la comparación).
+      const armado = !_pausaSinAviso();
+      FORM_CMP = { slot: i, entra: FORM_CMP.entra, prev: { sel: i, armado, banca: null, verId: slot.id } };
+      FORM.armado = armado; FORM.banca = null;
+      return;
+    }
+    const entra = PLAYER_BY_ID[FORM_CMP.entra];
+    const sale = PLAYER_BY_ID[slot.id];
+    FORM_CMP = null; FORM_CMP_HTML = '';
+    _formCmpVisto = false;
+    FORM.armado = !_pausaSinAviso(); FORM.banca = null;
+    showMiniToast(`${(entra && entra.name) || 'Ese jugador'} no puede reemplazar a ${(sale && sale.name) || 'ese titular'}.`);
+    return;
+  }
+  FORM.armado = !_pausaSinAviso();
+  FORM.banca = null;
+}
 function cycleFormationPlayer(delta){
-  FORM.sel = (FORM.sel + delta + FORM.draft.length) % FORM.draft.length;
+  const n = (FORM.draft && FORM.draft.length) || 0;
+  if (!n) return;
+  _formIrATitular((FORM.sel + delta + n) % n);
   renderFormationModal();
 }
 /* Mueve el jugador seleccionado a la celda (x, y) como un solo cambio. Devuelve
@@ -2417,6 +4013,7 @@ function cycleFormationPlayer(delta){
    FORM.motivo y muestra el toast (salvo {silencioso:true}, que usa el arrastre:
    ese muestra un solo toast al soltar). No renderiza: lo hace quien llama. */
 function moveFormationDotTo(x, y, opciones){
+  if (_bloqueadoPorPausa()) return false;
   const silencioso = !!(opciones && opciones.silencioso);
   const slot = FORM.draft[FORM.sel];
   const fallo = (msg) => {
@@ -2450,7 +4047,7 @@ function moveFormationDotTo(x, y, opciones){
 /* Ajuste de una celda: la cruz de 2.C y las flechas del teclado. */
 function moveFormationDot(dx,dy){
   const slot = FORM.draft[FORM.sel];
-  moveFormationDotTo(slot.x + dx, slot.y + dy);
+  if (moveFormationDotTo(slot.x + dx, slot.y + dy)) _formAvisarCoords();
   renderFormationModal();
 }
 /* Flechas y cruz segun la pantalla. Horizontal: arriba = y-1, izquierda = x-1 (arco propio a la
@@ -2462,8 +4059,10 @@ function moveFormationScreen(dir){
   moveFormationDot(dx, dy);
 }
 function resetFormationDraft(){
+  if (_bloqueadoPorPausa()) return;
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
+  FORM.verId = null;   // CMP3: restablecer también quita la ficha
   completarPosiciones();
   renderFormationModal();
   showMiniToast('Formación restablecida a la del save.');
@@ -2480,7 +4079,7 @@ function _nombreFormacionDraft(draft){
 /* Opcion B: el presidente manda la formacion como pedido y la Tool la
    escribe en el save. No cuesta YunaCoins. */
 async function confirmFormation(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
   const error = validarFormacion(FORMATION);
   if (error){ showMiniToast('Formación inválida: ' + error + '.'); return; }
@@ -2509,6 +4108,7 @@ async function confirmFormation(){
       teamName: EQUIPO_TSC?.name || null,
       pes5Club: EQUIPO_TSC?.pes5Club || null,
       tipo: 'formacion',
+      cliente: MEJORAS_CLIENTE,
       pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
       formacion: { nombre, slots },
       lines: lineasPedido,
@@ -2525,12 +4125,14 @@ async function confirmFormation(){
     showMiniToast('Formación enviada. La Tool la aplica al save.');
   } catch(e) {
     console.warn('[editor] pedido de formacion', e);
-    showMiniToast('No se pudo enviar la formación: ' + (e?.message || e));
+    await _avisarErrorPedido(e, 'No se pudo enviar la formación: ');
   }
 }
 document.addEventListener('keydown', function(e){
   const wrap = document.getElementById('ep-pitch-wrap');
   if(!wrap || !wrap.innerHTML) return;
+  if(_formAyudaAbierta()) return;   // FORM4: con la ayuda abierta, las teclas son de la ayuda
+  if(FORM_CMP) return;   // INTEG: con el panel de comparacion abierto, las teclas son del panel
   const move = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'};
   if(move[e.key]){ e.preventDefault(); moveFormationScreen(move[e.key]); return; }
   if(e.key==='Tab'){ e.preventDefault(); cycleFormationPlayer(e.shiftKey?-1:1); }
@@ -2610,6 +4212,7 @@ function _altEnlazar(){
 }
 function _altTecla(e){ if (e.key === 'Escape') mejCerrarAltura(); }
 function mejAbrirAltura(){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const wrap = document.getElementById('ep-alt-wrap');
   if (!p || !wrap || p.heightFixed) return;
@@ -2651,6 +4254,7 @@ function mejCerrarAltura(){
    lleno entre el resto del plantel — moverse dentro del mismo tramo, o a uno
    sin tope, siempre esta permitido. */
 function adjustHeight(delta){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   if(p.heightFixed) return;
   const cur = APP.draft.height;
@@ -2671,10 +4275,10 @@ function adjustHeight(delta){
 }
 
 function adjustMain(key,delta){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   APP.hint = MAIN_BY_KEY[key].d;
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
   const cur = APP.draft.stats[key];
   if(delta>0){
     if(cur>=99){ renderRows(); return; }
@@ -2689,10 +4293,11 @@ function adjustMain(key,delta){
   renderRows(); renderCart();
 }
 function adjustSec(key,delta){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const def = SEC_NEW.find(s=>s.k===key);
   APP.hint = def.d;
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
   const cur = APP.draft.sec[key];
   const max = def.sc===99 ? 99 : 8;
   if(delta>0){
@@ -2711,9 +4316,10 @@ function adjustSec(key,delta){
   renderRows(); renderCart();
 }
 function adjustInjury(delta){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   APP.hint = INJ_DEF.d;
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
   const baseIdx = INJURY_ORDER.indexOf(p.sec.inj);
   const curIdx  = INJURY_ORDER.indexOf(APP.draft.sec.inj);
   if(delta>0){
@@ -2727,11 +4333,12 @@ function adjustInjury(delta){
   renderRows(); renderCart();
 }
 function toggleAbility(key){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   // Marca la fila como seleccionada igual que adjustMain/adjustSec: la fila activa
   // se decide comparando APP.hint con la descripcion de la fila.
   const ab = ABILITY_BY_KEY[key];
-  if(ab){ APP.hint = ab.d; document.getElementById('ep-hint').textContent = ab.d; }
+  if(ab){ APP.hint = ab.d; _pintarHint(ab.d); }
   if(p.abilities[key] && !ADMIN_EMBED){ renderRows(); return; } // ya comprada antes, no se puede "vender" (el admin si puede quitarla)
   if(!APP.draft.abilities[key] && !p.abilities[key] && !canAfford(RULES.abilityCost)){
     showMiniToast('Saldo insuficiente — no puedes superar el total de YunaCoins disponibles.'); renderRows(); return;
@@ -2740,6 +4347,7 @@ function toggleAbility(key){
   renderRows(); renderCart();
 }
 function togglePosition(key){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const d = APP.draft;
   const on = d.positions[key];
@@ -2772,27 +4380,55 @@ function togglePosition(key){
   }
 
   d.positions[key] = !d.positions[key];
+  // MEJUI2: la linea fija sigue a la posicion que se toca (la estrella corta el burbujeo).
+  const pos = POS_BY_KEY[key];
+  if (pos){
+    APP.posSel = key;
+    APP.hint = key === d.primaryPos ? 'Posición natural del jugador.'
+      : (d.positions[key] ? 'Posición secundaria. Usa «Hacer principal» para que sea la natural.'
+                          : 'Posición disponible para este jugador (sin costo en YunaCoins).');
+    _pintarHint(APP.hint);
+  }
   renderCard(); renderRows(); renderCart();
+}
+/* MEJUI2: tocar el nombre de una posición abre su descripción y deja «Hacer principal»
+   en la línea fija de abajo (solo si está marcada y no es la natural). */
+function mejVerPosicion(key){
+  const pos = POS_BY_KEY[key];
+  if (!pos) return;
+  const d = APP.draft;
+  APP.posSel = key;
+  APP.hint = key === d.primaryPos ? 'Posición natural del jugador.'
+    : (d.positions[key] ? 'Posición secundaria. Usa «Hacer principal» para que sea la natural.'
+                        : 'Posición disponible para este jugador (sin costo en YunaCoins).');
+  _pintarHint(APP.hint);
+  renderRows();
 }
 // El save de PES5 guarda un solo bit para el pie dominante: derecho o izquierdo. No existe "ambos".
 const FOOT_LABEL = { D: 'Der.', I: 'Izq.' };
 const SIDE_LABEL = { D: 'Der.', I: 'Izq.', A: 'Ambas' };
 function setFavFoot(v){
+  if (_bloqueadoPorPausa()) return;
   APP.draft.favfoot = v;
   renderCard(); renderRows(); renderCart(); // la tarjeta muestra el pie elegido y el boton de guardar se reevalua
 }
 function setSide(v){
+  if (_bloqueadoPorPausa()) return;
   APP.draft.side = v;
   renderCard(); renderRows(); renderCart();
 }
 function setPrimaryPos(k){
+  if (_bloqueadoPorPausa()) return;
   if(!APP.draft.positions[k]) return;
   APP.draft.primaryPos = k;
+  APP.posSel = k;
+  APP.hint = 'Posición natural del jugador.';
+  _pintarHint(APP.hint);
   renderCard(); renderRows(); renderCart();
 }
 
 function starSvg(on){
-  return `<svg class="icn star ${on?'on':''}" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>`;
+  return `<svg class="icn star ${on?'on':''}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>`;
 }
 
 /* ================= render: filas por pagina ================= */
@@ -2832,9 +4468,9 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
   const tono = cambiada ? 'var(--gold)' : color; // fila cambiada: valor y barra en dorado
   const costBadge = costSoFar>0 ? `<span class="ep-rcost-row">+${costSoFar.toLocaleString('es-CL')}</span>` : '';
   const viejo = cambiada ? `<span class="ep-rold">${min}</span>` : '';
-  // la descripcion vive dentro de la fila: la del atributo elegido o la de un cambio pendiente
+  // MEJUI-1: la descripcion ya no vive dentro de la fila; va en la linea fija de abajo (#ep-hint).
+  // El aviso de tope de temporada se conserva: es un estado, no la descripcion del atributo.
   const aviso = topeM ? `<div class="ep-rdesc" style="color:var(--gold);">${escHtml(topeM)}</div>` : '';
-  const detalle = ((sel || cambiada) ? `<div class="ep-rdesc">${escHtml(desc)}</div>` : '') + aviso;
   return `<div class="ep-row ${sel?'sel':''} ${cambiada?'chg':''} ${locked?'locked':''}" data-onclick="setHint('${jsq(desc)}')">
     <div class="ep-rmain">
       <div class="ep-rhead"><span class="ep-rlabel">${escHtml(label)}</span>${costBadge}</div>
@@ -2845,18 +4481,14 @@ function numericRowHTML(label,desc,value,min,max,colorFn,onDec,onInc,locked,affo
       <button ${decDisabled?'disabled':''} aria-label="Bajar ${escHtml(label)}" data-onclick="event.stopPropagation();${onDec}">&minus;</button>
       <button ${incDisabled?'disabled':''} aria-label="Subir ${escHtml(label)}" data-onclick="event.stopPropagation();${onInc}">+</button>
     </div>
-    ${detalle}
+    ${aviso}
   </div>`;
 }
 
-/* Presentacion (2.0-3c): grupos de la pagina Principales y etiquetas completas de la propuesta.
-   Solo cambian lo que se muestra; las claves (k) y MAIN_STATS siguen igual. */
-const GRUPOS_PRINCIPALES = [
-  ['Rol', ['atk','def']],
-  ['Físico', ['equ','res','vm','ace','rsp','agi']],
-  ['Balón y pase', ['pcd','vcd','ppc','vpc','ppl','vpl']],
-  ['Disparo', ['pre','pot','ted']],
-];
+/* Presentacion (2.0-3c): etiquetas completas de la propuesta.
+   MEJUI-1: el juego no agrupa los atributos por rol, asi que la pagina Principales
+   los lista seguidos, en el orden de siempre (PAGE1_STATS). Solo cambia lo que se
+   muestra; las claves (k) y MAIN_STATS siguen igual. */
 const ETIQUETA_FILA = {atk:'Ataque', def:'Defensa', equ:'Equilibrio', res:'Resistencia', vm:'Vel. máxima', ace:'Aceleración',
   rsp:'Respuesta', agi:'Agilidad', pcd:'Prec. conducción', vcd:'Vel. conducción', ppc:'Prec. pase corto', vpc:'Vel. pase corto',
   ppl:'Prec. pase largo', vpl:'Vel. pase largo', pre:'Precisión', pot:'Potencia', ted:'Téc. de disparo'};
@@ -2868,14 +4500,14 @@ function renderRows(){
   let html = '';
 
   if(APP.page===1){
-    html = GRUPOS_PRINCIPALES.map(([titulo, keys]) => `<div class="ep-grp">${titulo}</div>` + keys.map(k => {
-      const s = MAIN_BY_KEY[k];
+    html = PAGE1_STATS.map(s => {
+      const k = s.k;
       const v = d.stats[k];
       const afford = v>=99 || canAfford(costoPuntoPres(k, v+1));
       const cost = v>p.stats[k] ? costoStatPres(k, p.stats[k], v) : 0;
       return numericRowHTML(ETIQUETA_FILA[k] || s.l, s.d, v, p.stats[k], 99, val=>TIER_COLOR[tierClass99(val)],
         `adjustMain('${k}',-1)`, `adjustMain('${k}',1)`, false, afford, cost);
-    }).join('')).join('');
+    }).join('');
   }
 
   if(APP.page===2){
@@ -2920,18 +4552,16 @@ function renderRows(){
     }).join('');
   }
 
-  // UI-HAB-1: la fila entera activa la habilidad (un solo handler en la fila: el boton de la estrella
-  // no tiene handler propio, asi que no hay doble disparo). Nombre a la izquierda, costo y estrella a la derecha.
+  // MEJUI2: la fila solo muestra la descripción (linea fija); la estrella grande es el
+  // control que agrega o quita la habilidad. Misma lógica y costo que siempre (toggleAbility).
   function abilityRow(a){
     const on = d.abilities[a.k];
     const boughtBefore = p.abilities[a.k];
     const canToggle = boughtBefore || on || canAfford(RULES.abilityCost);
-    const costo = RULES.abilityCost;
-    const etiqueta = `${a.l}: ${on ? 'desactivar' : 'activar'} habilidad (+${costo})`;
-    return `<div class="ep-row ep-hab ${APP.hint===a.d?'sel':''} ${on?'on':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="toggleAbility('${a.k}')">
+    const etiqueta = `${on ? 'Quitar' : 'Agregar'} ${a.l}`;
+    return `<div class="ep-row ep-hab ${APP.hint===a.d?'sel':''} ${on?'on':''} ${(!on&&!canToggle)?'locked':''}" data-onclick="setHint('${jsq(a.d)}')">
       <div class="ep-rlabel ep-hab-nombre">${escHtml(a.l)}</div>
-      <div class="ep-rcost ep-hab-costo">${on&&!boughtBefore?'+'+costo:''}</div>
-      <button type="button" class="ep-hab-estrella ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}">${starSvg(on)}</button>
+      <button type="button" class="ep-hab-estrella ${on?'on':''}" aria-pressed="${on?'true':'false'}" aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}" data-onclick="event.stopPropagation();toggleAbility('${a.k}')">${starSvg(on)}</button>
     </div>`;
   }
   function padRow(){ return `<div class="ep-row pad"><div class="ep-rlabel">&mdash;</div></div>`; }
@@ -2940,22 +4570,24 @@ function renderRows(){
     html = ALL_ABILITIES.map(abilityRow).join('');
   }
   if(APP.page===4){
+    // MEJUI2: una sola estrella grande por fila (sin interruptores). El código va en el
+    // color de su línea, el nombre al centro y «Principal» junto a la estrella cuando es
+    // la posición natural. La principal no se quita: togglePosition lo impide.
     html = POSITIONS.map(pos=>{
       const on = d.positions[pos.k];
       const isRegistered = pos.k === d.primaryPos;
-      const hint = isRegistered ? 'Posición natural (círculo O): la posición principal del jugador.' : (on ? 'Posición secundaria (sin costo). Con el botón circular la haces natural.' : 'Posición secundaria disponible para este jugador (sin costo en YunaCoins).');
-      const circleBtn = on && !isRegistered
-        ? `<button class="ep-register-btn" title="Hacer natural (círculo O)" data-onclick="event.stopPropagation();setPrimaryPos('${pos.k}')"><svg class="icn" viewBox="0 0 24 24" style="width:16px;height:16px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>`
+      const linea = LINEA_POS[pos.k] || 'mid';
+      const codigo = CODIGO_POS[pos.k] || pos.k;
+      const etiqueta = `${on ? 'Quitar' : 'Agregar'} ${pos.l}`;
+      const sel = APP.posSel === pos.k;
+      const principal = isRegistered
+        ? '<span class="ep-pos-principal">Principal</span>'
         : '';
-      const labelBadge = isRegistered
-        ? `<span style="color:var(--gold);font-size:11px;">(natural)</span>`
-        : '';
-      return `<div class="ep-row" data-onclick="setHint('${jsq(hint)}')">
-        <div class="ep-rlabel">${escHtml(pos.l)} ${labelBadge}</div>
-        <div style="display:flex;gap:5px;align-items:center;">
-          ${circleBtn}
-          <div class="ep-rstar ${on?'on':''}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</div>
-        </div>
+      return `<div class="ep-row ep-pos ${on?'on':''} ${sel?'sel':''}" data-onclick="mejVerPosicion('${pos.k}')">
+        <span class="ep-pos-code ep-line-${linea}" aria-hidden="true">${escHtml(codigo)}</span>
+        <div class="ep-rlabel ep-pos-nombre">${escHtml(pos.l)}</div>
+        <span class="ep-pos-lado">${principal}<button type="button" class="ep-pos-star ${on?'on':''}" aria-pressed="${on?'true':'false'}"
+          aria-label="${escAttr(etiqueta)}" title="${escAttr(etiqueta)}" data-onclick="event.stopPropagation();togglePosition('${pos.k}')">${starSvg(on)}</button></span>
       </div>`;
     }).join('') + `
       <div class="ep-row" data-onclick="setHint('Pie dominante del jugador. En el juego solo puede ser derecho o izquierdo.')">
@@ -2989,7 +4621,7 @@ function renderAll(){
   renderRows();
   renderCart();
   renderPending();
-  document.getElementById('ep-hint').textContent = APP.hint;
+  _pintarHint(APP.hint);
 }
 /* Cabecera: nombre del equipo e iniciales (presentacion). En modo admin lo pisa renderAdminBar. */
 function renderTop(){
@@ -3017,6 +4649,7 @@ async function cancelarPedido(pedidoId){
 async function _volverAPlantillaPublicada(){
   try { await cargarPlantillaReal(AUTH.teamId, EQUIPO_TSC.pes5ClubIdx); }
   catch(e){ console.warn('[mejoras] plantilla publicada', e); }
+  _carritoValidar(); // CARRO1: si la plantilla cambio, los borradores viejos ya no sirven
   loadDraft();
   renderAll();
 }
@@ -3056,6 +4689,11 @@ function iniciarModoAdmin(m){
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p => [p.id, p]));
   APP.budget = { general: m.presupuesto.general, subscribers: m.presupuesto.subscribers };
   APP.saldo = m.presupuesto.saldo || 0;
+  // BONO-5: en modo admin el bono es el del jugador abierto y lo calcula la Tool
+  // (libro coins de la temporada); no hay carrito ni libro coins cargado acá.
+  APP.coinTx = [];
+  APP.bonoJugador = (m.presupuesto && m.presupuesto.bonoJugador != null) ? Number(m.presupuesto.bonoJugador) || 0 : 0;
+  APP.bonoEquipo = (m.presupuesto && m.presupuesto.bonoEquipo != null) ? Number(m.presupuesto.bonoEquipo) || 0 : 0;
   // slice 2.1-A: el aviso grande necesita lo gastado, el tope extra y lo que reservan otros cambios
   APP.gastado = { general: (m.gastado && m.gastado.general) || 0, sub: (m.gastado && m.gastado.sub) || 0 };
   APP.pend = m.pendientesOtros || { total: 0, general: 0, sub: 0 };
@@ -3063,7 +4701,7 @@ function iniciarModoAdmin(m){
   APP.motivo = m.motivo || '';
   APP.playerId = m.jugadorId;
   APP.page = 1;
-  APP.hint = 'Selecciona un atributo para ver su descripcion.';
+  APP.hint = 'Selecciona un atributo para ver su descripción.';
   ADMIN_PENDIENTE = m.pendiente || null;
   loadDraft();
   _raiz().classList.add('admin-embed');
@@ -3257,13 +4895,52 @@ let _opciones = {};       // opciones de montar(): onAplicar / onCerrar (modo ad
 let _observers = [];      // MutationObserver de los contenedores de los modales
 
 /* ================= PAUSA-1: pausa de mejoras (lectura en vivo, sin recargar) =================
-   Luis pausa las mejoras mientras edita el save (pes5_config/pausa). Con la pausa: aviso arriba,
-   los botones de enviar, confirmar, emparejar y formacion quedan deshabilitados, y no se arma el carrito.
-   Al reanudar se habilita solo. El servidor tambien rechaza el pedido (regla de create). */
+   Luis pausa las mejoras mientras edita el save (pes5_config/pausa). Con la pausa el editor queda
+   en solo lectura (PAUSA-2): aviso arriba y ninguna funcion que modifique el borrador, la
+   formacion, la banca o mande un pedido hace su trabajo. Al reanudar se habilita solo.
+   El servidor tambien rechaza el pedido (regla de create). */
 let PAUSA = null;      // { pausado } de pes5_config/pausa; null hasta leerlo
 let _pausaUnsub = null;
-const MSG_PAUSA = 'Las mejoras están pausadas mientras Luis actualiza el juego. Vuelve más tarde.';
+const MSG_PAUSA = 'Mejoras pausadas: Luis está actualizando el juego. Puedes mirar, pero no editar.';
+/* MINVER: minimo de cliente que exige el servidor (pes5_config/app.minCliente). null hasta
+   leerlo; si no hay documento, no hay minimo. Se lee en vivo, igual que la pausa. */
+let MIN_CLIENTE = null;
+let _versionUnsub = null;
+const MSG_ACTUALIZA = 'Tu app está desactualizada. Actualízala para hacer mejoras.';
+function _desactualizadoAhora(){
+  return !ADMIN_EMBED && Number.isInteger(MIN_CLIENTE) && MEJORAS_CLIENTE < MIN_CLIENTE;
+}
+/* MINVER: si el pedido falla con permission-denied y el servidor tiene minimo configurado, el
+   motivo es un cliente viejo (el servidor ya no acepta su `cliente`); se avisa de la actualizacion
+   en vez de mostrar el error crudo de Firestore. Si todavia no se leyo el minimo, se reintenta
+   leerlo una vez para no depender de que el snapshot haya llegado. */
+async function _avisarErrorPedido(e, prefijo){
+  const code = String((e && (e.code || (e.cause && e.cause.code))) || '');
+  const permiso = code.indexOf('permission-denied') >= 0;
+  if (permiso && MIN_CLIENTE == null && typeof firebase !== 'undefined'){
+    try {
+      const s = await firebase.firestore().collection('pes5_config').doc('app').get();
+      const v = s.exists ? Number(s.data().minCliente) : null;
+      if (Number.isInteger(v)){ MIN_CLIENTE = v; aplicarPausa(); }
+    } catch (err) { /* sin lectura: queda el error generico */ }
+  }
+  showMiniToast(MIN_CLIENTE != null && permiso ? MSG_ACTUALIZA : prefijo + (e?.message || e));
+}
 function _pausadasAhora(){ return !ADMIN_EMBED && !!(PAUSA && PAUSA.pausado); }
+/* PAUSA-2 / MINVER: punto de control unico. Devuelve true (y avisa con el toast) cuando la accion
+   queda bloqueada por la pausa o porque el cliente es mas viejo que el minimo del servidor. Se
+   llama al inicio de toda funcion que modifique el borrador del jugador, la formacion, la
+   alineacion o la banca, o que mande un pedido. En la Tool del admin no aplica ninguno de los dos:
+   _pausadasAhora() y _desactualizadoAhora() ya devuelven false con ADMIN_EMBED. */
+function _bloqueadoPorPausa(){
+  if (_desactualizadoAhora()){
+    showMiniToast(MSG_ACTUALIZA);
+    return true;
+  }
+  if (!_pausadasAhora()) return false;
+  showMiniToast(MSG_PAUSA);
+  return true;
+}
 function iniciarPausa(){
   if (ADMIN_EMBED || _pausaUnsub || typeof firebase === 'undefined') return;
   try {
@@ -3272,20 +4949,46 @@ function iniciarPausa(){
       e => console.warn('[mejoras] pausa', e));
   } catch (e) { console.warn('[mejoras] pausa', e); }
 }
+/* MINVER: lee el minimo del servidor y deja el editor en solo lectura si este cliente no llega. */
+function iniciarVersion(){
+  if (ADMIN_EMBED || _versionUnsub || typeof firebase === 'undefined') return;
+  try {
+    _versionUnsub = firebase.firestore().collection('pes5_config').doc('app').onSnapshot(
+      s => {
+        const v = s.exists ? Number(s.data().minCliente) : null;
+        MIN_CLIENTE = Number.isInteger(v) ? v : null;
+        aplicarPausa();
+      },
+      e => console.warn('[mejoras] version minima', e));
+  } catch (e) { console.warn('[mejoras] version minima', e); }
+}
 function aplicarPausa(){
   const pausado = _pausadasAhora();
+  const viejo = _desactualizadoAhora();
+  const bloqueado = pausado || viejo;
   const raiz = _raiz();
-  if (raiz) raiz.classList.toggle('ep-pausado', pausado);
+  if (raiz) raiz.classList.toggle('ep-pausado', bloqueado);
   let av = document.getElementById('ep-pausa-aviso');
-  if (!pausado){ if (av) av.hidden = true; return; }
+  if (!bloqueado){ if (av) av.hidden = true; return; }
   if (!av){
     av = document.createElement('div');
     av.id = 'ep-pausa-aviso';
     av.className = 'ep-pausa-aviso';
-    const pend = document.getElementById('ep-pend');
-    if (pend && pend.parentNode) pend.parentNode.insertBefore(av, pend);
+    // PAUSA-2: arriba del layout y fuera de las dos vistas del telefono, asi el aviso se ve
+    // igual mirando la plantilla o el editor de un jugador.
+    const shell = document.getElementById('ep-shell');
+    const layout = shell && shell.querySelector('.ep-layout');
+    if (layout && layout.parentNode) layout.parentNode.insertBefore(av, layout);
+    else if (shell && shell.firstChild) shell.insertBefore(av, shell.firstChild);
+    else return;   // el editor todavia no esta montado
   }
   av.hidden = false;
+  if (viejo){
+    // MINVER: mismo mecanismo que la pausa (solo lectura), con la salida a la web, donde
+    // apk-promo/updater avisan de la actualizacion de la APK.
+    av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg><span>${escHtml(MSG_ACTUALIZA)}</span><a class="ep-btn" href="index.html" style="margin-left:auto;text-decoration:none">Volver al inicio</a>`;
+    return;
+  }
   av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg><span>${escHtml(MSG_PAUSA)}</span>`;
 }
 
@@ -3328,6 +5031,7 @@ function montar(contenedor, opciones){
     iniciarModoAdmin(opciones);
   } else {
     window.addEventListener('tsc:auth', _alCambiarAuthPresidente);
+    aplicarPausa(); // PAUSA-2: si ya estaba pausado al montar, el aviso y el solo lectura quedan puestos
   }
 }
 
@@ -3358,6 +5062,7 @@ function desmontar(){
    hacia el final del script). En el panel no existe #mej-host y no hace nada. */
 function iniciarPagina(){
   iniciarPausa();
+  iniciarVersion();
   _montarBarraSave();
   const host = document.getElementById('mej-host');
   if (!host) return;
@@ -3382,6 +5087,7 @@ window.cancelarPedidoDesdeHistorial = cancelarPedidoDesdeHistorial;
 window.closeApplyConfirm = closeApplyConfirm;
 window.closeAuditModal = closeAuditModal;
 window.closeFormationModal = closeFormationModal;
+window.closeFormationHelp = closeFormationHelp;
 window.closeIfBackdrop = closeIfBackdrop;
 window.commitChanges = commitChanges;
 window.confirmFormation = confirmFormation;
@@ -3391,18 +5097,29 @@ window.discardChanges = discardChanges;
 window.gotoPage = gotoPage;
 window.moveFormationDot = moveFormationDot;
 window.openApplyConfirm = openApplyConfirm;
+window.openReviewAll = openReviewAll;
+window.commitCarrito = commitCarrito;
+window.toggleRevisionTodo = toggleRevisionTodo;
+window.setAuditTab = setAuditTab;
+window.descartarCarrito = descartarCarrito;
+window.descartarCarritoJugador = descartarCarritoJugador;
 window.openAuditModal = openAuditModal;
 window.openFormationModal = openFormationModal;
+window.openFormationHelp = openFormationHelp;
 window.renderRoster = renderRoster;
 window.resetFormationDraft = resetFormationDraft;
 window.selectFormationPlayer = selectFormationPlayer;
 window.solicitarEmparejar = solicitarEmparejar;
 window.selectPlayer = selectPlayer;
+window.mejVerPosicion = mejVerPosicion;
+window.hacerPrincipal = setPrimaryPos;
 window.setFavFoot = setFavFoot;
 window.setFormationPos = setFormationPos;
 window.formacionTocarBanca = formacionTocarBanca;
 window.formacionCancelarArmado = formacionCancelarArmado;
-window.formacionBancaDesplazar = formacionBancaDesplazar;
+// INTEG: handlers por NOMBRE del panel de comparacion (data-onclick del componente)
+window.mejCmpVolver = mejCmpVolver;
+window.mejCmpConfirmar = mejCmpConfirmar;
 window.moveFormationScreen = moveFormationScreen;
 window.setHint = setHint;
 window.setPrimaryPos = setPrimaryPos;

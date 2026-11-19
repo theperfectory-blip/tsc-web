@@ -24,6 +24,9 @@
   --linea-def:#8DB6DA;
   --linea-mid:#5FCB8B;
   --linea-att:#E39A72;
+  /* nombres de la lista de formacion: banca y reservas (MEJUI-4) */
+  --banca-txt:#8FD0FF;
+  --reserva-txt:#9BE3A8;
   --ep-on-gold:#0C0F14;}
 :root[data-theme="light"]{--tier-n:#3A3F47;
   --tier-y:#8a7a1a;
@@ -35,6 +38,8 @@
   --linea-def:#2f5f8a;
   --linea-mid:#1f7a4a;
   --linea-att:#a4522a;
+  --banca-txt:#174A9C;
+  --reserva-txt:#17612C;
   --ep-on-gold:#1A1A1A;}
 .ep-root .icn{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
 .ep-root .icn.star.on{fill:currentColor;}
@@ -74,23 +79,61 @@
 .ep-root .ep-roster{display:flex;flex-direction:column;gap:12px;min-width:0;}
 .ep-root .ep-editor{display:flex;flex-direction:column;gap:14px;min-width:0;position:relative;}
 
-/* saldo: el numero de YunaCoins del equipo y el tope de la temporada */
+/* saldo: el numero de YunaCoins del equipo y el tope del equipo (base + bono + extra) */
 .ep-root .ep-saldo{display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:16px;background:var(--card);border:1px solid var(--brd2);}
 .ep-root .ep-saldo-lbl{font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--txt2);}
 .ep-root .ep-saldo-val{display:flex;align-items:baseline;gap:8px;}
 .ep-root .ep-saldo-val b{font-family:'Bebas Neue';font-weight:400;font-size:54px;line-height:0.9;color:var(--gold);}
 .ep-root .ep-saldo-val span{font-family:'Barlow Condensed';font-weight:700;font-size:16px;color:var(--gold-lo);}
+/* SALDO1 · «Esta edición: −N YC»: debajo del saldo, solo cuando la edición suma.
+   El costo es una linea chica; no compite con el saldo grande. */
+.ep-root .ep-edicion{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;margin-top:-4px;
+  font-family:'Barlow Condensed';font-weight:600;font-size:13px;letter-spacing:0.7px;text-transform:uppercase;color:var(--txt2);}
+.ep-root .ep-edicion[hidden]{display:none;}
+.ep-root .ep-edicion b{font-family:'Bebas Neue';font-weight:400;font-size:22px;line-height:1;letter-spacing:0.5px;
+  text-transform:none;color:var(--gold);}
+.ep-root .ep-edicion-note{font-family:'Barlow';font-size:11.5px;letter-spacing:0;text-transform:none;color:var(--txt3);}
+.ep-root .ep-edicion-note:empty{display:none;}
 .ep-root .ep-cap{display:flex;flex-direction:column;gap:6px;}
-.ep-root .ep-cap-txt{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;color:var(--txt2);}
+.ep-root .ep-cap-txt{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px;font-size:13px;color:var(--txt2);}
 .ep-root .ep-cap-txt b{color:var(--gold);font-weight:600;}
 .ep-root .ep-cap-bar{height:6px;border-radius:3px;background:var(--card3);overflow:hidden;}
-.ep-root .ep-cap-bar i{display:block;height:100%;min-width:0;border-radius:3px;background:var(--gold);}
-.ep-root .ep-bono{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;
-  background:var(--green-l);border:1px solid rgba(37,168,100,0.28);font-size:13px;color:var(--txt);}
-.ep-root .ep-bono b{font-family:'Bebas Neue';font-weight:400;font-size:22px;color:var(--green-hi);}
+.ep-root .ep-cap-bar i{display:block;height:100%;min-width:0;border-radius:3px;background:var(--gold);
+  transition:width 300ms ease-out;}
+/* BONO4: dos barras chicas (bono y general) debajo de «Tu saldo». La que está
+   bajando se ilumina ~400 ms; sin animación con prefers-reduced-motion. */
+.ep-root .ep-cap-doble{gap:10px;}
+.ep-root .ep-bar{display:flex;flex-direction:column;gap:6px;border-radius:10px;padding:2px 4px;margin:0 -4px;}
+.ep-root .ep-bar[hidden]{display:none;}
+.ep-root .ep-bar .ep-cap-txt{font-size:12.5px;}
+.ep-root .ep-bar .ep-cap-bar{height:5px;}
+.ep-root .ep-bar.ep-barra-baja .ep-cap-bar i{background:var(--gold);}
+@keyframes ep-barra-destello{
+  0%{background:transparent;}
+  25%{background:var(--gold-l);box-shadow:0 0 0 1px var(--gold-b);}
+  100%{background:transparent;box-shadow:0 0 0 0 transparent;}
+}
+.ep-root .ep-bar.ep-barra-baja{animation:ep-barra-destello 400ms ease-out;}
+.ep-root .ep-aviso-barras{gap:8px;}
+@media (prefers-reduced-motion:reduce){
+  .ep-root .ep-cap-bar i{transition:none;}
+  .ep-root .ep-bar.ep-barra-baja{animation:none;}
+}
+.ep-root .ep-cap-desg{font-size:11.5px;line-height:1.35;color:var(--txt2);}
+.ep-root .ep-cap-desg[hidden]{display:none;}
+/* SALDO1 · linea de aviso corta: «Puedes gastar hasta X: te limita el tope de la
+   temporada». Solo aparece cuando el tope limita (queda del tope < saldo); si limita
+   el saldo no se muestra nada, porque el numero ya esta en «Tu saldo». */
+.ep-root .ep-disp{padding-top:12px;border-top:1px solid var(--brd);
+  font-size:12.5px;line-height:1.35;color:var(--txt2);}
+.ep-root .ep-disp[hidden]{display:none;}
+.ep-root .ep-disp b{font-family:'Barlow Condensed';font-weight:700;font-size:13.5px;color:var(--txt);}
 
-/* aviso grande de presupuesto (slice 2.1-A): arriba del editor, presidente y Tool.
+/* aviso de presupuesto (slice 2.1-A): SOLO en la Tool del admin (SALDO1). En el
+   editor del presidente el panel esta oculto: sus numeros ya estan en el bloque
+   compacto de «Tu saldo» y repetirlos era el problema de la captura de Jimbo.
    Una columna en el telefono (375 px), dos desde 560 px. Sin scroll horizontal. */
+.ep-root:not(.admin-embed) .ep-aviso{display:none;}
 .ep-root .ep-aviso{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px;background:var(--card);
   border:1px solid var(--gold-b);min-width:0;max-width:100%;overflow-wrap:anywhere;}
 .ep-root .ep-aviso[hidden]{display:none;}
@@ -108,19 +151,9 @@
 .ep-root .ep-aviso-disp{border-color:var(--gold-b);}
 .ep-root .ep-aviso-k{font-family:'Barlow Condensed';font-weight:600;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt2);}
 .ep-root .ep-aviso-saldo{display:flex;align-items:baseline;gap:8px;}
-.ep-root .ep-aviso-n{font-family:'Bebas Neue';font-weight:400;font-size:56px;line-height:0.9;color:var(--gold);}
+.ep-root .ep-aviso-n{font-family:'Bebas Neue';font-weight:400;font-size:48px;line-height:0.9;color:var(--gold);}
 .ep-root .ep-aviso-u{font-family:'Barlow Condensed';font-weight:700;font-size:18px;color:var(--gold-lo);}
-.ep-root .ep-aviso-note{font-size:12px;color:var(--txt2);}
-.ep-root .ep-aviso-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px;color:var(--txt2);min-width:0;}
-.ep-root .ep-aviso-row b{font-family:'Bebas Neue';font-weight:400;font-size:24px;line-height:1;color:var(--txt);white-space:nowrap;}
-.ep-root .ep-aviso-total{border-top:1px solid var(--brd);padding-top:6px;}
-.ep-root .ep-aviso-extra{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--card);
-  border:1px solid var(--gold-b);font-size:14px;color:var(--txt);min-width:0;}
-.ep-root .ep-aviso-extra b{font-family:'Bebas Neue';font-weight:400;font-size:22px;color:var(--gold);}
-.ep-root .ep-aviso-trofeo{display:inline-flex;flex-shrink:0;color:var(--gold);}
-.ep-root .ep-aviso-trofeo .icn{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.ep-root .ep-aviso-lim{margin:4px 0 0;font-size:13px;color:var(--txt2);}
-.ep-root .ep-aviso-lim b{color:var(--gold);font-weight:600;}
+.ep-root .ep-aviso-note{font-size:12px;line-height:1.3;color:var(--txt2);}
 .ep-root .ep-aviso-cost{font-size:15px;color:var(--txt);border-top:1px solid var(--brd);padding-top:10px;}
 .ep-root .ep-aviso-cost b{color:var(--gold);font-weight:700;}
 
@@ -135,11 +168,69 @@
 .ep-root .ep-acc .badge{position:absolute;right:10px;top:10px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
   background:var(--gold);color:var(--ep-on-gold);font-family:'Bebas Neue';font-size:14px;line-height:20px;text-align:center;}
 
-/* aviso del pedido pendiente */
-.ep-root .ep-pend{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:12px;background:var(--gold-l);
+/* MEJUI-3 · tarjeta del panel lateral: HIST1 la deja en una sola linea de resumen
+   (la cuenta y el total) con su boton; el detalle vive en la ventana del historial. */
+.ep-root .ep-pend{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;background:var(--gold-l);
   border:1px solid var(--gold-b);font-size:13px;line-height:1.35;color:var(--txt);}
 .ep-root .ep-pend[hidden]{display:none;}
-.ep-root .ep-pend .icn{color:var(--gold);margin-top:2px;}
+.ep-root .ep-pend-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.ep-root .ep-pend-lbl{font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold-ink);}
+.ep-root .ep-pend-bloq{font-size:12px;color:var(--txt2);}
+.ep-root .ep-pend-ver{align-self:flex-start;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--brd2);
+  background:var(--card);color:var(--txt);font-family:'Barlow Condensed';font-weight:700;font-size:13px;
+  letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;}
+.ep-root .ep-pend-ver:hover{border-color:var(--gold-b);color:var(--gold);}
+
+/* CARRO1: carrito de mejoras (borradores de varios jugadores en espera). HIST1: la tarjeta
+   solo muestra el resumen y las acciones; el detalle por jugador se ve en «Revisar todo». */
+.ep-root .ep-cart-panel{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;
+  background:var(--gold-l);border:1px solid var(--gold-b);}
+.ep-root .ep-cart-panel[hidden]{display:none;}
+.ep-root .ep-carro-warn{font-size:12px;color:var(--red);}
+.ep-root .ep-carro-act{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.ep-root .ep-carro-act .ep-btn{min-height:44px;padding:0 10px;}
+.ep-root .ep-pitem-carro{flex:none;display:inline-flex;align-items:center;gap:5px;font-family:'Bebas Neue';
+  font-size:16px;line-height:1;color:var(--gold);}
+.ep-root .ep-pitem-carro i{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold-b);}
+
+/* CARRO2 · revisión plegable por jugador (hoja «Revisar todo» y revisión de un jugador).
+   Una fila CERRADA por jugador con el punto del color de su línea, el nombre, la cantidad de
+   cambios y el costo; al desplegarla, una línea compacta por cambio (atributo antes → después,
+   habilidad, posición o lesión). La fila y el botón «Abrir todo / Cerrar todo» tocan 44 px. */
+.ep-root .ep-rev-body{display:flex;flex-direction:column;gap:6px;}
+.ep-root .ep-rev-item{background:var(--card2);border:1px solid var(--brd);border-radius:12px;overflow:clip;}
+.ep-root .ep-rev-sum{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;cursor:pointer;
+  list-style:none;-webkit-tap-highlight-color:transparent;}
+.ep-root .ep-rev-sum::-webkit-details-marker{display:none;}
+.ep-root .ep-rev-sum::marker{content:'';}
+.ep-root .ep-rev-sum:hover{background:var(--card3);}
+.ep-root .ep-rev-sum:focus-visible{outline:2px solid var(--gold-b);outline-offset:-2px;}
+.ep-root .ep-rev-dot{width:8px;height:8px;flex:none;border-radius:50%;}
+.ep-root .ep-rev-item .ep-rev-dot{background:currentColor;}
+.ep-root .ep-rev-name{flex:1;min-width:0;font-size:14.5px;font-weight:600;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-rev-n{flex:none;font-size:12px;color:var(--txt2);white-space:nowrap;}
+.ep-root .ep-rev-sum .ep-rev-cost{flex:none;font-family:'Bebas Neue';font-weight:400;font-size:17px;line-height:1;
+  color:var(--gold);white-space:nowrap;}
+.ep-root .ep-rev-sum .icn{flex:none;width:16px;height:16px;color:var(--txt3);transition:transform .15s ease;}
+.ep-root .ep-rev-item[open] .ep-rev-sum{border-bottom:1px solid var(--brd);}
+.ep-root .ep-rev-item[open] .ep-rev-sum .icn{transform:rotate(180deg);}
+.ep-root .ep-rev-det{list-style:none;margin:0;padding:6px 12px 8px;display:flex;flex-direction:column;gap:3px;}
+.ep-root .ep-rev-line{display:flex;align-items:baseline;gap:8px;min-width:0;font-size:12.5px;line-height:1.35;}
+.ep-root .ep-rev-lbl{flex:1;min-width:0;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-rev-chg{flex:none;color:var(--txt);white-space:nowrap;}
+.ep-root .ep-rev-line .ep-rev-cost{flex:0 1 auto;max-width:46%;overflow:hidden;text-overflow:ellipsis;
+  text-align:right;font-family:'Bebas Neue';font-size:14px;line-height:1.3;color:var(--gold);white-space:nowrap;}
+.ep-root .ep-rev-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.ep-root .ep-rev-bar-txt{min-width:0;font-size:12.5px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-rev-toggle{flex:none;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--brd2);
+  background:var(--card);color:var(--txt2);font-family:'Barlow Condensed';font-weight:700;font-size:12.5px;
+  letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;}
+.ep-root .ep-rev-toggle:hover{border-color:var(--gold-b);color:var(--gold);}
+/* Hoja de «Revisar todo»: más ancha que la de un pedido y scrollea por dentro (no la página),
+   sin recortar el resumen ni los botones en pantallas bajas. */
+.ep-root .ep-sheet.ep-sheet-largo{max-width:560px;max-height:88vh;overflow-y:auto;}
+.ep-root .ep-sheet.ep-sheet-largo .ep-rev-body{overscroll-behavior:contain;}
 
 /* ---- plantilla ---- */
 .ep-root .ep-roster-hd input{width:100%;height:46px;padding:0 14px;background:var(--card);border:1px solid var(--brd);border-radius:12px;
@@ -244,7 +335,15 @@
 .ep-root .ep-register-btn{width:36px;height:36px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;
   border:1px solid var(--brd2);background:var(--card3);color:var(--txt3);cursor:pointer;padding:0;}
 .ep-root .ep-register-btn:hover{color:var(--gold);border-color:var(--gold-b);}
-.ep-root .ep-hint{display:none;}
+/* MEJUI-1: linea fija de descripcion, justo encima de la barra de YunaCoins.
+   Alto reservado siempre (aunque este vacia), un solo renglon con elipsis: nada se mueve
+   al tocar otra habilidad o atributo. En telefono va pegada arriba de la barra fija. */
+.ep-root .ep-hint{display:block;position:fixed;left:0;right:0;z-index:49;
+  bottom:calc(68px + env(safe-area-inset-bottom));min-height:32px;padding:7px 14px;
+  background:var(--nav);border-top:1px solid var(--brd);pointer-events:none;
+  font-size:12.5px;line-height:18px;color:var(--txt2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-hint:empty{visibility:hidden;}
 
 /* barra inferior fija: cambios, total, descartar y revisar */
 .ep-root .ep-cart{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;align-items:center;gap:10px;
@@ -301,6 +400,8 @@
 /* ---- escritorio (>= 860 px): dos columnas, la plantilla a la izquierda ---- */
 @media (min-width:860px){
 .ep-root .ep-top{padding:0 24px;}
+.ep-root .ep-pausa-aviso{margin:16px 24px 0;}
+.ep-root .ep-hint{position:static;bottom:auto;border:1px solid var(--brd);border-radius:10px;background:var(--card);padding:8px 12px;}
 .ep-root .ep-layout{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:24px;padding:24px;align-items:start;}
 .ep-root .ep-roster{position:sticky;top:84px;}
 .ep-root .ep-roster-list{max-height:calc(100vh - 430px);min-height:240px;overflow-y:auto;}
@@ -319,6 +420,7 @@
 
 /* ---- telefono (< 860 px): plantilla y editor son dos vistas ---- */
 @media (max-width:859.98px){
+.ep-root .ep-shell{padding-bottom:170px;}
 .ep-root:not(.admin-embed)[data-vista="plantilla"] .ep-editor{display:none;}
 .ep-root:not(.admin-embed)[data-vista="editor"] .ep-roster{display:none;}
 .ep-root:not(.admin-embed)[data-vista="editor"] .ep-edit-hd{display:flex;}
@@ -351,13 +453,38 @@
 .ep-root .ep-audit-entry-hd span{color:var(--txt3);font-size:11px;}
 .ep-root .ep-audit-entry .sum{font-size:12.5px;color:var(--txt2);}
 .ep-root .ep-audit-entry .cost{color:var(--gold);font-weight:600;}
+
+/* ---- HIST1: tarjeta de resumen (una linea) en el panel lateral ---- */
+.ep-root .ep-res-line{font-size:13px;line-height:1.35;color:var(--txt);overflow-wrap:anywhere;}
+
+/* ---- HIST1: ventana del historial (pestañas, filas cerradas y cobros) ---- */
+.ep-root .ep-hist-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:12px;}
+.ep-root .ep-hist-tab{display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:44px;padding:0 6px;
+  border:1px solid var(--brd2);border-radius:10px;background:var(--card2);color:var(--txt2);cursor:pointer;
+  font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:0.6px;text-transform:uppercase;}
+.ep-root .ep-hist-tab:hover{border-color:var(--gold-b);color:var(--txt);}
+.ep-root .ep-hist-tab:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px;}
+.ep-root .ep-hist-tab[aria-selected="true"]{background:var(--gold);border-color:var(--gold);color:var(--ep-on-gold);}
+.ep-root .ep-hist-tab b{font-family:'Bebas Neue';font-weight:400;font-size:15px;line-height:1;}
+.ep-root .ep-hist-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.ep-root .ep-hist-item{margin:0;}
+.ep-root .ep-hist-sum{gap:10px;}
+.ep-root .ep-hist-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left;}
+.ep-root .ep-hist-title{font-size:14px;font-weight:600;line-height:1.3;color:var(--txt);overflow-wrap:anywhere;}
+.ep-root .ep-hist-motivo{display:block;font-size:11.5px;line-height:1.3;color:var(--txt2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-hist-fecha{flex:none;font-size:11.5px;color:var(--txt3);white-space:nowrap;}
+.ep-root .ep-hist-total{flex:none;font-family:'Bebas Neue';font-weight:400;font-size:17px;line-height:1;color:var(--gold-ink);white-space:nowrap;}
+.ep-root .ep-hist-cancel{margin:0 12px 10px;}
+.ep-root .ep-hist-movs{padding:2px 12px 8px;}
+.ep-root .ep-hist-vacio{padding:10px 2px;font-size:12.5px;color:var(--txt3);}
 .ep-root .ep-pitch-cta-icon{display:flex;flex:none;width:22px;height:15px;border-radius:2px;overflow:hidden;
   border:1px solid rgba(255,255,255,0.3);}
 .ep-root .ep-pitch-cta-icon i{display:block;}
 .ep-root .ep-pitch-cta-icon i:nth-child(1){flex:33;background:#3f6f85;}
 .ep-root .ep-pitch-cta-icon i:nth-child(2){flex:40;background:#4d7d55;}
 .ep-root .ep-pitch-cta-icon i:nth-child(3){flex:27;background:#6d4a3a;}
-.ep-root .ep-pitch-crest{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed';font-weight:700;
+.ep-root .ep-pitch-crest{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:'Barlow Condensed';font-weight:700;
   font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
 .ep-root .ep-pitch-crest svg{width:16px;height:16px;stroke:var(--gold);}
 .ep-root .ep-pitch-lineup{display:inline-block;background:var(--card2);border:1px solid var(--gold-b);
@@ -407,46 +534,82 @@
 .ep-root .ep-pitch-possel{background:var(--card2);border:1px solid var(--gold-b);color:var(--gold);
   font-family:'Bebas Neue';font-size:14px;letter-spacing:0.5px;padding:3px 8px;border-radius:4px;cursor:pointer;}
 .ep-root .ep-pitch-possel:disabled{opacity:0.6;cursor:default;}
-.ep-root .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.ep-root .ep-pitch-info-btn{flex:none;width:44px;height:44px;margin:-6px -10px -6px auto;display:grid;place-items:center;
+  padding:0;background:none;border:none;color:var(--txt3);cursor:pointer;border-radius:50%;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.ep-root .ep-pitch-info-btn:hover,.ep-root .ep-pitch-info-btn:focus-visible{color:var(--gold);outline:none;}
+.ep-root .ep-pitch-info-ic{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--brd2);border-radius:50%;}
+.ep-root .ep-pitch-info-btn:hover .ep-pitch-info-ic,
+.ep-root .ep-pitch-info-btn:focus-visible .ep-pitch-info-ic{border-color:var(--gold-b);}
+.ep-root .ep-pitch-info-btn svg{width:15px;height:15px;stroke:currentColor;}
+/* FORM4: columna y fila como etiqueta chica sobre la cancha, solo mientras se mueve un punto. */
+.ep-root .ep-pitch-coords{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);z-index:6;
+  pointer-events:none;white-space:nowrap;background:var(--card2);border:1px solid var(--gold-b);
+  color:var(--gold);font-family:'Barlow Condensed';font-size:11.5px;letter-spacing:0.6px;
+  padding:2px 8px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
+.ep-root .ep-pitch-coords[hidden]{display:none;}
 
-/* ---- FORM-1: banca de suplentes y reserva (botones de 44 px de alto, toque y mouse) ---- */
-/* FORM-2 · lista completa del plantel (desplazable, con botones de 44 px) y ficha del jugador */
-.ep-root .ep-form-bancawrap{display:flex;align-items:stretch;gap:6px;margin-top:10px;}
-.ep-root .ep-form-scrollbtn{flex:0 0 44px;width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
-  background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--gold);}
-.ep-root .ep-form-scrollbtn:hover{border-color:var(--gold-b);}
-.ep-root .ep-form-scrollbtn svg{width:20px;height:20px;}
-.ep-root .ep-form-bench{flex:1 1 auto;min-width:0;display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding:2px 2px 6px;}
-.ep-root .ep-form-subbtn{flex:0 0 auto;scroll-snap-align:start;min-height:44px;min-width:132px;max-width:200px;display:flex;flex-direction:column;
-  justify-content:center;align-items:flex-start;gap:2px;padding:6px 10px;background:var(--card2);border:1px solid var(--brd);
-  border-radius:var(--r);color:var(--txt);cursor:pointer;text-align:left;font-family:inherit;}
+/* ---- MEJUI-4: titulares, banca y reservas (columna compacta bajo la cancha) ----
+   Una fila por jugador con zona de toque de 48 px. El dorsal y la sigla van en el color
+   de su linea (clases ep-line-*, las mismas del editor); el nombre, segun la seccion. */
+.ep-root .ep-form-bench{display:flex;flex-direction:column;gap:4px;margin-top:10px;min-width:0;}
+.ep-root .ep-form-grp{padding:8px 2px 2px;font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;
+  letter-spacing:1.2px;text-transform:uppercase;color:var(--txt3);}
+.ep-root .ep-form-grp:first-child{padding-top:0;}
+.ep-root .ep-form-subbtn{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;
+  width:100%;min-height:48px;padding:4px 10px 4px 6px;background:var(--card2);border:1px solid var(--brd);
+  border-radius:10px;color:var(--txt);cursor:pointer;text-align:left;font-family:inherit;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
 .ep-root .ep-form-subbtn:hover,.ep-root .ep-form-subbtn:focus-visible{border-color:var(--gold-b);outline:none;}
-.ep-root .ep-form-subbtn.en11{box-shadow:inset 3px 0 0 var(--gold);}
 .ep-root .ep-form-subbtn.ver{border-color:var(--gold);}
 .ep-root .ep-form-subbtn.armado{background:var(--card3);border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-b);}
-.ep-root .ep-form-subname{font-family:'Bebas Neue';font-size:15px;letter-spacing:0.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-.ep-root .ep-form-subtag{font-family:'Barlow Condensed';font-size:11px;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-/* ficha completa: fluye dentro del scroll del modal (un solo scroll; FIX-HAB: no hay scroll anidado) */
+.ep-root .ep-form-subbtn.puede{border-color:var(--gold-b);}
+.ep-root .ep-form-subbtn.no{opacity:.38;}
+.ep-root .ep-form-num{display:flex;align-items:center;justify-content:center;height:28px;border-radius:6px;
+  font-family:'Bebas Neue';font-size:15px;line-height:1;}
+.ep-root .ep-form-num.vacia{background:none;}
+.ep-root .ep-form-subname{min-width:0;font-family:'Bebas Neue';font-size:16px;letter-spacing:0.4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-form-subbtn.es-titular .ep-form-subname{color:var(--txt);}
+.ep-root .ep-form-subbtn.es-suplente .ep-form-subname{color:var(--banca-txt);}
+.ep-root .ep-form-subbtn.es-reserva .ep-form-subname{color:var(--reserva-txt);}
+.ep-root .ep-form-cod{display:flex;align-items:center;justify-content:center;min-width:40px;height:28px;border-radius:6px;
+  font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;}
+@media (min-width:860px){
+.ep-root .ep-form-bench{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;}
+.ep-root .ep-form-grp{grid-column:1 / -1;}
+}
+/* franja fija del cambio (arriba de los botones del modal) */
+.ep-root .ep-form-swapbar{display:flex;align-items:center;gap:10px;padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+  background:var(--card2);border-top:1px solid var(--gold-b);}
+.ep-root .ep-form-swapbar[hidden]{display:none;}
+.ep-root .ep-form-swaptxt{flex:1;min-width:0;font-size:13px;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-form-swapbar .ep-btn{flex:none;min-height:44px;}
+/* animacion corta del cambio (<250 ms; sin animacion con prefers-reduced-motion) */
+@keyframes ep-flash{from{opacity:.35;box-shadow:0 0 0 6px var(--gold-b);}to{opacity:1;box-shadow:0 0 0 0 transparent;}}
+.ep-root .ep-pitch-dot.flash{animation:ep-flash .22s ease-out;}
+.ep-root .ep-form-subbtn.flash{animation:ep-flash .22s ease-out;}
+@media (prefers-reduced-motion:reduce){
+.ep-root .ep-pitch-dot.flash,.ep-root .ep-form-subbtn.flash{animation:none;}
+}
+/* ficha completa: fluye dentro del scroll del modal (un solo scroll).
+   CMP2: la tarjeta la arma js/mejoras-cambio.js (mc-panel); acá va solo el
+   contenedor, debajo de la banca y las reservas. */
 .ep-root .ep-form-stats{margin-top:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);
   padding:10px 12px;}
 .ep-root .ep-form-stats[hidden]{display:none;}
-.ep-root .ep-fs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-.ep-root .ep-fs-name{font-family:'Bebas Neue';font-size:18px;color:var(--txt);}
-.ep-root .ep-fs-sub{font-size:12px;color:var(--txt3);}
-.ep-root .ep-fs-cancel{flex:none;min-height:44px;padding:0 14px;background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--txt);cursor:pointer;font-family:inherit;}
-.ep-root .ep-fs-ayuda{margin-top:6px;font-size:12px;color:var(--gold);}
-.ep-root .ep-fs-sec h4{margin:12px 0 6px;font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);font-weight:600;}
-.ep-root .ep-fs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px 14px;}
-.ep-root .ep-fs-row{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--txt2);border-bottom:1px solid var(--brd);padding:3px 0;}
-.ep-root .ep-fs-row b{color:var(--txt);font-weight:600;}
-.ep-root .ep-fs-row small{color:var(--txt3);font-weight:400;font-size:11px;}
-.ep-root .ep-fs-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 14px;}
-.ep-root .ep-fs-list li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--txt3);min-height:24px;}
-.ep-root .ep-fs-list li.on{color:var(--txt);}
-.ep-root .ep-fs-list li svg{width:14px;height:14px;flex:none;color:var(--txt3);}
-.ep-root .ep-fs-list li.on svg{color:var(--gold);}
-.ep-root .ep-fs-list li b{margin-left:auto;font-size:12px;color:var(--txt3);}
+.ep-root .ep-form-stats .mc-panel{padding-bottom:2px;}
 .ep-root .ep-form-subnone{font-size:12px;color:var(--txt3);padding:10px 0;}
+
+/* ---- FORM4: ayuda de la formación en un modal chico, centrado ----
+   La abre el (i) del encabezado. Mismo estilo de modal del editor (velo, cabecera,
+   cuerpo y pie), con 5 líneas cortas y «Entendido». */
+.ep-root .ep-form-help{display:contents;}
+.ep-root .ep-help-modal{max-width:440px;}
+.ep-root .ep-help-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;}
+.ep-root .ep-help-list li{font-size:13.5px;line-height:1.4;color:var(--txt2);}
+.ep-root .ep-help-list li::marker{color:var(--gold);}
 
 /* ---- hoja «Revisar pedido»: encima de la barra, centrada en escritorio ---- */
 .ep-root .ep-sheet{max-height:88vh;overflow-y:auto;}
@@ -458,6 +621,10 @@
 .ep-root .ep-pitch-posrow{flex:1 1 auto;justify-content:flex-start;}
 .ep-root .ep-pitch-selctl{flex:0 0 auto;}
 .ep-root .ep-overlay{padding:0;align-items:stretch;}
+/* FORM4: la ayuda es una tarjeta chica centrada, no una pantalla completa */
+.ep-root .ep-overlay.ep-help-velo{padding:16px;align-items:center;}
+.ep-root .ep-modal.ep-help-modal{max-width:440px;max-height:80vh;height:auto;border:1px solid var(--brd2);border-radius:var(--rl);}
+.ep-root .ep-modal.ep-help-modal .ep-modal-body{overflow-y:auto;}
 .ep-root .ep-modal,
 .ep-root .ep-modal.wide{max-width:none;max-height:none;height:100%;border-radius:0;border:none;}
 .ep-root .ep-overlay.ep-overlay-sheet{align-items:flex-end;}
@@ -486,6 +653,7 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.admin-embed .ep-layout{display:flex;flex-direction:column;padding:14px;}
 .ep-root.admin-embed .ep-shell{padding-bottom:0;}
 .ep-root.admin-embed .ep-top{position:relative;padding:0 14px;}
+.ep-root.admin-embed .ep-hint{position:static;bottom:auto;border:1px solid var(--brd);border-radius:10px;background:var(--card);padding:8px 12px;}
 .ep-root.admin-embed .ep-top-back,
 .ep-root.admin-embed .ep-top-acc,
 .ep-root.admin-embed .ep-edit-hd{display:none !important;}
@@ -505,9 +673,25 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-pitch-field.vertical .ep-pitch-arc{left:50%;top:auto;bottom:auto;width:11%;transform:translate(-50%,-50%);}
 .ep-root .ep-pitch-field.vertical .ep-pitch-arc.left{top:auto;bottom:13%;transform:translate(-50%,50%);clip-path:inset(0 0 50% 0);}
 .ep-root .ep-pitch-field.vertical .ep-pitch-arc.right{top:13%;bottom:auto;transform:translate(-50%,-50%);clip-path:inset(50% 0 0 0);}
-.ep-root .ep-modal.ep-form-vert .ep-modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding:10px 14px 12px;}
+/* MEJUI2: el modal de formación en el teléfono se parte en dos: arriba la cancha vertical
+   (algo menos de media pantalla) y abajo la lista de banca y reservas, que scrollea sola. */
+.ep-root .ep-pitch-top,
+.ep-root .ep-form-lista{display:contents;}
+.ep-root .ep-modal.ep-form-vert .ep-modal-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden;padding:10px 14px 12px;}
 .ep-root .ep-modal.ep-form-vert .ep-modal-body > *{flex:none;margin:0;}
-/* datos del jugador en 2 filas (nombre y posicion; luego el selector de jugador): el campo gana alto */
+.ep-root .ep-modal.ep-form-vert .ep-pitch-top{display:flex;flex-direction:column;gap:10px;min-height:0;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-top > *{margin:0;}
+.ep-root .ep-modal.ep-form-vert .ep-form-lista{display:flex;flex:1 1 auto;flex-direction:column;gap:10px;min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;padding:0 2px 4px;}
+.ep-root .ep-modal.ep-form-vert .ep-form-lista > *{flex:none;margin:0;}
+.ep-root .ep-modal.ep-form-vert .ep-form-bench,
+.ep-root .ep-modal.ep-form-vert .ep-form-stats{margin-top:0;}
+/* La lista de cambios manda en la mitad inferior: la banca va primero y la ficha
+   del jugador (o la comparación) queda justo debajo, como parte del flujo. */
+.ep-root .ep-modal.ep-form-vert .ep-form-bench{order:1;}
+.ep-root .ep-modal.ep-form-vert .ep-form-stats{order:2;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-info{order:3;}
+/* datos del jugador en 2 filas (nombre y posicion; luego el selector de jugador) */
 .ep-root .ep-modal.ep-form-vert .ep-pitch-info{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;margin:0;padding:8px 10px;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-info-name{grid-column:1;grid-row:1;min-width:0;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-posrow{grid-column:2;grid-row:1;}
@@ -545,32 +729,79 @@ html.ep-lock body{overflow:hidden;}
 .mej-pausa-box p{margin:0 0 14px;font-size:15px;line-height:1.4;}
 .mej-pausa-box button{background:var(--gold);color:#111;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;}
 
-/* UI-HAB-1 · Habilidades especiales: cada celda es un boton entero; nombre a la izquierda, costo y estrella a la derecha
-   (las estrellas quedan en la misma columna). Estrella de 24 px dentro de un area de clic de 44x44. */
-@media (min-width:420px){
-.ep-root .ep-rows.ep-rows-hab{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));}
-.ep-root .ep-rows.ep-rows-hab .ep-row:nth-child(-n+2){border-top:none;}
-}
-.ep-root .ep-row.ep-hab{display:grid;grid-template-columns:minmax(0,1fr) auto 44px;align-items:center;gap:6px;padding:6px 6px 6px 12px;min-height:56px;cursor:pointer;}
+/* MEJUI2 · Habilidades especiales y Posiciones: sin interruptores. Una sola estrella
+   grande por fila (icono de 28 px dentro de una zona de toque de 48 px). Estrella llena
+   dorada = la tiene; contorno gris = no la tiene. Tocar la estrella la agrega o la quita. */
+.ep-root .ep-row.ep-hab{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;
+  padding:4px 4px 4px 12px;min-height:56px;cursor:pointer;}
 .ep-root .ep-row.ep-hab:hover{background:var(--card2);}
 .ep-root .ep-row.ep-hab.locked{cursor:not-allowed;}
 .ep-root .ep-row.ep-hab.on{box-shadow:inset 0 0 0 1px var(--gold-b);}
-.ep-root .ep-hab .ep-hab-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:14px;min-width:0;overflow-wrap:break-word;}
-.ep-root .ep-hab .ep-hab-costo{min-width:52px;text-align:right;font-family:'Barlow Condensed';font-weight:700;font-size:13px;color:var(--gold);white-space:nowrap;}
-.ep-root .ep-hab-estrella{width:44px;height:44px;display:flex;align-items:center;justify-content:center;padding:0;background:none;border:1px solid transparent;border-radius:10px;color:var(--txt3);cursor:pointer;}
-.ep-root .ep-hab-estrella .icn{width:24px;height:24px;}
+.ep-root .ep-hab .ep-hab-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:15px;min-width:0;overflow-wrap:break-word;}
+.ep-root .ep-hab-estrella{width:48px;height:48px;display:flex;align-items:center;justify-content:center;padding:0;
+  background:none;border:1px solid transparent;border-radius:12px;color:var(--txt3);cursor:pointer;}
+.ep-root .ep-hab-estrella .icn{width:28px;height:28px;stroke-width:1.7;}
 .ep-root .ep-hab-estrella:hover{color:var(--gold);border-color:var(--gold-b);}
 .ep-root .ep-hab-estrella:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 .ep-root .ep-hab-estrella.on{color:var(--gold);}
 
-/* PAUSA-1: mejoras pausadas (aviso arriba; acciones deshabilitadas) */
-.ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;}
+.ep-root .ep-row.ep-pos{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;
+  padding:4px 4px 4px 12px;min-height:56px;cursor:pointer;}
+.ep-root .ep-row.ep-pos:hover{background:var(--card2);}
+.ep-root .ep-row.ep-pos.on{box-shadow:inset 0 0 0 1px var(--gold-b);}
+.ep-root .ep-pos-code{width:44px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed';font-weight:700;font-size:14px;letter-spacing:0.5px;}
+.ep-root .ep-pos-nombre{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;font-size:15px;}
+.ep-root .ep-pos-lado{display:flex;align-items:center;gap:8px;flex:none;}
+.ep-root .ep-pos-principal{font-family:'Barlow Condensed';font-weight:700;font-size:10.5px;letter-spacing:0.8px;
+  text-transform:uppercase;color:var(--gold);background:var(--gold-l);border:1px solid var(--gold-b);
+  border-radius:999px;padding:2px 7px;white-space:nowrap;}
+.ep-root .ep-pos-star{width:48px;height:48px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;
+  background:none;border:1px solid transparent;border-radius:12px;color:var(--txt3);cursor:pointer;}
+.ep-root .ep-pos-star .icn{width:28px;height:28px;stroke-width:1.7;}
+.ep-root .ep-pos-star:hover{color:var(--gold);border-color:var(--gold-b);}
+.ep-root .ep-pos-star:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+.ep-root .ep-pos-star.on{color:var(--gold);}
+
+/* MEJUI2 · «Hacer principal» en la línea fija de descripción (solo con una posición
+   secundaria abierta). La posición natural no se quita: su estrella no ofrece el botón. */
+.ep-root .ep-hint.accion{pointer-events:auto;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.ep-root .ep-hint-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ep-root .ep-hint-btn{flex:none;min-height:32px;padding:0 10px;border-radius:999px;border:1px solid var(--gold-b);
+  background:var(--gold-l);color:var(--gold);font-family:'Barlow Condensed';font-weight:700;font-size:11.5px;
+  letter-spacing:0.8px;text-transform:uppercase;cursor:pointer;}
+.ep-root .ep-hint-btn:hover{filter:brightness(1.12);}
+
+/* PAUSA-1 / PAUSA-2: mejoras pausadas. El editor queda en solo lectura: aviso arriba y todos
+   los controles de edicion apagados, sin clics. Siguen funcionando la lista de jugadores, el
+   paginado, Pedidos (historial), el tema, descargar el save y cerrar los modales. */
+.ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:14px 14px 0;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;line-height:1.35;}
 .ep-root .ep-pausa-aviso[hidden]{display:none;}
 .ep-root .ep-pausa-aviso svg{width:18px;height:18px;flex:none;color:var(--gold);}
-.ep-root.ep-pausado [data-onclick*="openApplyConfirm"],
-.ep-root.ep-pausado [data-onclick*="openFormationModal"],
-.ep-root.ep-pausado [data-onclick*="adjustMain"],
-.ep-root.ep-pausado [data-onclick*="commitChanges"],
-.ep-root.ep-pausado [data-onclick*="confirmFormation"],
-.ep-root.ep-pausado [data-onclick*="solicitarEmparejar"],
-.ep-root.ep-pausado [data-onclick*="confirmarSolicitarEmparejar"]{pointer-events:none;opacity:.45;}
+.ep-root.ep-pausado .ep-casilla-btn,                 /* casilla de altura (abre su hoja) */
+.ep-root.ep-pausado .ep-alt-btn,                     /* -/+ de la hoja de altura */
+.ep-root.ep-pausado .ep-rstep,                       /* +/- de atributos, secundarios y lesiones */
+.ep-root.ep-pausado .ep-rfoot,                        /* pie dominante y banda */
+.ep-root.ep-pausado .ep-hab-estrella,                 /* habilidades especiales */
+.ep-root.ep-pausado .ep-pos-star,                     /* posiciones */
+.ep-root.ep-pausado .ep-hint-btn,                     /* «Hacer principal» */
+.ep-root.ep-pausado .ep-cart-btn,                     /* descartar cambios */
+.ep-root.ep-pausado .ep-cart-go,                      /* «Revisar» / «Enviar» */
+.ep-root.ep-pausado .ep-carro-act,                    /* «Descartar» / «Revisar todo» */
+.ep-root.ep-pausado .ep-emparejar-btn,                /* «Emparejar» */
+.ep-root.ep-pausado .ep-acc.formation,                /* abrir la formacion */
+.ep-root.ep-pausado .ep-pitch-field,                  /* cancha: mover y elegir jugadores */
+.ep-root.ep-pausado .ep-pitch-possel,                 /* posicion del jugador en la cancha */
+/* FORM4: las flechas ‹ › quedan activas en pausa: cambian la ficha que se mira */
+.ep-root.ep-pausado .ep-form-bench,                   /* banca y reservas */
+.ep-root.ep-pausado .mc-btn-go,                       /* «Hacer el cambio» del panel comparar */
+.ep-root.ep-pausado [data-onclick*="commitChanges"],  /* enviar el pedido */
+.ep-root.ep-pausado [data-onclick*="confirmarSolicitarEmparejar"],
+.ep-root.ep-pausado [data-onclick*="cancelarPedidoDesdeHistorial"],  /* cancelar desde el historial */
+.ep-root.ep-pausado [data-onclick*="resetFormationDraft"],
+.ep-root.ep-pausado [data-onclick*="confirmFormation"]{opacity:.45;pointer-events:none;cursor:not-allowed;}
+
+/* «En revisión»: la línea y el botón Ver en la misma fila (Jimbo) */
+.ep-root .ep-pend-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.ep-root .ep-pend-fila .ep-res-line{flex:1;min-width:0;}
+.ep-root .ep-pend-fila .ep-pend-ver{flex:none;margin:0;}

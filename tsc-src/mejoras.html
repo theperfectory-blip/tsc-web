@@ -21,27 +21,44 @@
 <script src="js/pes5-plantilla.js"></script>
 <script src="js/pes5-bloqueo.js"></script>
 <link rel="stylesheet" href="css/mejoras-editor.css">
+<link rel="stylesheet" href="css/mejoras-cambio.css">
 <style>
 /* Estilos de pagina del presidente (el editor en si: css/mejoras-editor.css) */
 html,body{margin:0;background:var(--bg-deep);color:var(--txt);font-family:'Barlow',sans-serif;}
 *{box-sizing:border-box;}
 ::-webkit-scrollbar{display:none;}
 *{scrollbar-width:none;}
-/* SAVE-1 · barra del save publicado (fecha de la ultima subida y «Descargar save») */
-.mej-save-pub{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:12px auto 0;max-width:1100px;padding:10px 14px;border:1px solid var(--brd);border-radius:12px;background:var(--card2);color:var(--txt);font-size:14px;}
+/* SAVE-1 · barra del save publicado (boton discreto con la fecha de la ultima subida) */
+/* MEJUI-5 · save publicado: una linea corta con icono de descarga, al estilo de la cabecera.
+   El aviso de hacer una copia del save propio va en el title del boton. */
+.mej-save-pub{display:flex;align-items:center;justify-content:flex-end;gap:8px;max-width:1280px;margin:0 auto;
+  padding:6px 14px 0;color:var(--txt2);font-family:'Barlow',sans-serif;}
 .mej-save-pub[hidden]{display:none;}
-.mej-save-pub .msp-txt{display:flex;flex-direction:column;gap:2px;}
-.mej-save-pub .msp-txt small{color:var(--txt3);font-size:12px;}
-.mej-save-pub .btn{display:inline-flex;align-items:center;gap:6px;}
-.mej-save-pub .btn[disabled]{opacity:.55;cursor:not-allowed;}
-.mej-save-pub .icn{width:16px;height:16px;flex:none;}
+/* Aviso BETA arriba de Mejoras: la seccion esta en construccion */
+.mej-beta{display:flex;align-items:center;gap:12px;max-width:1280px;margin:10px auto 0;padding:10px 14px;
+  border:1px solid var(--gold-b);border-radius:12px;background:var(--card2);}
+.mej-beta-tag{flex:none;font-family:'Bebas Neue','Barlow Condensed',sans-serif;font-size:28px;line-height:1;letter-spacing:2px;
+  color:var(--gold);padding:4px 12px;border:2px solid var(--gold);border-radius:8px;}
+.mej-beta-txt{font-size:13px;line-height:1.35;color:var(--txt2);}
+@media (max-width:480px){ .mej-beta{margin:8px 10px 0;} .mej-beta-tag{font-size:24px;} .mej-beta-txt{font-size:12px;} }
+.mej-save-pub .msp-btn{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 12px;
+  border:1px solid var(--brd2);border-radius:10px;background:var(--card);color:var(--txt);
+  font-size:12.5px;font-weight:500;letter-spacing:0.3px;text-decoration:none;cursor:pointer;}
+.mej-save-pub .msp-btn:hover{border-color:var(--gold-b);color:var(--gold);}
+.mej-save-pub .msp-empty{font-size:12px;color:var(--txt3);}
+.mej-save-pub .icn{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 </style>
 </head>
 <body>
+<div class="mej-beta" role="note">
+  <span class="mej-beta-tag">BETA</span>
+  <span class="mej-beta-txt">Esta sección está en construcción y puede tener errores. Si ves algo raro, avísanos en Discord antes de seguir.</span>
+</div>
 <div id="mej-save-pub" class="mej-save-pub" hidden></div>
 <div id="mej-host"></div>
 <script src="js/sanitize.js"></script>
 <script src="js/save-publicado.js"></script>
+<script src="js/mejoras-cambio.js"></script>
 <script src="js/mejoras-page.js"></script>
 </body>
 </html>

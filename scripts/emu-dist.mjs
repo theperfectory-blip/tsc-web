@@ -25,7 +25,7 @@ if (!existsSync(SITE)) {
   process.exit(1);
 }
 
-for (const name of ['index.html', 'manifest.webmanifest', 'css', 'js', 'data']) {
+for (const name of ['index.html', 'mejoras.html', 'manifest.webmanifest', 'css', 'js', 'data']) {
   const from = join(ROOT, 'tsc-src', name);
   if (!existsSync(from)) continue;
   rmSync(join(SITE, name), { recursive: true, force: true });
