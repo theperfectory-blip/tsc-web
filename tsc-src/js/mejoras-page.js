@@ -112,6 +112,18 @@ const MEJ_MARKUP = `
 function closeIfBackdrop(e, fn){ if(e.target===e.currentTarget) fn(); }
 function jsq(s){ return String(s).replace(/'/g,"\\'"); }
 
+/* ================= MINVER: version minima del cliente de mejoras =================
+   MEJORAS_CLIENTE es la version de las reglas de costo/bono/pedidos que entiende este
+   cliente. TODO pedido que crea el editor la manda en el campo `cliente` de
+   pedidos_pes5, y las reglas lo comparan con pes5_config/app.minCliente:
+   - Cuando cambian las reglas de costo, bono o el formato de los pedidos, se sube este
+     numero a mano (junto con el cambio) y se publica una APK/nueva version web.
+   - El minimo aceptado lo decide y lo escribe aparte Jimbo/coordinador a mano en
+     pes5_config/app = { minCliente: <entero> }: nadie puede crear pedidos con un
+     cliente menor. No hay UI para ese valor, ni en la Tool ni en el panel.
+   - Sin pes5_config/app no hay minimo: cualquier cliente puede pedir. */
+const MEJORAS_CLIENTE = 2;
+
 /* ================= auth (Firebase) — reusa js/auth.js del proyecto ================= */
 /* auth.js necesita estos globales minimos: STATE.mode, openModal/closeModal (toggle
    .open, via components.css) y showToast (acá alias del mini-toast propio del prototipo). */
@@ -1377,6 +1389,7 @@ async function confirmarSolicitarEmparejar(playerId){
       teamName: EQUIPO_TSC?.name || null,
       pes5Club: EQUIPO_TSC?.pes5Club || null,
       tipo: 'emparejar',
+      cliente: MEJORAS_CLIENTE,
       pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
       playerId: p.id,
       playerName: p.name,
@@ -1395,7 +1408,7 @@ async function confirmarSolicitarEmparejar(playerId){
     });
     await batch.commit();
   } catch (e) {
-    showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
+    await _avisarErrorPedido(e, 'No se pudo mandar el pedido: ');
     return;
   }
   // presentacion: el pedido ya cuenta como pendiente (boton, aviso y globito). No reserva saldo.
@@ -1918,6 +1931,7 @@ async function commitChanges(){
       teamId: String(AUTH.teamId),
       teamName: EQUIPO_TSC?.name || null,
       pes5Club: EQUIPO_TSC?.pes5Club || null,
+      cliente: MEJORAS_CLIENTE,
       playerId: p.id,
       playerName: p.name,
       registro,
@@ -1934,7 +1948,7 @@ async function commitChanges(){
     await batch.commit();
   } catch(e){
     if (btn) btn.disabled = false;
-    showMiniToast('No se pudo mandar el pedido: ' + (e?.message || e));
+    await _avisarErrorPedido(e, 'No se pudo mandar el pedido: ');
     return;
   }
 
@@ -2939,6 +2953,7 @@ async function confirmFormation(){
       teamName: EQUIPO_TSC?.name || null,
       pes5Club: EQUIPO_TSC?.pes5Club || null,
       tipo: 'formacion',
+      cliente: MEJORAS_CLIENTE,
       pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
       formacion: { nombre, slots },
       lines: lineasPedido,
@@ -2955,7 +2970,7 @@ async function confirmFormation(){
     showMiniToast('Formación enviada. La Tool la aplica al save.');
   } catch(e) {
     console.warn('[editor] pedido de formacion', e);
-    showMiniToast('No se pudo enviar la formación: ' + (e?.message || e));
+    await _avisarErrorPedido(e, 'No se pudo enviar la formación: ');
   }
 }
 document.addEventListener('keydown', function(e){
@@ -3725,12 +3740,41 @@ let _observers = [];      // MutationObserver de los contenedores de los modales
 let PAUSA = null;      // { pausado } de pes5_config/pausa; null hasta leerlo
 let _pausaUnsub = null;
 const MSG_PAUSA = 'Mejoras pausadas: Luis está actualizando el juego. Puedes mirar, pero no editar.';
+/* MINVER: minimo de cliente que exige el servidor (pes5_config/app.minCliente). null hasta
+   leerlo; si no hay documento, no hay minimo. Se lee en vivo, igual que la pausa. */
+let MIN_CLIENTE = null;
+let _versionUnsub = null;
+const MSG_ACTUALIZA = 'Tu app está desactualizada. Actualízala para hacer mejoras.';
+function _desactualizadoAhora(){
+  return !ADMIN_EMBED && Number.isInteger(MIN_CLIENTE) && MEJORAS_CLIENTE < MIN_CLIENTE;
+}
+/* MINVER: si el pedido falla con permission-denied y el servidor tiene minimo configurado, el
+   motivo es un cliente viejo (el servidor ya no acepta su `cliente`); se avisa de la actualizacion
+   en vez de mostrar el error crudo de Firestore. Si todavia no se leyo el minimo, se reintenta
+   leerlo una vez para no depender de que el snapshot haya llegado. */
+async function _avisarErrorPedido(e, prefijo){
+  const code = String((e && (e.code || (e.cause && e.cause.code))) || '');
+  const permiso = code.indexOf('permission-denied') >= 0;
+  if (permiso && MIN_CLIENTE == null && typeof firebase !== 'undefined'){
+    try {
+      const s = await firebase.firestore().collection('pes5_config').doc('app').get();
+      const v = s.exists ? Number(s.data().minCliente) : null;
+      if (Number.isInteger(v)){ MIN_CLIENTE = v; aplicarPausa(); }
+    } catch (err) { /* sin lectura: queda el error generico */ }
+  }
+  showMiniToast(MIN_CLIENTE != null && permiso ? MSG_ACTUALIZA : prefijo + (e?.message || e));
+}
 function _pausadasAhora(){ return !ADMIN_EMBED && !!(PAUSA && PAUSA.pausado); }
-/* PAUSA-2: punto de control unico. Devuelve true (y avisa con el toast) cuando la accion queda
-   bloqueada por la pausa. Se llama al inicio de toda funcion que modifique el borrador del
-   jugador, la formacion, la alineacion o la banca, o que mande un pedido. En la Tool del admin
-   no hay pausa: _pausadasAhora() ya devuelve false con ADMIN_EMBED. */
+/* PAUSA-2 / MINVER: punto de control unico. Devuelve true (y avisa con el toast) cuando la accion
+   queda bloqueada por la pausa o porque el cliente es mas viejo que el minimo del servidor. Se
+   llama al inicio de toda funcion que modifique el borrador del jugador, la formacion, la
+   alineacion o la banca, o que mande un pedido. En la Tool del admin no aplica ninguno de los dos:
+   _pausadasAhora() y _desactualizadoAhora() ya devuelven false con ADMIN_EMBED. */
 function _bloqueadoPorPausa(){
+  if (_desactualizadoAhora()){
+    showMiniToast(MSG_ACTUALIZA);
+    return true;
+  }
   if (!_pausadasAhora()) return false;
   showMiniToast(MSG_PAUSA);
   return true;
@@ -3743,12 +3787,27 @@ function iniciarPausa(){
       e => console.warn('[mejoras] pausa', e));
   } catch (e) { console.warn('[mejoras] pausa', e); }
 }
+/* MINVER: lee el minimo del servidor y deja el editor en solo lectura si este cliente no llega. */
+function iniciarVersion(){
+  if (ADMIN_EMBED || _versionUnsub || typeof firebase === 'undefined') return;
+  try {
+    _versionUnsub = firebase.firestore().collection('pes5_config').doc('app').onSnapshot(
+      s => {
+        const v = s.exists ? Number(s.data().minCliente) : null;
+        MIN_CLIENTE = Number.isInteger(v) ? v : null;
+        aplicarPausa();
+      },
+      e => console.warn('[mejoras] version minima', e));
+  } catch (e) { console.warn('[mejoras] version minima', e); }
+}
 function aplicarPausa(){
   const pausado = _pausadasAhora();
+  const viejo = _desactualizadoAhora();
+  const bloqueado = pausado || viejo;
   const raiz = _raiz();
-  if (raiz) raiz.classList.toggle('ep-pausado', pausado);
+  if (raiz) raiz.classList.toggle('ep-pausado', bloqueado);
   let av = document.getElementById('ep-pausa-aviso');
-  if (!pausado){ if (av) av.hidden = true; return; }
+  if (!bloqueado){ if (av) av.hidden = true; return; }
   if (!av){
     av = document.createElement('div');
     av.id = 'ep-pausa-aviso';
@@ -3762,6 +3821,12 @@ function aplicarPausa(){
     else return;   // el editor todavia no esta montado
   }
   av.hidden = false;
+  if (viejo){
+    // MINVER: mismo mecanismo que la pausa (solo lectura), con la salida a la web, donde
+    // apk-promo/updater avisan de la actualizacion de la APK.
+    av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg><span>${escHtml(MSG_ACTUALIZA)}</span><a class="ep-btn" href="index.html" style="margin-left:auto;text-decoration:none">Volver al inicio</a>`;
+    return;
+  }
   av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg><span>${escHtml(MSG_PAUSA)}</span>`;
 }
 
@@ -3835,6 +3900,7 @@ function desmontar(){
    hacia el final del script). En el panel no existe #mej-host y no hace nada. */
 function iniciarPagina(){
   iniciarPausa();
+  iniciarVersion();
   _montarBarraSave();
   const host = document.getElementById('mej-host');
   if (!host) return;

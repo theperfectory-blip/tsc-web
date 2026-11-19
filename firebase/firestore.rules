@@ -251,8 +251,13 @@ service cloud.firestore {
       // Allowlist (slice 5.B): solo los campos que escribe mejoras-page.js, en dos
       // formas: pedido de mejora (sin campo tipo) o pedido de formacion (tipo 'formacion').
       // Limites: lines <= 150, formacion.slots <= 11, strings <= 100.
+      // MINVER: el campo `cliente` (version de reglas de costo/bono/pedidos que entiende el
+      // cliente) se acepta en las tres formas y se compara con pes5_config/app.minCliente.
+      // Sin ese documento no hay minimo; una APK vieja que no manda `cliente` se rechaza en
+      // cuanto el admin fija el minimo. El admin nunca queda bloqueado.
       allow create: if signedIn() && meExists()
                     && (isAdmin() || !_mejorasPausadas())
+                    && (isAdmin() || !exists(/databases/$(database)/documents/pes5_config/app) || (request.resource.data.cliente is int && request.resource.data.cliente >= get(/databases/$(database)/documents/pes5_config/app).data.get('minCliente', 0)))
                     && me().teamId != null
                     && request.resource.data.uid == request.auth.uid
                     && string(me().teamId) == request.resource.data.teamId
@@ -265,14 +270,14 @@ service cloud.firestore {
                           && request.resource.data.keys().hasOnly([
                                'uid', 'teamId', 'teamName', 'pes5Club', 'playerId', 'playerName',
                                'registro', 'pes5ClubIdx', 'cambios', 'dorsal', 'subscriber', 'lines',
-                               'totalCost', 'fromGeneral', 'fromSub', 'estado', 'creadoEn'])
+                               'totalCost', 'fromGeneral', 'fromSub', 'estado', 'creadoEn', 'cliente'])
                           && (request.resource.data.playerName == null || request.resource.data.playerName.size() <= 100)
                           && (request.resource.data.dorsal == null || request.resource.data.dorsal.size() <= 100))
                          ||
                          (request.resource.data.tipo == 'formacion'
                           && request.resource.data.keys().hasOnly([
                                'uid', 'teamId', 'teamName', 'pes5Club', 'tipo', 'pes5ClubIdx',
-                               'formacion', 'lines', 'totalCost', 'estado', 'creadoEn', 'bancaSwaps'])
+                               'formacion', 'lines', 'totalCost', 'estado', 'creadoEn', 'bancaSwaps', 'cliente'])
                           && request.resource.data.formacion.keys().hasOnly(['nombre', 'slots'])
                           && request.resource.data.formacion.slots.size() <= 11
                           && request.resource.data.formacion.nombre.size() <= 100
@@ -286,7 +291,7 @@ service cloud.firestore {
                           && request.resource.data.keys().hasOnly([
                                'uid', 'teamId', 'teamName', 'pes5Club', 'tipo', 'pes5ClubIdx',
                                'playerId', 'playerName', 'registro', 'dorsal', 'subscriber', 'perfil', 'nivel',
-                               'cambios', 'lines', 'totalCost', 'fromGeneral', 'fromSub', 'estado', 'creadoEn'])
+                               'cambios', 'lines', 'totalCost', 'fromGeneral', 'fromSub', 'estado', 'creadoEn', 'cliente'])
                           && request.resource.data.totalCost == 0
                           && request.resource.data.fromGeneral == 0
                           && request.resource.data.fromSub == 0
