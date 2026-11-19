@@ -1994,12 +1994,78 @@ function toggleCarroDetalle(btn){
   btn.setAttribute('aria-expanded', String(abrir));
   if (abrir) _carroAbierto.add(id); else _carroAbierto.delete(id);
 }
-function _textoLineaCambio(l){
-  const cambio = (l.from === '' || l.from == null || l.from === '—')
+/* CARRO2: texto «antes → después» de un cambio (compartido por el panel y las hojas). */
+function _textoCambio(l){
+  return (l.from === '' || l.from == null || l.from === '—')
     ? String(l.to == null ? '' : l.to)
     : `${l.from} → ${l.to}`;
-  return `<div class="ep-pend-line"><span>${escHtml(l.label || '')}</span><b>${escHtml(cambio)}</b></div>`;
 }
+function _textoLineaCambio(l){
+  return `<div class="ep-pend-line"><span>${escHtml(l.label || '')}</span><b>${escHtml(_textoCambio(l))}</b></div>`;
+}
+function _pluralCambios(n){
+  return (n || 0) + (n === 1 ? ' cambio' : ' cambios');
+}
+/* CARRO2: color de la línea del jugador (el mismo de su posición en la plantilla), para el
+   punto que abre la fila plegable de la revisión. */
+function _lineaDeJugador(p){
+  if (!p) return 'mid';
+  const sp = titularSpot(p.id);
+  return (sp ? PITCH_POS_LINEA[sp.pos] : null) || LINEA_POS[p.primaryPos] || 'mid';
+}
+/* CARRO2: una fila plegable por jugador (cerrada salvo que se pida abierta): nombre con el
+   color de su línea, cantidad de cambios y costo; al desplegarla, una línea por cambio
+   (atributo antes → después, habilidad, posición, lesión) con su costo. */
+function _filaRevisionHTML(e, opts){
+  if (!e || !e.p || !e.d) return '';
+  const abierto = !!(opts && opts.abierto);
+  const lineas = pendingChangeLinesDe(e.p, e.d);
+  const id = String(e.p.id);
+  const detalle = lineas.length
+    ? lineas.map(l => {
+        const costoTxt = lineaCostoTexto(l);
+        return `<li class="ep-rev-line">
+        <span class="ep-rev-lbl">${escHtml(l.label || '')}</span>
+        <span class="ep-rev-chg">${escHtml(_textoCambio(l))}</span>
+        <span class="ep-rev-cost" title="${escAttr(costoTxt)}">${escHtml(costoTxt)}</span>
+      </li>`;
+      }).join('')
+    : '<li class="ep-rev-line"><span class="ep-rev-lbl">Sin detalle</span></li>';
+  return `<details class="ep-rev-item" data-jugador="${escAttr(id)}"${abierto ? ' open' : ''}>
+    <summary class="ep-rev-sum">
+      <span class="ep-rev-dot ep-line-${_lineaDeJugador(e.p)}" aria-hidden="true"></span>
+      <span class="ep-rev-name">${escHtml(e.p.name)}</span>
+      <span class="ep-rev-n">${_pluralCambios(lineas.length)}</span>
+      <span class="ep-rev-cost">${_fmtYC(e.costo)} YC</span>
+      <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <ul class="ep-rev-det">${detalle}</ul>
+  </details>`;
+}
+/* CARRO2: «Abrir todo / Cerrar todo» de la hoja de revisión (solo con más de 3 jugadores).
+   Las filas son <details>, así que el estado se lee de su atributo open. */
+function _revSyncToggle(){
+  const btn = document.getElementById('ep-rev-toggle');
+  if (!btn) return;
+  const box = document.getElementById('ep-rev-body');
+  const items = box ? Array.from(box.querySelectorAll('details.ep-rev-item')) : [];
+  const abiertos = items.filter(d => d.open).length;
+  const todos = items.length > 0 && abiertos === items.length;
+  btn.textContent = todos ? 'Cerrar todo' : 'Abrir todo';
+  btn.setAttribute('aria-expanded', String(abiertos > 0));
+  btn.title = todos ? 'Cerrar el detalle de todos los jugadores' : 'Abrir el detalle de todos los jugadores';
+}
+function toggleRevisionTodo(){
+  const box = document.getElementById('ep-rev-body');
+  if (!box) return;
+  const items = Array.from(box.querySelectorAll('details.ep-rev-item'));
+  if (!items.length) return;
+  const abrir = items.some(d => !d.open);
+  items.forEach(d => { d.open = abrir; });
+  _revSyncToggle();
+}
+/* El estado del botón también sigue a los clics en cada fila. */
+document.addEventListener('toggle', function(){ _revSyncToggle(); }, true);
 function renderCarritoPanel(){
   const box = document.getElementById('ep-cart-panel');
   if (!box) return;
@@ -2015,7 +2081,11 @@ function renderCarritoPanel(){
     return `<div class="ep-pend-item ep-carro-item" data-jugador="${escAttr(id)}">
       <div class="ep-carro-row">
         <button type="button" class="ep-carro-open" aria-expanded="${abierto ? 'true' : 'false'}" data-onclick="toggleCarroDetalle(this)" title="Ver el detalle de ${escAttr(e.p.name)}">
-          <span class="ep-pend-name">${escHtml(e.p.name)}</span>
+          <span class="ep-rev-dot ep-line-${_lineaDeJugador(e.p)}" aria-hidden="true"></span>
+          <span class="ep-carro-txt">
+            <span class="ep-pend-name">${escHtml(e.p.name)}</span>
+            <span class="ep-carro-n">${_pluralCambios(lineas.length)}</span>
+          </span>
           <b class="ep-pend-cost">${fmt(e.costo)}</b>
           <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </button>
@@ -2120,6 +2190,8 @@ function pendingChangeLines(){
 
 /* ================= modal: confirmar aplicar ================= */
 
+/* CARRO2: misma fila plegable que «Revisar todo», pero con un solo jugador la fila va ABIERTA:
+   no hay lista que recortar y el pedido se confirma con los cambios a la vista. */
 function openApplyConfirm(){
   if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
@@ -2147,7 +2219,8 @@ function openApplyConfirm(){
   const saldoAntes = APP.saldo || 0;
   const saldoDespues = Math.max(0, saldoAntes - costoSinReservar);
   const d = _topeEquipoDatos();
-  const quedaTope = Math.max(0, d.r.restanteGeneral + d.r.restanteSub - costoSinReservar);
+  const topeAntes = Math.max(0, d.r.restanteGeneral + d.r.restanteSub);
+  const topeDespues = Math.max(0, topeAntes - costoSinReservar);
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
   <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
@@ -2160,16 +2233,11 @@ function openApplyConfirm(){
               ? 'Reemplaza tu pedido anterior de ' + escHtml(p.name) + ': se cancela al enviar. Se cobra cuando Luis lo aplica en el juego.'
               : 'Se cobra cuando Luis lo aplica en el juego. Mientras esté pendiente lo puedes cancelar.')}</span>
       </div>
-      <ul class="ep-sheet-list">
-        ${lines.map(l=>`<li class="ep-sheet-line">
-          <span class="lbl">${escHtml(p.name)} · ${escHtml(l.label)}</span>
-          <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
-          <span class="cost">${lineaCostoTexto(l)}</span>
-        </li>`).join('')}
-      </ul>
+      <div class="ep-rev-body">${_filaRevisionHTML({ p: p, d: APP.draft, costo: cost }, { abierto: true })}</div>
       ${ADMIN_EMBED ? '' : `<dl class="ep-sheet-saldo">
+        <div><dt>Total del pedido</dt><dd><b>${cost.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
-        <div><dt>Tope del equipo</dt><dd>queda ${quedaTope.toLocaleString('es-CL')} de ${d.total.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Tope del equipo</dt><dd>${topeAntes.toLocaleString('es-CL')} <span>→</span> <b>${topeDespues.toLocaleString('es-CL')} YC</b> de ${d.total.toLocaleString('es-CL')}</dd></div>
         <div><dt>Bono suscriptores usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
       </dl>`}
       <div class="ep-sheet-act">
@@ -2235,20 +2303,11 @@ function openReviewAll(){
   const saldoAntes = APP.saldo || 0;
   const saldoDespues = Math.max(0, saldoAntes - neto);
   const d = _topeEquipoDatos();
-  const quedaTope = Math.max(0, d.r.restanteGeneral + d.r.restanteSub - neto);
-  const bloques = entradas.map(e => {
-    const lineas = pendingChangeLinesDe(e.p, e.d);
-    return `<div class="ep-sheet-grupo">
-      <div class="ep-sheet-grupo-hd"><b>${escHtml(e.p.name)}</b><span>${e.costo.toLocaleString('es-CL')} YC</span></div>
-      <ul class="ep-sheet-list">
-        ${lineas.length ? lineas.map(l => `<li class="ep-sheet-line">
-          <span class="lbl">${escHtml(l.label)}</span>
-          <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
-          <span class="cost">${lineaCostoTexto(l)}</span>
-        </li>`).join('') : '<li class="ep-sheet-line"><span class="lbl">Sin detalle</span></li>'}
-      </ul>
-    </div>`;
-  }).join('');
+  const topeAntes = Math.max(0, d.r.restanteGeneral + d.r.restanteSub);
+  const topeDespues = Math.max(0, topeAntes - neto);
+  const totalCambios = entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
+  const grupos = entradas.map(e => _filaRevisionHTML(e)).join('');
+  const muchos = entradas.length > 3;
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
   <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
@@ -2258,11 +2317,15 @@ function openReviewAll(){
         <h2 id="ep-sheet-carro">Revisar todo el carrito</h2>
         <span>Se manda un pedido por jugador, con todos sus cambios contra lo publicado. Los pedidos pendientes que reemplazas se cancelan al enviar y se cobra cuando Luis los aplica.</span>
       </div>
-      ${bloques}
+      ${muchos ? `<div class="ep-rev-bar">
+        <span class="ep-rev-bar-txt">${entradas.length} jugadores · ${_pluralCambios(totalCambios)}</span>
+        <button type="button" class="ep-rev-toggle" id="ep-rev-toggle" aria-expanded="false" aria-controls="ep-rev-body" data-onclick="toggleRevisionTodo()" title="Abrir el detalle de todos los jugadores">Abrir todo</button>
+      </div>` : ''}
+      <div class="ep-rev-body" id="ep-rev-body">${grupos}</div>
       <dl class="ep-sheet-saldo">
         <div><dt>Total del carrito</dt><dd><b>${rep.totalCost.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
-        <div><dt>Tope del equipo</dt><dd>queda ${quedaTope.toLocaleString('es-CL')} de ${d.total.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Tope del equipo</dt><dd>${topeAntes.toLocaleString('es-CL')} <span>→</span> <b>${topeDespues.toLocaleString('es-CL')} YC</b> de ${d.total.toLocaleString('es-CL')}</dd></div>
         <div><dt>Bono suscriptores usado</dt><dd>${rep.totalSub.toLocaleString('es-CL')}</dd></div>
       </dl>
       <div class="ep-sheet-act">
@@ -4661,6 +4724,7 @@ window.openApplyConfirm = openApplyConfirm;
 window.openReviewAll = openReviewAll;
 window.commitCarrito = commitCarrito;
 window.toggleCarroDetalle = toggleCarroDetalle;
+window.toggleRevisionTodo = toggleRevisionTodo;
 window.descartarCarrito = descartarCarrito;
 window.descartarCarritoJugador = descartarCarritoJugador;
 window.openAuditModal = openAuditModal;

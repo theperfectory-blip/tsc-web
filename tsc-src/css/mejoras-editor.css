@@ -186,9 +186,12 @@
 .ep-root .ep-carro-open{display:flex;align-items:center;gap:8px;flex:1;min-width:0;min-height:44px;padding:0 10px;
   background:none;border:none;color:inherit;font-family:'Barlow';font-size:14px;text-align:left;cursor:pointer;}
 .ep-root .ep-carro-open:hover{background:var(--card2);border-radius:8px;}
+.ep-root .ep-carro-n{flex:none;font-size:11.5px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-carro-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;text-align:left;}
+.ep-root .ep-carro-txt .ep-pend-name{flex:none;line-height:1.25;}
 .ep-root .ep-carro-open .icn{flex:none;width:16px;height:16px;color:var(--txt3);transition:transform .15s ease;}
 .ep-root .ep-carro-open[aria-expanded="true"] .icn{transform:rotate(180deg);}
-.ep-root .ep-carro-x{flex:none;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+.ep-root .ep-carro-x{flex:none;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;
   background:none;border:1px solid transparent;color:var(--txt3);cursor:pointer;}
 .ep-root .ep-carro-x:hover{color:var(--red);border-color:var(--brd2);}
 .ep-root .ep-carro-x .icn{width:14px;height:14px;}
@@ -198,14 +201,46 @@
 .ep-root .ep-pitem-carro{flex:none;display:inline-flex;align-items:center;gap:5px;font-family:'Bebas Neue';
   font-size:16px;line-height:1;color:var(--gold);}
 .ep-root .ep-pitem-carro i{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold-b);}
-/* Hoja de «Revisar todo»: puede traer varios jugadores; scrollea ella, no la pagina. */
-.ep-root .ep-sheet-largo{max-height:86vh;overflow-y:auto;}
-.ep-root .ep-sheet-grupo{display:flex;flex-direction:column;gap:6px;}
-.ep-root .ep-sheet-grupo + .ep-sheet-grupo{margin-top:12px;}
-.ep-root .ep-sheet-grupo-hd{display:flex;justify-content:space-between;gap:10px;font-family:'Barlow Condensed';
-  font-weight:700;font-size:14px;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt2);}
-.ep-root .ep-sheet-grupo-hd b{color:var(--txt);}
-.ep-root .ep-sheet-grupo-hd span{color:var(--gold);white-space:nowrap;}
+
+/* CARRO2 · revisión plegable por jugador (hoja «Revisar todo» y revisión de un jugador).
+   Una fila CERRADA por jugador con el punto del color de su línea, el nombre, la cantidad de
+   cambios y el costo; al desplegarla, una línea compacta por cambio (atributo antes → después,
+   habilidad, posición o lesión). La fila y el botón «Abrir todo / Cerrar todo» tocan 44 px. */
+.ep-root .ep-rev-body{display:flex;flex-direction:column;gap:6px;}
+.ep-root .ep-rev-item{background:var(--card2);border:1px solid var(--brd);border-radius:12px;overflow:clip;}
+.ep-root .ep-rev-sum{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;cursor:pointer;
+  list-style:none;-webkit-tap-highlight-color:transparent;}
+.ep-root .ep-rev-sum::-webkit-details-marker{display:none;}
+.ep-root .ep-rev-sum::marker{content:'';}
+.ep-root .ep-rev-sum:hover{background:var(--card3);}
+.ep-root .ep-rev-sum:focus-visible{outline:2px solid var(--gold-b);outline-offset:-2px;}
+.ep-root .ep-rev-dot{width:8px;height:8px;flex:none;border-radius:50%;}
+.ep-root .ep-rev-item .ep-rev-dot,
+.ep-root .ep-carro-open .ep-rev-dot{background:currentColor;}
+.ep-root .ep-rev-name{flex:1;min-width:0;font-size:14.5px;font-weight:600;color:var(--txt);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-rev-n{flex:none;font-size:12px;color:var(--txt2);white-space:nowrap;}
+.ep-root .ep-rev-sum .ep-rev-cost{flex:none;font-family:'Bebas Neue';font-weight:400;font-size:17px;line-height:1;
+  color:var(--gold);white-space:nowrap;}
+.ep-root .ep-rev-sum .icn{flex:none;width:16px;height:16px;color:var(--txt3);transition:transform .15s ease;}
+.ep-root .ep-rev-item[open] .ep-rev-sum{border-bottom:1px solid var(--brd);}
+.ep-root .ep-rev-item[open] .ep-rev-sum .icn{transform:rotate(180deg);}
+.ep-root .ep-rev-det{list-style:none;margin:0;padding:6px 12px 8px;display:flex;flex-direction:column;gap:3px;}
+.ep-root .ep-rev-line{display:flex;align-items:baseline;gap:8px;min-width:0;font-size:12.5px;line-height:1.35;}
+.ep-root .ep-rev-lbl{flex:1;min-width:0;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-rev-chg{flex:none;color:var(--txt);white-space:nowrap;}
+.ep-root .ep-rev-line .ep-rev-cost{flex:0 1 auto;max-width:46%;overflow:hidden;text-overflow:ellipsis;
+  text-align:right;font-family:'Bebas Neue';font-size:14px;line-height:1.3;color:var(--gold);white-space:nowrap;}
+.ep-root .ep-rev-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.ep-root .ep-rev-bar-txt{min-width:0;font-size:12.5px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-root .ep-rev-toggle{flex:none;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--brd2);
+  background:var(--card);color:var(--txt2);font-family:'Barlow Condensed';font-weight:700;font-size:12.5px;
+  letter-spacing:0.6px;text-transform:uppercase;cursor:pointer;}
+.ep-root .ep-rev-toggle:hover{border-color:var(--gold-b);color:var(--gold);}
+/* Hoja de «Revisar todo»: más ancha que la de un pedido y scrollea por dentro (no la página),
+   sin recortar el resumen ni los botones en pantallas bajas. */
+.ep-root .ep-sheet.ep-sheet-largo{max-width:560px;max-height:88vh;overflow-y:auto;}
+.ep-root .ep-sheet.ep-sheet-largo .ep-rev-body{overscroll-behavior:contain;}
 
 /* ---- plantilla ---- */
 .ep-root .ep-roster-hd input{width:100%;height:46px;padding:0 14px;background:var(--card);border:1px solid var(--brd);border-radius:12px;
