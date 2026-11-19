@@ -48,6 +48,8 @@ const MEJ_MARKUP = `
         <button class="ep-acc" data-onclick="openAuditModal()"><span class="ep-acc-t">Pedidos</span><span class="ep-acc-s" id="ep-pedidos-sub">Sin pendientes</span><span class="badge" id="ep-hist-badge">0</span></button>
       </div>
 
+      <div class="ep-cart-panel" id="ep-cart-panel" hidden></div>
+
       <div class="ep-pend" id="ep-pend" hidden></div>
 
       <div class="ep-roster-hd"><input id="ep-search" type="search" placeholder="Buscar jugador" aria-label="Buscar jugador" data-oninput="renderRoster()"></div>
@@ -96,7 +98,7 @@ const MEJ_MARKUP = `
         <div id="ep-warn" class="ep-warn"></div>
         <div class="ep-cart-actions">
           <button class="ep-cart-btn" data-onclick="discardChanges()" aria-label="Descartar cambios" title="Descartar cambios"><svg class="icn" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v5h5"/></svg></button>
-          <button class="ep-cart-go" id="ep-apply" data-onclick="openApplyConfirm()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Revisar</button>
+          <button class="ep-cart-go" id="ep-apply" data-onclick="openReviewAll()"><svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Revisar</button>
         </div>
       </div>
     </section>
@@ -154,6 +156,11 @@ let _gatePlantillaClub = undefined; // club PES5 con el que se cargo PLAYERS act
 
 async function renderAuthUI(){
   if (ADMIN_EMBED) return; // modo admin: no hay gate, los datos los manda la tool
+  // CARRO1: el carrito es de la cuenta que lo armo. Si cambia la sesion, no se hereda.
+  if (AUTH.user && AUTH.user.uid !== _carritoUid){
+    APP.drafts = {}; APP.draftsBase = {};
+    _carritoUid = AUTH.user.uid;
+  }
   const el = document.getElementById('ep-auth-status');
   if (el){
     if (!AUTH.user) el.innerHTML = `<button class="ep-theme-btn" data-onclick="openAuthModal()">Iniciar sesion</button>`;
@@ -215,7 +222,9 @@ async function renderAuthUI(){
     // EMP-80-2: perfiles fijados de la temporada de cobro (si el admin ya los fijo). Sin doc: calculo en vivo.
     try { PERFILES_FIJADOS = await cargarPerfilesFijados(AUTH.teamId, COBRO_TEMPORADA ?? STATE.season); }
     catch(e){ console.warn('[mejoras] no se pudieron leer los perfiles fijados', e); PERFILES_FIJADOS = null; }
-    APP.playerId = PLAYERS[0].id;
+    // CARRO1: recuperar los borradores en espera guardados en este navegador.
+    _carritoCargar();
+    APP.playerId = PLAYER_BY_ID[APP.playerId] ? APP.playerId : PLAYERS[0].id;
     loadDraft();
   }
   // Slice Q4: un solo editor a la vez por equipo. Si el admin lo esta editando, se muestra el aviso.
@@ -797,12 +806,15 @@ function perfilPres(p){
   if (fijado != null) return YUNACOINS_RULES.perfilParaJugador(null, cfg, fijado);
   return YUNACOINS_RULES.perfilEmparejar(PES5_PLANTILLA.jugadorEmparejarDeEditor(p), cfg);
 }
+function costoStatDe(p, campo, from, to){
+  return YUNACOINS_RULES.costoAtributoConPerfil(campo, from, to, perfilPres(p), emparejarCfgPres(), RULES);
+}
 function costoStatPres(campo, from, to){
-  return YUNACOINS_RULES.costoAtributoConPerfil(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres(), RULES);
+  return costoStatDe(currentPlayer(), campo, from, to);
 }
 function costoPuntoPres(campo, v){ return costoStatPres(campo, v-1, v); }
-function gratisStatPres(campo, from, to){
-  return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(currentPlayer()), emparejarCfgPres());
+function gratisStatDe(p, campo, from, to){
+  return YUNACOINS_RULES.tramoGratis(campo, from, to, perfilPres(p), emparejarCfgPres());
 }
 const PERFIL_LABEL = { base: 'Base', suscriptor: 'Suscriptor' };
 // Costo de un pedido en la lista: «sin costo (perfil X)» si todo fue tramo gratis; si no, los YunaCoins.
@@ -1040,6 +1052,10 @@ const APP = {
   pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
   draft: null,
+  // CARRO1: un borrador por jugador, en espera hasta mandarlos todos. APP.draft es
+  // siempre el del jugador abierto (misma referencia que su entrada del carrito).
+  drafts: {},
+  draftsBase: {}, // firma de lo publicado con la que se armo cada borrador del carrito
   hint: 'Selecciona un atributo para ver su descripción.',
   // MEJUI2: posición cuya descripción está abierta. Solo ella muestra «Hacer principal»
   // en la línea fija de abajo (la forma discreta de cambiar la posición natural).
@@ -1124,23 +1140,182 @@ function borradorYaPedido(p){
   return PES5_PLANTILLA.canonicoJSON(cambios) === PES5_PLANTILLA.canonicoJSON(pedido.cambios);
 }
 
-function loadDraft(){
-  const p = currentPlayer();
-  // Modo admin: el borrador arranca desde el original + lo ya guardado en la tool.
-  // Presidente (PED1): desde lo publicado + los cambios del pedido pendiente, si hay.
+/* ================= CARRO1 · carrito de mejoras (varios jugadores a la vez) =================
+   Un borrador por jugador en APP.drafts[playerId]. Al cambiar de jugador se guarda el que
+   se deja (solo si tiene cambios respecto de su base) y al volver se recupera. APP.draft es
+   siempre el del jugador abierto, asi que todo el editor de atributos sigue igual.
+   El carrito se persiste en localStorage (clave por uid + equipo) y se borra al enviarlo. */
+const CARRO_PREFIJO = 'tsc_ep_carrito_';
+let _carritoUltimo = null;   // ultimo JSON escrito: evita reescribir si nada cambio
+let _carritoUid = null;      // uid dueno del carrito en memoria (se limpia al cambiar de cuenta)
+
+function _clonarDraft(d){ return JSON.parse(JSON.stringify(d)); }
+function _draftComparable(d){
+  return {
+    stats: d.stats, sec: d.sec, abilities: d.abilities, positions: d.positions,
+    primaryPos: d.primaryPos, side: d.side, height: d.height, favfoot: d.favfoot, age: d.age,
+  };
+}
+function _firmaDraft(d){ return PES5_PLANTILLA.canonicoJSON(_draftComparable(d || {})); }
+/* Firma de lo PUBLICADO del jugador: si cambio (Luis republico), los borradores guardados
+   de ese jugador se descartan al recuperar el carrito. */
+function _firmaPublicada(p){
+  return PES5_PLANTILLA.canonicoJSON({
+    stats: p.stats, sec: p.sec, abilities: p.abilities, positions: p.positions,
+    primaryPos: p.primaryPos, side: p.side, height: p.height, favfoot: p.favfoot, age: p.age,
+  });
+}
+function _carritoActivo(){
+  return !ADMIN_EMBED && !!(AUTH && AUTH.user && AUTH.user.uid === _carritoUid && AUTH.teamId != null) && PLAYERS.length > 0;
+}
+function _carritoClave(){
+  if (!AUTH || !AUTH.user || AUTH.teamId == null) return null;
+  return CARRO_PREFIJO + AUTH.user.uid + '_' + AUTH.teamId;
+}
+/* Jugador base del borrador: publicado + los cambios del pedido pendiente (PED1).
+   En modo admin: el original + lo ya guardado en la tool. */
+function _draftBase(p){
   const src = (ADMIN_EMBED && ADMIN_PENDIENTE) ? PES5_PLANTILLA.aplicarCambiosAlJugador(p, ADMIN_PENDIENTE) : jugadorBaseBorrador(p);
-  APP.draft = JSON.parse(JSON.stringify({
+  return _clonarDraft({
     stats:src.stats, sec:src.sec, abilities:src.abilities, positions:src.positions, primaryPos:src.primaryPos, side:src.side, favfoot:src.favfoot, height:src.height, age:src.age,
-  }));
+  });
+}
+function _draftDifiereDelBase(p, d){
+  return _firmaDraft(d) !== _firmaDraft(_draftBase(p));
+}
+/* Borrador vivo de un jugador: el abierto (APP.draft) o el guardado en el carrito. */
+function _draftVigenteDe(p){
+  if (!p) return null;
+  if (p.id === APP.playerId && APP.draft) return APP.draft;
+  return (APP.drafts && APP.drafts[p.id]) || null;
+}
+/* Entradas del carrito, en el orden del plantel: {p, d, costo}. Solo las que tienen
+   cambios propios respecto de su base (publicado + pedido pendiente). */
+function _carritoEntradas(){
+  if (!_carritoActivo()) return [];
+  const out = [];
+  plantelOrdenado().forEach(p => {
+    const d = _draftVigenteDe(p);
+    if (!d || !_draftDifiereDelBase(p, d)) return;
+    out.push({ p: p, d: d, costo: pendingCostDe(p, d) });
+  });
+  return out;
+}
+function _carritoCosto(){
+  return _carritoEntradas().reduce((s, e) => s + e.costo, 0);
+}
+function _carritoReservado(){
+  return _carritoEntradas().reduce((s, e) => s + costoReservadoJugador(e.p), 0);
+}
+/* Lo que el carrito suma de verdad al saldo: el costo de los pedidos nuevos menos lo que
+   los pedidos pendientes que reemplaza ya tenian reservado (no se cuenta dos veces). */
+function _carritoNeto(){
+  return Math.max(0, _carritoCosto() - _carritoReservado());
+}
+function _carritoExcede(){
+  if (!_carritoActivo()) return false;
+  const neto = _carritoNeto();
+  return neto > 0 && neto > remainingForPlayer(currentPlayer());
+}
+/* Guarda el borrador abierto en el carrito (si cambio respecto de su base) y persiste. */
+function guardarDraftActual(){
+  if (!_carritoActivo() || !APP.playerId) return;
+  const p = PLAYER_BY_ID[APP.playerId];
+  if (!p || !APP.draft) return;
+  if (_draftDifiereDelBase(p, APP.draft)){
+    APP.drafts[p.id] = _clonarDraft(APP.draft);
+    APP.draftsBase[p.id] = _firmaPublicada(p);
+  } else {
+    delete APP.drafts[p.id];
+    delete APP.draftsBase[p.id];
+  }
+  _carritoGuardar();
+}
+function _carritoGuardar(){
+  if (!_carritoActivo()) return;
+  const clave = _carritoClave();
+  if (!clave) return;
+  const drafts = {};
+  Object.keys(APP.drafts).forEach(id => {
+    const p = PLAYER_BY_ID[id], d = APP.drafts[id];
+    if (!p || !d) return;
+    drafts[id] = { nombre: p.name, base: APP.draftsBase[id] || _firmaPublicada(p), draft: d };
+  });
+  const vacio = !Object.keys(drafts).length;
+  const raw = vacio ? null : JSON.stringify({ v: 1, drafts: drafts });
+  if (raw === _carritoUltimo) return;
+  try {
+    if (vacio) localStorage.removeItem(clave);
+    else localStorage.setItem(clave, raw);
+    _carritoUltimo = raw;
+  } catch(e){ /* sin localStorage: el carrito sigue en memoria */ }
+}
+/* Recupera el carrito guardado. Descarta borradores de jugadores que ya no estan en el
+   plantel publicado o cuya base cambio (plantilla republicada despues de armarlo). */
+function _carritoCargar(){
+  APP.drafts = {};
+  APP.draftsBase = {};
+  _carritoUltimo = null;
+  _carritoUid = (AUTH && AUTH.user) ? AUTH.user.uid : null;
+  const clave = _carritoClave();
+  if (!clave) return;
+  let raw = null;
+  try { raw = localStorage.getItem(clave); } catch(e){ raw = null; }
+  if (!raw) return;
+  let data = null;
+  try { data = JSON.parse(raw); } catch(e){ data = null; }
+  if (!data || data.v !== 1 || !data.drafts) return;
+  const descartados = [];
+  Object.keys(data.drafts).forEach(id => {
+    const e = data.drafts[id] || {};
+    const p = PLAYER_BY_ID[id];
+    if (!p){ descartados.push(e.nombre || 'un jugador'); return; }
+    if (!e.draft || e.base !== _firmaPublicada(p)){ descartados.push(p.name); return; }
+    APP.drafts[id] = e.draft;
+    APP.draftsBase[id] = e.base;
+  });
+  _carritoUltimo = raw;
+  if (descartados.length){
+    const nombres = descartados.slice(0, 3).join(', ') + (descartados.length > 3 ? ' y ' + (descartados.length - 3) + ' mas' : '');
+    showMiniToast('Se descartaron cambios de ' + nombres + ': la plantilla se actualizó');
+    _carritoGuardar();
+  }
+}
+/* Descarta los borradores cuyo jugador ya no esta o cuyo publicado cambio (p. ej. al recargar
+   la plantilla despues de aplicar/cancelar un pedido). */
+function _carritoValidar(){
+  if (!_carritoActivo()) return;
+  const descartados = [];
+  Object.keys(APP.drafts).forEach(id => {
+    const p = PLAYER_BY_ID[id];
+    if (!p || (APP.draftsBase[id] && APP.draftsBase[id] !== _firmaPublicada(p))){
+      descartados.push(p ? p.name : 'un jugador');
+      delete APP.drafts[id];
+      delete APP.draftsBase[id];
+    }
+  });
+  if (!descartados.length) return;
+  _carritoGuardar();
+  const nombres = descartados.slice(0, 3).join(', ') + (descartados.length > 3 ? ' y ' + (descartados.length - 3) + ' mas' : '');
+  showMiniToast('Se descartaron cambios de ' + nombres + ': la plantilla se actualizó');
 }
 
-function pendingCost(){
-  const p = currentPlayer(), d = APP.draft;
+function loadDraft(){
+  const p = currentPlayer();
+  if (!p){ APP.draft = null; return; }
+  // CARRO1: al volver a un jugador se recupera su borrador guardado; si no hay, la base
+  // de siempre (admin: original + tool; presidente PED1: publicado + pedido pendiente).
+  const guardado = (!ADMIN_EMBED && APP.drafts[p.id]) ? APP.drafts[p.id] : null;
+  APP.draft = _clonarDraft(guardado || _draftBase(p));
+}
+
+/* Costo del borrador de UN jugador contra lo publicado (cada uno con su perfil). */
+function pendingCostDe(p, d){
   if(!p || !d) return 0;
   let total=0;
-  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costoStatPres(s.k, p.stats[s.k], d.stats[s.k]); });
+  MAIN_STATS.forEach(s=>{ if(d.stats[s.k]>p.stats[s.k]) total += costoStatDe(p, s.k, p.stats[s.k], d.stats[s.k]); });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costoStatPres(s.k, p.sec[s.k], d.sec[s.k]); }
+    if(s.sc===99){ if(d.sec[s.k]>p.sec[s.k]) total += costoStatDe(p, s.k, p.sec[s.k], d.sec[s.k]); }
     else if(s.sc===8){ if(d.sec[s.k]>p.sec[s.k]) total += (d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost; }
     else if(s.sc==='inj'){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1149,6 +1324,10 @@ function pendingCost(){
   });
   ALL_ABILITY_KEYS.forEach(k=>{ if(d.abilities[k] && !p.abilities[k]) total += RULES.abilityCost; });
   return total;
+}
+
+function pendingCost(){
+  return pendingCostDe(currentPlayer(), APP.draft);
 }
 /* techo de gasto del jugador (4.F + BONO-2): el bono es del EQUIPO, así que cualquier jugador
    gasta del tope general + el bono. Acotado por el saldo real del equipo.
@@ -1161,9 +1340,9 @@ function remainingForPlayer(p){
   const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
   return YUNACOINS_RULES.bonoSuscriptor(pool);
 }
-/* saldo disponible EN VIVO — ya descuenta lo acumulado en el borrador actual (sin contar dos
-   veces el pedido pendiente del jugador, que ya venia reservado) */
-function remainingBalance(){ return remainingForPlayer(currentPlayer()) - pendingCostSinReservar(); }
+/* saldo disponible EN VIVO — ya descuenta lo acumulado en TODO el carrito (el bono y el
+   general son del equipo), sin contar dos veces los pedidos pendientes que ya venian reservados */
+function remainingBalance(){ return remainingForPlayer(currentPlayer()) - (ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto()); }
 function canAfford(nextCost){ return nextCost <= remainingBalance(); }
 
 /* ================= render: roster (agrupado por posicion, estilo PES5) ================= */
@@ -1177,6 +1356,9 @@ function renderRoster(){
   const list = document.getElementById('ep-roster-list');
   const secs = _seccionesPlantel();
   const ordenPlantel = plantelOrdenado();
+  // CARRO1: marca de los jugadores que tienen un borrador en espera (punto + costo).
+  const carro = {};
+  _carritoEntradas().forEach(e => { carro[e.p.id] = e; });
   // conteos y estado del segmentado (siempre sobre todo el plantel)
   SQUAD_SECTIONS.forEach(sec=>{
     const n = PLAYERS.filter(p => secs[p.id] === sec.key).length;
@@ -1192,12 +1374,14 @@ function renderRoster(){
     const codigo = sp ? (sp.pos || CODIGO_POS[pos] || pos) : (CODIGO_POS[pos] || pos);
     const linea = sp ? (PITCH_POS_LINEA[sp.pos] || LINEA_POS[pos] || 'mid') : (LINEA_POS[pos] || 'mid');
     const pendiente = (APP.pendientes||[]).some(x => x.playerId === p.id && x.estado === 'pendiente');
+    const enCarro = carro[p.id];
     return `<div class="ep-pitem ${p.id===APP.playerId?'active':''}" data-onclick="selectPlayer('${p.id}')">
       <span class="ep-pitem-pos ep-line-${linea}">${escHtml(codigo)}</span>
       <span class="ep-pitem-info">
         <span class="ep-pitem-name">${escHtml(p.name)}${p.heightFixed?' <span class="ep-real-badge">REAL</span>':p.subscriber?' <span class="ep-subs-badge">SUSCRIPTOR</span>':''}</span>
         <span class="ep-pitem-tag">${escHtml(sp ? _tagLugar(sp.pos, p.primaryPos) : ((POS_BY_KEY[pos] && POS_BY_KEY[pos].l) || p.tag || ''))}</span>
       </span>
+      ${enCarro ? `<span class="ep-pitem-carro" title="Cambios en espera: ${enCarro.costo.toLocaleString('es-CL')} YC"><i aria-hidden="true"></i>${enCarro.costo.toLocaleString('es-CL')}</span>` : ''}
       ${pendiente ? '<span class="ep-pitem-pedido">Pedido</span>' : ''}
     </div>`;
   }
@@ -1220,6 +1404,8 @@ function renderRoster(){
 }
 
 function selectPlayer(id){
+  // CARRO1: el borrador que se deja queda en el carrito (solo si tiene cambios).
+  if (id !== APP.playerId) guardarDraftActual();
   APP.playerId = id;
   APP.page = 1;
   APP.posSel = null;
@@ -1500,12 +1686,6 @@ function renderPending(){
   if (ADMIN_EMBED || (!pend.length && !bloqueo)){ box.hidden = true; box.innerHTML = ''; return; }
 
   const fmt = n => Number(n || 0).toLocaleString('es-CL');
-  const textoLinea = l => {
-    const cambio = (l.from === '' || l.from == null || l.from === '—')
-      ? String(l.to == null ? '' : l.to)
-      : `${l.from} → ${l.to}`;
-    return `<div class="ep-pend-line"><span>${escHtml(l.label || '')}</span><b>${escHtml(cambio)}</b></div>`;
-  };
   // Agrupado por jugador (o formacion), en el orden de llegada del pedido mas reciente.
   const grupos = new Map();
   pend.slice().sort((a, b) => _tiempoPedido(b) - _tiempoPedido(a)).forEach(x => {
@@ -1527,7 +1707,7 @@ function renderPending(){
       </button>
       <div class="ep-pend-det" hidden>
         ${g.pedidos.map(x => (x.lines || []).length
-          ? x.lines.map(textoLinea).join('')
+          ? x.lines.map(_textoLineaCambio).join('')
           : '<div class="ep-pend-line"><span>Sin detalle</span></div>').join('')}
       </div>
     </div>`).join('');
@@ -1609,8 +1789,10 @@ function _topeEquipoDatos(){
    tope < saldo), la linea «Puedes gastar hasta X». Si limita el saldo no se
    repite el mismo numero. */
 function renderHero(){
-  const cost = pendingCostSinReservar(); // lo que suma la edicion en curso (lo reservado no se cuenta dos veces)
-  const costPedido = pendingCost();      // costo total de los cambios en curso
+  // CARRO1: el saldo baja con TODO el carrito (cada borrador con el costo de su jugador);
+  // lo que los pedidos pendientes ya reservaban no se cuenta dos veces.
+  const cost = ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto();
+  const costPedido = ADMIN_EMBED ? pendingCost() : _carritoCosto(); // costo total de los cambios en curso
   const d = _topeEquipoDatos();
   const r = d.r;
   // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
@@ -1632,17 +1814,21 @@ function renderHero(){
     desg.textContent = partes.join(' · ');
     desg.hidden = !partes.length;
   }
-  // «Esta edición: −N YC»: el costo de lo que se esta editando ahora, solo si suma.
+  // «Esta edición / Tu carrito: −N YC»: el costo de lo que se esta editando ahora, solo si suma.
   const ed = document.getElementById('ep-edicion');
   if (ed){
     const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(currentPlayer());
+    const entradasEd = ADMIN_EMBED ? [] : _carritoEntradas();
+    const hayPend = !!pendiente || entradasEd.some(e => !!pedidoMejoraPendiente(e.p));
     ed.hidden = !(costPedido > 0);
     const lbl = document.getElementById('ep-edicion-lbl');
-    if (lbl) lbl.textContent = pendiente ? 'Tu pedido' : 'Esta edición';
+    if (lbl) lbl.textContent = pendiente ? 'Tu pedido' : (entradasEd.length > 1 ? 'Tu carrito' : 'Esta edición');
     const val = document.getElementById('ep-edicion-val');
     if (val) val.textContent = costPedido > 0 ? '−' + _fmtYC(costPedido) + ' YC' : '';
     const note = document.getElementById('ep-edicion-note');
-    if (note) note.textContent = pendiente && costPedido > 0 ? '· reemplaza tu pedido pendiente' : '';
+    if (note) note.textContent = (hayPend && costPedido > 0)
+      ? (pendiente ? '· reemplaza tu pedido pendiente' : '· reemplaza tus pedidos pendientes')
+      : '';
   }
   // «Disponible ahora» solo si el tope es el que limita; si limita el saldo, el
   // numero ya esta en «Tu saldo» y no se repite (BONO-2).
@@ -1741,46 +1927,163 @@ function renderAviso(){
       : 'Esta edición: sin costo'}</div>`;
 }
 function renderCart(){
-  const cost = pendingCost();
-  const n = pendingChangeLines().length;
+  // CARRO1: el borrador abierto queda en el carrito en cada cambio (y se persiste).
+  if (!ADMIN_EMBED) guardarDraftActual();
+  const entradas = ADMIN_EMBED ? [] : _carritoEntradas();
+  const cost = ADMIN_EMBED ? pendingCost() : _carritoCosto();
+  const neto = ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto();
+  const n = ADMIN_EMBED
+    ? pendingChangeLines().length
+    : entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
   const p = currentPlayer();
   // PED1: si el jugador ya tiene un pedido pendiente, el borrador (y el pedido nuevo) lo
   // incluyen: el texto lo dice para que el presidente no crea que se perdio lo que ya pidio.
   const pendiente = ADMIN_EMBED ? null : pedidoMejoraPendiente(p);
   const yaPedido = !ADMIN_EMBED && borradorYaPedido(p);
+  const excede = !ADMIN_EMBED && _carritoExcede();
   document.getElementById('ep-cost').textContent = cost > 0 ? '−' + cost.toLocaleString('es-CL') : '0';
-  document.getElementById('ep-cart-count').textContent = yaPedido
-    ? (p ? p.name + ' · ' : '') + 'pedido enviado (sin cambios nuevos)'
-    : n
+  let texto;
+  if (ADMIN_EMBED){
+    texto = n
       ? (p ? p.name + ' · ' : '') + n + (n === 1 ? ' cambio' : ' cambios') + (pendiente ? ' · reemplaza tu pedido pendiente' : '')
       : 'Sin cambios';
-  document.getElementById('ep-cart-left').textContent = n ? 'queda ' + Math.max(0, (APP.saldo || 0) - pendingCostSinReservar()).toLocaleString('es-CL') + ' YC' : '';
+  } else if (yaPedido && !entradas.length){
+    texto = (p ? p.name + ' · ' : '') + 'pedido enviado (sin cambios nuevos)';
+  } else if (!entradas.length){
+    texto = 'Sin cambios';
+  } else if (entradas.length === 1){
+    const e = entradas[0];
+    const nE = pendingChangeLinesDe(e.p, e.d).length;
+    texto = e.p.name + ' · ' + nE + (nE === 1 ? ' cambio' : ' cambios')
+      + (pedidoMejoraPendiente(e.p) ? ' · reemplaza tu pedido pendiente' : '');
+  } else {
+    const hayPend = entradas.some(e => !!pedidoMejoraPendiente(e.p));
+    texto = entradas.length + ' jugadores en espera · ' + n + (n === 1 ? ' cambio' : ' cambios')
+      + (hayPend ? ' · reemplaza pedidos pendientes' : '');
+  }
+  document.getElementById('ep-cart-count').textContent = texto;
+  document.getElementById('ep-cart-left').textContent = cost > 0
+    ? 'queda ' + Math.max(0, (APP.saldo || 0) - neto).toLocaleString('es-CL') + ' YC'
+    : '';
   renderHero();
   renderAviso();
+  renderCarritoPanel();
   const applyBtn = document.getElementById('ep-apply');
-  applyBtn.disabled = (pendingChangeLines().length===0 && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)) || (!ADMIN_EMBED && (yaPedido || !!APP.bloqueoPorAplicado));
-  applyBtn.title = yaPedido ? 'Ya mandaste estos cambios: edita algo para mandar un pedido nuevo' : '';
-  document.getElementById('ep-warn').textContent = '';
+  const sinNada = !entradas.length && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
+  applyBtn.disabled = sinNada || (!ADMIN_EMBED && (yaPedido || !!APP.bloqueoPorAplicado || excede));
+  applyBtn.title = ADMIN_EMBED
+    ? ''
+    : (excede ? 'El carrito supera el saldo disponible' : (entradas.length ? 'Revisar y mandar todos los cambios en espera' : ''));
+  document.getElementById('ep-warn').textContent = excede
+    ? 'El carrito supera lo disponible: quita ' + (neto - remainingForPlayer(p)).toLocaleString('es-CL') + ' YC.'
+    : '';
+}
+
+/* ================= CARRO1 · panel de cambios en espera =================
+   Una fila por jugador (nombre, costo, detalle desplegable y quitar), el total y los
+   botones «Descartar todo» / «Revisar todo». Se puede mirar con mejoras pausadas. */
+let _carroAbierto = new Set();
+function toggleCarroDetalle(btn){
+  const item = btn && btn.closest ? btn.closest('[data-jugador]') : null;
+  if (!item) return;
+  const id = item.getAttribute('data-jugador');
+  const det = item.querySelector('.ep-pend-det');
+  if (!det) return;
+  const abrir = det.hidden;
+  det.hidden = !abrir;
+  btn.setAttribute('aria-expanded', String(abrir));
+  if (abrir) _carroAbierto.add(id); else _carroAbierto.delete(id);
+}
+function _textoLineaCambio(l){
+  const cambio = (l.from === '' || l.from == null || l.from === '—')
+    ? String(l.to == null ? '' : l.to)
+    : `${l.from} → ${l.to}`;
+  return `<div class="ep-pend-line"><span>${escHtml(l.label || '')}</span><b>${escHtml(cambio)}</b></div>`;
+}
+function renderCarritoPanel(){
+  const box = document.getElementById('ep-cart-panel');
+  if (!box) return;
+  const entradas = ADMIN_EMBED ? [] : _carritoEntradas();
+  if (!entradas.length){ box.hidden = true; box.innerHTML = ''; return; }
+  const fmt = n => Number(n || 0).toLocaleString('es-CL');
+  const total = _carritoCosto();
+  const excede = _carritoExcede();
+  const items = entradas.map(e => {
+    const id = String(e.p.id);
+    const abierto = _carroAbierto.has(id);
+    const lineas = pendingChangeLinesDe(e.p, e.d);
+    return `<div class="ep-pend-item ep-carro-item" data-jugador="${escAttr(id)}">
+      <div class="ep-carro-row">
+        <button type="button" class="ep-carro-open" aria-expanded="${abierto ? 'true' : 'false'}" data-onclick="toggleCarroDetalle(this)" title="Ver el detalle de ${escAttr(e.p.name)}">
+          <span class="ep-pend-name">${escHtml(e.p.name)}</span>
+          <b class="ep-pend-cost">${fmt(e.costo)}</b>
+          <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="ep-carro-x" data-onclick="descartarCarritoJugador('${jsq(id)}')" aria-label="Quitar a ${escAttr(e.p.name)} del carrito" title="Quitar del carrito">
+          <svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="ep-pend-det"${abierto ? '' : ' hidden'}>
+        ${lineas.length ? lineas.map(_textoLineaCambio).join('') : '<div class="ep-pend-line"><span>Sin detalle</span></div>'}
+      </div>
+    </div>`;
+  }).join('');
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="ep-pend-hd">
+      <span class="ep-pend-lbl">Cambios en espera</span>
+      <b class="ep-pend-tot">${fmt(total)} YC</b>
+    </div>
+    <div class="ep-pend-list">${items}</div>
+    ${excede ? '<div class="ep-carro-warn">El carrito supera lo disponible.</div>' : ''}
+    <div class="ep-carro-act">
+      <button type="button" class="ep-btn" data-onclick="descartarCarrito()">Descartar todo</button>
+      <button type="button" class="ep-btn primary" data-onclick="openReviewAll()"${excede ? ' disabled' : ''}>Revisar todo</button>
+    </div>`;
 }
 
 function discardChanges(){
+  // CARRO1: descarta solo el jugador abierto; el resto del carrito queda.
   if (_bloqueadoPorPausa()) return;
+  const p = currentPlayer();
+  if (p){ delete APP.drafts[p.id]; delete APP.draftsBase[p.id]; }
   loadDraft();
-  renderCard();   // la ficha (casilla de altura) vuelve al jugador
-  renderRows();
-  renderCart();
+  _carritoGuardar();
+  renderAll();
   showMiniToast('Cambios descartados');
 }
+function descartarCarritoJugador(id){
+  if (_bloqueadoPorPausa()) return;
+  const p = PLAYER_BY_ID[id];
+  delete APP.drafts[id];
+  delete APP.draftsBase[id];
+  _carroAbierto.delete(String(id));
+  if (id === APP.playerId) loadDraft();
+  _carritoGuardar();
+  renderAll();
+  if (p) showMiniToast('Se descartaron los cambios de ' + p.name);
+}
+function descartarCarrito(){
+  if (_bloqueadoPorPausa()) return;
+  if (!_carritoEntradas().length){ showMiniToast('No hay cambios en espera.'); return; }
+  APP.drafts = {};
+  APP.draftsBase = {};
+  _carroAbierto.clear();
+  loadDraft();
+  _carritoGuardar();
+  renderAll();
+  showMiniToast('Carrito vacío');
+}
 
-/* ---- diff entre borrador y jugador actual (para el modal de confirmacion / historial) ---- */
-function pendingChangeLines(){
-  const p = currentPlayer(), d = APP.draft;
+/* ---- diff entre un borrador y lo publicado (modal de confirmacion / historial / carrito) ---- */
+function pendingChangeLinesDe(p, d){
+  if (!p || !d) return [];
   const lines = [];
   MAIN_STATS.forEach(s=>{
-    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costoStatPres(s.k, p.stats[s.k], d.stats[s.k]), gratis:(d.stats[s.k]>p.stats[s.k] ? gratisStatPres(s.k, p.stats[s.k], d.stats[s.k]) : 0), perfil:perfilPres(p)});
+    if(d.stats[s.k]!==p.stats[s.k]) lines.push({label:s.l, from:p.stats[s.k], to:d.stats[s.k], cost:costoStatDe(p, s.k, p.stats[s.k], d.stats[s.k]), gratis:(d.stats[s.k]>p.stats[s.k] ? gratisStatDe(p, s.k, p.stats[s.k], d.stats[s.k]) : 0), perfil:perfilPres(p)});
   });
   SEC_NEW.forEach(s=>{
-    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costoStatPres(s.k, p.sec[s.k], d.sec[s.k]), gratis:(d.sec[s.k]>p.sec[s.k] ? gratisStatPres(s.k, p.sec[s.k], d.sec[s.k]) : 0), perfil:perfilPres(p)}); }
+    if(s.sc===99){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:costoStatDe(p, s.k, p.sec[s.k], d.sec[s.k]), gratis:(d.sec[s.k]>p.sec[s.k] ? gratisStatDe(p, s.k, p.sec[s.k], d.sec[s.k]) : 0), perfil:perfilPres(p)}); }
     else if(s.sc===8){ if(d.sec[s.k]!==p.sec[s.k]) lines.push({label:s.l, from:p.sec[s.k], to:d.sec[s.k], cost:Math.max(0,d.sec[s.k]-p.sec[s.k])*RULES.scale8Cost}); }
     else if(d.sec.inj!==p.sec.inj){
       const from=INJURY_ORDER.indexOf(p.sec.inj), to=INJURY_ORDER.indexOf(d.sec.inj);
@@ -1810,6 +2113,9 @@ function pendingChangeLines(){
   if(d.favfoot!==p.favfoot) lines.push({label:'Pie dominante', from:FOOT_LABEL[p.favfoot]||p.favfoot, to:FOOT_LABEL[d.favfoot]||d.favfoot, cost:0});
   if(d.height!==p.height) lines.push({label:'Altura', from:p.height+' cm', to:d.height+' cm', cost:0});
   return lines;
+}
+function pendingChangeLines(){
+  return pendingChangeLinesDe(currentPlayer(), APP.draft);
 }
 
 /* ================= modal: confirmar aplicar ================= */
@@ -1874,6 +2180,248 @@ function openApplyConfirm(){
   </div>`;
 }
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
+
+/* ================= CARRO1 · «Revisar todo» (todos los jugadores en espera) =================
+   Reparto bono/general del carrito: el bono se consume primero, en el orden del plantel, con
+   YUNACOINS_RULES.distribuirCosto (igual que la Tool). Al reemplazar pedidos pendientes se
+   libera antes su parte de suscriptores. */
+function _repartoCarrito(entradas){
+  const liberadoGeneral = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromGeneral || 0), 0), 0);
+  const liberadoSub = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromSub || 0), 0), 0);
+  let subsRestantes = Math.max(0, (APP.budget.subscribers || 0) + liberadoSub);
+  const filas = entradas.map(e => {
+    const r = YUNACOINS_RULES.distribuirCosto(e.costo, subsRestantes);
+    subsRestantes = Math.max(0, subsRestantes - r.fromSub);
+    return Object.assign({}, e, { fromGeneral: r.fromGeneral, fromSub: r.fromSub });
+  });
+  return {
+    filas: filas,
+    liberadoGeneral: liberadoGeneral,
+    liberadoSub: liberadoSub,
+    totalCost: filas.reduce((s, f) => s + f.costo, 0),
+    totalGeneral: filas.reduce((s, f) => s + f.fromGeneral, 0),
+    totalSub: filas.reduce((s, f) => s + f.fromSub, 0),
+  };
+}
+function _idsPendientesDe(p){
+  return pendientesMejoraDeJugador(p).map(x => String(x._id)).sort().join('|');
+}
+function openReviewAll(){
+  if (ADMIN_EMBED) return openApplyConfirm();
+  if (_bloqueadoPorPausa()) return;
+  if (APP.bloqueoPorAplicado){
+    showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.');
+    return;
+  }
+  if (!puedeMandarPedido()){
+    showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
+    return;
+  }
+  guardarDraftActual();
+  const entradas = _carritoEntradas();
+  if (!entradas.length){ showMiniToast('No tienes cambios en espera: edita un jugador para sumarlo al carrito.'); return; }
+  const conEmparejar = entradas.filter(e => pendientesEmparejarDeJugador(e.p).length);
+  if (conEmparejar.length){
+    showMiniToast('Quita del carrito a ' + conEmparejar.map(e => e.p.name).join(', ') + ': tiene un pedido de emparejar pendiente.');
+    return;
+  }
+  if (_carritoExcede()){
+    const falta = _carritoNeto() - remainingForPlayer(currentPlayer());
+    showMiniToast('El carrito supera el saldo disponible: quita ' + falta.toLocaleString('es-CL') + ' YC.');
+    return;
+  }
+  const rep = _repartoCarrito(entradas);
+  const neto = Math.max(0, rep.totalCost - rep.liberadoGeneral - rep.liberadoSub);
+  const saldoAntes = APP.saldo || 0;
+  const saldoDespues = Math.max(0, saldoAntes - neto);
+  const d = _topeEquipoDatos();
+  const quedaTope = Math.max(0, d.r.restanteGeneral + d.r.restanteSub - neto);
+  const bloques = entradas.map(e => {
+    const lineas = pendingChangeLinesDe(e.p, e.d);
+    return `<div class="ep-sheet-grupo">
+      <div class="ep-sheet-grupo-hd"><b>${escHtml(e.p.name)}</b><span>${e.costo.toLocaleString('es-CL')} YC</span></div>
+      <ul class="ep-sheet-list">
+        ${lineas.length ? lineas.map(l => `<li class="ep-sheet-line">
+          <span class="lbl">${escHtml(l.label)}</span>
+          <span class="chg">${escHtml(l.from)} → ${escHtml(l.to)}</span>
+          <span class="cost">${lineaCostoTexto(l)}</span>
+        </li>`).join('') : '<li class="ep-sheet-line"><span class="lbl">Sin detalle</span></li>'}
+      </ul>
+    </div>`;
+  }).join('');
+  const wrap = document.getElementById('ep-confirm-wrap');
+  wrap.innerHTML = `
+  <div class="ep-overlay ep-overlay-sheet" data-onclick="closeIfBackdrop(event,closeApplyConfirm)">
+    <section class="ep-sheet ep-sheet-largo" role="dialog" aria-modal="true" aria-labelledby="ep-sheet-carro">
+      <div class="ep-grab" aria-hidden="true"></div>
+      <div class="ep-sheet-hd">
+        <h2 id="ep-sheet-carro">Revisar todo el carrito</h2>
+        <span>Se manda un pedido por jugador, con todos sus cambios contra lo publicado. Los pedidos pendientes que reemplazas se cancelan al enviar y se cobra cuando Luis los aplica.</span>
+      </div>
+      ${bloques}
+      <dl class="ep-sheet-saldo">
+        <div><dt>Total del carrito</dt><dd><b>${rep.totalCost.toLocaleString('es-CL')} YC</b></dd></div>
+        <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
+        <div><dt>Tope del equipo</dt><dd>queda ${quedaTope.toLocaleString('es-CL')} de ${d.total.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Bono suscriptores usado</dt><dd>${rep.totalSub.toLocaleString('es-CL')}</dd></div>
+      </dl>
+      <div class="ep-sheet-act">
+        <button class="ep-btn" data-onclick="closeApplyConfirm()">Seguir editando</button>
+        <button class="ep-btn primary" data-onclick="commitCarrito()">Enviar todo</button>
+      </div>
+    </section>
+  </div>`;
+}
+/* Envia UN pedido por jugador del carrito. Cancelaciones + altas van en el MISMO batch: si
+   falla, no se manda nada y el carrito queda intacto (las reglas ya permiten cada operacion). */
+async function commitCarrito(){
+  if (_bloqueadoPorPausa()) return;
+  if (ADMIN_EMBED) return commitChangesAdmin();
+  if (APP.bloqueoPorAplicado){
+    closeApplyConfirm();
+    showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.');
+    return;
+  }
+  if (!puedeMandarPedido()){
+    closeApplyConfirm();
+    showMiniToast(AUTH.user ? 'Tu cuenta no tiene un equipo asignado — pide al admin que te vincule uno.' : 'Inicia sesión para mandar el pedido.');
+    return;
+  }
+  const entradas = _carritoEntradas();
+  if (!entradas.length){ closeApplyConfirm(); return; }
+  const conEmparejar = entradas.filter(e => pendientesEmparejarDeJugador(e.p).length);
+  if (conEmparejar.length){
+    closeApplyConfirm();
+    showMiniToast('Quita del carrito a ' + conEmparejar.map(e => e.p.name).join(', ') + ': tiene un pedido de emparejar pendiente.');
+    return;
+  }
+  const sinRegistro = entradas.filter(e => registroPres(e.p) == null);
+  if (sinRegistro.length){
+    closeApplyConfirm();
+    showMiniToast('No se pudo mandar: ' + sinRegistro.map(e => e.p.name).join(', ') + ' no está en el save.');
+    return;
+  }
+  if (_carritoExcede()){
+    closeApplyConfirm();
+    showMiniToast('El carrito supera el saldo disponible: quita cambios antes de enviarlo.');
+    return;
+  }
+  // PED1 · la lista se relee justo antes de armar el envio: si otra pestana dejo o cancelo
+  // un pendiente de algun jugador del carrito, se corta para no perder esos cambios.
+  const antes = entradas.map(e => String(e.p.id) + ':' + _idsPendientesDe(e.p)).join('||');
+  await _refrescarPendientes();
+  const despues = entradas.map(e => String(e.p.id) + ':' + _idsPendientesDe(e.p)).join('||');
+  if (antes !== despues){
+    closeApplyConfirm();
+    renderAll();
+    showMiniToast('Se actualizaron tus pedidos pendientes: vuelve a abrir los jugadores para sumar esos cambios.');
+    return;
+  }
+  const filas = entradas.map(e => {
+    const pend = pedidoMejoraPendiente(e.p);
+    return {
+      p: e.p, d: e.d, costo: pendingCostDe(e.p, e.d),
+      cambios: cambiosDelBorrador(e.p, e.d),
+      lineas: pendingChangeLinesDe(e.p, e.d),
+      viejos: pendientesMejoraDeJugador(e.p),
+      pend: pend,
+    };
+  }).filter(f => f.cambios && Object.keys(f.cambios).length
+    && !(f.pend && f.pend.cambios && PES5_PLANTILLA.canonicoJSON(f.cambios) === PES5_PLANTILLA.canonicoJSON(f.pend.cambios)));
+  if (!filas.length){
+    closeApplyConfirm();
+    showMiniToast('No hay cambios aplicables para mandar.');
+    return;
+  }
+  const rep = _repartoCarrito(filas.map(f => ({ p: f.p, d: f.d, costo: f.costo })));
+  filas.forEach((f, i) => { f.fromGeneral = rep.filas[i].fromGeneral; f.fromSub = rep.filas[i].fromSub; });
+  const neto = Math.max(0, rep.totalCost - rep.liberadoGeneral - rep.liberadoSub);
+  if (neto > remainingForPlayer(currentPlayer())){
+    closeApplyConfirm();
+    showMiniToast('El carrito supera el saldo disponible: quita cambios antes de enviarlo.');
+    return;
+  }
+  const btn = document.querySelector('#ep-confirm-wrap .ep-btn.primary');
+  if (btn) btn.disabled = true;
+  const fs = firebase.firestore();
+  const refs = filas.map(() => fs.collection('pedidos_pes5').doc());
+  try {
+    const batch = fs.batch();
+    filas.forEach((f, i) => {
+      f.viejos.forEach(x => {
+        if (x._id && String(x._id).indexOf('local-') !== 0){
+          batch.update(fs.collection('pedidos_pes5').doc(x._id), {
+            estado: 'cancelado', canceladoEn: new Date().toISOString(),
+          });
+        }
+      });
+      batch.set(refs[i], {
+        uid: AUTH.user.uid,
+        teamId: String(AUTH.teamId),
+        teamName: EQUIPO_TSC?.name || null,
+        pes5Club: EQUIPO_TSC?.pes5Club || null,
+        cliente: MEJORAS_CLIENTE,
+        playerId: f.p.id,
+        playerName: f.p.name,
+        registro: registroPres(f.p),
+        pes5ClubIdx: EQUIPO_TSC ? EQUIPO_TSC.pes5ClubIdx : null,
+        cambios: f.cambios,
+        dorsal: f.p.dorsal,
+        subscriber: !!f.p.subscriber,
+        lines: f.lineas,
+        totalCost: f.costo,
+        fromGeneral: f.fromGeneral,
+        fromSub: f.fromSub,
+        estado: 'pendiente',
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+  } catch(e){
+    if (btn) btn.disabled = false;
+    await _avisarErrorPedido(e, 'No se pudo mandar el carrito: ');
+    return;
+  }
+  /* Reserva de YunaCoins: los pendientes viejos dejan de reservar y los nuevos reservan una
+     sola vez. Se ajusta en memoria y despues se recalcula del servidor. */
+  const reservadoTotal = rep.liberadoGeneral + rep.liberadoSub;
+  APP.budget.general = Math.max(0, (APP.budget.general || 0) + rep.liberadoGeneral - rep.totalGeneral);
+  APP.budget.subscribers = Math.max(0, (APP.budget.subscribers || 0) + rep.liberadoSub - rep.totalSub);
+  APP.saldo = Math.max(0, (APP.saldo || 0) + reservadoTotal - rep.totalCost);
+  const idsViejos = new Set();
+  filas.forEach(f => f.viejos.forEach(x => idsViejos.add(x)));
+  APP.pendientes = (APP.pendientes || []).filter(x => !idsViejos.has(x));
+  const locales = filas.map((f, i) => ({
+    _id: refs[i].id, playerId: f.p.id, playerName: f.p.name, registro: registroPres(f.p),
+    cambios: f.cambios, lines: f.lineas, totalCost: f.costo, fromGeneral: f.fromGeneral, fromSub: f.fromSub,
+    estado: 'pendiente', creadoEn: new Date().toISOString(),
+  }));
+  APP.pendientes.push(...locales);
+  filas.forEach(f => {
+    AUDIT_LOG.push({
+      ts: Date.now(), playerId: f.p.id, playerName: f.p.name, dorsal: f.p.dorsal, subscriber: !!f.p.subscriber,
+      lines: f.lineas, totalCost: f.costo, fromGeneral: f.fromGeneral, fromSub: f.fromSub,
+      reemplaza: f.pend ? String(f.pend._id || '') : '',
+      budgetAfter: { general: APP.budget.general, subscribers: APP.budget.subscribers },
+    });
+  });
+  saveAuditLog();
+  APP.drafts = {};
+  APP.draftsBase = {};
+  _carroAbierto.clear();
+  _carritoGuardar();
+  await recalcularPresupuestoReal();
+  // lectura eventual: conservar los pedidos recien creados si el servidor aun no los trae
+  locales.forEach(x => {
+    if (!APP.pendientes.some(y => String(y._id) === String(x._id))) APP.pendientes.push(x);
+  });
+  loadDraft();
+  closeApplyConfirm();
+  renderAll();
+  showMiniToast(filas.length === 1
+    ? `Pedido enviado a Luis: -${rep.totalCost.toLocaleString('es-CL')} YunaCoins`
+    : `Carrito enviado a Luis: ${filas.length} jugadores · -${rep.totalCost.toLocaleString('es-CL')} YunaCoins`);
+}
 
 /* Relee los pedidos pendientes del presidente (la misma consulta que
    recalcularPresupuestoReal) y deja APP.pendientes igual que el servidor. Se usa antes de
@@ -3667,6 +4215,7 @@ async function cancelarPedido(pedidoId){
 async function _volverAPlantillaPublicada(){
   try { await cargarPlantillaReal(AUTH.teamId, EQUIPO_TSC.pes5ClubIdx); }
   catch(e){ console.warn('[mejoras] plantilla publicada', e); }
+  _carritoValidar(); // CARRO1: si la plantilla cambio, los borradores viejos ya no sirven
   loadDraft();
   renderAll();
 }
@@ -4109,6 +4658,11 @@ window.discardChanges = discardChanges;
 window.gotoPage = gotoPage;
 window.moveFormationDot = moveFormationDot;
 window.openApplyConfirm = openApplyConfirm;
+window.openReviewAll = openReviewAll;
+window.commitCarrito = commitCarrito;
+window.toggleCarroDetalle = toggleCarroDetalle;
+window.descartarCarrito = descartarCarrito;
+window.descartarCarritoJugador = descartarCarritoJugador;
 window.openAuditModal = openAuditModal;
 window.openFormationModal = openFormationModal;
 window.openFormationHelp = openFormationHelp;
