@@ -388,7 +388,7 @@
 .ep-root .ep-pitch-cta-icon i:nth-child(1){flex:33;background:#3f6f85;}
 .ep-root .ep-pitch-cta-icon i:nth-child(2){flex:40;background:#4d7d55;}
 .ep-root .ep-pitch-cta-icon i:nth-child(3){flex:27;background:#6d4a3a;}
-.ep-root .ep-pitch-crest{display:flex;align-items:center;gap:6px;font-family:'Barlow Condensed';font-weight:700;
+.ep-root .ep-pitch-crest{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:'Barlow Condensed';font-weight:700;
   font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
 .ep-root .ep-pitch-crest svg{width:16px;height:16px;stroke:var(--gold);}
 .ep-root .ep-pitch-lineup{display:inline-block;background:var(--card2);border:1px solid var(--gold-b);
@@ -438,7 +438,20 @@
 .ep-root .ep-pitch-possel{background:var(--card2);border:1px solid var(--gold-b);color:var(--gold);
   font-family:'Bebas Neue';font-size:14px;letter-spacing:0.5px;padding:3px 8px;border-radius:4px;cursor:pointer;}
 .ep-root .ep-pitch-possel:disabled{opacity:0.6;cursor:default;}
-.ep-root .ep-pitch-hint{margin-top:10px;font-size:12px;color:var(--txt3);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.ep-root .ep-pitch-info-btn{flex:none;width:44px;height:44px;margin:-6px -10px -6px auto;display:grid;place-items:center;
+  padding:0;background:none;border:none;color:var(--txt3);cursor:pointer;border-radius:50%;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.ep-root .ep-pitch-info-btn:hover,.ep-root .ep-pitch-info-btn:focus-visible{color:var(--gold);outline:none;}
+.ep-root .ep-pitch-info-ic{width:28px;height:28px;display:grid;place-items:center;border:1px solid var(--brd2);border-radius:50%;}
+.ep-root .ep-pitch-info-btn:hover .ep-pitch-info-ic,
+.ep-root .ep-pitch-info-btn:focus-visible .ep-pitch-info-ic{border-color:var(--gold-b);}
+.ep-root .ep-pitch-info-btn svg{width:15px;height:15px;stroke:currentColor;}
+/* FORM4: columna y fila como etiqueta chica sobre la cancha, solo mientras se mueve un punto. */
+.ep-root .ep-pitch-coords{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);z-index:6;
+  pointer-events:none;white-space:nowrap;background:var(--card2);border:1px solid var(--gold-b);
+  color:var(--gold);font-family:'Barlow Condensed';font-size:11.5px;letter-spacing:0.6px;
+  padding:2px 8px;border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.35);}
+.ep-root .ep-pitch-coords[hidden]{display:none;}
 
 /* ---- MEJUI-4: titulares, banca y reservas (columna compacta bajo la cancha) ----
    Una fila por jugador con zona de toque de 48 px. El dorsal y la sigla van en el color
@@ -493,6 +506,15 @@
 .ep-root .ep-form-stats .mc-panel{padding-bottom:2px;}
 .ep-root .ep-form-subnone{font-size:12px;color:var(--txt3);padding:10px 0;}
 
+/* ---- FORM4: ayuda de la formación en un modal chico, centrado ----
+   La abre el (i) del encabezado. Mismo estilo de modal del editor (velo, cabecera,
+   cuerpo y pie), con 5 líneas cortas y «Entendido». */
+.ep-root .ep-form-help{display:contents;}
+.ep-root .ep-help-modal{max-width:440px;}
+.ep-root .ep-help-list{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:8px;}
+.ep-root .ep-help-list li{font-size:13.5px;line-height:1.4;color:var(--txt2);}
+.ep-root .ep-help-list li::marker{color:var(--gold);}
+
 /* ---- hoja «Revisar pedido»: encima de la barra, centrada en escritorio ---- */
 .ep-root .ep-sheet{max-height:88vh;overflow-y:auto;}
 
@@ -503,6 +525,10 @@
 .ep-root .ep-pitch-posrow{flex:1 1 auto;justify-content:flex-start;}
 .ep-root .ep-pitch-selctl{flex:0 0 auto;}
 .ep-root .ep-overlay{padding:0;align-items:stretch;}
+/* FORM4: la ayuda es una tarjeta chica centrada, no una pantalla completa */
+.ep-root .ep-overlay.ep-help-velo{padding:16px;align-items:center;}
+.ep-root .ep-modal.ep-help-modal{max-width:440px;max-height:80vh;height:auto;border:1px solid var(--brd2);border-radius:var(--rl);}
+.ep-root .ep-modal.ep-help-modal .ep-modal-body{overflow-y:auto;}
 .ep-root .ep-modal,
 .ep-root .ep-modal.wide{max-width:none;max-height:none;height:100%;border-radius:0;border:none;}
 .ep-root .ep-overlay.ep-overlay-sheet{align-items:flex-end;}
@@ -669,7 +695,7 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.ep-pausado .ep-acc.formation,                /* abrir la formacion */
 .ep-root.ep-pausado .ep-pitch-field,                  /* cancha: mover y elegir jugadores */
 .ep-root.ep-pausado .ep-pitch-possel,                 /* posicion del jugador en la cancha */
-.ep-root.ep-pausado .ep-pitch-selctl .ep-pgbtn,       /* jugador anterior / siguiente */
+/* FORM4: las flechas ‹ › quedan activas en pausa: cambian la ficha que se mira */
 .ep-root.ep-pausado .ep-form-bench,                   /* banca y reservas */
 .ep-root.ep-pausado .mc-btn-go,                       /* «Hacer el cambio» del panel comparar */
 .ep-root.ep-pausado [data-onclick*="commitChanges"],  /* enviar el pedido */

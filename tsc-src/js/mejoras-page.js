@@ -2119,6 +2119,8 @@ let FORM_BASE = null;     // FORM-4: alineacion con la que se abrio el modal (ba
 let FORM_ABIERTO = false; // FORM-4: el modal de formacion esta abierto (manda el borrador)
 // ORD-4: los intercambios de banca del borrador van en FORM.bancaPares (pares de ids, en el orden en que se hicieron).
 let _formRaf = 0;     // frame pendiente del render durante el arrastre
+let FORM_COORDS_HASTA = 0; // FORM4: hasta cuando se ve «Columna/Fila» despues de mover un punto
+let FORM_COORDS_T = 0;     // temporizador que lo esconde
 // INTEG: cambio titular↔banca/reserva pendiente de confirmar en el panel de comparacion.
 let FORM_CMP = null;  // { slot, entra, prev:{sel,armado,banca,verId} } con el panel abierto
 let FORM_CMP_HTML = ''; // ultimo HTML pintado del panel: no se rehace en cada render
@@ -2151,8 +2153,6 @@ function openFormationModal(){
 /* Arma o rehace el modal con el borrador actual: al abrir y al cambiar la orientacion
    (slice 3d). No reinicia el borrador ni la seleccion. */
 function _montarModalCancha(){
-  // En pantalla tactil la ayuda habla de arrastrar; con mouse, de las flechas.
-  const toqueFino = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const wrap = document.getElementById('ep-pitch-wrap');
   FORM_CMP_HTML = ''; // el contenedor de la ficha se rehace con el modal: se vuelve a pintar
   _formCmpVisto = false;
@@ -2176,6 +2176,11 @@ function _montarModalCancha(){
             <svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>
             ${escHtml(EQUIPO_TSC?.name || 'Tu equipo')} &middot; Alineación
             <span class="ep-pitch-lineup" id="ep-form-lineup" title="Alineación según las líneas en la cancha">${escHtml(_nombreFormacionDraft(FORM.draft))}</span>
+            <button type="button" class="ep-pitch-info-btn" data-onclick="openFormationHelp()" aria-label="Cómo usar la formación" title="Cómo usar la formación">
+              <span class="ep-pitch-info-ic" aria-hidden="true">
+                <svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.9h.01"/></svg>
+              </span>
+            </button>
           </div>
           <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
             ${franjas}
@@ -2189,10 +2194,7 @@ function _montarModalCancha(){
             <div class="ep-pitch-goal right"></div>
             <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
             <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
-          </div>
-          <div class="ep-pitch-hint">
-            <span>${toqueFino ? 'Toca un jugador del 11 y después a quién entra (o al revés). Toca otra vez al marcado para cancelar.' : 'Clic en un jugador del 11 y después en quién entra (o al revés). Clic otra vez en el marcado para cancelar.'}</span>
-            <span id="ep-form-coords"></span>
+            <div id="ep-form-coords" class="ep-pitch-coords" hidden></div>
           </div>
         </div>
         <div class="ep-form-lista" id="ep-form-lista">
@@ -2222,6 +2224,7 @@ function _montarModalCancha(){
           <svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Confirmar</button>
       </div>
     </div>
+    <div class="ep-form-help" id="ep-form-help"></div>
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
@@ -2232,6 +2235,7 @@ function closeFormationModal(){
   FORM.bancaOrden = null;
   FORM_CMP = null; FORM_CMP_HTML = '';   // INTEG: la comparacion se va con el modal
   _formCmpVisto = false;
+  _formPararCoords();
   renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
@@ -2513,9 +2517,16 @@ function mejCmpConfirmar(){
    ninguna otra capa lo consuma antes (el resto de la app cierra modales con
    Escape en burbuja). */
 document.addEventListener('keydown', function(e){
-  if (e.key !== 'Escape' || !FORM_CMP) return;
+  if (e.key !== 'Escape' || !FORM_CMP || _formAyudaAbierta()) return;
   e.stopPropagation();
   mejCmpVolver();
+}, true);
+/* FORM4: Esc cierra solo la ayuda (encima queda la formación tal como estaba). */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape' || !_formAyudaAbierta()) return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeFormationHelp();
 }, true);
 /* Banca y reservas (y la ficha del jugador elegido), en la mitad inferior del modal.
    MEJUI-4: una fila por jugador, con el dorsal y las iniciales de posicion en el color de
@@ -2668,9 +2679,11 @@ function renderFormationModal(){
 
   // MEJUI-4: franja fija con la instruccion del cambio y «Cancelar». Reservada: solo
   // aparece mientras hay un jugador marcado, asi no cambia el alto del resto al tocar.
+  // FORM4: con la comparación abierta sobra (ya tiene «Elegir otro» y «Hacer el cambio»).
   const bar = document.getElementById('ep-form-swapbar');
   if (bar){
-    const armadoId = FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null);
+    const armadoId = FORM_CMP ? null
+      : (FORM.banca || (FORM.armado && FORM.draft[FORM.sel] ? FORM.draft[FORM.sel].id : null));
     if (!armadoId){ bar.hidden = true; bar.innerHTML = ''; }
     else {
       const nom = (PLAYER_BY_ID[armadoId] && PLAYER_BY_ID[armadoId].name) || 'Jugador';
@@ -2711,8 +2724,9 @@ function renderFormationModal(){
   document.getElementById('ep-form-zone').textContent = keeper
     ? 'Arquero (posición fija)'
     : PITCH_ZONE_BY_KEY[pitchThird(slot.x)].label;
-  document.getElementById('ep-form-coords').textContent =
-    `Columna ${slot.x}/${PITCH_COLS} · Fila ${slot.y}/${PITCH_ROWS}`;
+  // FORM4: la columna y la fila son una etiqueta chica que se ve solo mientras se
+  // mueve o se ajusta el punto (arrastre, cruz o flechas del teclado). No ocupa lugar.
+  _formPintarCoords(slot);
   // selector de posicion: solo las que corresponden al bloque donde cae,
   // mas la que ya tiene (aunque haya quedado fuera de zona), sin repetir
   // las de banda.
@@ -2871,12 +2885,107 @@ function setFormationPos(valor){
     renderFormationModal();
     return;
   }
+  _formAvisarCoords(); // FORM4: al ajustar la posición también se ve la columna/fila un momento
   renderFormationModal();
 }
+/* ================= FORM4: etiqueta «Columna/Fila» y ayuda del (i) =================
+   La columna y la fila dejan de ocupar una franja fija: se ven solo mientras se
+   mueve o se ajusta el punto (arrastre en curso, cruz o flechas del teclado) y se
+   van solas a los ~1,6 s. La ayuda larga pasa a un modal que abre el (i) del
+   encabezado (mismo estilo de modal del editor). */
+function _formCoordsVisibles(){
+  return !!((FORM_DRAG && FORM_DRAG.activo) || FORM_COORDS_HASTA > Date.now());
+}
+function _formPararCoords(){
+  if (FORM_COORDS_T){ clearTimeout(FORM_COORDS_T); FORM_COORDS_T = 0; }
+  FORM_COORDS_HASTA = 0;
+}
+function _formPintarCoords(slot){
+  const el = document.getElementById('ep-form-coords');
+  if (!el) return;
+  const ver = !!slot && _formCoordsVisibles();
+  el.hidden = !ver;
+  if (ver) el.textContent = `Columna ${slot.x}/${PITCH_COLS} · Fila ${slot.y}/${PITCH_ROWS}`;
+}
+/* Un movimiento con la cruz o el teclado muestra la etiqueta un momento. */
+function _formAvisarCoords(){
+  FORM_COORDS_HASTA = Date.now() + 1600;
+  if (FORM_COORDS_T) clearTimeout(FORM_COORDS_T);
+  FORM_COORDS_T = setTimeout(() => {
+    FORM_COORDS_T = 0; FORM_COORDS_HASTA = 0;
+    _formPintarCoords(FORM.draft[FORM.sel]);
+  }, 1700);
+}
+function _formAyudaAbierta(){
+  const el = document.getElementById('ep-form-help');
+  return !!(el && el.innerHTML);
+}
+function openFormationHelp(){
+  const el = document.getElementById('ep-form-help');
+  if (!el) return;
+  el.innerHTML = `
+  <div class="ep-overlay ep-help-velo" data-onclick="closeIfBackdrop(event,closeFormationHelp)">
+    <section class="ep-modal ep-help-modal" role="dialog" aria-modal="true" aria-labelledby="ep-help-tit">
+      <div class="ep-modal-hd">
+        <h2 id="ep-help-tit">Cómo usar la formación</h2>
+        <button class="ep-modal-close" data-onclick="closeFormationHelp()" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="ep-modal-body">
+        <ul class="ep-help-list">
+          <li>Toca un jugador del 11 y después a quién entra (o al revés): queda marcado.</li>
+          <li>Toca otra vez al marcado, o «Cancelar», para anular el cambio.</li>
+          <li>Antes de cambiar ves la comparación: «Hacer el cambio» la confirma.</li>
+          <li>Las flechas ‹ › cambian de jugador y el selector «Posición» ajusta su puesto.</li>
+          <li>Arrastra un punto para moverlo por la cancha. El arquero no se mueve.</li>
+        </ul>
+      </div>
+      <div class="ep-modal-foot">
+        <button class="ep-btn primary" id="ep-help-listo" data-onclick="closeFormationHelp()">Entendido</button>
+      </div>
+    </section>
+  </div>`;
+  const listo = document.getElementById('ep-help-listo');
+  if (listo) listo.focus();
+}
+function closeFormationHelp(){
+  const el = document.getElementById('ep-form-help');
+  if (el) el.innerHTML = '';
+}
 function selectFormationPlayer(i){ FORM.sel = i; renderFormationModal(); }
+/* FORM4: la flecha ‹ › mueve la única selección de la formación. Con la
+   comparación abierta, la comparación pasa al titular nuevo si ese cambio es
+   legal (arquero solo por portero); si no, se cierra y queda la ficha del
+   titular con un aviso corto. En pausa se puede mirar, pero no se arma nada. */
+function _formIrATitular(i){
+  const slot = FORM.draft && FORM.draft[i];
+  if (!slot) return;
+  FORM.sel = i;
+  FORM.verId = slot.id;
+  FORM.motivo = null;
+  if (FORM_CMP){
+    if (_formLegalEntrada(FORM_CMP.entra, i)){
+      // La comparación sigue al titular elegido y «Elegir otro» deja armado a ese
+      // mismo titular (no al que estaba cuando se abrió la comparación).
+      const armado = !_pausaSinAviso();
+      FORM_CMP = { slot: i, entra: FORM_CMP.entra, prev: { sel: i, armado, banca: null, verId: slot.id } };
+      FORM.armado = armado; FORM.banca = null;
+      return;
+    }
+    const entra = PLAYER_BY_ID[FORM_CMP.entra];
+    const sale = PLAYER_BY_ID[slot.id];
+    FORM_CMP = null; FORM_CMP_HTML = '';
+    _formCmpVisto = false;
+    FORM.armado = !_pausaSinAviso(); FORM.banca = null;
+    showMiniToast(`${(entra && entra.name) || 'Ese jugador'} no puede reemplazar a ${(sale && sale.name) || 'ese titular'}.`);
+    return;
+  }
+  FORM.armado = !_pausaSinAviso();
+  FORM.banca = null;
+}
 function cycleFormationPlayer(delta){
-  if (_bloqueadoPorPausa()) return;
-  FORM.sel = (FORM.sel + delta + FORM.draft.length) % FORM.draft.length;
+  const n = (FORM.draft && FORM.draft.length) || 0;
+  if (!n) return;
+  _formIrATitular((FORM.sel + delta + n) % n);
   renderFormationModal();
 }
 /* Mueve el jugador seleccionado a la celda (x, y) como un solo cambio. Devuelve
@@ -2918,7 +3027,7 @@ function moveFormationDotTo(x, y, opciones){
 /* Ajuste de una celda: la cruz de 2.C y las flechas del teclado. */
 function moveFormationDot(dx,dy){
   const slot = FORM.draft[FORM.sel];
-  moveFormationDotTo(slot.x + dx, slot.y + dy);
+  if (moveFormationDotTo(slot.x + dx, slot.y + dy)) _formAvisarCoords();
   renderFormationModal();
 }
 /* Flechas y cruz segun la pantalla. Horizontal: arriba = y-1, izquierda = x-1 (arco propio a la
@@ -3002,6 +3111,7 @@ async function confirmFormation(){
 document.addEventListener('keydown', function(e){
   const wrap = document.getElementById('ep-pitch-wrap');
   if(!wrap || !wrap.innerHTML) return;
+  if(_formAyudaAbierta()) return;   // FORM4: con la ayuda abierta, las teclas son de la ayuda
   if(FORM_CMP) return;   // INTEG: con el panel de comparacion abierto, las teclas son del panel
   const move = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'};
   if(move[e.key]){ e.preventDefault(); moveFormationScreen(move[e.key]); return; }
@@ -3951,6 +4061,7 @@ window.cancelarPedidoDesdeHistorial = cancelarPedidoDesdeHistorial;
 window.closeApplyConfirm = closeApplyConfirm;
 window.closeAuditModal = closeAuditModal;
 window.closeFormationModal = closeFormationModal;
+window.closeFormationHelp = closeFormationHelp;
 window.closeIfBackdrop = closeIfBackdrop;
 window.commitChanges = commitChanges;
 window.confirmFormation = confirmFormation;
@@ -3962,6 +4073,7 @@ window.moveFormationDot = moveFormationDot;
 window.openApplyConfirm = openApplyConfirm;
 window.openAuditModal = openAuditModal;
 window.openFormationModal = openFormationModal;
+window.openFormationHelp = openFormationHelp;
 window.renderRoster = renderRoster;
 window.resetFormationDraft = resetFormationDraft;
 window.selectFormationPlayer = selectFormationPlayer;
