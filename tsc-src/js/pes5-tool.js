@@ -66,9 +66,10 @@ let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habil
      - el wallet real de cada equipo es SIEMPRE `team.yunacoin` (nunca un
        numero de regla — `techoPresupuesto`/`presidentWallet` del editor no
        se usan aca, la tool ya tenia el saldo real).
-     - BONO-2: el bono es del EQUIPO, no del jugador. Cualquier jugador gasta
-       primero el bono de suscriptores (tope extra del equipo) y, agotado, sale
-       del tope general. `j.subscriber` ya no decide el reparto. Ver
+     - BONO-3: el bono de suscriptores es SOLO para jugadores con «$» (suscriptor,
+       `j.subscriber` de `leerJugadorCompleto` — nombre que empieza con "$"). Un
+       suscriptor gasta primero el bono y, agotado, sigue con el tope general; un
+       jugador sin «$» gasta solo del tope general. Ver
        YUNACOINS_RULES.distribuirCosto.
      - los topes de TEMPORADA no se guardan en `teams`: se derivan del
        libro `coins` (season actual + reason que empieza con 'mejora PES5')
@@ -296,12 +297,12 @@ function _nSuscriptoresDelEquipo(teamId){
     .filter(id => PES5_EDITOR.nombreDeRegistro(PLANO, id).startsWith('$')).length;
 }
 // Reparte TODOS los cambios pendientes del plantel abierto entre bono de
-// suscriptores y tope general, con el orden nuevo (punto 5b): itera
-// PLANTILLA_ACTUAL en orden de roster y va descontando el bono restante
-// jugador por jugador — el orden de asignacion del bono entre varios
-// suscriptores editados en un mismo lote no esta especificado en el doc,
-// es una decision de esta implementacion (documentada tambien en
-// distribuirCosto, js/yunacoins-rules.js). Devuelve
+// suscriptores y tope general (BONO-3): itera PLANTILLA_ACTUAL en orden de
+// roster y va descontando el bono restante jugador por jugador, pero SOLO los
+// jugadores con «$» consumen bono; los demas van enteros al general. El orden de
+// asignacion del bono entre varios suscriptores editados en un mismo lote no
+// esta especificado en el doc, es una decision de esta implementacion
+// (documentada tambien en distribuirCosto, js/yunacoins-rules.js). Devuelve
 // {totalCosto, fromGeneral, fromSub, porJugador:{[id]:{playerId,playerName,
 // subscriber,total,lineas,fromGeneral,fromSub}}}.
 function repartoPendienteEquipo(){
@@ -313,7 +314,7 @@ function repartoPendienteEquipo(){
     const { total, lineas } = _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id]);
     if (total <= 0) return;
     const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
-    const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub);
+    const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
     subUsadoAcum += reparto.fromSub;
     totalGeneral += reparto.fromGeneral;
     totalSub += reparto.fromSub;
@@ -2397,7 +2398,7 @@ async function aplicarPedidosSeleccionados(){
       }
       const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, precioDelPedido, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
-      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub));
+      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
       if (!pago.ok){ rechazados.push({ pedido: p, motivo: pago.excedeSaldo ? 'saldo insuficiente' : 'se superó el tope de temporada' }); continue; }
       try {
@@ -2776,7 +2777,7 @@ function renderReglasTab(){
         <div class="pt-field">
           <label>Bono por jugador suscriptor</label>
           <input type="number" min="0" step="500" id="rg-budgetSubscribers" value="${r.budgetSubscribers}" style="width:100px;">
-          <div class="pt-field-hint">se multiplica por los suscriptores del equipo</div>
+          <div class="pt-field-hint">se multiplica por los suscriptores («$») del equipo; solo esos jugadores gastan el bono</div>
         </div>
       </div>
 

@@ -217,7 +217,8 @@ async function _coinsDatosTope(team, cobro){
    grande es el tope TOTAL del equipo (base + extra + bono de suscriptores),
    con el desglose chico debajo (solo las partes que existen); «Saldo» va
    aparte porque es otro número. El bono y el extra amplían el tope: no son
-   coins regaladas, se gastan con el saldo del equipo. */
+   coins regaladas, se gastan con el saldo del equipo. BONO-3: el bono solo lo
+   pueden usar los jugadores con «$», y el desglose lo dice. */
 function _coinsTopeHTML(d){
   const nf = n => Number(n || 0).toLocaleString('es-CL');
   if(!d) return '';
@@ -237,13 +238,14 @@ function _coinsTopeHTML(d){
   // Desglose: base siempre que haya bono o extra; el motivo del extra si lo hay.
   const partes = [];
   if(r.bono > 0 || r.extra > 0) partes.push(`Base ${nf(r.topeGeneral)}`);
-  if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} ${nf(r.bono)}`);
+  if(r.bono > 0) partes.push(`${nf(d.nSuscriptores)} ${d.nSuscriptores === 1 ? 'suscriptor' : 'suscriptores'} ${nf(r.bono)} (solo jugadores $)`);
   if(r.extra > 0) partes.push(`Extra ${nf(r.extra)}`);
   return box([
     `Tope del equipo esta temporada: <strong style="color:var(--txt);">${nf(r.topeTotal)}</strong>`,
     partes.length ? `<span style="color:var(--txt2);">${partes.join(' + ')}</span>` : '',
     `Gastado: ${nf(r.gastadoTotal)} · Saldo: ${nf(r.saldo)}`,
     `Le sirve cargar hasta: <strong style="color:var(--gold);">${nf(r.sirveCargar)}</strong>`,
+    r.bono > 0 ? '<span style="color:var(--txt3);">El bono solo lo gastan los jugadores con «$».</span>' : '',
   ]);
 }
 

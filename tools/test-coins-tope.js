@@ -25,6 +25,10 @@ test('resumenCarga · caso Guaraní: 4 suscriptores, sin extra, saldo 9.800', ()
   assert.equal(r.gastadoTotal, 110200);
   // 120.000 − 110.200 = 9.800 del general + 40.000 intactos del bono
   assert.equal(r.restante, 49800);
+  assert.equal(r.restanteGeneral, 9800);
+  assert.equal(r.restanteBono, 40000);
+  assert.equal(r.restanteSuscriptor, 49800);
+  assert.equal(r.bonoSoloSuscriptores, true);
   assert.equal(r.saldo, 9800);
   // le falta saldo para llegar al tope: 49.800 − 9.800
   assert.equal(r.sirveCargar, 40000);
@@ -62,8 +66,18 @@ test('resumenCarga · sin suscriptores el bono vale 0', () => {
 test('resumenCarga · sin extra y sin gasto, el bono manda en el restante', () => {
   const r = R.resumenCarga({ reglas: REGLAS, extra: 0, nSuscriptores: 3, gastado: { general: 120000, sub: 0 }, saldo: 0 });
   assert.equal(r.bono, 30000);
+  assert.equal(r.restanteGeneral, 0);
+  assert.equal(r.restanteBono, 30000);
   assert.equal(r.restante, 30000);
   assert.equal(r.sirveCargar, 30000);
+});
+
+test('resumenCarga · el bono solo lo gastan los jugadores con «$» (la UI lo avisa)', () => {
+  const r = R.resumenCarga({ reglas: REGLAS, extra: 0, nSuscriptores: 4, gastado: { general: 0, sub: 0 }, saldo: 0 });
+  assert.equal(r.bonoSoloSuscriptores, true);
+  assert.equal(r.restanteGeneral, 120000);   // techo de un jugador sin «$»
+  assert.equal(r.restanteBono, 40000);       // extra que solo usan los «$»
+  assert.equal(r.restanteSuscriptor, 160000); // techo de un «$»
 });
 
 test('resumenCarga · si el saldo ya cubre el tope, no le sirve cargar (0, nunca negativo)', () => {

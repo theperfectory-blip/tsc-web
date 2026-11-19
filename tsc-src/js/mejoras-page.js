@@ -928,7 +928,7 @@ const PLAYERS_DEMO = [
     abilities:['playmaker','pkKick'],
     positions:[]}),
 
-  /* --- Suscriptores (4) — editable, con acceso al bono de 25k una vez agotado el general --- */
+  /* --- Suscriptores (4) — editable, con acceso al bono de suscriptores (solo jugadores $) --- */
   mkPlayer({id:'wwhite',name:'Walter White',dorsal:'99',posTag:'CT',bucket:'DE',locked:false,subscriber:true,country:'FK Tupadre',height:205,age:26,foot:'Der.',
     sec:{ment:85,cons:7,gk:85,teq:85,cond:8,wff:4,wfa:4,inj:'C'},
     stats:{atk:85,def:85,equ:85,res:85,vm:85,ace:85,rsp:85,agi:85,pcd:85,vcd:85,ppc:85,vpc:85,ppl:85,vpl:85,pre:85,pot:85,ted:85,psf:85,efe:85,cab:85,sal:85,tec:85,agr:85},
@@ -1111,7 +1111,7 @@ function pendingCostSinReservar(){
    su parte de suscriptores antes de repartir (mismo calculo que el envio). */
 function repartoDelPedidoNuevo(p, cost){
   const liberadoSub = pendientesMejoraDeJugador(p).reduce((s, x) => s + Number(x.fromSub || 0), 0);
-  return YUNACOINS_RULES.distribuirCosto(cost, Math.max(0, (APP.budget.subscribers || 0) + liberadoSub));
+  return YUNACOINS_RULES.distribuirCosto(cost, Math.max(0, (APP.budget.subscribers || 0) + liberadoSub), !!(p && p.subscriber));
 }
 /* Cambios del borrador respecto de lo PUBLICADO: es lo que lleva el pedido nuevo. */
 function cambiosDelBorrador(p, d){
@@ -1206,9 +1206,22 @@ function _carritoNeto(){
   return Math.max(0, _carritoCosto() - _carritoReservado());
 }
 function _carritoExcede(){
-  if (!_carritoActivo()) return false;
+  return _carritoFalta() > 0;
+}
+/* BONO-3: cuanto le sobra al carrito por encima de lo disponible. Cada jugador consume
+   su propio tope (el bono solo si tiene «$»), asi que se revisa el reparto completo:
+   general, bono y saldo. Lo que los pedidos reemplazados ya reservaban vuelve a estar libre. */
+function _carritoFalta(){
+  if (!_carritoActivo()) return 0;
   const neto = _carritoNeto();
-  return neto > 0 && neto > remainingForPlayer(currentPlayer());
+  if (!(neto > 0)) return 0;
+  const entradas = _carritoEntradas();
+  if (!entradas.length) return 0;
+  const rep = _repartoCarrito(entradas);
+  const faltaGeneral = rep.totalGeneral - (APP.budget.general || 0) - rep.liberadoGeneral;
+  const faltaBono = rep.totalSub - (APP.budget.subscribers || 0) - rep.liberadoSub;
+  const faltaSaldo = neto - (APP.saldo || 0);
+  return Math.max(0, faltaGeneral, faltaBono, faltaSaldo);
 }
 /* Guarda el borrador abierto en el carrito (si cambio respecto de su base) y persiste. */
 function guardarDraftActual(){
@@ -1322,8 +1335,9 @@ function pendingCostDe(p, d){
 function pendingCost(){
   return pendingCostDe(currentPlayer(), APP.draft);
 }
-/* techo de gasto del jugador (4.F + BONO-2): el bono es del EQUIPO, así que cualquier jugador
-   gasta del tope general + el bono. Acotado por el saldo real del equipo.
+/* techo de gasto del jugador (4.F + BONO-3): el bono solo lo puede usar un jugador
+   con «$» (suscriptor); el resto del plantel ve solo el tope general. Los dos quedan
+   acotados por el saldo real del equipo.
    Formula en YUNACOINS_RULES.bonoSuscriptor (ver cabecera de yunacoins-rules.js). APP.saldo ya
    descuenta lo reservado en pedidos pendientes. La edicion libre de la tool (equipo sin cobro)
    no tiene saldo que limite. */
@@ -1331,10 +1345,11 @@ function remainingForPlayer(p){
   if(!p) return 0;
   const cobra = !(EQUIPO_TSC && EQUIPO_TSC.cobra === false);
   const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
-  return YUNACOINS_RULES.bonoSuscriptor(pool);
+  return YUNACOINS_RULES.bonoSuscriptor(pool, !!p.subscriber);
 }
-/* saldo disponible EN VIVO — ya descuenta lo acumulado en TODO el carrito (el bono y el
-   general son del equipo), sin contar dos veces los pedidos pendientes que ya venian reservados */
+/* saldo disponible EN VIVO — ya descuenta lo acumulado en TODO el carrito (BONO-3: cada
+   jugador consume su propio tope, el bono solo si tiene «$»), sin contar dos veces los
+   pedidos pendientes que ya venian reservados */
 function remainingBalance(){ return remainingForPlayer(currentPlayer()) - (ADMIN_EMBED ? pendingCostSinReservar() : _carritoNeto()); }
 function canAfford(nextCost){ return nextCost <= remainingBalance(); }
 
@@ -1728,7 +1743,8 @@ function setHint(text){
 function _fmtYC(n){ return Math.max(0, Math.round(n || 0)).toLocaleString('es-CL'); }
 /* TOPE-1: el tope del equipo de la temporada es base + bono de suscriptores +
    tope extra (premio o reembolso): el bono y el extra AMPLÍAN el tope, no son
-   YunaCoins que se regalen (se pagan con el saldo del equipo). Los números
+   YunaCoins que se regalen (se pagan con el saldo del equipo). BONO-3: el tramo
+   del bono aclara que solo lo pueden usar los jugadores con «$». Los números
    salen de YUNACOINS_RULES: resumenPresupuesto (mismos del aviso grande) y
    bonoEquipo (regla por suscriptor × suscriptores del plantel). El desglose
    solo trae las partes que existen: sin suscriptores ni extra no hay desglose. */
@@ -1738,7 +1754,7 @@ function _topeEquipoDatos(){
   const bono = YUNACOINS_RULES.bonoEquipo(RULES, n);
   const partes = [];
   if (bono > 0 || r.extra > 0) partes.push('Base ' + _fmtYC(r.topeGeneral));
-  if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono));
+  if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono) + ' (solo jugadores $)');
   if (r.extra > 0) partes.push('Extra ' + _fmtYC(r.extra));   // sin motivo: Jimbo prefiere solo «Extra N»
   return { r: r, bono: bono, total: r.topeTotal + bono, desglose: partes.join(' + ') };
 }
@@ -1761,7 +1777,12 @@ function renderHero(){
   // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
   // edicion en curso todavia no esta aplicada, asi que se resta aparte.
   const saldoBruto = Math.max(0, APP.saldo || 0);
+  // BONO-3: el bono solo lo puede usar un jugador con «$». «Queda del tope» sigue
+  // mostrando el tope del EQUIPO (base + bono + extra); «Puedes gastar hasta» usa el
+  // techo del jugador abierto (general, o general + bono si es «$»).
+  const esSub = !!(currentPlayer() && currentPlayer().subscriber);
   const quedaBruto = r.restanteGeneral + r.restanteSub;
+  const topeJugador = r.restanteGeneral + (esSub ? r.restanteSub : 0);
   const saldo = Math.max(0, saldoBruto - cost);
   const queda = Math.max(0, quedaBruto - cost);
   document.getElementById('ep-hero-general-cap').textContent = _fmtYC(d.total);
@@ -1794,10 +1815,11 @@ function renderHero(){
       : '';
   }
   // «Disponible ahora» solo si el tope es el que limita; si limita el saldo, el
-  // numero ya esta en «Tu saldo» y no se repite (BONO-2).
-  const disponible = Math.max(0, Math.min(saldoBruto, quedaBruto) - cost);
+  // numero ya esta en «Tu saldo» y no se repite. BONO-3: el techo es el del
+  // jugador abierto (un jugador sin «$» no puede usar el bono).
+  const disponible = Math.max(0, Math.min(saldoBruto, topeJugador) - cost);
   const disp = document.getElementById('ep-disp');
-  if (disp) disp.hidden = !(quedaBruto < saldoBruto);
+  if (disp) disp.hidden = !(topeJugador < saldoBruto);
   const dv = document.getElementById('ep-disp-val');
   if (dv) dv.textContent = _fmtYC(disponible);
   // barra del tope del equipo: lo que queda sobre el tope TOTAL
@@ -1857,10 +1879,14 @@ function renderAviso(){
   // misma foto que el bloque de saldo: los tres números bajan en vivo con la
   // edición en curso (todavía no enviada), y «Esta edición» dice cuánto suma.
   const saldoBruto = r.saldoDisponible;
+  // BONO-3: «Queda del tope» es del EQUIPO; «Disponible ahora» es el techo del
+  // jugador abierto (el bono solo lo usa un jugador con «$»).
+  const esSub = !!(currentPlayer() && currentPlayer().subscriber);
   const quedaBruto = r.restanteGeneral + r.restanteSub;
+  const topeJugador = r.restanteGeneral + (esSub ? r.restanteSub : 0);
   const saldo = Math.max(0, saldoBruto - cost);
   const queda = Math.max(0, quedaBruto - cost);
-  const disponible = Math.max(0, Math.min(saldoBruto, quedaBruto) - cost);
+  const disponible = Math.max(0, Math.min(saldoBruto, topeJugador) - cost);
   el.className = 'ep-aviso';
   el.innerHTML = `
     <div class="ep-aviso-hd"><span class="ep-aviso-lbl">Presupuesto de la temporada</span>${ADMIN_EMBED ? `<span class="ep-aviso-team">${escHtml(e.name || '')}</span>` : ''}</div>
@@ -1882,7 +1908,7 @@ function renderAviso(){
       <div class="ep-aviso-cell ep-aviso-disp">
         <span class="ep-aviso-k">Disponible ahora</span>
         <span class="ep-aviso-saldo"><b class="ep-aviso-n">${fmt(disponible)}</b><span class="ep-aviso-u">YC</span></span>
-        <span class="ep-aviso-note">${saldoBruto < quedaBruto ? 'Limita tu saldo' : 'Limita el tope'}</span>
+        <span class="ep-aviso-note">${saldoBruto < topeJugador ? 'Limita tu saldo' : 'Limita el tope'}</span>
       </div>
     </div>
     <div class="ep-aviso-cost">${costPedido > 0
@@ -1938,7 +1964,7 @@ function renderCart(){
     ? ''
     : (excede ? 'El carrito supera el saldo disponible' : (entradas.length ? 'Revisar y mandar todos los cambios en espera' : ''));
   document.getElementById('ep-warn').textContent = excede
-    ? 'El carrito supera lo disponible: quita ' + (neto - remainingForPlayer(p)).toLocaleString('es-CL') + ' YC.'
+    ? 'El carrito supera lo disponible: quita ' + _carritoFalta().toLocaleString('es-CL') + ' YC.'
     : '';
 }
 
@@ -2176,7 +2202,8 @@ function openApplyConfirm(){
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
 /* ================= CARRO1 · «Revisar todo» (todos los jugadores en espera) =================
-   Reparto bono/general del carrito: el bono se consume primero, en el orden del plantel, con
+   Reparto bono/general del carrito: el bono se consume primero, en el orden del plantel, pero
+   SOLO los jugadores con «$» usan el bono (BONO-3); cada uno usa su propio `subscriber` con
    YUNACOINS_RULES.distribuirCosto (igual que la Tool). Al reemplazar pedidos pendientes se
    libera antes su parte de suscriptores. */
 function _repartoCarrito(entradas){
@@ -2184,7 +2211,7 @@ function _repartoCarrito(entradas){
   const liberadoSub = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromSub || 0), 0), 0);
   let subsRestantes = Math.max(0, (APP.budget.subscribers || 0) + liberadoSub);
   const filas = entradas.map(e => {
-    const r = YUNACOINS_RULES.distribuirCosto(e.costo, subsRestantes);
+    const r = YUNACOINS_RULES.distribuirCosto(e.costo, subsRestantes, !!(e.p && e.p.subscriber));
     subsRestantes = Math.max(0, subsRestantes - r.fromSub);
     return Object.assign({}, e, { fromGeneral: r.fromGeneral, fromSub: r.fromSub });
   });
@@ -2220,7 +2247,7 @@ function openReviewAll(){
     return;
   }
   if (_carritoExcede()){
-    const falta = _carritoNeto() - remainingForPlayer(currentPlayer());
+    const falta = _carritoFalta();
     showMiniToast('El carrito supera el saldo disponible: quita ' + falta.toLocaleString('es-CL') + ' YC.');
     return;
   }
@@ -2325,9 +2352,13 @@ async function commitCarrito(){
   const rep = _repartoCarrito(filas.map(f => ({ p: f.p, d: f.d, costo: f.costo })));
   filas.forEach((f, i) => { f.fromGeneral = rep.filas[i].fromGeneral; f.fromSub = rep.filas[i].fromSub; });
   const neto = Math.max(0, rep.totalCost - rep.liberadoGeneral - rep.liberadoSub);
-  if (neto > remainingForPlayer(currentPlayer())){
+  // BONO-3: cada jugador ya trae su reparto (el bono solo si tiene «$»); se revisan los tres topes.
+  const excedeGeneral = rep.totalGeneral > (APP.budget.general || 0) + rep.liberadoGeneral;
+  const excedeBono = rep.totalSub > (APP.budget.subscribers || 0) + rep.liberadoSub;
+  const excedeSaldo = neto > (APP.saldo || 0);
+  if (excedeGeneral || excedeBono || excedeSaldo){
     closeApplyConfirm();
-    showMiniToast('El carrito supera el saldo disponible: quita cambios antes de enviarlo.');
+    showMiniToast('El carrito supera lo disponible: quita cambios antes de enviarlo.');
     return;
   }
   const btn = document.querySelector('#ep-confirm-wrap .ep-btn.primary');
