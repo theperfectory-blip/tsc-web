@@ -1310,7 +1310,7 @@ function emparejarBtnHTML(p){
   </div>`;
 }
 function solicitarEmparejar(playerId){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   if (ADMIN_EMBED) return;
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);
@@ -1346,7 +1346,7 @@ function solicitarEmparejar(playerId){
   </div>`;
 }
 async function confirmarSolicitarEmparejar(playerId){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   closeApplyConfirm();
   const p = PLAYER_BY_ID[playerId];
   const motivo = motivoNoEmparejar(p);   // se vuelve a comprobar al enviar
@@ -1713,6 +1713,7 @@ function renderCart(){
 }
 
 function discardChanges(){
+  if (_bloqueadoPorPausa()) return;
   loadDraft();
   renderCard();   // la ficha (casilla de altura) vuelve al jugador
   renderRows();
@@ -1763,7 +1764,7 @@ function pendingChangeLines(){
 /* ================= modal: confirmar aplicar ================= */
 
 function openApplyConfirm(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const lines = pendingChangeLines();
   if(lines.length===0){
@@ -1835,7 +1836,7 @@ async function _refrescarPendientes(){
 }
 
 async function commitChanges(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   if (ADMIN_EMBED) return commitChangesAdmin();
   if (APP.bloqueoPorAplicado){ closeApplyConfirm(); showMiniToast('Luis aplicó cambios que todavía no publicó: espera a que publique para pedir más.'); return; }
   const p = currentPlayer();
@@ -2109,7 +2110,7 @@ let FORM_CMP = null;  // { slot, entra, prev:{sel,armado,banca,verId} } con el p
 let FORM_CMP_HTML = ''; // ultimo HTML pintado del panel: no se rehace en cada render
 
 function openFormationModal(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   if (PLAYERS.length < FORMATION_COORDS.length){
     showMiniToast('El plantel todavía no tiene 11 jugadores para armar la formación.');
     return;
@@ -2257,6 +2258,7 @@ function _formPuedeIntercambiar(a, b){
   return a !== b && !!FORM.draft[a] && !!FORM.draft[b] && _formEsArqueroSlot(a) === _formEsArqueroSlot(b);
 }
 function intercambiarTitulares(a, b){
+  if (_bloqueadoPorPausa()) return;
   const nombre = id => (PLAYER_BY_ID[id] && PLAYER_BY_ID[id].name) || 'Jugador';
   const idA = FORM.draft[a].id, idB = FORM.draft[b].id;
   const tmp = FORM.draft[a].id;
@@ -2268,6 +2270,7 @@ function intercambiarTitulares(a, b){
 }
 /* El jugador id ocupa el lugar i; el que estaba en ese lugar queda fuera del 11 (banca). */
 function _formEntrar(id, i){
+  if (_bloqueadoPorPausa()) return;
   const nombre = pid => (PLAYER_BY_ID[pid] && PLAYER_BY_ID[pid].name) || 'Jugador';
   const sale = FORM.draft[i].id;
   _formCambiarEnBanca(id, sale);
@@ -2284,6 +2287,7 @@ function _formMensajeIlegal(id){
 }
 /* Toque en un jugador del 11 (cancha o lista). Devuelve true si cambio la formacion. */
 function formacionTocarTitular(i){
+  if (_bloqueadoPorPausa()) return false;
   if (!FORM.draft[i]) return false;
   // 1) hay un suplente armado: entra en este lugar
   if (FORM.banca){
@@ -2310,6 +2314,7 @@ function formacionTocarTitular(i){
 }
 /* Toque en un jugador de la lista (data-jugador). Los que estan en el 11 van por formacionTocarTitular. */
 function formacionTocarBanca(el){
+  if (_bloqueadoPorPausa()) return;
   const id = el && el.dataset ? el.dataset.jugador : null;
   if (!id || !PLAYER_BY_ID[id]) return;
   const i = _formIdxDeId(id);
@@ -2336,6 +2341,7 @@ function formacionTocarBanca(el){
    inversa, asi que la banca vuelve a como estaba). Un par anterior no se quita: quitarlo cambiaria el orden de los
    demas intercambios que se aplican despues. */
 function _formSwapBanca(a, b){
+  if (_bloqueadoPorPausa()) return;
   const ia = FORM.bancaOrden.indexOf(a), ib = FORM.bancaOrden.indexOf(b);
   if (ia < 0 || ib < 0 || ia === ib) return;
   const ultimo = FORM.bancaPares[FORM.bancaPares.length - 1];
@@ -2411,6 +2417,7 @@ function mejCmpVolver(){
    cambio en dos toques (_formEntrar: respeta la regla del arquero y bancaSwaps, y avisa
    «Entra X, sale Y»). */
 function mejCmpConfirmar(){
+  if (_bloqueadoPorPausa()) return;
   if (!FORM_CMP) return;
   const slot = FORM_CMP.slot, entra = FORM_CMP.entra;
   FORM_CMP = null; FORM_CMP_HTML = '';
@@ -2534,6 +2541,7 @@ function _formProgramarRender(){
 }
 function _formPointerDown(e){
   if (e.button !== 0 || FORM_DRAG || FORM_CMP) return;
+  if (_bloqueadoPorPausa()) return;   // PAUSA-2: con la pausa no se mueve ningun jugador
   const campo = e.currentTarget;
   let mejor = -1, mejorDist = Infinity;
   FORM.draft.forEach((slot, i) => {
@@ -2565,6 +2573,8 @@ function _formPointerDown(e){
 function _formPointerMove(e){
   const d = FORM_DRAG;
   if (!d || e.pointerId !== d.id) return;
+  // PAUSA-2: si la pausa empieza con un arrastre en curso, el gesto se corta (un solo aviso).
+  if (_bloqueadoPorPausa()){ FORM_DRAG = null; return; }
   if (!d.activo){
     if (Math.hypot(e.clientX - d.inicioX, e.clientY - d.inicioY) < 4) return; // temblor, no es arrastre
     d.activo = true;
@@ -2807,6 +2817,7 @@ function ajustarPosicionAlMover(slot){
   return false; // la linea de destino ya esta llena
 }
 function setFormationPos(valor){
+  if (_bloqueadoPorPausa()) return;
   const slot = FORM.draft[FORM.sel];
   if (!slot || !valor) return;
   const antes = contarLineas(FORM.draft);
@@ -2825,6 +2836,7 @@ function setFormationPos(valor){
 }
 function selectFormationPlayer(i){ FORM.sel = i; renderFormationModal(); }
 function cycleFormationPlayer(delta){
+  if (_bloqueadoPorPausa()) return;
   FORM.sel = (FORM.sel + delta + FORM.draft.length) % FORM.draft.length;
   renderFormationModal();
 }
@@ -2833,6 +2845,7 @@ function cycleFormationPlayer(delta){
    FORM.motivo y muestra el toast (salvo {silencioso:true}, que usa el arrastre:
    ese muestra un solo toast al soltar). No renderiza: lo hace quien llama. */
 function moveFormationDotTo(x, y, opciones){
+  if (_bloqueadoPorPausa()) return false;
   const silencioso = !!(opciones && opciones.silencioso);
   const slot = FORM.draft[FORM.sel];
   const fallo = (msg) => {
@@ -2878,6 +2891,7 @@ function moveFormationScreen(dir){
   moveFormationDot(dx, dy);
 }
 function resetFormationDraft(){
+  if (_bloqueadoPorPausa()) return;
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
   completarPosiciones();
@@ -2896,7 +2910,7 @@ function _nombreFormacionDraft(draft){
 /* Opcion B: el presidente manda la formacion como pedido y la Tool la
    escribe en el save. No cuesta YunaCoins. */
 async function confirmFormation(){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
   const error = validarFormacion(FORMATION);
   if (error){ showMiniToast('Formación inválida: ' + error + '.'); return; }
@@ -3027,6 +3041,7 @@ function _altEnlazar(){
 }
 function _altTecla(e){ if (e.key === 'Escape') mejCerrarAltura(); }
 function mejAbrirAltura(){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const wrap = document.getElementById('ep-alt-wrap');
   if (!p || !wrap || p.heightFixed) return;
@@ -3068,6 +3083,7 @@ function mejCerrarAltura(){
    lleno entre el resto del plantel — moverse dentro del mismo tramo, o a uno
    sin tope, siempre esta permitido. */
 function adjustHeight(delta){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   if(p.heightFixed) return;
   const cur = APP.draft.height;
@@ -3088,7 +3104,7 @@ function adjustHeight(delta){
 }
 
 function adjustMain(key,delta){
-  if (_pausadasAhora()){ showMiniToast(MSG_PAUSA); return; }
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   APP.hint = MAIN_BY_KEY[key].d;
   _pintarHint(APP.hint);
@@ -3106,6 +3122,7 @@ function adjustMain(key,delta){
   renderRows(); renderCart();
 }
 function adjustSec(key,delta){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const def = SEC_NEW.find(s=>s.k===key);
   APP.hint = def.d;
@@ -3128,6 +3145,7 @@ function adjustSec(key,delta){
   renderRows(); renderCart();
 }
 function adjustInjury(delta){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   APP.hint = INJ_DEF.d;
   _pintarHint(APP.hint);
@@ -3144,6 +3162,7 @@ function adjustInjury(delta){
   renderRows(); renderCart();
 }
 function toggleAbility(key){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   // Marca la fila como seleccionada igual que adjustMain/adjustSec: la fila activa
   // se decide comparando APP.hint con la descripcion de la fila.
@@ -3157,6 +3176,7 @@ function toggleAbility(key){
   renderRows(); renderCart();
 }
 function togglePosition(key){
+  if (_bloqueadoPorPausa()) return;
   const p = currentPlayer();
   const d = APP.draft;
   const on = d.positions[key];
@@ -3217,14 +3237,17 @@ function mejVerPosicion(key){
 const FOOT_LABEL = { D: 'Der.', I: 'Izq.' };
 const SIDE_LABEL = { D: 'Der.', I: 'Izq.', A: 'Ambas' };
 function setFavFoot(v){
+  if (_bloqueadoPorPausa()) return;
   APP.draft.favfoot = v;
   renderCard(); renderRows(); renderCart(); // la tarjeta muestra el pie elegido y el boton de guardar se reevalua
 }
 function setSide(v){
+  if (_bloqueadoPorPausa()) return;
   APP.draft.side = v;
   renderCard(); renderRows(); renderCart();
 }
 function setPrimaryPos(k){
+  if (_bloqueadoPorPausa()) return;
   if(!APP.draft.positions[k]) return;
   APP.draft.primaryPos = k;
   APP.posSel = k;
@@ -3695,13 +3718,23 @@ let _opciones = {};       // opciones de montar(): onAplicar / onCerrar (modo ad
 let _observers = [];      // MutationObserver de los contenedores de los modales
 
 /* ================= PAUSA-1: pausa de mejoras (lectura en vivo, sin recargar) =================
-   Luis pausa las mejoras mientras edita el save (pes5_config/pausa). Con la pausa: aviso arriba,
-   los botones de enviar, confirmar, emparejar y formacion quedan deshabilitados, y no se arma el carrito.
-   Al reanudar se habilita solo. El servidor tambien rechaza el pedido (regla de create). */
+   Luis pausa las mejoras mientras edita el save (pes5_config/pausa). Con la pausa el editor queda
+   en solo lectura (PAUSA-2): aviso arriba y ninguna funcion que modifique el borrador, la
+   formacion, la banca o mande un pedido hace su trabajo. Al reanudar se habilita solo.
+   El servidor tambien rechaza el pedido (regla de create). */
 let PAUSA = null;      // { pausado } de pes5_config/pausa; null hasta leerlo
 let _pausaUnsub = null;
-const MSG_PAUSA = 'Las mejoras están pausadas mientras Luis actualiza el juego. Vuelve más tarde.';
+const MSG_PAUSA = 'Mejoras pausadas: Luis está actualizando el juego. Puedes mirar, pero no editar.';
 function _pausadasAhora(){ return !ADMIN_EMBED && !!(PAUSA && PAUSA.pausado); }
+/* PAUSA-2: punto de control unico. Devuelve true (y avisa con el toast) cuando la accion queda
+   bloqueada por la pausa. Se llama al inicio de toda funcion que modifique el borrador del
+   jugador, la formacion, la alineacion o la banca, o que mande un pedido. En la Tool del admin
+   no hay pausa: _pausadasAhora() ya devuelve false con ADMIN_EMBED. */
+function _bloqueadoPorPausa(){
+  if (!_pausadasAhora()) return false;
+  showMiniToast(MSG_PAUSA);
+  return true;
+}
 function iniciarPausa(){
   if (ADMIN_EMBED || _pausaUnsub || typeof firebase === 'undefined') return;
   try {
@@ -3720,8 +3753,13 @@ function aplicarPausa(){
     av = document.createElement('div');
     av.id = 'ep-pausa-aviso';
     av.className = 'ep-pausa-aviso';
-    const pend = document.getElementById('ep-pend');
-    if (pend && pend.parentNode) pend.parentNode.insertBefore(av, pend);
+    // PAUSA-2: arriba del layout y fuera de las dos vistas del telefono, asi el aviso se ve
+    // igual mirando la plantilla o el editor de un jugador.
+    const shell = document.getElementById('ep-shell');
+    const layout = shell && shell.querySelector('.ep-layout');
+    if (layout && layout.parentNode) layout.parentNode.insertBefore(av, layout);
+    else if (shell && shell.firstChild) shell.insertBefore(av, shell.firstChild);
+    else return;   // el editor todavia no esta montado
   }
   av.hidden = false;
   av.innerHTML = `<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg><span>${escHtml(MSG_PAUSA)}</span>`;
@@ -3766,6 +3804,7 @@ function montar(contenedor, opciones){
     iniciarModoAdmin(opciones);
   } else {
     window.addEventListener('tsc:auth', _alCambiarAuthPresidente);
+    aplicarPausa(); // PAUSA-2: si ya estaba pausado al montar, el aviso y el solo lectura quedan puestos
   }
 }
 

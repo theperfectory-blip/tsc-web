@@ -329,6 +329,7 @@
 /* ---- escritorio (>= 860 px): dos columnas, la plantilla a la izquierda ---- */
 @media (min-width:860px){
 .ep-root .ep-top{padding:0 24px;}
+.ep-root .ep-pausa-aviso{margin:16px 24px 0;}
 .ep-root .ep-hint{position:static;bottom:auto;border:1px solid var(--brd);border-radius:10px;background:var(--card);padding:8px 12px;}
 .ep-root .ep-layout{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:24px;padding:24px;align-items:start;}
 .ep-root .ep-roster{position:sticky;top:84px;}
@@ -677,14 +678,29 @@ html.ep-lock body{overflow:hidden;}
   letter-spacing:0.8px;text-transform:uppercase;cursor:pointer;}
 .ep-root .ep-hint-btn:hover{filter:brightness(1.12);}
 
-/* PAUSA-1: mejoras pausadas (aviso arriba; acciones deshabilitadas) */
-.ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;}
+/* PAUSA-1 / PAUSA-2: mejoras pausadas. El editor queda en solo lectura: aviso arriba y todos
+   los controles de edicion apagados, sin clics. Siguen funcionando la lista de jugadores, el
+   paginado, Pedidos (historial), el tema, descargar el save y cerrar los modales. */
+.ep-root .ep-pausa-aviso{display:flex;align-items:center;gap:10px;margin:14px 14px 0;padding:10px 14px;border-radius:12px;border:1px solid var(--gold-b);background:var(--gold-l);color:var(--txt);font-size:13px;line-height:1.35;}
 .ep-root .ep-pausa-aviso[hidden]{display:none;}
 .ep-root .ep-pausa-aviso svg{width:18px;height:18px;flex:none;color:var(--gold);}
-.ep-root.ep-pausado [data-onclick*="openApplyConfirm"],
-.ep-root.ep-pausado [data-onclick*="openFormationModal"],
-.ep-root.ep-pausado [data-onclick*="adjustMain"],
-.ep-root.ep-pausado [data-onclick*="commitChanges"],
-.ep-root.ep-pausado [data-onclick*="confirmFormation"],
-.ep-root.ep-pausado [data-onclick*="solicitarEmparejar"],
-.ep-root.ep-pausado [data-onclick*="confirmarSolicitarEmparejar"]{pointer-events:none;opacity:.45;}
+.ep-root.ep-pausado .ep-casilla-btn,                 /* casilla de altura (abre su hoja) */
+.ep-root.ep-pausado .ep-alt-btn,                     /* -/+ de la hoja de altura */
+.ep-root.ep-pausado .ep-rstep,                       /* +/- de atributos, secundarios y lesiones */
+.ep-root.ep-pausado .ep-rfoot,                        /* pie dominante y banda */
+.ep-root.ep-pausado .ep-hab-estrella,                 /* habilidades especiales */
+.ep-root.ep-pausado .ep-pos-star,                     /* posiciones */
+.ep-root.ep-pausado .ep-hint-btn,                     /* «Hacer principal» */
+.ep-root.ep-pausado .ep-cart-btn,                     /* descartar cambios */
+.ep-root.ep-pausado .ep-cart-go,                      /* «Revisar» / «Enviar» */
+.ep-root.ep-pausado .ep-emparejar-btn,                /* «Emparejar» */
+.ep-root.ep-pausado .ep-acc.formation,                /* abrir la formacion */
+.ep-root.ep-pausado .ep-pitch-field,                  /* cancha: mover y elegir jugadores */
+.ep-root.ep-pausado .ep-pitch-possel,                 /* posicion del jugador en la cancha */
+.ep-root.ep-pausado .ep-pitch-selctl .ep-pgbtn,       /* jugador anterior / siguiente */
+.ep-root.ep-pausado .ep-form-bench,                   /* banca y reservas */
+.ep-root.ep-pausado .mc-btn-go,                       /* «Hacer el cambio» del panel comparar */
+.ep-root.ep-pausado [data-onclick*="commitChanges"],  /* enviar el pedido */
+.ep-root.ep-pausado [data-onclick*="confirmarSolicitarEmparejar"],
+.ep-root.ep-pausado [data-onclick*="resetFormationDraft"],
+.ep-root.ep-pausado [data-onclick*="confirmFormation"]{opacity:.45;pointer-events:none;cursor:not-allowed;}
