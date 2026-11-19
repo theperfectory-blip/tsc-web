@@ -278,3 +278,115 @@
 .confirm-box .pt-aviso.fuerte{border-color:var(--red);background:transparent;color:var(--red);}
 .confirm-box .pt-aviso svg.icn{flex:0 0 auto;margin-top:2px;}
 .confirm-box .pt-chk{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:14px;color:var(--txt);}
+
+/* ============================================================
+   PEDPC — Pedidos en escritorio.
+   Lista en tabla (casilla · equipo · pedidos · tipos · costo) a la izquierda y
+   panel fijo de selección a la derecha. A partir de 861 px; por debajo queda el
+   acordeón de una columna de siempre. Los colores de los chips salen de estos
+   tokens, con su versión de modo claro.
+   ============================================================ */
+#page-pes5-admin{
+  --pt-chip-mejoras:var(--gold);
+  --pt-chip-mejoras-bg:var(--gold-l);
+  --pt-chip-mejoras-brd:var(--gold-b);
+  --pt-chip-alineacion:#7EB0FF;
+  --pt-chip-alineacion-bg:rgba(59,130,246,0.14);
+  --pt-chip-alineacion-brd:rgba(59,130,246,0.38);
+  --pt-chip-formacion:#46D98A;
+  --pt-chip-formacion-bg:rgba(37,168,100,0.14);
+  --pt-chip-formacion-brd:rgba(37,168,100,0.4);
+  --pt-chip-emparejar:#B49CFA;
+  --pt-chip-emparejar-bg:rgba(139,92,246,0.15);
+  --pt-chip-emparejar-brd:rgba(139,92,246,0.42);
+}
+[data-theme="light"] #page-pes5-admin{
+  --pt-chip-mejoras:var(--gold-ink);
+  --pt-chip-mejoras-bg:rgba(201,168,76,0.14);
+  --pt-chip-mejoras-brd:rgba(122,95,30,0.35);
+  --pt-chip-alineacion:#1D4ED8;
+  --pt-chip-alineacion-bg:rgba(59,130,246,0.1);
+  --pt-chip-alineacion-brd:rgba(29,78,216,0.3);
+  --pt-chip-formacion:#166F42;
+  --pt-chip-formacion-bg:rgba(37,168,100,0.1);
+  --pt-chip-formacion-brd:rgba(22,111,66,0.3);
+  --pt-chip-emparejar:#6D28D9;
+  --pt-chip-emparejar-bg:rgba(139,92,246,0.1);
+  --pt-chip-emparejar-brd:rgba(109,40,217,0.3);
+}
+#page-pes5-admin .pt-ped-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;
+  border:1px solid transparent;font-size:11px;font-weight:600;line-height:1;white-space:nowrap;
+  font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-chip b{font-weight:700;}
+#page-pes5-admin .pt-ped-chip.pt-tipo-mejoras{color:var(--pt-chip-mejoras);background:var(--pt-chip-mejoras-bg);border-color:var(--pt-chip-mejoras-brd);}
+#page-pes5-admin .pt-ped-chip.pt-tipo-alineacion{color:var(--pt-chip-alineacion);background:var(--pt-chip-alineacion-bg);border-color:var(--pt-chip-alineacion-brd);}
+#page-pes5-admin .pt-ped-chip.pt-tipo-formacion{color:var(--pt-chip-formacion);background:var(--pt-chip-formacion-bg);border-color:var(--pt-chip-formacion-brd);}
+#page-pes5-admin .pt-ped-chip.pt-tipo-emparejar{color:var(--pt-chip-emparejar);background:var(--pt-chip-emparejar-bg);border-color:var(--pt-chip-emparejar-brd);}
+
+#page-pes5-admin .pt-ped-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start;}
+#page-pes5-admin .pt-ped-main{min-width:0;}
+#page-pes5-admin .pt-ped-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+#page-pes5-admin .pt-ped-bar-txt{font-size:12px;color:var(--txt3);font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-todo{display:inline-flex;align-items:center;gap:6px;flex:none;}
+#page-pes5-admin .pt-ped-side{position:sticky;top:14px;display:flex;flex-direction:column;gap:12px;
+  padding:14px;background:var(--card);border:1px solid var(--brd2);border-radius:var(--rl);
+  max-height:calc(100vh - 28px);overflow:auto;}
+#page-pes5-admin .pt-ped-side-title{font-family:'Bebas Neue';font-size:19px;letter-spacing:0.5px;margin:0;}
+#page-pes5-admin .pt-ped-res{display:flex;flex-direction:column;gap:6px;}
+#page-pes5-admin .pt-ped-res-line{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:12.5px;color:var(--txt2);}
+#page-pes5-admin .pt-ped-res-line b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-res-total{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:2px;padding-top:8px;border-top:1px solid var(--brd);font-size:13px;color:var(--txt2);}
+#page-pes5-admin .pt-ped-res-total b{font-family:'Bebas Neue';font-size:22px;color:var(--gold-ink);}
+#page-pes5-admin .pt-ped-cerrado{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;
+  font-size:13px;color:var(--txt2);background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
+#page-pes5-admin .pt-ped-cerrado input{width:16px;height:16px;margin:0;flex:none;accent-color:var(--gold);cursor:pointer;}
+#page-pes5-admin .pt-ped-side .btn{justify-content:center;}
+#page-pes5-admin .pt-ped-side .pt-log{margin-top:0;max-height:190px;}
+#page-pes5-admin .pt-ped-side .pt-log:empty{display:none;}
+
+@media(min-width:861px){
+#page-pes5-admin .pt-ped-head,
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-hd{display:grid;align-items:center;gap:8px;padding:0 12px;
+  grid-template-columns:26px minmax(0,1fr) 64px minmax(0,1.1fr) 84px;}
+#page-pes5-admin .pt-ped-head{min-height:30px;font-family:'Barlow Condensed';font-weight:700;font-size:11px;
+  letter-spacing:1px;text-transform:uppercase;color:var(--txt3);}
+#page-pes5-admin .pt-ped-head span:nth-child(3),
+#page-pes5-admin .pt-ped-head span:nth-child(5){text-align:right;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-hd{min-height:46px;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-toggle{padding:10px 0;min-height:44px;flex-wrap:nowrap;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-meta{display:none;}
+#page-pes5-admin .pt-ped-team-cant{font-size:12.5px;color:var(--txt2);text-align:right;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-team-tipos{display:flex;flex-wrap:wrap;gap:4px;min-width:0;}
+#page-pes5-admin .pt-ped-team-costo{font-size:12.5px;color:var(--txt);text-align:right;white-space:nowrap;
+  font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-body{display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px;padding:10px;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-team-body[hidden]{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle{min-height:36px;cursor:default;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle .pt-ped-chev{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-body{display:flex;flex-direction:column;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-row{display:grid;align-items:center;gap:8px;padding:6px 10px;
+  grid-template-columns:18px minmax(0,1.05fr) minmax(0,1.7fr) 74px 30px;}
+#page-pes5-admin .pt-ped-det-uno{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:12px;color:var(--txt3);}
+#page-pes5-admin .pt-ped-rech-icn{justify-self:end;display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;padding:0;background:transparent;border:1px solid transparent;color:var(--txt3);}
+#page-pes5-admin .pt-ped-rech-icn:hover{color:var(--red);border-color:var(--red);background:var(--red-l);}
+#page-pes5-admin .pt-ped-rech-icn .icn{width:14px;height:14px;}
+}
+@media(max-width:860px){
+#page-pes5-admin .pt-ped-layout{grid-template-columns:1fr;}
+#page-pes5-admin .pt-ped-side{position:static;max-height:none;overflow:visible;}
+#page-pes5-admin .pt-ped-head{display:none;}
+#page-pes5-admin .pt-ped-team-cant,
+#page-pes5-admin .pt-ped-team-tipos,
+#page-pes5-admin .pt-ped-team-costo{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle{cursor:pointer;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-body{display:none;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-type-toggle[aria-expanded="true"] + .pt-ped-type-body{display:flex;flex-direction:column;}
+#page-pes5-admin .pt-ped-acc--escritorio .pt-ped-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;}
+#page-pes5-admin .pt-ped-det-uno{flex:1 1 100%;min-width:0;font-size:12px;color:var(--txt3);}
+#page-pes5-admin .pt-ped-rech-icn{width:auto;height:auto;padding:4px 8px;}
+}

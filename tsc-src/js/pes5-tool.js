@@ -1651,16 +1651,34 @@ async function renderPedidosTab(opts){
        <div class="pt-status-item" style="margin-bottom:12px;">${ICN.alert} Los pedidos se aplican desde la PC con el save abierto.</div>`
     : `<div style="margin-bottom:10px;">Pedidos pendientes de los presidentes. Se cobran recién al aplicarlos, con los precios y el save de este momento.</div>
        ${PLANO ? '' : `<div class="pt-status-item">${ICN.alert} Carga el save para poder aplicar.</div>`}`;
-  const aplicar = movil ? '' : `
-    <label style="display:flex;gap:6px;align-items:center;margin:10px 0;font-size:13px;">
-      <input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado
-    </label>
-    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>`;
+  if (movil){
+    cont.innerHTML = `
+      ${intro}
+      <div class="pt-ped-acc">${acordeon}</div>
+      <div class="pt-log" id="ped-log"></div>`;
+    _despuesDeRenderPedidos(movil, opts);
+    return;
+  }
+  // PEDPC: en escritorio, lista en tabla a la izquierda y panel fijo de selección a la derecha.
+  // En angosto (≤ 860 px) el CSS apila todo en una columna y oculta el encabezado de la tabla.
+  const nEquipos = grupos.length, nPedidos = PEDIDOS_PENDIENTES.length;
   cont.innerHTML = `
     ${intro}
-    <div class="pt-ped-acc">${acordeon}</div>
-    ${aplicar}
-    <div class="pt-log" id="ped-log"></div>
+    <div class="pt-ped-layout">
+      <div class="pt-ped-main">
+        <div class="pt-ped-bar">
+          <span class="pt-ped-bar-txt">${nEquipos} ${nEquipos === 1 ? 'equipo' : 'equipos'} · ${nPedidos} ${nPedidos === 1 ? 'pedido' : 'pedidos'}</span>
+          <button type="button" class="btn btn-sm pt-ped-todo" id="btn-ped-todo" data-estado="cerrado" data-onclick="ptPedAlternarTodo(this)">${PT_PED_ICON.abrir} Abrir todo</button>
+        </div>
+        <div class="pt-ped-acc pt-ped-acc--escritorio">
+          <div class="pt-ped-head" aria-hidden="true">
+            <span></span><span>Equipo</span><span>Pedidos</span><span>Tipos</span><span>Costo</span>
+          </div>
+          ${acordeon}
+        </div>
+      </div>
+      ${_ptPanelHTML()}
+    </div>
     ${bloquePub}`;
   _despuesDeRenderPedidos(movil, opts);
 }
@@ -1674,6 +1692,10 @@ const PT_PED_TIPOS = [
   { key: 'formacion', label: 'Formación' },
   { key: 'emparejar', label: 'Emparejar' },
 ];
+const PT_PED_ICON = {
+  abrir: '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 6 12 11 17 6"/><polyline points="7 13 12 18 17 13"/></svg>',
+  cerrar: '<svg class="icn" viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 11 12 6 17 11"/><polyline points="7 18 12 13 17 18"/></svg>',
+};
 function _ptClaveEquipo(p){
   return p.teamId != null && p.teamId !== '' ? String(p.teamId) : 'n:' + String(p.teamName || 'sin-equipo');
 }
@@ -1727,6 +1749,74 @@ function _ptLineasPedido(p){
         : `Formación ${escHtml((p.formacion && p.formacion.nombre) || '')}`)
     : (p.lines || []).map(l => `${escHtml(l.label)} ${escHtml(l.from)} → ${escHtml(l.to)}`).join('<br>');
 }
+/* PEDPC: el detalle en texto plano (sin HTML) para la fila compacta de escritorio. */
+function _ptDetalleTexto(p){
+  const trozos = [];
+  if (p.tipo === 'formacion'){
+    if (p.lines && p.lines.length){
+      for (const l of p.lines) trozos.push(l.from ? `${l.label}: ${l.from} → ${l.to}` : `${l.label}: ${l.to}`);
+    } else if (p.formacion && p.formacion.nombre){
+      trozos.push('Formación ' + p.formacion.nombre);
+    }
+  } else {
+    for (const l of (p.lines || [])) trozos.push(`${l.label} ${l.from} → ${l.to}`);
+  }
+  return trozos.join(' · ');
+}
+/* PEDPC: chips de colores por tipo en la fila del equipo (escritorio). */
+function _ptChipsTipoHTML(g){
+  return g.tipos.map(t => `<span class="pt-ped-chip pt-tipo-${t.key}">${escHtml(t.label)} <b>${t.pedidos.length}</b></span>`).join('');
+}
+/* PEDPC: panel derecho con el resumen de la selección, la confirmación de PES5 cerrado,
+   el botón de aplicar y el log de la última aplicación (mismo #ped-log de siempre). */
+function _ptPanelHTML(){
+  return `<aside class="pt-ped-side" aria-label="Pedidos seleccionados">
+    <h3 class="pt-ped-side-title">Selección</h3>
+    <div class="pt-ped-res">
+      <div class="pt-ped-res-line"><span>Pedidos seleccionados</span><b id="ped-sel-n">0</b></div>
+      <div class="pt-ped-res-line"><span>Equipos seleccionados</span><b id="ped-sel-equipos">0</b></div>
+      <div class="pt-ped-res-total"><span>Total a cobrar</span><b id="ped-sel-total">gratis</b></div>
+    </div>
+    <label class="pt-ped-cerrado"><input type="checkbox" id="ped-cerrado" data-onchange="ptHabilitarAplicarPedidos(this)"> PES5 está cerrado</label>
+    <button class="btn btn-primary btn-sm" id="btn-aplicar-pedidos" disabled data-onclick="ptAplicarPedidosSeleccionados()">${ICN.save} ${PES5_SAVE.tieneSoporte() ? 'Aplicar seleccionados' : 'Aplicar y descargar save'}</button>
+    <div class="pt-log" id="ped-log"></div>
+  </aside>`;
+}
+/* PEDPC: resumen de lo marcado, con las mismas casillas .ped-sel que aplica
+   aplicarPedidosSeleccionados (no se toca esa función). */
+function _ptResumenSeleccion(){
+  const ids = new Set(Array.from(document.querySelectorAll('#pt-tabcontent .ped-sel:checked')).map(el => el.value));
+  const pedidos = PEDIDOS_PENDIENTES.filter(p => ids.has(p._id));
+  const equipos = new Set(pedidos.map(p => _ptClaveEquipo(p)));
+  const total = pedidos.reduce((s, p) => s + _ptCostoPedido(p), 0);
+  return { pedidos: pedidos.length, equipos: equipos.size, total: total };
+}
+function ptPedActualizarPanel(){
+  const n = document.getElementById('ped-sel-n');
+  if (!n) return;
+  const r = _ptResumenSeleccion();
+  n.textContent = String(r.pedidos);
+  const eq = document.getElementById('ped-sel-equipos');
+  if (eq) eq.textContent = String(r.equipos);
+  const total = document.getElementById('ped-sel-total');
+  if (total) total.textContent = _ptCostoTexto(r.total);
+}
+/* PEDPC: abre o cierra todos los equipos de la lista de escritorio. En angosto también
+   abre los tipos (que siguen siendo plegables ahí); en ancho los tipos ya van abiertos. */
+function ptPedAlternarTodo(btn){
+  const cont = document.querySelector('#pt-tabcontent .pt-ped-acc--escritorio');
+  if (!btn || !cont) return;
+  const abrir = btn.dataset.estado !== 'abierto';
+  for (const team of cont.querySelectorAll(':scope > .pt-ped-team')){
+    const cab = team.querySelector(':scope > .pt-ped-team-hd .pt-ped-team-toggle');
+    const cuerpo = team.querySelector(':scope > .pt-ped-team-body');
+    if (cab) cab.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (cuerpo) cuerpo.hidden = !abrir;
+    for (const t of team.querySelectorAll('.pt-ped-type-toggle')) t.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+  }
+  btn.dataset.estado = abrir ? 'abierto' : 'cerrado';
+  btn.innerHTML = abrir ? `${PT_PED_ICON.cerrar} Cerrar todo` : `${PT_PED_ICON.abrir} Abrir todo`;
+}
 function _ptPedidoHTML(p, movil){
   const tipo = _ptTipoPedido(p);
   const aplicable = _ptPedidoAplicable(p);
@@ -1740,7 +1830,21 @@ function _ptPedidoHTML(p, movil){
   const sub = !esFormacion && p.subscriber ? ' <span class="badge">$</span>' : '';
   const viejo = !movil && !aplicable ? ' <span class="badge badge-warn">pedido viejo, sin datos aplicables</span>' : '';
   const fecha = p.creadoEn && p.creadoEn.toDate ? p.creadoEn.toDate().toLocaleString('es-CL') : '';
-  const lineas = _ptLineasPedido(p);
+  if (!movil){
+    // PEDPC: fila compacta de escritorio: nombre, detalle en una línea (texto completo en title),
+    // costo y botón de rechazar con ícono X.
+    const detalle = _ptDetalleTexto(p) || 'sin detalle';
+    const titulo = detalle + (fecha ? ' · Enviado: ' + fecha : '');
+    return `<div class="pt-ped-item">
+      <div class="pt-ped-row">
+        ${sel}
+        <span class="pt-ped-nombre">${escHtml(nombre)}${sub}${viejo}</span>
+        <span class="pt-ped-det-uno" title="${escAttr(titulo)}">${escHtml(detalle)}</span>
+        <span class="pt-ped-costo">${_ptCostoTexto(_ptCostoPedido(p))}</span>
+        <button class="btn btn-sm pt-btn-rechazar pt-ped-rech-icn" title="Rechazar pedido" aria-label="Rechazar pedido" data-onclick="ptRechazarPedido('${escAttr(p._id)}')">${ICN.x}</button>
+      </div>
+    </div>`;
+  }
   return `<div class="pt-ped-item">
     <div class="pt-ped-row">
       ${sel}
@@ -1750,32 +1854,39 @@ function _ptPedidoHTML(p, movil){
     </div>
     <details class="pt-ped-det">
       <summary><span class="pt-ped-chev" aria-hidden="true"></span>Ver detalle</summary>
-      <div class="pt-ped-lineas">${lineas || '<i>sin detalle</i>'}</div>
+      <div class="pt-ped-lineas">${_ptLineasPedido(p) || '<i>sin detalle</i>'}</div>
       ${fecha ? `<div class="pt-ped-fecha">Enviado: ${escHtml(fecha)}</div>` : ''}
     </details>
   </div>`;
 }
 function _ptTipoHTML(t, movil){
+  // PEDPC: en escritorio la tarjeta va abierta (sin hidden; el CSS la mantiene visible) y en
+  // angosto se pliega con aria-expanded. En el teléfono sigue el acordeón de siempre.
   return `<div class="pt-ped-type">
     <button type="button" class="pt-ped-type-toggle pt-ped-toggle" aria-expanded="false" data-onclick="ptPedToggle(this)">
       <span class="pt-ped-chev" aria-hidden="true"></span>
       <span class="pt-ped-type-nombre">${escHtml(t.label)}</span>
       <span class="pt-ped-cant">${t.pedidos.length}</span>
     </button>
-    <div class="pt-ped-type-body" hidden>${t.pedidos.map(p => _ptPedidoHTML(p, movil)).join('')}</div>
+    <div class="pt-ped-type-body"${movil ? ' hidden' : ''}>${t.pedidos.map(p => _ptPedidoHTML(p, movil)).join('')}</div>
   </div>`;
 }
 function _ptEquipoHTML(g, movil){
   const n = g.pedidos.length;
   const todos = movil ? '' : `<input type="checkbox" class="pt-ped-allchk" data-eq="${escAttr(g.key)}" aria-label="Seleccionar todos los pedidos de este equipo" data-onchange="ptPedSelEquipo(this)" ${g.aplicables ? 'checked' : 'disabled'}>`;
+  const meta = `${n} ${n === 1 ? 'pedido' : 'pedidos'} · ${_ptCostoTexto(g.total)}`;
   return `<div class="pt-ped-team">
     <div class="pt-ped-team-hd">
       ${todos}
       <button type="button" class="pt-ped-team-toggle pt-ped-toggle" aria-expanded="false" data-onclick="ptPedToggle(this)">
         <span class="pt-ped-chev" aria-hidden="true"></span>
         <span class="pt-ped-team-nombre">${escHtml(g.nombre)}</span>
-        <span class="pt-ped-team-meta">${n} ${n === 1 ? 'pedido' : 'pedidos'} · ${_ptCostoTexto(g.total)}</span>
+        <span class="pt-ped-team-meta">${meta}</span>
       </button>
+      ${movil ? '' : `
+        <span class="pt-ped-team-cant">${n}</span>
+        <span class="pt-ped-team-tipos">${_ptChipsTipoHTML(g)}</span>
+        <span class="pt-ped-team-costo">${_ptCostoTexto(g.total)}</span>`}
     </div>
     <div class="pt-ped-team-body" hidden>${g.tipos.map(t => _ptTipoHTML(t, movil)).join('')}</div>
   </div>`;
@@ -1789,6 +1900,9 @@ function ptPedToggle(btn){
   if (!body) return;
   const abierto = btn.getAttribute('aria-expanded') === 'true';
   btn.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+  // PEDPC: en la lista de escritorio el cuerpo del tipo no usa hidden: lo muestra u oculta
+  // el CSS según aria-expanded (ancho) o lo deja siempre abierto (escritorio).
+  if (body.classList.contains('pt-ped-type-body') && btn.closest('.pt-ped-acc--escritorio')) return;
   body.hidden = abierto;
 }
 function _ptSelsDeEquipo(eq){
@@ -1802,16 +1916,19 @@ function ptPedSelEquipo(chk){
   const eq = (chk.dataset && chk.dataset.eq) || '';
   for (const el of _ptSelsDeEquipo(eq)) if (!el.disabled) el.checked = !!chk.checked;
   chk.indeterminate = false;
+  ptPedActualizarPanel();
 }
 /* Casilla de un pedido: deja la del equipo en marcada / indeterminada / vacía. */
 function ptPedSelPedido(chk){
   const eq = (chk.dataset && chk.dataset.eq) || '';
   const sels = _ptSelsDeEquipo(eq).filter(el => !el.disabled);
   const todos = _ptAllChkDeEquipo(eq);
-  if (!todos) return;
-  const marcados = sels.filter(el => el.checked).length;
-  todos.checked = sels.length > 0 && marcados === sels.length;
-  todos.indeterminate = marcados > 0 && marcados < sels.length;
+  if (todos){
+    const marcados = sels.filter(el => el.checked).length;
+    todos.checked = sels.length > 0 && marcados === sels.length;
+    todos.indeterminate = marcados > 0 && marcados < sels.length;
+  }
+  ptPedActualizarPanel();
 }
 
 /* Tras pintar Pedidos: restaura el log de la ultima aplicacion (si vuelve a pintar) y
@@ -1821,6 +1938,7 @@ function _despuesDeRenderPedidos(movil, opts){
     const el = document.getElementById('ped-log');
     if (el) el.innerHTML = opts.logHtml;
   }
+  ptPedActualizarPanel();   // PEDPC: panel derecho en vivo con lo que nace marcado
   if (!movil && PLANO) cargarEstadoPublicacion(_equiposPublicables());
 }
 
@@ -3008,6 +3126,7 @@ window.ptRechazoMotivoInput = rechazoMotivoInput;
 window.ptPedToggle = ptPedToggle;
 window.ptPedSelEquipo = ptPedSelEquipo;
 window.ptPedSelPedido = ptPedSelPedido;
+window.ptPedAlternarTodo = ptPedAlternarTodo;
 window.ptRestaurarReglasDefault = restaurarReglasDefault;
 window.ptSwitchTab = switchTab;
 window.ptVincularEquipo = vincularEquipo;
