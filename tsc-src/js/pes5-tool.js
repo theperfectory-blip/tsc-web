@@ -251,17 +251,28 @@ function _reglasEquipo(teamId){
 // el club elegido (onTeamSelect) y se fuerza de nuevo justo antes de cobrar
 // de verdad (confirmarEscribirAlSave) para no confiar en una foto vieja si
 // otra sesion ya gasto presupuesto de este equipo mientras tanto.
-let GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
+let GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0, transacciones: [] };
 
 async function _refrescarGastoTemporadaEquipo(team, forzar){
-  if (!team){ GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 }; return; }
+  if (!team){ GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0, transacciones: [] }; return; }
   const temp = _temporadaCobro();
   if (!forzar && GASTO_TEMPORADA_CACHE.teamId === team.id && GASTO_TEMPORADA_CACHE.season === temp) return;
   const transacciones = await dbGetAll('coins', c =>
     String(c.teamId) === String(team.id) && c.season === temp &&
     typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
   const gastado = YUNACOINS_RULES.gastoTemporada(transacciones);
-  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: temp, general: gastado.general, sub: gastado.sub };
+  // BONO-5: se guarda tambien el libro (por jugador) para calcular el bono restante de CADA «$».
+  GASTO_TEMPORADA_CACHE = { teamId: team.id, season: temp, general: gastado.general, sub: gastado.sub, transacciones: transacciones };
+}
+// BONO-5: bono que le queda a UN jugador del plantel abierto (su cuota de la temporada menos
+// lo que ya consumió de su bono en el libro `coins`). 0 si no tiene «$». Si el cache es de
+// otro equipo, se usa el libro vacío (bono completo) en vez de mezclar equipos.
+function _bonoRestanteJugadorTool(registro, esSuscriptor, teamId){
+  if (!esSuscriptor || registro == null) return 0;
+  const cachePropio = teamId == null || String(GASTO_TEMPORADA_CACHE.teamId) === String(teamId);
+  const cuota = (_reglasEquipo(teamId != null ? teamId : GASTO_TEMPORADA_CACHE.teamId) || YC_RULES).budgetSubscribers;
+  return YUNACOINS_RULES.bonoRestanteJugador(
+    cachePropio ? (GASTO_TEMPORADA_CACHE.transacciones || []) : [], [], registro, cuota, true);
 }
 
 // Equipo TSC (si existe) al que pertenece el club actualmente abierto en la
@@ -296,26 +307,25 @@ function _nSuscriptoresDelEquipo(teamId){
   return PES5_EDITOR.leerPlantillaEquipo(PLANO, team.pes5ClubIdx)
     .filter(id => PES5_EDITOR.nombreDeRegistro(PLANO, id).startsWith('$')).length;
 }
-// Reparte TODOS los cambios pendientes del plantel abierto entre bono de
-// suscriptores y tope general (BONO-3): itera PLANTILLA_ACTUAL en orden de
-// roster y va descontando el bono restante jugador por jugador, pero SOLO los
-// jugadores con «$» consumen bono; los demas van enteros al general. El orden de
-// asignacion del bono entre varios suscriptores editados en un mismo lote no
-// esta especificado en el doc, es una decision de esta implementacion
-// (documentada tambien en distribuirCosto, js/yunacoins-rules.js). Devuelve
+// Reparte TODOS los cambios pendientes del plantel abierto entre bono de CADA jugador y
+// tope general (BONO-5). El bono es diferencial por jugador: cada «$» gasta primero SU
+// propio bono restante (su cuota menos lo que ya gastó de su bono esta temporada) y,
+// agotado, el resto va al general; un jugador sin «$» va entero al general. Lo que gasta
+// un suscriptor no le quita bono a otro. Si el mismo jugador tiene varios pedidos en el
+// lote, se descuenta lo ya asignado a su bono en los anteriores. Devuelve
 // {totalCosto, fromGeneral, fromSub, porJugador:{[id]:{playerId,playerName,
 // subscriber,total,lineas,fromGeneral,fromSub}}}.
 function repartoPendienteEquipo(){
-  const restantes = _restantesTemporada();
-  let subUsadoAcum = 0, totalGeneral = 0, totalSub = 0, totalCosto = 0;
+  let totalGeneral = 0, totalSub = 0, totalCosto = 0;
+  const usadoSubPorJugador = {};
   const porJugador = {};
   (PLANTILLA_ACTUAL || []).forEach(j => {
     if (!CAMBIOS_PENDIENTES[j.id]) return;
     const { total, lineas } = _costoTool((equipoTSCActual() || {}).id, j, CAMBIOS_PENDIENTES[j.id]);
     if (total <= 0) return;
-    const disponibleSub = Math.max(0, restantes.subscribers - subUsadoAcum);
+    const disponibleSub = Math.max(0, _bonoRestanteJugadorTool(j.id, j.subscriber, (equipoTSCActual() || {}).id) - (usadoSubPorJugador[j.id] || 0));
     const reparto = YUNACOINS_RULES.distribuirCosto(total, disponibleSub, !!j.subscriber);
-    subUsadoAcum += reparto.fromSub;
+    usadoSubPorJugador[j.id] = (usadoSubPorJugador[j.id] || 0) + reparto.fromSub;
     totalGeneral += reparto.fromGeneral;
     totalSub += reparto.fromSub;
     totalCosto += total;
@@ -380,11 +390,22 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
   }
   await dbPut('teams', { ...team, yunacoin: current });
   team.yunacoin = current; // reflejar en el objeto cacheado en EQUIPOS_TSC (mismo patron que vincularEquipo)
-  // lo recien cobrado ya cuenta para los topes de temporada de este equipo
+  // lo recien cobrado ya cuenta para los topes de temporada de este equipo.
+  // BONO-5: tambien entra al libro en memoria, para que el bono restante por jugador
+  // (repartoPendienteEquipo / _opcionesEditor) quede al dia sin releer Firestore.
+  if (!Array.isArray(GASTO_TEMPORADA_CACHE.transacciones)) GASTO_TEMPORADA_CACHE.transacciones = [];
+  Object.values(reparto.porJugador).forEach(function(info){
+    if (!info || !(info.total > 0)) return;
+    GASTO_TEMPORADA_CACHE.transacciones.push({
+      reason: reason, mode: 'sub', amount: info.total,
+      pes5: { playerId: info.playerId, fromSub: info.fromSub, fromGeneral: info.fromGeneral },
+    });
+  });
   GASTO_TEMPORADA_CACHE = {
     teamId: team.id, season: _temporadaCobro(),
     general: GASTO_TEMPORADA_CACHE.general + reparto.fromGeneral,
     sub: GASTO_TEMPORADA_CACHE.sub + reparto.fromSub,
+    transacciones: GASTO_TEMPORADA_CACHE.transacciones,
   };
   return current;
 }
@@ -1092,9 +1113,18 @@ function _opcionesEditor(j){
     const otrosGeneral = reparto.fromGeneral - (info ? info.fromGeneral : 0);
     const otrosSub = reparto.fromSub - (info ? info.fromSub : 0);
     const restantes = _restantesTemporada();
+    // BONO-5: el bono que el editor muestra y descuenta es el DEL JUGADOR abierto
+    // (su cuota menos lo que ya gastó de su bono en el libro coins de la temporada).
+    const bonoJugador = _bonoRestanteJugadorTool(j.id, j.subscriber, team.id);
+    // Dato del equipo para la barra cuando se edita un jugador sin «$»: suma de bonos restantes.
+    const bonoEquipo = (PLANTILLA_ACTUAL || []).reduce(function(s, x){
+      return s + _bonoRestanteJugadorTool(x.id, x.subscriber, team.id);
+    }, 0);
     presupuesto = {
       general: Math.max(0, Math.min((team.yunacoin || 0) - otrosTotal, restantes.general - otrosGeneral)),
-      subscribers: Math.max(0, restantes.subscribers - otrosSub),
+      subscribers: bonoJugador,
+      bonoJugador: bonoJugador,
+      bonoEquipo: bonoEquipo,
       saldo: Math.max(0, (team.yunacoin || 0) - otrosTotal),
     };
     const delEquipo = GASTO_TEMPORADA_CACHE.teamId === team.id;
@@ -1304,7 +1334,7 @@ function _ptPintarBarras(datos){
 function _ptBarrasHTML(){
   return `<div class="pt-barras" id="pt-barras">
     <div class="pt-barra" id="pt-barra-bono" hidden>
-      <span class="pt-barra-txt">Bono suscriptores (solo $): queda <b id="pt-barra-bono-val">0</b> de <span id="pt-barra-bono-cap">0</span></span>
+      <span class="pt-barra-txt">Bono de suscriptores (cada uno solo para su jugador): queda <b id="pt-barra-bono-val">0</b> de <span id="pt-barra-bono-cap">0</span></span>
       <span class="pt-barra-bar" aria-hidden="true"><i id="pt-barra-bono-fill"></i></span>
     </div>
     <div class="pt-barra" id="pt-barra-general">
@@ -2392,7 +2422,17 @@ async function aplicarPedidosSeleccionados(){
     if (!team){ porEquipo[teamId].forEach(p => rechazados.push({ pedido: p, motivo: 'el equipo ya no existe' })); continue; }
     await _refrescarGastoTemporadaEquipo(team, true);
     const restantes = _restantesTemporada();
-    let usadoGeneral = 0, usadoSub = 0, usadoTotal = 0;
+    let usadoGeneral = 0, usadoTotal = 0;
+    // BONO-5: el bono es de cada jugador. Los pedidos pendientes de ESTE equipo que no
+    // estan en este lote siguen reservando su bono; los del lote se recalculan ahora, asi
+    // que no cuentan (su fromSub viejo no se usa). `usadoSubPorJugador` suma lo asignado
+    // en este mismo lote cuando un jugador tiene mas de un pedido.
+    const idsDelLote = new Set(porEquipo[teamId].map(x => x._id));
+    const pendientesFuera = PEDIDOS_PENDIENTES
+      .filter(x => x && x.estado === 'pendiente' && !idsDelLote.has(x._id)
+        && String(x.teamId) === String(teamId) && x.registro != null)
+      .map(x => ({ playerId: x.registro, fromSub: Number(x.fromSub) || 0, estado: 'pendiente' }));
+    const usadoSubPorJugador = {};
     for (const p of porEquipo[teamId]){
       if (p.tipo === 'formacion'){
         if (!p.formacion || !Array.isArray(p.formacion.slots)){ rechazados.push({ pedido: p, motivo: 'sin datos de formación' }); continue; }
@@ -2548,7 +2588,13 @@ async function aplicarPedidosSeleccionados(){
       }
       const motivoCosto = YUNACOINS_RULES.motivoRechazoMejora(j, p.cambios, precioDelPedido, topeTemporada, { perfil: _perfilTool(team.id, j), cfg: _emparejarCfg() });
       if (motivoCosto){ rechazados.push({ pedido: p, motivo: motivoCosto }); continue; }
-      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, restantes.subscribers - usadoSub), !!j.subscriber);
+      // BONO-5: el bono que puede usar este pedido es el del JUGADOR (su cuota menos lo que
+      // ya gastó de su bono en el libro coins, menos los otros pedidos pendientes del mismo
+      // equipo que no están en este lote y menos lo ya asignado en el lote).
+      const bonoJugador = YUNACOINS_RULES.bonoRestanteJugador(
+        GASTO_TEMPORADA_CACHE.transacciones || [], pendientesFuera, p.registro,
+        _reglasEquipo(team.id).budgetSubscribers, !!j.subscriber);
+      const reparto = YUNACOINS_RULES.distribuirCosto(total, Math.max(0, bonoJugador - (usadoSubPorJugador[p.registro] || 0)), !!j.subscriber);
       const pago = YUNACOINS_RULES.evaluarPago((team.yunacoin || 0) - usadoTotal, total, reparto.fromGeneral, restantes.general - usadoGeneral);
       if (!pago.ok){ rechazados.push({ pedido: p, motivo: pago.excedeSaldo ? 'saldo insuficiente' : 'se superó el tope de temporada' }); continue; }
       try {
@@ -2557,7 +2603,8 @@ async function aplicarPedidosSeleccionados(){
         rechazados.push({ pedido: p, motivo: 'valor inválido: ' + (e.message || e) }); continue;
       }
       _anotarCambiosDelLote(cambiosDelLote, p.registro, p.cambios);   // PED2: el lote ya lo escribio
-      usadoGeneral += reparto.fromGeneral; usadoSub += reparto.fromSub; usadoTotal += total;
+      usadoGeneral += reparto.fromGeneral; usadoTotal += total;
+      usadoSubPorJugador[p.registro] = (usadoSubPorJugador[p.registro] || 0) + reparto.fromSub;
       aplicados.push({ pedido: p, team, info: {
         pedidoId: p._id, playerId: p.registro, playerName: j.nombre, subscriber: !!j.subscriber,
         total, lineas, fromGeneral: reparto.fromGeneral, fromSub: reparto.fromSub,
@@ -2646,7 +2693,7 @@ async function aplicarPedidosSeleccionados(){
     log('publicando la formación aplicada...');
     await publicarPlantillas(equiposFormacion);
   }
-  GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0 };
+  GASTO_TEMPORADA_CACHE = { teamId: null, season: null, general: 0, sub: 0, transacciones: [] };
   showToast(`Pedidos: ${aplicados.length} aplicado(s), ${rechazados.length} rechazado(s).`);
   if (aplicados.some(a => !a.info.formacion)) log('Publica para que el presidente vea los cambios.');
   // El save cambió: los equipos tocados quedan desactualizados. El aviso y el bloque Publicar lo muestran.

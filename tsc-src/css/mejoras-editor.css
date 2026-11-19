@@ -800,3 +800,8 @@ html.ep-lock body{overflow:hidden;}
 .ep-root.ep-pausado [data-onclick*="cancelarPedidoDesdeHistorial"],  /* cancelar desde el historial */
 .ep-root.ep-pausado [data-onclick*="resetFormationDraft"],
 .ep-root.ep-pausado [data-onclick*="confirmFormation"]{opacity:.45;pointer-events:none;cursor:not-allowed;}
+
+/* «En revisión»: la línea y el botón Ver en la misma fila (Jimbo) */
+.ep-root .ep-pend-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.ep-root .ep-pend-fila .ep-res-line{flex:1;min-width:0;}
+.ep-root .ep-pend-fila .ep-pend-ver{flex:none;margin:0;}

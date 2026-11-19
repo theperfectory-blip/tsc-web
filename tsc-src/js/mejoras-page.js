@@ -37,7 +37,7 @@ const MEJ_MARKUP = `
         <div class="ep-edicion" id="ep-edicion" hidden><span id="ep-edicion-lbl">Esta edición</span><b id="ep-edicion-val"></b><span class="ep-edicion-note" id="ep-edicion-note"></span></div>
         <div class="ep-cap ep-cap-doble">
           <div class="ep-bar" id="ep-bar-bono" hidden>
-            <div class="ep-cap-txt"><span>Bono suscriptores (solo $): queda <b id="ep-balance-bono">0</b> de <span id="ep-hero-bono-cap">0</span></span></div>
+            <div class="ep-cap-txt"><span><span id="ep-bono-lbl">Bono de suscriptores</span>: queda <b id="ep-balance-bono">0</b> de <span id="ep-hero-bono-cap">0</span></span></div>
             <div class="ep-cap-bar" aria-hidden="true"><i id="ep-bono-fill"></i></div>
           </div>
           <div class="ep-bar" id="ep-bar-general">
@@ -743,6 +743,20 @@ async function cargarTopeExtraEquipo(teamId){
 function _nSuscriptoresPlantel(){
   return PLAYERS.filter(p => p.subscriber).length;
 }
+/* BONO-5 · bono restante de UN jugador esta temporada, antes de la edición en curso.
+   Cada jugador con «$» tiene su propio bono de `budgetSubscribers` y solo se gasta en
+   ÉL: lo que gastó A no le quita bono a B. La cuota se descuenta con lo que ese jugador
+   ya consumió de su bono en el libro `coins` (`pes5.playerId` = registro del save); los
+   reembolsos (`fromSub` negativo) lo devuelven. No se resta su pedido pendiente: el
+   borrador ya incluye esos cambios y el pedido nuevo lo reemplaza.
+   En modo admin la Tool pasa el bono restante del jugador en `m.bonoJugador`. */
+function bonoRestanteDeJugador(p){
+  if (!p || !p.subscriber) return 0;
+  if (ADMIN_EMBED) return Math.max(0, Number(APP.bonoJugador) || 0);
+  const registro = registroPres(p);
+  if (registro == null) return Math.max(0, Number(RULES.budgetSubscribers) || 0);
+  return YUNACOINS_RULES.bonoRestanteJugador(APP.coinTx || [], [], registro, RULES.budgetSubscribers, true);
+}
 async function recalcularPresupuestoReal(){
   const wallet = EQUIPO_TSC ? (EQUIPO_TSC.yunacoin || 0) : 0;
   let gastado = { general: 0, sub: 0 };
@@ -750,9 +764,10 @@ async function recalcularPresupuestoReal(){
     const tx = await dbGetAll('coins', c => String(c.teamId) === String(AUTH.teamId) && c.season === (COBRO_TEMPORADA ?? STATE.season)
       && typeof c.reason === 'string' && c.reason.indexOf('mejora PES5') === 0);
     gastado = YUNACOINS_RULES.gastoTemporada(tx);
+    APP.coinTx = tx; // BONO-5: bono restante por jugador (gastoBonoJugador usa pes5.playerId = registro)
     // EMP-80-1: jugadores con mejoras PAGADAS en la temporada de cobro (bloquea «Solicitar emparejar»)
     APP.pagadosRegistro = new Set(tx.filter(c => c.pes5 && !c.pes5.reembolso && c.pes5.playerId != null && Number(c.amount) > 0).map(c => Number(c.pes5.playerId)));
-  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); APP.pagadosRegistro = null; }
+  } catch (e) { console.warn('[editor] no se pudo leer el libro coins', e); APP.pagadosRegistro = null; APP.coinTx = []; }
   let pendG = 0, pendS = 0, pendTotal = 0;
   APP.pendientes = [];
   try {
@@ -1048,6 +1063,13 @@ const APP = {
   // renderAuthUI() > "if (_gateTeamId !== AUTH.teamId)".
   budget: YUNACOINS_RULES.techoPresupuesto(EQUIPO_TSC ? EQUIPO_TSC.yunacoin : 0, RULES, 0), // BONO-1: el conteo llega con recalcularPresupuestoReal
   gastado: { general: 0, sub: 0 },              // slice 2.1-A: gastado de la temporada (libro coins)
+  // BONO-5: movimientos del libro coins de la temporada (mejoras PES5 del equipo), para
+  // calcular el bono restante de CADA jugador con «$». Se llena en recalcularPresupuestoReal.
+  coinTx: [],
+  // BONO-5 (modo admin): bono restante del jugador abierto, que lo pasa la Tool PES5.
+  bonoJugador: 0,
+  // BONO-5 (modo admin): suma de bonos restantes de los «$» del equipo (dato de la barra).
+  bonoEquipo: 0,
   pend: { total: 0, general: 0, sub: 0 },       // slice 2.1-A: reservado en pedidos / cambios de otros
   extra: 0, motivo: '',                         // slice 2.1-A: tope extra del equipo y su motivo
   draft: null,
@@ -1113,11 +1135,11 @@ function costoReservadoJugador(p){
 function pendingCostSinReservar(){
   return Math.max(0, pendingCost() - costoReservadoJugador(currentPlayer()));
 }
-/* Reparto general/suscriptores del pedido nuevo: al reemplazar, el pendiente del jugador libera
-   su parte de suscriptores antes de repartir (mismo calculo que el envio). */
+/* Reparto general/suscriptores del pedido nuevo: BONO-5, el bono que se consume es el
+   DEL JUGADOR (su cuota menos lo que ya gastó de su bono esta temporada). El pedido
+   pendiente que se reemplaza no cambia ese cálculo: el borrador ya incluye sus cambios. */
 function repartoDelPedidoNuevo(p, cost){
-  const liberadoSub = pendientesMejoraDeJugador(p).reduce((s, x) => s + Number(x.fromSub || 0), 0);
-  return YUNACOINS_RULES.distribuirCosto(cost, Math.max(0, (APP.budget.subscribers || 0) + liberadoSub), !!(p && p.subscriber));
+  return YUNACOINS_RULES.distribuirCosto(cost, bonoRestanteDeJugador(p), !!(p && p.subscriber));
 }
 /* Cambios del borrador respecto de lo PUBLICADO: es lo que lleva el pedido nuevo. */
 function cambiosDelBorrador(p, d){
@@ -1214,9 +1236,10 @@ function _carritoNeto(){
 function _carritoExcede(){
   return _carritoFalta() > 0;
 }
-/* BONO-3: cuanto le sobra al carrito por encima de lo disponible. Cada jugador consume
-   su propio tope (el bono solo si tiene «$»), asi que se revisa el reparto completo:
-   general, bono y saldo. Lo que los pedidos reemplazados ya reservaban vuelve a estar libre. */
+/* BONO-5: cuánto le sobra al carrito por encima de lo disponible. Cada jugador consume
+   SU bono (el de su propia cuota) y después el tope general del equipo, así que se revisan
+   el tope general y el saldo; el bono por jugador ya lo acota `distribuirCosto` con
+   `bonoRestanteDeJugador`. Lo que los pedidos reemplazados ya reservaban vuelve a estar libre. */
 function _carritoFalta(){
   if (!_carritoActivo()) return 0;
   const neto = _carritoNeto();
@@ -1225,9 +1248,8 @@ function _carritoFalta(){
   if (!entradas.length) return 0;
   const rep = _repartoCarrito(entradas);
   const faltaGeneral = rep.totalGeneral - (APP.budget.general || 0) - rep.liberadoGeneral;
-  const faltaBono = rep.totalSub - (APP.budget.subscribers || 0) - rep.liberadoSub;
   const faltaSaldo = neto - (APP.saldo || 0);
-  return Math.max(0, faltaGeneral, faltaBono, faltaSaldo);
+  return Math.max(0, faltaGeneral, faltaSaldo);
 }
 /* Guarda el borrador abierto en el carrito (si cambio respecto de su base) y persiste. */
 function guardarDraftActual(){
@@ -1341,17 +1363,16 @@ function pendingCostDe(p, d){
 function pendingCost(){
   return pendingCostDe(currentPlayer(), APP.draft);
 }
-/* techo de gasto del jugador (4.F + BONO-3): el bono solo lo puede usar un jugador
-   con «$» (suscriptor); el resto del plantel ve solo el tope general. Los dos quedan
-   acotados por el saldo real del equipo.
-   Formula en YUNACOINS_RULES.bonoSuscriptor (ver cabecera de yunacoins-rules.js). APP.saldo ya
-   descuenta lo reservado en pedidos pendientes. La edicion libre de la tool (equipo sin cobro)
-   no tiene saldo que limite. */
+/* techo de gasto del jugador (4.F + BONO-5): el bono que amplía su techo es EL SUYO
+   (cuota de la temporada menos lo que ya gastó de su bono); un jugador sin «$» solo tiene
+   el tope general. Los dos quedan acotados por el saldo real del equipo.
+   APP.saldo ya descuenta lo reservado en pedidos pendientes. La edición libre de la tool
+   (equipo sin cobro) no tiene saldo que limite. */
 function remainingForPlayer(p){
   if(!p) return 0;
   const cobra = !(EQUIPO_TSC && EQUIPO_TSC.cobra === false);
-  const pool = { general: APP.budget.general, subscribers: APP.budget.subscribers, saldo: cobra ? APP.saldo : undefined };
-  return YUNACOINS_RULES.bonoSuscriptor(pool, !!p.subscriber);
+  const techo = Math.max(0, APP.budget.general || 0) + bonoRestanteDeJugador(p);
+  return cobra ? Math.min(Math.max(0, APP.saldo || 0), techo) : techo;
 }
 /* saldo disponible EN VIVO — ya descuenta lo acumulado en TODO el carrito (BONO-3: cada
    jugador consume su propio tope, el bono solo si tiene «$»), sin contar dos veces los
@@ -1701,9 +1722,8 @@ function renderPending(){
     <div class="ep-pend-hd">
       <span class="ep-pend-lbl">${pend.length ? 'En revisión' : 'Esperando publicación'}</span>
     </div>
-    ${linea ? `<div class="ep-res-line">${linea}</div>` : ''}
-    ${bloqueo ? '<div class="ep-pend-bloq">Luis aplicó cambios que todavía no publicó.</div>' : ''}
-    ${pend.length ? `<button type="button" class="ep-pend-ver" data-onclick="openAuditModal('pendiente')">Ver</button>` : ''}`;
+    ${linea ? `<div class="ep-pend-fila"><span class="ep-res-line">${linea}</span><button type="button" class="ep-pend-ver" data-onclick="openAuditModal('pendiente')">Ver</button></div>` : ''}
+    ${bloqueo ? '<div class="ep-pend-bloq">Luis aplicó cambios que todavía no publicó.</div>' : ''}`;
 }
 function gotoPage(delta){
   const next = APP.page + delta;
@@ -1845,46 +1865,90 @@ function pintarBarra(cfg){
   }
   if (cfg.baja) destelloBarra(cfg.row, retraso);
 }
-/* BONO4: cuánto queda de cada tope DESPUÉS de la edición en curso. Es la regla
-   BONO-3 aplicada a la vista: el bono primero para un jugador con «$» y, agotado,
-   el general; un jugador sin «$» gasta solo del general. Con carrito se reparte
-   el carrito completo jugador por jugador y vuelven las reservas que reemplaza. */
+/* BONO4/BONO-5: datos de la barra de bono.
+   - jugador abierto con «$»: SU bono (cuota de la temporada, ej. 10.000); queda = lo que
+     le queda después de la edición en curso. Si el jugador abierto no es «$», su edición
+     no toca el bono: solo baja el general.
+   - jugador abierto sin «$»: el bono del equipo como dato (suma de los bonos que les quedan
+     a los «$», con lo que ya tengan en el carrito). */
+function _bonoDatosBarra(usadoPropio, repCarrito){
+  const p = currentPlayer();
+  const cuota = Math.max(0, Number(RULES.budgetSubscribers) || 0);
+  if (p && p.subscriber){
+    const antes = bonoRestanteDeJugador(p);
+    return {
+      esSub: true, total: cuota, antes: antes,
+      queda: Math.max(0, antes - (usadoPropio || 0)),
+      etiqueta: 'Bono de ' + p.name,
+    };
+  }
+  const n = _nSuscriptoresPlantel();
+  const total = YUNACOINS_RULES.bonoEquipo(RULES, n);
+  // Modo admin: la Tool pasa la suma de bonos restantes del equipo (APP.bonoEquipo).
+  if (ADMIN_EMBED){
+    const antesEquipo = Math.max(0, Number(APP.bonoEquipo) || 0);
+    return {
+      esSub: false, total: total, antes: antesEquipo, queda: antesEquipo,
+      etiqueta: 'Bono del equipo (' + n + ' × ' + _fmtYC(cuota) + ')',
+    };
+  }
+  const filas = (repCarrito && repCarrito.filas) ? repCarrito.filas : [];
+  let antes = 0, queda = 0;
+  PLAYERS.filter(x => x.subscriber).forEach(function(x){
+    const b = bonoRestanteDeJugador(x);
+    antes += b;
+    const f = filas.find(y => y.p.id === x.id);
+    queda += Math.max(0, b - (f ? f.fromSub : 0));
+  });
+  return {
+    esSub: false, total: total, antes: antes, queda: queda,
+    etiqueta: 'Bono del equipo (' + n + ' × ' + _fmtYC(cuota) + ')',
+  };
+}
+/* BONO4: cuánto queda de cada tope DESPUÉS de la edición en curso. BONO-5: el bono
+   que baja es el DEL JUGADOR abierto (si tiene «$»); con carrito se reparte el carrito
+   completo jugador por jugador y vuelven las reservas que reemplaza. */
 function _repartoBarras(r){
-  const subAntes = Math.max(0, r.restanteSub || 0);
   const genAntes = Math.max(0, r.restanteGeneral || 0);
   if (ADMIN_EMBED){
     const p = currentPlayer();
-    let libSub = 0, libGen = 0;
+    let libGen = 0;
     pendientesMejoraDeJugador(p).forEach(function(x){
-      libSub += Number(x.fromSub || 0);
       libGen += Number(x.fromGeneral || 0);
     });
-    const rep = YUNACOINS_RULES.distribuirCosto(pendingCostSinReservar(), subAntes + libSub, !!(p && p.subscriber));
+    const rep = YUNACOINS_RULES.distribuirCosto(pendingCostSinReservar(), bonoRestanteDeJugador(p), !!(p && p.subscriber));
+    const bono = _bonoDatosBarra(rep.fromSub, null);
     return {
-      subAntes: subAntes, subDespues: Math.max(0, subAntes + libSub - rep.fromSub),
+      subTotal: bono.total, subEtiqueta: bono.etiqueta,
+      subAntes: bono.antes, subDespues: bono.queda,
       genAntes: genAntes, genDespues: Math.max(0, genAntes + libGen - rep.fromGeneral),
     };
   }
   const rep = _repartoCarrito(_carritoEntradas());
+  const p = currentPlayer();
+  const fila = p ? rep.filas.find(f => f.p.id === p.id) : null;
+  const bono = _bonoDatosBarra(fila ? fila.fromSub : 0, rep);
   return {
-    subAntes: subAntes, subDespues: Math.max(0, subAntes + rep.liberadoSub - rep.totalSub),
+    subTotal: bono.total, subEtiqueta: bono.etiqueta,
+    subAntes: bono.antes, subDespues: bono.queda,
     genAntes: genAntes, genDespues: Math.max(0, genAntes + rep.liberadoGeneral - rep.totalGeneral),
   };
 }
 /* TOPE-1: el tope del equipo de la temporada es base + bono de suscriptores +
    tope extra (premio o reembolso): el bono y el extra AMPLÍAN el tope, no son
-   YunaCoins que se regalen (se pagan con el saldo del equipo). BONO-3: el tramo
-   del bono aclara que solo lo pueden usar los jugadores con «$». Los números
-   salen de YUNACOINS_RULES: resumenPresupuesto (mismos del aviso grande) y
-   bonoEquipo (regla por suscriptor × suscriptores del plantel). El desglose
-   solo trae las partes que existen: sin suscriptores ni extra no hay desglose. */
+   YunaCoins que se regalen (se pagan con el saldo del equipo). BONO-5: cada
+   bono es de su jugador («cada uno solo para su jugador»); el total del equipo
+   se muestra como dato. Los números salen de YUNACOINS_RULES: resumenPresupuesto
+   (mismos del aviso grande) y bonoEquipo (regla por suscriptor × suscriptores
+   del plantel). El desglose solo trae las partes que existen: sin suscriptores ni
+   extra no hay desglose. */
 function _topeEquipoDatos(){
   const r = resumenAviso();
   const n = _nSuscriptoresPlantel();
   const bono = YUNACOINS_RULES.bonoEquipo(RULES, n);
   const partes = [];
   if (bono > 0 || r.extra > 0) partes.push('Base ' + _fmtYC(r.topeGeneral));
-  if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono) + ' (solo jugadores $)');
+  if (bono > 0) partes.push(n + (n === 1 ? ' suscriptor ' : ' suscriptores ') + _fmtYC(bono) + ' (cada uno solo para su jugador)');
   if (r.extra > 0) partes.push('Extra ' + _fmtYC(r.extra));   // sin motivo: Jimbo prefiere solo «Extra N»
   return { r: r, bono: bono, total: r.topeTotal + bono, desglose: partes.join(' + ') };
 }
@@ -1907,21 +1971,25 @@ function renderHero(){
   // lo que queda de cada tope ya descuenta lo gastado y lo reservado; la
   // edicion en curso todavia no esta aplicada, asi que se resta aparte.
   const saldoBruto = Math.max(0, APP.saldo || 0);
-  // BONO-3: el bono solo lo puede usar un jugador con «$». «Queda del tope» sigue
-  // mostrando el tope del EQUIPO (base + bono + extra); «Puedes gastar hasta» usa el
-  // techo del jugador abierto (general, o general + bono si es «$»).
-  const esSub = !!(currentPlayer() && currentPlayer().subscriber);
-  const topeJugador = r.restanteGeneral + (esSub ? r.restanteSub : 0);
+  // BONO-5: «Queda del tope» muestra el tope del EQUIPO (base + bono + extra) para el
+  // general; «Puedes gastar hasta» usa el techo del jugador abierto (general + SU bono si
+  // tiene «$»). Un jugador sin «$» no puede usar ningún bono.
+  const jugadorAbierto = currentPlayer();
+  const esSub = !!(jugadorAbierto && jugadorAbierto.subscriber);
+  const topeJugador = r.restanteGeneral + (esSub ? bonoRestanteDeJugador(jugadorAbierto) : 0);
   const saldo = Math.max(0, saldoBruto - cost);
   animarNumero(document.getElementById('ep-balance-total'), null, saldo);
-  // BONO4: dos barras debajo de «Tu saldo». El bono baja primero y, cuando
-  // termina, el general; la barra que baja se ilumina. Con carrito, las dos
+  // BONO4: dos barras debajo de «Tu saldo». Con un jugador con «$» abierto la barra del
+  // bono es la SUYA («Bono de <jugador>: queda X de 10.000»); sin «$» abierto se muestra
+  // el total de bonos del equipo como dato y solo baja el general. Con carrito, las dos
   // muestran lo que queda después de TODO el carrito.
   const rep = _repartoBarras(r);
-  const bonoTotal = d.bono;
+  const bonoTotal = rep.subTotal;
   const generalTotal = r.topeTotal;
   const barBono = document.getElementById('ep-bar-bono');
   if (barBono) barBono.hidden = !(bonoTotal > 0);
+  const lblBono = document.getElementById('ep-bono-lbl');
+  if (lblBono) lblBono.textContent = rep.subEtiqueta || 'Bono de suscriptores';
   const bajaBono = rep.subDespues < rep.subAntes;
   const bajaGeneral = rep.genDespues < rep.genAntes;
   pintarBarra({
@@ -2028,18 +2096,19 @@ function renderAviso(){
   // misma foto que el bloque de saldo: los números bajan en vivo con la
   // edición en curso (todavía no enviada), y «Esta edición» dice cuánto suma.
   const saldoBruto = r.saldoDisponible;
-  // BONO-3: «Queda del tope» es del EQUIPO; «Disponible ahora» es el techo del
-  // jugador abierto (el bono solo lo usa un jugador con «$»).
-  const esSub = !!(currentPlayer() && currentPlayer().subscriber);
-  const topeJugador = r.restanteGeneral + (esSub ? r.restanteSub : 0);
+  // BONO-5: «Queda del tope» es del EQUIPO para el general; «Disponible ahora» es el
+  // techo del jugador abierto (general + SU bono si tiene «$»).
+  const jugadorAbierto = currentPlayer();
+  const esSub = !!(jugadorAbierto && jugadorAbierto.subscriber);
+  const topeJugador = r.restanteGeneral + (esSub ? bonoRestanteDeJugador(jugadorAbierto) : 0);
   const saldo = Math.max(0, saldoBruto - cost);
   const disponible = Math.max(0, Math.min(saldoBruto, topeJugador) - cost);
-  // BONO4: mismas dos barras que el bloque de saldo del presidente, con el bono
-  // bajando primero y el general después. El markup se rehace solo si cambia la
-  // forma (edición gratis/libre, desglose o si hay bono); los números y las barras
-  // se actualizan en sitio para que la animación no se corte en cada clic.
+  // BONO4: mismas dos barras que el bloque de saldo del presidente. Con un jugador con
+  // «$» abierto la barra del bono es la SUYA; sin «$» es el dato del equipo. El markup
+  // se rehace solo si cambia la forma (edición gratis/libre, desglose o si hay bono);
+  // los números y las barras se actualizan en sitio para que la animación no se corte.
   const rep = _repartoBarras(r);
-  const bonoTotal = d.bono;
+  const bonoTotal = rep.subTotal;
   const generalTotal = r.topeTotal;
   const firma = 'aviso|' + (e.name || '') + '|' + (d.desglose ? 'd' : '') + '|' + (bonoTotal > 0 ? 'b' : '');
   const nuevo = firma !== _avisoFirma || !document.getElementById('ep-aviso-general-v');
@@ -2065,7 +2134,7 @@ function renderAviso(){
       <div class="ep-aviso-cell ep-aviso-barras">
         <span class="ep-aviso-k">Queda del tope</span>
         <div class="ep-bar" id="ep-aviso-bar-bono" hidden>
-          <div class="ep-cap-txt"><span>Bono suscriptores (solo $): queda <b id="ep-aviso-bono-v">0</b> de <span id="ep-aviso-bono-cap">0</span></span></div>
+          <div class="ep-cap-txt"><span><span id="ep-aviso-bono-lbl">Bono de suscriptores</span>: queda <b id="ep-aviso-bono-v">0</b> de <span id="ep-aviso-bono-cap">0</span></span></div>
           <div class="ep-cap-bar" aria-hidden="true"><i id="ep-aviso-bono-fill"></i></div>
         </div>
         <div class="ep-bar" id="ep-aviso-bar-general">
@@ -2099,6 +2168,8 @@ function renderAviso(){
     animarNumero(document.getElementById('ep-aviso-disp-v'), nuevo ? prevDisp : null, disponible);
     const barBono = document.getElementById('ep-aviso-bar-bono');
     if (barBono) barBono.hidden = !(bonoTotal > 0);
+    const lblBono = document.getElementById('ep-aviso-bono-lbl');
+    if (lblBono) lblBono.textContent = rep.subEtiqueta || 'Bono de suscriptores';
     const bajaBono = rep.subDespues < rep.subAntes;
     const bajaGeneral = rep.genDespues < rep.genAntes;
     pintarBarra({
@@ -2376,7 +2447,8 @@ function openApplyConfirm(){
   const saldoAntes = APP.saldo || 0;
   const saldoDespues = Math.max(0, saldoAntes - costoSinReservar);
   const d = _topeEquipoDatos();
-  const topeAntes = Math.max(0, d.r.restanteGeneral + d.r.restanteSub);
+  // BONO-5: el tope que puede usar este pedido = general del equipo + SU bono restante.
+  const topeAntes = Math.max(0, d.r.restanteGeneral + bonoRestanteDeJugador(p));
   const topeDespues = Math.max(0, topeAntes - costoSinReservar);
   const wrap = document.getElementById('ep-confirm-wrap');
   wrap.innerHTML = `
@@ -2395,7 +2467,7 @@ function openApplyConfirm(){
         <div><dt>Total del pedido</dt><dd><b>${cost.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Tope del equipo</dt><dd>${topeAntes.toLocaleString('es-CL')} <span>→</span> <b>${topeDespues.toLocaleString('es-CL')} YC</b> de ${d.total.toLocaleString('es-CL')}</dd></div>
-        <div><dt>Bono suscriptores usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Bono del jugador usado</dt><dd>${fromSub.toLocaleString('es-CL')}</dd></div>
       </dl>`}
       <div class="ep-sheet-act">
         <button class="ep-btn" data-onclick="closeApplyConfirm()">Seguir editando</button>
@@ -2407,17 +2479,15 @@ function openApplyConfirm(){
 function closeApplyConfirm(){ document.getElementById('ep-confirm-wrap').innerHTML=''; }
 
 /* ================= CARRO1 · «Revisar todo» (todos los jugadores en espera) =================
-   Reparto bono/general del carrito: el bono se consume primero, en el orden del plantel, pero
-   SOLO los jugadores con «$» usan el bono (BONO-3); cada uno usa su propio `subscriber` con
-   YUNACOINS_RULES.distribuirCosto (igual que la Tool). Al reemplazar pedidos pendientes se
-   libera antes su parte de suscriptores. */
+   Reparto bono/general del carrito (BONO-5): CADA jugador con «$» usa SU propio bono
+   restante (su cuota menos lo que ya gastó de su bono); un jugador sin «$» va entero al
+   tope general. No hay bolsa común: lo que gasta A no le quita bono a B. Se usa
+   YUNACOINS_RULES.distribuirCosto por jugador (igual que la Tool). */
 function _repartoCarrito(entradas){
   const liberadoGeneral = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromGeneral || 0), 0), 0);
   const liberadoSub = entradas.reduce((s, e) => s + pendientesMejoraDeJugador(e.p).reduce((a, x) => a + Number(x.fromSub || 0), 0), 0);
-  let subsRestantes = Math.max(0, (APP.budget.subscribers || 0) + liberadoSub);
   const filas = entradas.map(e => {
-    const r = YUNACOINS_RULES.distribuirCosto(e.costo, subsRestantes, !!(e.p && e.p.subscriber));
-    subsRestantes = Math.max(0, subsRestantes - r.fromSub);
+    const r = YUNACOINS_RULES.distribuirCosto(e.costo, bonoRestanteDeJugador(e.p), !!(e.p && e.p.subscriber));
     return Object.assign({}, e, { fromGeneral: r.fromGeneral, fromSub: r.fromSub });
   });
   return {
@@ -2461,7 +2531,8 @@ function openReviewAll(){
   const saldoAntes = APP.saldo || 0;
   const saldoDespues = Math.max(0, saldoAntes - neto);
   const d = _topeEquipoDatos();
-  const topeAntes = Math.max(0, d.r.restanteGeneral + d.r.restanteSub);
+  // BONO-5: cada jugador del carrito suma su propio bono restante al general del equipo.
+  const topeAntes = Math.max(0, d.r.restanteGeneral + entradas.reduce((s, e) => s + bonoRestanteDeJugador(e.p), 0));
   const topeDespues = Math.max(0, topeAntes - neto);
   const totalCambios = entradas.reduce((s, e) => s + pendingChangeLinesDe(e.p, e.d).length, 0);
   const grupos = entradas.map(e => _filaRevisionHTML(e)).join('');
@@ -2484,7 +2555,7 @@ function openReviewAll(){
         <div><dt>Total del carrito</dt><dd><b>${rep.totalCost.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Saldo</dt><dd>${saldoAntes.toLocaleString('es-CL')} <span>→</span> <b>${saldoDespues.toLocaleString('es-CL')} YC</b></dd></div>
         <div><dt>Tope del equipo</dt><dd>${topeAntes.toLocaleString('es-CL')} <span>→</span> <b>${topeDespues.toLocaleString('es-CL')} YC</b> de ${d.total.toLocaleString('es-CL')}</dd></div>
-        <div><dt>Bono suscriptores usado</dt><dd>${rep.totalSub.toLocaleString('es-CL')}</dd></div>
+        <div><dt>Bono de los jugadores usado</dt><dd>${rep.totalSub.toLocaleString('es-CL')}</dd></div>
       </dl>
       <div class="ep-sheet-act">
         <button class="ep-btn" data-onclick="closeApplyConfirm()">Seguir editando</button>
@@ -2557,11 +2628,11 @@ async function commitCarrito(){
   const rep = _repartoCarrito(filas.map(f => ({ p: f.p, d: f.d, costo: f.costo })));
   filas.forEach((f, i) => { f.fromGeneral = rep.filas[i].fromGeneral; f.fromSub = rep.filas[i].fromSub; });
   const neto = Math.max(0, rep.totalCost - rep.liberadoGeneral - rep.liberadoSub);
-  // BONO-3: cada jugador ya trae su reparto (el bono solo si tiene «$»); se revisan los tres topes.
+  // BONO-5: cada jugador ya trae el reparto con SU bono restante (distribuirCosto lo
+  // acota); el tope que se revisa en el equipo es el general y el saldo.
   const excedeGeneral = rep.totalGeneral > (APP.budget.general || 0) + rep.liberadoGeneral;
-  const excedeBono = rep.totalSub > (APP.budget.subscribers || 0) + rep.liberadoSub;
   const excedeSaldo = neto > (APP.saldo || 0);
-  if (excedeGeneral || excedeBono || excedeSaldo){
+  if (excedeGeneral || excedeSaldo){
     closeApplyConfirm();
     showMiniToast('El carrito supera lo disponible: quita cambios antes de enviarlo.');
     return;
@@ -2709,10 +2780,10 @@ async function commitChanges(){
     return;
   }
 
-  /* Slice D.R punto 5b (orden INVERTIDO, 15/09): si es suscriptor, primero
-     se gasta el bono exclusivo; agotado el bono, el resto sigue con el
-     general. Si no es suscriptor, todo sale del general. Al reemplazar un pedido
-     pendiente se libera antes su parte de suscriptores (repartoDelPedidoNuevo). */
+  /* BONO-5: si es suscriptor, primero se gasta SU bono (lo que le queda de su cuota
+     esta temporada); agotado, el resto sigue con el tope general del equipo. Si no es
+     suscriptor, todo sale del general. El pedido pendiente que se reemplaza no cambia
+     el bono: el borrador ya incluye sus cambios (repartoDelPedidoNuevo). */
   const { fromGeneral, fromSub } = repartoDelPedidoNuevo(p, cost);
   const liberadoGeneral = viejos.reduce((s, x) => s + Number(x.fromGeneral || 0), 0);
   const liberadoSub = viejos.reduce((s, x) => s + Number(x.fromSub || 0), 0);
@@ -4618,6 +4689,11 @@ function iniciarModoAdmin(m){
   PLAYER_BY_ID = Object.fromEntries(PLAYERS.map(p => [p.id, p]));
   APP.budget = { general: m.presupuesto.general, subscribers: m.presupuesto.subscribers };
   APP.saldo = m.presupuesto.saldo || 0;
+  // BONO-5: en modo admin el bono es el del jugador abierto y lo calcula la Tool
+  // (libro coins de la temporada); no hay carrito ni libro coins cargado acá.
+  APP.coinTx = [];
+  APP.bonoJugador = (m.presupuesto && m.presupuesto.bonoJugador != null) ? Number(m.presupuesto.bonoJugador) || 0 : 0;
+  APP.bonoEquipo = (m.presupuesto && m.presupuesto.bonoEquipo != null) ? Number(m.presupuesto.bonoEquipo) || 0 : 0;
   // slice 2.1-A: el aviso grande necesita lo gastado, el tope extra y lo que reservan otros cambios
   APP.gastado = { general: (m.gastado && m.gastado.general) || 0, sub: (m.gastado && m.gastado.sub) || 0 };
   APP.pend = m.pendientesOtros || { total: 0, general: 0, sub: 0 };
