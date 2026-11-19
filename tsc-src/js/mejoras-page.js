@@ -2141,7 +2141,9 @@ function openFormationModal(){
   FORM_DRAG = null;
   FORM_CMP = null; FORM_CMP_HTML = '';
   _formCmpVisto = false;
-  FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
+  // Sin selección explícita del usuario no hay ficha: FORM.verId queda vacío
+  // hasta que toque un jugador del 11 o de la banca/reservas (CMP3).
+  FORM.armado = false; FORM.banca = null; FORM.verId = null;
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = [];
   _pitchSyncOrientation();
   _montarModalCancha();
@@ -2280,7 +2282,7 @@ function intercambiarTitulares(a, b){
   const tmp = FORM.draft[a].id;
   FORM.draft[a].id = FORM.draft[b].id;
   FORM.draft[b].id = tmp;
-  FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[b].id; FORM.motivo = null;
+  FORM.sel = b; FORM.armado = false; FORM.banca = null; FORM.verId = null; FORM.motivo = null;
   FORM_FLASH = FORM.draft[b].id;
   showMiniToast('Entra ' + nombre(idB) + ', sale ' + nombre(idA));
 }
@@ -2291,7 +2293,7 @@ function _formEntrar(id, i){
   const sale = FORM.draft[i].id;
   _formCambiarEnBanca(id, sale);
   FORM.draft[i].id = id;
-  FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = id; FORM.motivo = null;
+  FORM.sel = i; FORM.armado = false; FORM.banca = null; FORM.verId = null; FORM.motivo = null;
   FORM_FLASH = id;
   showMiniToast('Entra ' + nombre(id) + ', sale ' + nombre(sale));
 }
@@ -2372,7 +2374,7 @@ function _formSwapBanca(a, b){
   if (ultimo && ((ultimo[0] === a && ultimo[1] === b) || (ultimo[0] === b && ultimo[1] === a))) FORM.bancaPares.pop();
   else FORM.bancaPares.push([a, b]);
   [FORM.bancaOrden[ia], FORM.bancaOrden[ib]] = [FORM.bancaOrden[ib], FORM.bancaOrden[ia]];
-  FORM.banca = null; FORM.armado = false; FORM.verId = b; FORM.motivo = null;
+  FORM.banca = null; FORM.armado = false; FORM.verId = null; FORM.motivo = null;
 }
 /* Cuando un suplente entra al 11, el que sale ocupa su lugar en la banca (igual que la Tool). */
 function _formCambiarEnBanca(entra, sale){
@@ -2382,6 +2384,7 @@ function _formCambiarEnBanca(entra, sale){
 }
 function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
+  FORM.verId = null;   // CMP3: sin selección no queda ficha
   FORM_CMP = null; FORM_CMP_HTML = '';
   _formCmpVisto = false;
   renderFormationModal();
@@ -2413,9 +2416,15 @@ function _formCmpAbrir(entra, slot){
   FORM_CMP = { slot, entra, prev };
   return true;
 }
+/* Rol del jugador en la ficha (CMP3): 'sale' si está en el 11 (titular, el que
+   saldría; rojo) y 'entra' si es de la banca o las reservas (verde). */
+function _formRolFicha(p){
+  return p && _formIdxDeId(p.id) >= 0 ? 'sale' : 'entra';
+}
 /* Pinta la tarjeta de #ep-form-stats: la comparación si está abierta; si no, la
-   ficha del jugador elegido (una columna, el mismo estilo). Solo reescribe si cambió
-   el HTML: así no se reinicia nada en cada render de la cancha.
+   ficha del jugador elegido (mismas piezas que la comparación, a todo el ancho).
+   Sin selección explícita no pinta nada y el contenedor queda oculto.
+   Solo reescribe si cambió el HTML: así no se reinicia nada en cada render de la cancha.
    Al abrirse la comparación se lleva la tarjeta a la vista con un scroll suave
    (sin animación si el usuario prefiere menos movimiento). */
 let _formCmpVisto = false; // en el render anterior ya había comparación abierta
@@ -2439,7 +2448,7 @@ function _formRenderFicha(){
   }
   if (!html && p){
     html = window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlFicha === 'function'
-      ? window.MEJORAS_CAMBIO.htmlFicha(p, { ayuda: _formAyudaFicha() })
+      ? window.MEJORAS_CAMBIO.htmlFicha(p, { ayuda: _formAyudaFicha(), rol: _formRolFicha(p) })
       : _formFichaSimple(p);
   }
   if (html !== FORM_CMP_HTML){
@@ -2924,6 +2933,7 @@ function resetFormationDraft(){
   if (_bloqueadoPorPausa()) return;
   FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
+  FORM.verId = null;   // CMP3: restablecer también quita la ficha
   completarPosiciones();
   renderFormationModal();
   showMiniToast('Formación restablecida a la del save.');

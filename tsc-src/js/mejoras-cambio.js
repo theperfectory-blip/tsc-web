@@ -6,8 +6,11 @@
      htmlPanel(sale, entra)  comparación SALE / ENTRA en dos mitades
                              (izquierda = sale, roja; derecha = entra,
                              verde), con todos los datos del editor.
-     htmlFicha(jugador)      ficha de un solo jugador (una columna,
-                             mismo estilo), para antes del segundo toque.
+     htmlFicha(jugador, { rol })  ficha de un solo jugador, con las MISMAS
+                             piezas que la comparación (barras a todo el
+                             ancho, valor a la derecha) y el color del rol:
+                             'sale' (titular, rojo) o 'entra' (banca o
+                             reserva, verde).
 
    No toca el DOM ni Firestore: solo calcula y arma HTML. Lo conecta la
    página (mejoras-page.js) dentro de #ep-form-stats, debajo de la banca
@@ -202,6 +205,21 @@ function _pct(v, max){
   return Math.max(0, Math.min(100, n / max * 100));
 }
 
+/* Barra de un atributo: ancho según su escala y color según el lado.
+   «out» = rojo (el que sale), «in» = verde (el que entra). */
+function _barra(lado, pct){
+  return '<span class="mc-bar mc-bar-' + lado + '" aria-hidden="true">'
+    + '<i style="width:' + pct.toFixed(1) + '%"></i></span>';
+}
+
+/* Título chico de una sección, igual en la ficha y en la comparación. */
+function _grupo(titulo, contenido, clase){
+  return '<section class="mc-grp' + (clase ? ' ' + clase : '') + '">'
+    + '<h3 class="mc-grp-hd">' + escHtml(titulo) + '</h3>'
+    + contenido
+    + '</section>';
+}
+
 /* Una fila comparada: valor del que sale, barra hacia la izquierda, nombre al
    centro, barra hacia la derecha y valor del que entra. Se resalta el mayor
    (en las lesiones, la letra que protege más). */
@@ -219,9 +237,9 @@ function _fila(atr, sale, entra){
   const clase = atr.max == null || atr.max === 99 ? 'mc-row' : 'mc-row mc-row-sm';
   return '<div class="' + clase + '">'
     + '<span class="mc-val mc-val-out' + bestA + '">' + escHtml(_txt(a)) + '</span>'
-    + '<span class="mc-bar mc-bar-out" aria-hidden="true"><i style="width:' + _pct(a, max).toFixed(1) + '%"></i></span>'
+    + _barra('out', _pct(a, max))
     + '<span class="mc-lbl">' + escHtml(atr.l) + '</span>'
-    + '<span class="mc-bar mc-bar-in" aria-hidden="true"><i style="width:' + _pct(b, max).toFixed(1) + '%"></i></span>'
+    + _barra('in', _pct(b, max))
     + '<span class="mc-val mc-val-in' + bestB + '">' + escHtml(_txt(b)) + '</span>'
     + '</div>';
 }
@@ -231,10 +249,27 @@ function _filas(atrs, sale, entra){
   return atrs.map(atr => _fila(atr, sale, entra)).join('');
 }
 
-/* Fila de la ficha de un solo jugador: etiqueta y valor. */
-function _filaFicha(lbl, v){
-  return '<div class="mc-frow"><span class="mc-flbl">' + escHtml(lbl) + '</span>'
-    + '<b class="mc-fval">' + escHtml(_txt(v)) + '</b></div>';
+/* Fila de la ficha de un solo jugador: etiqueta, barra a todo el ancho y valor a
+   la derecha. Usa las mismas clases que la comparación (mc-row, mc-bar, mc-val);
+   el lado ('out' | 'in') decide el color. */
+function _filaUnica(atr, jugador, lado){
+  const max = atr.max == null ? 99 : atr.max;
+  const clase = atr.max == null || atr.max === 99 ? 'mc-row' : 'mc-row mc-row-sm';
+  return '<div class="' + clase + '">'
+    + '<span class="mc-lbl">' + escHtml(atr.l) + '</span>'
+    + _barra(lado, _pct(_valor(jugador, atr), max))
+    + '<span class="mc-val mc-val-' + lado + '">' + escHtml(_txt(_valor(jugador, atr))) + '</span>'
+    + '</div>';
+}
+
+/* Fila de datos personales en la ficha (altura, edad, pie, banda): sin barra, con
+   las mismas columnas para que todo quede alineado. */
+function _filaDato(lbl, v){
+  return '<div class="mc-row mc-row-data">'
+    + '<span class="mc-lbl">' + escHtml(lbl) + '</span>'
+    + '<span class="mc-spacer" aria-hidden="true"></span>'
+    + '<span class="mc-val">' + escHtml(_txt(v)) + '</span>'
+    + '</div>';
 }
 
 /* Posiciones marcadas del jugador (si no hay marcas, la principal). */
@@ -355,8 +390,31 @@ function _boton(texto, nombre, clase, deshabilitado){
 
 /* ---------- ficha de un solo jugador ---------- */
 
-/* HTML de la ficha de un jugador (una columna, mismo estilo que la
-   comparación). opciones = { ayuda:'…' }.
+/* Encabezado de la ficha: nombre, posición principal, dorsal y etiqueta, más el
+   promedio a la derecha. El color del rol lo pone la clase mc-ficha-sale /
+   mc-ficha-entra del contenedor (CSS). */
+function _fichaHead(p){
+  const prin = POSICIONES.find(x => x.k === p.primaryPos) || null;
+  const linea = prin ? prin.linea : 'mid';
+  const cod = prin ? prin.k : (p.primaryPos || '—');
+  const dorsal = p.dorsal == null || p.dorsal === '' ? ''
+    : '<span class="mc-fdorsal">#' + escHtml(p.dorsal) + '</span>';
+  return '<header class="mc-fhead">'
+    + '<div class="mc-fid">'
+      + '<span class="mc-fname">' + escHtml(p.name) + '</span>'
+      + '<span class="mc-fsub"><span class="mc-fpos mc-pos-' + linea + '">' + escHtml(cod) + '</span>' + dorsal
+        + '<span class="mc-ftag">' + escHtml(p.tag || (prin ? prin.l : '')) + '</span></span>'
+    + '</div>'
+    + '<span class="mc-delta mc-eq" title="Promedio de atributos">' + promedio(p) + '</span>'
+    + '</header>';
+}
+
+/* HTML de la ficha de un solo jugador: las MISMAS piezas que la comparación
+   (filas, títulos chicos, chips), con un jugador ocupando todo el ancho: la
+   barra va de izquierda a derecha y el valor queda a la derecha.
+   opciones = { rol:'sale'|'entra', ayuda:'…' }.
+     rol 'sale'  titular del 11, el que saldría → rojo.
+     rol 'entra' suplente o reserva, el que entraría → verde.
    Muestra TODO lo que tiene el editor: principales, secundarios y
    parámetros 1–8, resistencia a lesiones, habilidades que posee, posiciones
    con la principal marcada y, si están, altura, edad y pie. */
@@ -364,43 +422,29 @@ function htmlFicha(jugador, opciones){
   const op = opciones || {};
   const p = jugador || null;
   if (!p) return '';
+  const lado = op.rol === 'entra' ? 'in' : 'out';
+  const rol = lado === 'in' ? 'entra' : 'sale';
 
-  const principales = PRINCIPALES.map(a => _filaFicha(a.l, (p.stats || {})[a.k])).join('');
-  const secundarios = SECUNDARIOS.map(a => _filaFicha(a.l, _valor(p, a))).join('');
-
+  const principales = PRINCIPALES.map(a => _filaUnica(a, p, lado)).join('');
+  const secundarios = SECUNDARIOS.map(a => _filaUnica(a, p, lado)).join('');
   const hab = _chipsHabilidades(p);
   const pos = _chipsPosiciones(p);
-  const prin = POSICIONES.find(x => x.k === p.primaryPos) || null;
-  const linea = prin ? prin.linea : 'mid';
-  const cod = prin ? prin.k : (p.primaryPos || '—');
-  const dorsal = p.dorsal == null || p.dorsal === '' ? '' : ' <span class="mc-fdorsal">#' + escHtml(p.dorsal) + '</span>';
   const datos = _datos(p);
   const ayuda = _ayuda(op);
 
-  return '<section class="mc-panel mc-ficha" aria-label="Ficha del jugador">'
-    + '<header class="mc-fhead">'
-      + '<div class="mc-fid">'
-        + '<span class="mc-fname">' + escHtml(p.name) + '</span>'
-        + '<span class="mc-fsub"><span class="mc-fpos mc-pos-' + linea + '">' + escHtml(cod) + '</span>' + dorsal
-          + '<span class="mc-ftag">' + escHtml(p.tag || (prin ? prin.l : '')) + '</span></span>'
-      + '</div>'
-      + '<span class="mc-delta mc-eq" title="Promedio de atributos">' + promedio(p) + '</span>'
-    + '</header>'
+  return '<section class="mc-panel mc-ficha mc-ficha-' + rol + '" aria-label="Ficha del jugador">'
+    + _fichaHead(p)
     + (ayuda ? '<div class="mc-ayuda">' + escHtml(ayuda) + '</div>' : '')
-    + '<section class="mc-grp"><h3 class="mc-grp-hd">Principales</h3>'
-      + '<div class="mc-grid">' + principales + '</div></section>'
-    + '<section class="mc-grp"><h3 class="mc-grp-hd">Secundarios</h3>'
-      + '<div class="mc-grid">' + secundarios + '</div></section>'
+    + _grupo('Principales', '<div class="mc-stats">' + principales + '</div>')
+    + _grupo('Secundarios', '<div class="mc-stats">' + secundarios + '</div>')
     + (datos.length
-        ? '<section class="mc-grp"><h3 class="mc-grp-hd">Datos</h3><div class="mc-grid">'
-          + datos.map(d => _filaFicha(d.l, d.v)).join('') + '</div></section>'
+        ? _grupo('Datos', '<div class="mc-stats">'
+          + datos.map(d => _filaDato(d.l, d.v)).join('') + '</div>')
         : '')
     + (hab
-        ? '<section class="mc-grp mc-grp-listas"><h3 class="mc-grp-hd">Habilidades</h3>'
-          + '<ul class="mc-list">' + hab + '</ul></section>'
+        ? _grupo('Habilidades', '<ul class="mc-list">' + hab + '</ul>', 'mc-grp-listas')
         : '')
-    + '<section class="mc-grp mc-grp-listas"><h3 class="mc-grp-hd">Posiciones</h3>'
-      + '<ul class="mc-list">' + pos + '</ul></section>'
+    + _grupo('Posiciones', '<ul class="mc-list">' + pos + '</ul>', 'mc-grp-listas')
     + '</section>';
 }
 
@@ -413,7 +457,10 @@ function htmlFicha(jugador, opciones){
    de abajo. */
 function htmlPanel(sale, entra, opciones){
   const op = opciones || {};
-  if (!sale || !entra) return htmlFicha(sale || entra, op);
+  if (!sale || !entra){
+    const uno = sale || entra;
+    return htmlFicha(uno, Object.assign({}, op, { rol: sale ? 'sale' : 'entra' }));
+  }
 
   const principales = _filas(PRINCIPALES, sale, entra);
   const secundarios = _filas(SECUNDARIOS, sale, entra);
@@ -454,13 +501,10 @@ function htmlPanel(sale, entra, opciones){
       + _lado(entra, 'in', 'ENTRA')
     + '</header>'
     + '<div class="mc-deltaline">' + htmlDelta(sale, entra) + '</div>'
-    + '<section class="mc-grp"><h3 class="mc-grp-hd">Principales</h3>'
-      + '<div class="mc-stats">' + principales + '</div></section>'
-    + '<section class="mc-grp"><h3 class="mc-grp-hd">Secundarios</h3>'
-      + '<div class="mc-stats">' + secundarios + '</div></section>'
+    + _grupo('Principales', '<div class="mc-stats">' + principales + '</div>')
+    + _grupo('Secundarios', '<div class="mc-stats">' + secundarios + '</div>')
     + (filasDatos.length
-        ? '<section class="mc-grp"><h3 class="mc-grp-hd">Datos</h3>'
-          + '<div class="mc-stats">' + filasDatos.join('') + '</div></section>'
+        ? _grupo('Datos', '<div class="mc-stats">' + filasDatos.join('') + '</div>')
         : '')
     + (habSale || habEntra
         ? _dosMitades('Habilidades', habSale, habEntra, { etiquetas:true })

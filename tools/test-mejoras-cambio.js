@@ -1,8 +1,9 @@
-// Pruebas del componente «comparar antes de cambiar» (slice CMP2).
+// Pruebas del componente «comparar antes de cambiar» (slices CMP2 y CMP3).
 // Carga tsc-src/js/mejoras-cambio.js en un contexto vm con sanitize.js, igual
 // que lo hace el navegador (escHtml global), y comprueba los métodos públicos
-// y las garantías de las dos tarjetas en línea: la ficha de un jugador y la
-// comparación SALE / ENTRA en dos mitades.
+// y las garantías de las dos tarjetas en línea: la ficha de un jugador (con el
+// color de su rol y las mismas piezas) y la comparación SALE / ENTRA en dos
+// mitades.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -220,8 +221,9 @@ test('htmlPanel: no es una hoja ni un panel flotante (sin velo ni dialog)', () =
   assert.ok(html.includes('class="mc-panel mc-cmp"'));
 });
 
-test('htmlFicha: muestra todo lo del editor con títulos chicos', () => {
-  const f = ficha(jugador({ name: 'Uno', base: 82, sec: { inj: 'B', cons: 6, cond: 5, wff: 3, wfa: 2 } }));
+test('htmlFicha: las mismas piezas que la comparación, con un jugador a todo el ancho', () => {
+  const f = ficha(jugador({ name: 'Uno', base: 75, stats: { atk: 90 },
+    sec: { inj: 'B', cons: 6, cond: 5, wff: 3, wfa: 2 } }));
   for (const titulo of ['Principales', 'Secundarios', 'Datos', 'Posiciones']) {
     assert.ok(f.includes('>' + titulo + '<'), 'falta la sección ' + titulo);
   }
@@ -231,8 +233,52 @@ test('htmlFicha: muestra todo lo del editor con títulos chicos', () => {
   assert.ok(f.includes('Altura') && f.includes('178 cm'));
   assert.ok(f.includes('Edad') && f.includes('25'));
   assert.ok(f.includes('Pie') && f.includes('Der.'));
-  assert.ok(!f.includes('mc-row'), 'la ficha es de una columna, sin filas comparadas');
+  // mismas clases de fila y de barra que htmlPanel
+  assert.strictEqual((f.match(/class="mc-row"/g) || []).length, 26);
+  assert.strictEqual((f.match(/class="mc-row mc-row-sm"/g) || []).length, 5);
+  assert.ok(f.includes('mc-stats'));
+  assert.ok(f.includes('mc-bar mc-bar-out'));
+  assert.ok(f.includes('mc-val mc-val-out'));
+  // una sola barra por fila (no dos mitades) y de izquierda a derecha
+  assert.strictEqual((f.match(/mc-bar /g) || []).length, 26 + 5);
+  assert.ok(f.includes('<span class="mc-lbl">Ataque</span><span class="mc-bar mc-bar-out"'));
+  assert.ok(f.includes('width:90.9%'), 'la barra de Ataque (90/99) debe medir 90,9 %');
   assert.ok(!f.includes('mc-actions'), 'sin acciones: no hay cambio que confirmar');
+  assert.ok(!f.includes('mc-halves'), 'la ficha no se parte en dos mitades');
+});
+
+test('htmlFicha: color según el rol (titular rojo, suplente o reserva verde)', () => {
+  const sale = ficha(jugador({}), { rol: 'sale' });
+  assert.ok(sale.includes('class="mc-panel mc-ficha mc-ficha-sale"'));
+  assert.ok(sale.includes('mc-bar mc-bar-out'));
+  assert.ok(sale.includes('mc-val mc-val-out'));
+  assert.ok(!sale.includes('mc-bar-in'), 'el titular no lleva barras verdes');
+
+  const entra = ficha(jugador({}), { rol: 'entra' });
+  assert.ok(entra.includes('class="mc-panel mc-ficha mc-ficha-entra"'));
+  assert.ok(entra.includes('mc-bar mc-bar-in'));
+  assert.ok(entra.includes('mc-val mc-val-in'));
+  assert.ok(!entra.includes('mc-bar-out'), 'el que entra no lleva barras rojas');
+
+  // por defecto (sin rol) se pinta como el que sale, igual que en htmlPanel
+  assert.ok(ficha(jugador({})).includes('mc-ficha-sale'));
+});
+
+test('htmlFicha: encabezado con nombre, posición y dorsal', () => {
+  const f = ficha(jugador({ name: 'Uno', dorsal: '9', primaryPos: 'CB' }), { rol: 'sale' });
+  assert.ok(f.includes('<span class="mc-fname">Uno</span>'));
+  assert.ok(f.includes('<span class="mc-fpos mc-pos-def">CB</span>'));
+  assert.ok(f.includes('<span class="mc-fdorsal">#9</span>'));
+});
+
+test('htmlFicha: escapa el nombre y el dorsal con HTML', () => {
+  const f = ficha(jugador({ name: '<b>Raro</b>' }));
+  assert.ok(!f.includes('<b>Raro</b>'));
+  assert.ok(f.includes('&lt;b&gt;Raro&lt;/b&gt;'));
+
+  const d = ficha(jugador({ dorsal: '<img src=x>' }));
+  assert.ok(!d.includes('<img'));
+  assert.ok(d.includes('&lt;img src=x&gt;'));
 });
 
 test('htmlFicha: habilidades solo si tiene y posición principal marcada', () => {
@@ -245,6 +291,12 @@ test('htmlFicha: habilidades solo si tiene y posición principal marcada', () =>
   const sin = ficha(jugador({}));
   assert.ok(!sin.includes('Habilidades'), 'sin habilidades no se muestra el bloque');
   assert.ok(sin.includes('Posiciones'));
+});
+
+test('htmlPanel con un solo jugador devuelve la ficha con el rol correcto', () => {
+  assert.ok(panel(jugador({}), null, OP).includes('mc-ficha-sale'));
+  assert.ok(panel(null, jugador({}), OP).includes('mc-ficha-entra'));
+  assert.strictEqual(panel(null, null, OP), '');
 });
 
 test('htmlFicha: sin jugador devuelve cadena vacía', () => {

@@ -130,7 +130,7 @@
   background:var(--mc-chip);color:var(--txt,#F0EDE6);}
 .mc-none{font-size:12px;color:var(--txt3,#555A66);}
 
-/* ---------- ficha de un solo jugador (una columna) ---------- */
+/* ---------- ficha de un solo jugador (mismas piezas, todo el ancho) ---------- */
 .mc-fhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
 .mc-fid{display:flex;flex-direction:column;min-width:0;gap:1px;}
 .mc-fname{font-family:'Bebas Neue',sans-serif;font-size:20px;line-height:1.05;
@@ -144,10 +144,27 @@
 .mc-fdorsal{font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--txt,#F0EDE6);}
 .mc-ftag{color:var(--txt3,#555A66);}
 .mc-ayuda{margin-top:2px;font-size:12px;line-height:1.35;color:var(--gold,#C9A84C);}
-.mc-grid{display:flex;flex-direction:column;min-width:0;}
-.mc-frow{display:flex;justify-content:space-between;gap:12px;padding:3px 0;
-  border-bottom:1px solid var(--mc-panel-line);font-size:13px;color:var(--txt2,#8B8F9A);}
-.mc-fval{color:var(--txt,#F0EDE6);font-weight:600;font-variant-numeric:tabular-nums;}
+
+/* La ficha usa las mismas filas que la comparación, pero con un solo jugador:
+   etiqueta a la izquierda, barra a todo el ancho (de izquierda a derecha) y
+   valor a la derecha. */
+.mc-ficha .mc-row{grid-template-columns:minmax(88px,30%) minmax(0,1fr) 62px;gap:8px;}
+.mc-ficha .mc-lbl{text-align:left;}
+.mc-ficha .mc-val{text-align:right;}
+.mc-ficha .mc-bar-out{justify-content:flex-start;}
+.mc-ficha .mc-row-data .mc-spacer{height:6px;border-radius:999px;
+  background:var(--mc-track);opacity:.55;}
+
+/* Color del rol, igual que en la comparación: el titular del 11 (el que
+   saldría) va en rojo y el suplente o reserva (el que entraría) en verde. */
+.mc-ficha-sale .mc-fname,
+.mc-ficha-sale .mc-fpos,
+.mc-ficha-sale .mc-fdorsal,
+.mc-ficha-sale .mc-delta{color:var(--mc-down);}
+.mc-ficha-entra .mc-fname,
+.mc-ficha-entra .mc-fpos,
+.mc-ficha-entra .mc-fdorsal,
+.mc-ficha-entra .mc-delta{color:var(--mc-up);}
 
 /* ---------- acciones (al final de la tarjeta, dentro del flujo) ---------- */
 .mc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:7px;
