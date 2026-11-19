@@ -2140,6 +2140,7 @@ function openFormationModal(){
   FORM.motivo = null;
   FORM_DRAG = null;
   FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
   FORM.armado = false; FORM.banca = null; FORM.verId = FORM.draft[0] ? FORM.draft[0].id : null;
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = [];
   _pitchSyncOrientation();
@@ -2151,7 +2152,8 @@ function _montarModalCancha(){
   // En pantalla tactil la ayuda habla de arrastrar; con mouse, de las flechas.
   const toqueFino = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const wrap = document.getElementById('ep-pitch-wrap');
-  FORM_CMP_HTML = ''; // el contenedor del panel se rehace con el modal: se vuelve a pintar
+  FORM_CMP_HTML = ''; // el contenedor de la ficha se rehace con el modal: se vuelve a pintar
+  _formCmpVisto = false;
   // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
   // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
   const franjas = PITCH_ZONES.map(z => {
@@ -2218,7 +2220,6 @@ function _montarModalCancha(){
           <svg class="icn" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Confirmar</button>
       </div>
     </div>
-    <div id="ep-form-cmp" class="ep-form-cmp" hidden></div>
   </div>`;
   renderFormationModal();
   _engancharArrastreCampo();
@@ -2227,7 +2228,8 @@ function _montarModalCancha(){
 function closeFormationModal(){
   FORM_ABIERTO = false;
   FORM.bancaOrden = null;
-  FORM_CMP = null; FORM_CMP_HTML = '';   // INTEG: el panel de comparacion se va con el modal
+  FORM_CMP = null; FORM_CMP_HTML = '';   // INTEG: la comparacion se va con el modal
+  _formCmpVisto = false;
   renderRoster();
   FORM_DRAG = null;
   _formDejarDeObservar();
@@ -2333,6 +2335,14 @@ function formacionTocarBanca(el){
   if (!id || !PLAYER_BY_ID[id]) return;
   const i = _formIdxDeId(id);
   if (i >= 0){ formacionTocarTitular(i); return; }
+  // CMP2: con la comparación abierta, tocar otro jugador de la banca o reservas
+  // cambia solo el que ENTRA (el que SALE sigue siendo el del 11), sin cerrarla.
+  if (FORM_CMP){
+    if (!_formLegalEntrada(id, FORM_CMP.slot)){ _formMensajeIlegal(id); return; }
+    _formCmpAbrir(id, FORM_CMP.slot);
+    renderFormationModal();
+    return;
+  }
   // MEJUI-4: tocar de nuevo al marcado anula la seleccion (igual que «Cancelar»)
   if (FORM.banca === id){ formacionCancelarArmado(); return; }
   // ORD-3: con un suplente o reserva armado, otro suplente o reserva lo intercambia de lugar en la banca
@@ -2373,75 +2383,126 @@ function _formCambiarEnBanca(entra, sale){
 function formacionCancelarArmado(){
   FORM.armado = false; FORM.banca = null; FORM.motivo = null;
   FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
   renderFormationModal();
 }
-/* ================= INTEG: comparar antes de cambiar (panel CMP) =================
+/* ================= INTEG: comparar antes de cambiar (ficha CMP2) =================
    Con js/mejoras-cambio.js cargado (window.MEJORAS_CAMBIO), el segundo toque de un
-   cambio titular↔banca/reserva ya no aplica el cambio: abre el panel SALE/ENTRA del
-   componente dentro de este modal y el cambio se hace al confirmar.
-   Si el componente no esta cargado, el segundo toque aplica como siempre (sin panel).
-   Mientras el panel esta abierto, FORM_CMP = { slot, entra, prev }:
+   cambio titular↔banca/reserva ya no aplica el cambio: la ficha que está debajo de
+   la banca y las reservas (#ep-form-stats) pasa a la comparación SALE/ENTRA del
+   componente, EN LÍNEA (sin velo ni panel flotante), y el cambio se hace al
+   confirmar. Si el componente no está cargado, el segundo toque aplica como siempre.
+   Mientras la comparación está abierta, FORM_CMP = { slot, entra, prev }:
      slot  lugar del 11 que se cambia
-     entra id del jugador de banca o reservas que ocuparia ese lugar
-     prev  seleccion de antes de abrir el panel (a donde vuelve «Elegir otro») */
+     entra id del jugador de banca o reservas que ocuparía ese lugar
+     prev  selección de antes de abrir la comparación (a donde vuelve «Elegir otro») */
 function _formCmpDisponible(){
-  return !!(window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlPanel === 'function');
+  return !!(window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlPanel === 'function'
+    && typeof window.MEJORAS_CAMBIO.htmlFicha === 'function');
 }
-/* Abre el panel para el cambio entra ↔ draft[slot]. Devuelve true si lo abrio; en ese
-   caso el cambio NO se aplica todavia. */
+/* Abre la comparación para el cambio entra ↔ draft[slot]. Devuelve true si la abrió;
+   en ese caso el cambio NO se aplica todavía. */
 function _formCmpAbrir(entra, slot){
   if (!_formCmpDisponible() || !FORM.draft[slot]) return false;
   const sale = FORM.draft[slot].id;
   if (!PLAYER_BY_ID[sale] || !PLAYER_BY_ID[entra]) return false;
-  FORM_CMP = { slot, entra, prev: { sel: FORM.sel, armado: FORM.armado, banca: FORM.banca, verId: FORM.verId } };
+  // Si ya hay una comparación abierta (el usuario toca otro jugador de la banca)
+  // se conserva la selección original: «Elegir otro» vuelve a donde estaba.
+  const prev = FORM_CMP ? FORM_CMP.prev
+    : { sel: FORM.sel, armado: FORM.armado, banca: FORM.banca, verId: FORM.verId };
+  FORM_CMP = { slot, entra, prev };
   return true;
 }
-/* HTML del panel; '' si no hay nada que comparar. El velo (mc-velo) es «tocar fuera» y
-   tambien vuelve, sin cambiar nada. Los handlers van por NOMBRE global (data-onclick). */
-function _formCmpHtml(){
-  if (!FORM_CMP || !_formCmpDisponible() || !FORM.draft[FORM_CMP.slot]) return '';
-  const sale = PLAYER_BY_ID[FORM.draft[FORM_CMP.slot].id];
-  const entra = PLAYER_BY_ID[FORM_CMP.entra];
-  if (!sale || !entra) return '';
-  return '<div class="mc-velo" aria-hidden="true" data-onclick="mejCmpVolver()"></div>'
-    + window.MEJORAS_CAMBIO.htmlPanel(sale, entra, { onVolver: 'mejCmpVolver', onConfirmar: 'mejCmpConfirmar' });
-}
-/* Pinta el panel en su contenedor del modal (#ep-form-cmp). Solo reescribe si cambio
-   el HTML: asi el scroll del panel no se reinicia en cada render de la cancha. */
-function _formRenderCmp(){
-  const cont = document.getElementById('ep-form-cmp');
+/* Pinta la tarjeta de #ep-form-stats: la comparación si está abierta; si no, la
+   ficha del jugador elegido (una columna, el mismo estilo). Solo reescribe si cambió
+   el HTML: así no se reinicia nada en cada render de la cancha.
+   Al abrirse la comparación se lleva la tarjeta a la vista con un scroll suave
+   (sin animación si el usuario prefiere menos movimiento). */
+let _formCmpVisto = false; // en el render anterior ya había comparación abierta
+function _formRenderFicha(){
+  const cont = document.getElementById('ep-form-stats');
   if (!cont) return;
-  const html = _formCmpHtml();
+  const p = FORM.verId ? PLAYER_BY_ID[FORM.verId] : null;
+  let html = '';
+  let esCmp = false;
+  if (FORM_CMP && _formCmpDisponible() && FORM.draft[FORM_CMP.slot]){
+    const sale = PLAYER_BY_ID[FORM.draft[FORM_CMP.slot].id];
+    const entra = PLAYER_BY_ID[FORM_CMP.entra];
+    if (sale && entra){
+      html = window.MEJORAS_CAMBIO.htmlPanel(sale, entra, {
+        onVolver: 'mejCmpVolver',
+        onConfirmar: 'mejCmpConfirmar',
+        bloqueado: _pausaSinAviso(),
+      });
+      esCmp = true;
+    }
+  }
+  if (!html && p){
+    html = window.MEJORAS_CAMBIO && typeof window.MEJORAS_CAMBIO.htmlFicha === 'function'
+      ? window.MEJORAS_CAMBIO.htmlFicha(p, { ayuda: _formAyudaFicha() })
+      : _formFichaSimple(p);
+  }
   if (html !== FORM_CMP_HTML){
     FORM_CMP_HTML = html;
     cont.innerHTML = html;
   }
   cont.hidden = !html;
+  if (esCmp && !_formCmpVisto){
+    // block:'nearest': basta con que la tarjeta quede a la vista, sin saltar al tope.
+    try {
+      const sinAnimacion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      cont.scrollIntoView({ block: 'nearest', behavior: sinAnimacion ? 'auto' : 'smooth' });
+    } catch (err) {}
+  }
+  _formCmpVisto = esCmp;
 }
-/* «Elegir otro» del panel: lo cierra, no cambia nada y deja elegido el primer jugador. */
+/* Pausa (o cliente viejo) sin lanzar el toast de _bloqueadoPorPausa: la ficha se
+   puede VER siempre, pero «Hacer el cambio» queda apagado. */
+function _pausaSinAviso(){
+  return _pausadasAhora() || _desactualizadoAhora();
+}
+/* Ayuda corta encima de la ficha de un solo jugador, según lo que está armado. */
+function _formAyudaFicha(){
+  if (FORM.banca) return 'Toca un titular para que entre en su lugar.';
+  if (FORM.armado) return 'Toca otro jugador para intercambiarlo con este.';
+  return '';
+}
+/* Ficha mínima de respaldo si el componente no se cargó (nunca debería pasar en
+   el flujo real: mejoras-cambio.js va antes de este archivo). */
+function _formFichaSimple(p){
+  return '<div class="mc-panel mc-ficha"><div class="mc-fhead"><div class="mc-fid">'
+    + '<span class="mc-fname">' + escHtml(p.name) + '</span>'
+    + '<span class="mc-fsub">' + escHtml(p.tag || p.primaryPos || '') + '</span>'
+    + '</div></div></div>';
+}
+/* «Elegir otro» de la comparación: la cierra, no cambia nada y deja elegido el
+   primer jugador (vuelve a su ficha de un solo jugador). */
 function mejCmpVolver(){
   if (!FORM_CMP) return;
   const prev = FORM_CMP.prev;
   FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
   FORM.sel = prev.sel; FORM.armado = prev.armado; FORM.banca = prev.banca;
   FORM.verId = prev.verId; FORM.motivo = null;
   renderFormationModal();
 }
-/* «Hacer el cambio» del panel: lo cierra y aplica el cambio con la misma funcion del
-   cambio en dos toques (_formEntrar: respeta la regla del arquero y bancaSwaps, y avisa
-   «Entra X, sale Y»). */
+/* «Hacer el cambio» de la comparación: la cierra y aplica el cambio con la misma
+   función del cambio en dos toques (_formEntrar: respeta la regla del arquero y
+   bancaSwaps, y avisa «Entra X, sale Y»). */
 function mejCmpConfirmar(){
   if (_bloqueadoPorPausa()) return;
   if (!FORM_CMP) return;
   const slot = FORM_CMP.slot, entra = FORM_CMP.entra;
   FORM_CMP = null; FORM_CMP_HTML = '';
+  _formCmpVisto = false;
   if (!FORM.draft[slot]){ renderFormationModal(); return; }
   if (!_formLegalEntrada(entra, slot)){ _formMensajeIlegal(entra); renderFormationModal(); return; }
   _formEntrar(entra, slot);
   renderFormationModal();
 }
-/* Esc = «Elegir otro»: cierra el panel, no el modal. En captura, para que ninguna otra
-   capa lo consuma antes (el resto de la app cierra modales con Escape en burbuja). */
+/* Esc = «Elegir otro»: cierra la comparación, no el modal. En captura, para que
+   ninguna otra capa lo consuma antes (el resto de la app cierra modales con
+   Escape en burbuja). */
 document.addEventListener('keydown', function(e){
   if (e.key !== 'Escape' || !FORM_CMP) return;
   e.stopPropagation();
@@ -2500,54 +2561,10 @@ function _formRenderBancaYPanel(){
       return `<div class="ep-form-grp">${titulo}</div>` + ids.map(id => fila(PLAYER_BY_ID[id], sec)).join('');
     }).join('') || '<span class="ep-form-subnone">Sin jugadores en el plantel.</span>';
   }
-  const panel = document.getElementById('ep-form-stats');
-  if (panel){
-    const p = FORM.verId ? PLAYER_BY_ID[FORM.verId] : null;
-    if (!p){ panel.hidden = true; panel.innerHTML = ''; }
-    else { panel.hidden = false; panel.innerHTML = _formFichaCompleta(p); }
-  }
+  _formRenderFicha();
 }
-/* Ficha del jugador (MEJUI-4): solo lo que tiene. Atributos, las posiciones marcadas y
-   las habilidades que ya posee; lo que no tiene no se escribe (ni listas vacias).
-   Usa las mismas definiciones que el editor: MAIN_STATS, SEC_NEW, POSITIONS y ALL_ABILITIES. */
-function _formFichaCompleta(p){
-  const val = (v) => (v === undefined || v === null || v === '') ? '—' : escHtml(String(v));
-  const valor99 = (v) => typeof v === 'number' ? `<span style="color:${TIER_COLOR[tierClass99(v)]};">${v}</span>` : val(v);
-  const fila = (lab, v) => `<div class="ep-fs-row"><span>${escHtml(lab)}</span><b>${v}</b></div>`;
-  const atributos = MAIN_STATS.map(s => fila(s.l, valor99((p.stats || {})[s.k]))).join('');
-  const secundarios = SEC_NEW.map(s => {
-    const raw = (p.sec || {})[s.k];
-    return fila(s.l, s.sc === 99 ? valor99(raw) : val(raw));
-  }).join('');
-  const posiciones = POSITIONS.filter(ps => (p.positions || {})[ps.k]).map(ps => {
-    const linea = LINEA_POS[ps.k] || 'mid';
-    return `<li class="ep-fs-chip ep-line-${linea}" title="${escAttr(ps.l)}">${escHtml(CODIGO_POS[ps.k] || ps.k)}</li>`;
-  }).join('');
-  const habilidades = ALL_ABILITIES.filter(a => (p.abilities || {})[a.k])
-    .map(a => `<li class="ep-fs-chip">${escHtml(a.l)}</li>`).join('');
-  const cod = CODIGO_POS[p.primaryPos] || p.primaryPos || '';
-  const linea = LINEA_POS[p.primaryPos] || 'mid';
-  const dorsal = p.dorsal && p.dorsal !== '?' ? `<span class="ep-fs-dorsal ep-line-${linea}">#${escHtml(p.dorsal)}</span>` : '';
-  const ayuda = FORM.banca ? 'Toca un titular para que entre en su lugar.'
-    : FORM.armado ? 'Toca otro jugador para intercambiarlo con este.' : '';
-  return `
-    <div class="ep-fs-head">
-      <div class="ep-fs-id">
-        <div class="ep-fs-name">${escHtml(p.name)}</div>
-        <div class="ep-fs-sub">
-          <span class="ep-fs-pos ep-line-${linea}">${escHtml(cod)}</span>
-          ${dorsal}
-          <span>Altura ${val(p.height)} cm · Edad ${val(p.age)} · Pie ${val(p.foot)} · Banda ${val(p.side)}</span>
-        </div>
-      </div>
-      ${FORM.armado ? `<button type="button" class="ep-fs-cancel" data-onclick="formacionCancelarArmado()">Cancelar</button>` : ''}
-    </div>
-    ${ayuda ? `<div class="ep-fs-ayuda">${escHtml(ayuda)}</div>` : ''}
-    <div class="ep-fs-sec"><h4>Atributos</h4><div class="ep-fs-grid">${atributos}</div></div>
-    <div class="ep-fs-sec"><h4>Secundarios y lesiones</h4><div class="ep-fs-grid">${secundarios}</div></div>
-    ${posiciones ? `<div class="ep-fs-sec"><h4>Posiciones</h4><ul class="ep-fs-list ep-fs-chips">${posiciones}</ul></div>` : ''}
-    ${habilidades ? `<div class="ep-fs-sec"><h4>Habilidades especiales</h4><ul class="ep-fs-list ep-fs-chips">${habilidades}</ul></div>` : ''}`;
-}
+/* Ficha del jugador: la arma js/mejoras-cambio.js (htmlFicha / htmlPanel), la misma
+   tarjeta para la ficha de un jugador y para la comparación SALE/ENTRA. */
 
 function _formProgramarRender(){
   if (_formRaf) return;
@@ -2639,7 +2656,6 @@ function renderFormationModal(){
   document.getElementById('ep-pitch-dots').innerHTML = dots;
 
   _formRenderBancaYPanel();
-  _formRenderCmp();
 
   // MEJUI-4: franja fija con la instruccion del cambio y «Cancelar». Reservada: solo
   // aparece mientras hay un jugador marcado, asi no cambia el alto del resto al tocar.

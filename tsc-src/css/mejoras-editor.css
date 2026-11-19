@@ -484,41 +484,13 @@
 @media (prefers-reduced-motion:reduce){
 .ep-root .ep-pitch-dot.flash,.ep-root .ep-form-subbtn.flash{animation:none;}
 }
-/* ficha completa: fluye dentro del scroll del modal (un solo scroll; FIX-HAB: no hay scroll anidado) */
+/* ficha completa: fluye dentro del scroll del modal (un solo scroll).
+   CMP2: la tarjeta la arma js/mejoras-cambio.js (mc-panel); acá va solo el
+   contenedor, debajo de la banca y las reservas. */
 .ep-root .ep-form-stats{margin-top:10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);
   padding:10px 12px;}
 .ep-root .ep-form-stats[hidden]{display:none;}
-.ep-root .ep-fs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-.ep-root .ep-fs-name{font-family:'Bebas Neue';font-size:18px;color:var(--txt);}
-.ep-root .ep-fs-sub{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--txt3);}
-.ep-root .ep-fs-pos{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:22px;border-radius:5px;
-  font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;}
-.ep-root .ep-fs-dorsal{background:none;font-family:'Bebas Neue';font-size:15px;line-height:1;}
-.ep-root .ep-fs-cancel{flex:none;min-height:44px;padding:0 14px;background:var(--card3);border:1px solid var(--brd2);border-radius:var(--r);color:var(--txt);cursor:pointer;font-family:inherit;}
-.ep-root .ep-fs-ayuda{margin-top:6px;font-size:12px;color:var(--gold);}
-.ep-root .ep-fs-sec h4{margin:12px 0 6px;font-family:'Barlow Condensed';font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);font-weight:600;}
-.ep-root .ep-fs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px 14px;}
-.ep-root .ep-fs-row{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--txt2);border-bottom:1px solid var(--brd);padding:3px 0;}
-.ep-root .ep-fs-row b{color:var(--txt);font-weight:600;}
-.ep-root .ep-fs-row small{color:var(--txt3);font-weight:400;font-size:11px;}
-.ep-root .ep-fs-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 14px;}
-.ep-root .ep-fs-list.ep-fs-chips{display:flex;flex-wrap:wrap;gap:6px;}
-.ep-root .ep-fs-list li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--txt3);min-height:24px;}
-.ep-root .ep-fs-list li.ep-fs-chip{align-items:center;justify-content:center;min-height:28px;padding:2px 8px;
-  background:none;border:1px solid currentColor;border-radius:6px;
-  font-family:'Barlow Condensed';font-weight:700;font-size:12px;letter-spacing:0.5px;color:var(--txt);}
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-gk,
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-def,
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-mid,
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-att{background:none;}
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-gk{color:var(--linea-gk);}
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-def{color:var(--linea-def);}
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-mid{color:var(--linea-mid);}
-.ep-root .ep-fs-list li.ep-fs-chip.ep-line-att{color:var(--linea-att);}
-.ep-root .ep-fs-list li.on{color:var(--txt);}
-.ep-root .ep-fs-list li svg{width:14px;height:14px;flex:none;color:var(--txt3);}
-.ep-root .ep-fs-list li.on svg{color:var(--gold);}
-.ep-root .ep-fs-list li b{margin-left:auto;font-size:12px;color:var(--txt3);}
+.ep-root .ep-form-stats .mc-panel{padding-bottom:2px;}
 .ep-root .ep-form-subnone{font-size:12px;color:var(--txt3);padding:10px 0;}
 
 /* ---- hoja «Revisar pedido»: encima de la barra, centrada en escritorio ---- */
@@ -592,11 +564,11 @@ html.ep-lock body{overflow:hidden;}
 .ep-root .ep-modal.ep-form-vert .ep-form-lista > *{flex:none;margin:0;}
 .ep-root .ep-modal.ep-form-vert .ep-form-bench,
 .ep-root .ep-modal.ep-form-vert .ep-form-stats{margin-top:0;}
-/* La lista de cambios manda en la mitad inferior: la banca va primero y los datos del
-   jugador seleccionado quedan debajo. */
+/* La lista de cambios manda en la mitad inferior: la banca va primero y la ficha
+   del jugador (o la comparación) queda justo debajo, como parte del flujo. */
 .ep-root .ep-modal.ep-form-vert .ep-form-bench{order:1;}
-.ep-root .ep-modal.ep-form-vert .ep-pitch-info{order:2;}
-.ep-root .ep-modal.ep-form-vert .ep-form-stats{order:3;}
+.ep-root .ep-modal.ep-form-vert .ep-form-stats{order:2;}
+.ep-root .ep-modal.ep-form-vert .ep-pitch-info{order:3;}
 /* datos del jugador en 2 filas (nombre y posicion; luego el selector de jugador) */
 .ep-root .ep-modal.ep-form-vert .ep-pitch-info{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center;margin:0;padding:8px 10px;}
 .ep-root .ep-modal.ep-form-vert .ep-pitch-info-name{grid-column:1;grid-row:1;min-width:0;}

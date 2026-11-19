@@ -1,7 +1,8 @@
-// Pruebas del componente «comparar antes de cambiar» (slice CMP).
+// Pruebas del componente «comparar antes de cambiar» (slice CMP2).
 // Carga tsc-src/js/mejoras-cambio.js en un contexto vm con sanitize.js, igual
-// que lo hace el navegador (escHtml global), y comprueba los cuatro métodos
-// públicos y las garantías del HTML del panel.
+// que lo hace el navegador (escHtml global), y comprueba los métodos públicos
+// y las garantías de las dos tarjetas en línea: la ficha de un jugador y la
+// comparación SALE / ENTRA en dos mitades.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -42,14 +43,31 @@ function jugador(op) {
     dorsal: op.dorsal == null ? '7' : op.dorsal,
     tag: op.tag == null ? 'Portero' : op.tag,
     primaryPos: op.primaryPos == null ? 'GK' : op.primaryPos,
+    height: op.height === undefined ? 178 : op.height,
+    age: op.age === undefined ? 25 : op.age,
+    foot: op.foot === undefined ? 'Der.' : op.foot,
     stats, sec, positions, abilities,
   };
 }
 const panel = (sale, entra, op) => MC.htmlPanel(sale, entra, op || {});
+const ficha = (jugador, op) => MC.htmlFicha(jugador, op || {});
 const OP = { onVolver: 'elegirOtro', onConfirmar: 'hacerCambio' };
 
-test('expone los cuatro métodos públicos', () => {
-  assert.deepStrictEqual(Object.keys(MC).sort(), ['delta', 'htmlDelta', 'htmlPanel', 'promedio']);
+/* Texto de las dos mitades de una sección de listas (Habilidades / Posiciones).
+   Devuelve { izq, der } del primer bloque cuyo título es «titulo». */
+function mitades(html, titulo) {
+  const inicio = html.indexOf('<h3 class="mc-grp-hd">' + titulo + '</h3>');
+  assert.ok(inicio >= 0, 'falta la sección ' + titulo);
+  const fin = html.indexOf('</section>', inicio);
+  const bloque = html.slice(inicio, fin);
+  const trozos = bloque.split('class="mc-half mc-half-in"');
+  assert.strictEqual(trozos.length, 2, 'la sección ' + titulo + ' debe tener dos mitades');
+  return { izq: trozos[0], der: trozos[1] };
+}
+
+test('expone los cinco métodos públicos', () => {
+  assert.deepStrictEqual(Object.keys(MC).sort(),
+    ['delta', 'htmlDelta', 'htmlFicha', 'htmlPanel', 'promedio']);
   for (const f of Object.values(MC)) assert.strictEqual(typeof f, 'function');
 });
 
@@ -89,29 +107,86 @@ test('htmlDelta: promedio del que entra y clase según el signo', () => {
     '<span class="mc-delta mc-eq">70 (0)</span>');
 });
 
-test('htmlPanel: escapa los nombres con HTML', () => {
+test('htmlPanel y htmlFicha: escapan los nombres con HTML', () => {
   const html = panel(jugador({ name: '<script>alert(1)</script>' }),
     jugador({ name: '<img src=x onerror=alert(1)>' }), OP);
   assert.ok(!html.includes('<script'), 'quedó un <script sin escapar');
   assert.ok(!html.includes('<img'), 'quedó un <img sin escapar');
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
+
+  const f = ficha(jugador({ name: '<b>Raro</b>' }));
+  assert.ok(!f.includes('<b>Raro</b>'));
+  assert.ok(f.includes('&lt;b&gt;Raro&lt;/b&gt;'));
 });
 
-test('htmlPanel: sin habilidades no muestra la columna', () => {
+test('htmlPanel: una fila por atributo principal y secundario 99, con el mayor resaltado', () => {
+  const html = panel(jugador({ base: 60 }), jugador({ base: 90 }), OP);
+  assert.strictEqual((html.match(/class="mc-row"/g) || []).length, 26);
+  assert.strictEqual((html.match(/class="mc-row mc-row-sm"/g) || []).length, 5); // 1–8 y lesión
+  assert.ok(html.includes('Ataque'));
+  assert.ok(html.includes('Cualidades de portero'));
+  // el que entra gana todas: cada fila tiene un solo mc-best (el de la derecha)
+  assert.strictEqual((html.match(/mc-val mc-val-in mc-best/g) || []).length, 26);
+  assert.strictEqual((html.match(/mc-val mc-val-out mc-best/g) || []).length, 0);
+});
+
+test('htmlPanel: muestra los secundarios y la resistencia a lesiones', () => {
+  const html = panel(jugador({ sec: { inj: 'A', cons: 8, cond: 7, wff: 6, wfa: 5 } }),
+    jugador({ sec: { inj: 'C', cons: 3, cond: 2, wff: 1, wfa: 1 } }), OP);
+  for (const nombre of ['Mentalidad', 'Regularidad en el juego', 'Cualidades de portero',
+    'Trabajo en equipo', 'Estabilidad', 'Frec. pie malo', 'Prec. pie malo', 'Res. lesión']) {
+    assert.ok(html.includes(nombre), 'falta el secundario ' + nombre);
+  }
+  // la lesión A del que sale es la mejor: se resalta a la izquierda
+  const filaLesion = html.slice(html.indexOf('Res. lesión') - 260, html.indexOf('Res. lesión'));
+  assert.ok(filaLesion.includes('mc-val mc-val-out mc-best'));
+  assert.ok(filaLesion.includes('>A<'));
+});
+
+test('htmlPanel: posiciones a cada lado (sale a la izquierda, entra a la derecha)', () => {
+  const html = panel(jugador({ positions: { CB: true }, primaryPos: 'CB' }),
+    jugador({ positions: { CF: true }, primaryPos: 'CF' }), OP);
+  const { izq, der } = mitades(html, 'Posiciones');
+  assert.ok(izq.includes('>CB<'), 'la posición del que sale debe quedar a la izquierda');
+  assert.ok(!izq.includes('>CF<'), 'la posición del que entra no debe quedar a la izquierda');
+  assert.ok(der.includes('>CF<'), 'la posición del que entra debe quedar a la derecha');
+  assert.ok(!der.includes('>CB<'), 'la posición del que sale no debe quedar a la derecha');
+  assert.ok(html.includes('mc-pos mc-pos-def'));
+  assert.ok(html.includes('mc-pos mc-pos-att'));
+});
+
+test('htmlPanel: marca la posición principal en cada mitad', () => {
+  const html = panel(jugador({ positions: { CB: true, SB: true }, primaryPos: 'CB' }),
+    jugador({ positions: { CF: true, SS: true }, primaryPos: 'CF' }), OP);
+  assert.ok(html.includes('class="mc-pos mc-pos-def mc-pos-main" title="Central · Principal">CB'));
+  assert.ok(html.includes('class="mc-pos mc-pos-att mc-pos-main" title="Delantero centro · Principal">CF'));
+});
+
+test('htmlPanel: altura, edad y pie del que sale a la izquierda y del que entra a la derecha', () => {
+  const html = panel(jugador({ height: 170, age: 21, foot: 'Izq.' }),
+    jugador({ height: 190, age: 30, foot: 'Der.' }), OP);
+  assert.ok(html.includes('>Datos<'));
+  assert.ok(html.indexOf('170 cm') < html.indexOf('190 cm'), 'altura del que sale a la izquierda');
+  assert.ok(html.indexOf('21<') < html.indexOf('30<'), 'edad del que sale a la izquierda');
+  assert.ok(html.includes('Izq.') && html.includes('Der.'));
+  assert.strictEqual((html.match(/mc-row mc-row-data/g) || []).length, 3);
+});
+
+test('htmlPanel: sin habilidades no muestra el bloque', () => {
   const sin = panel(jugador({}), jugador({}), OP);
-  assert.ok(!sin.includes('mc-col-hab'), 'no debería existir la columna de habilidades');
   assert.ok(!sin.includes('Habilidades'), 'no debería aparecer el título Habilidades');
   assert.ok(sin.includes('Posiciones'), 'las posiciones sí se muestran');
 });
 
-test('htmlPanel: muestra solo las habilidades que tiene', () => {
+test('htmlPanel: habilidades del que sale a la izquierda y del que entra a la derecha', () => {
   const html = panel(jugador({ abilities: { dribbling: true } }),
     jugador({ abilities: { passing: true, longThrow: true } }), OP);
-  assert.ok(html.includes('mc-col-hab'));
-  assert.ok(html.includes('Regate'));
-  assert.ok(html.includes('Pase'));
-  assert.ok(html.includes('Hab. saque largo'));
+  const { izq, der } = mitades(html, 'Habilidades');
+  assert.ok(izq.includes('Regate'), 'Regate (sale) debe ir a la izquierda');
+  assert.ok(!izq.includes('Pase<'), 'Pase (entra) no debe ir a la izquierda');
+  assert.ok(der.includes('Pase<'), 'Pase (entra) debe ir a la derecha');
+  assert.ok(der.includes('Hab. saque largo'));
   assert.ok(!html.includes('Marcaje'), 'no debe listar habilidades que no tiene');
 });
 
@@ -120,26 +195,58 @@ test('htmlPanel: usa data-onclick con los nombres de opciones y nunca onclick', 
   assert.ok(html.includes('data-onclick="elegirOtro()"'));
   assert.ok(html.includes('data-onclick="hacerCambio()"'));
   assert.ok(!/(?<![-\w])onclick\s*=/i.test(html), 'hay un onclick= suelto (debe ser data-onclick)');
-  // sin opciones válidas el panel no inventa handlers
+  // sin opciones válidas la tarjeta no inventa handlers
   assert.ok(!panel(jugador({}), jugador({}), {}).includes('data-onclick'));
   assert.ok(!panel(jugador({}), jugador({}), { onVolver: 'mal nombre();' }).includes('data-onclick'));
 });
 
-test('htmlPanel: una fila por atributo, con el mayor resaltado', () => {
-  const html = panel(jugador({ base: 60 }), jugador({ base: 90 }), OP);
-  assert.strictEqual((html.match(/class="mc-row"/g) || []).length, 26);
-  assert.ok(html.includes('Ataque'));
-  assert.ok(html.includes('Cualidades de portero'));
-  // el que entra gana todas: cada fila tiene un solo mc-best (el de la derecha)
-  assert.strictEqual((html.match(/mc-val mc-val-in mc-best/g) || []).length, 26);
-  assert.strictEqual((html.match(/mc-val mc-val-out mc-best/g) || []).length, 0);
+test('htmlPanel: los botones van al final y «Hacer el cambio» se apaga en pausa', () => {
+  const html = panel(jugador({}), jugador({}), OP);
+  assert.ok(html.indexOf('mc-actions') > html.indexOf('Posiciones'),
+    'las acciones van después de las posiciones, dentro del flujo');
+  assert.ok(!html.includes('disabled'), 'sin pausa el botón queda activo');
+
+  const bloqueado = panel(jugador({}), jugador({}), Object.assign({ bloqueado: true }, OP));
+  assert.ok(bloqueado.includes(
+    'class="mc-btn mc-btn-go" data-onclick="hacerCambio()" disabled aria-disabled="true"'));
+  // «Elegir otro» sigue activo
+  assert.ok(bloqueado.includes('class="mc-btn" data-onclick="elegirOtro()"'));
 });
 
-test('htmlPanel: posiciones con el color de su línea', () => {
-  const html = panel(jugador({ positions: { CB: true, SB: true } }),
-    jugador({ positions: { CF: true }, primaryPos: 'CF' }), OP);
-  assert.ok(html.includes('mc-pos mc-pos-def'));
-  assert.ok(html.includes('mc-pos mc-pos-att'));
-  assert.ok(html.includes('>CB<'));
-  assert.ok(html.includes('>CF<'));
+test('htmlPanel: no es una hoja ni un panel flotante (sin velo ni dialog)', () => {
+  const html = panel(jugador({}), jugador({}), OP);
+  assert.ok(!html.includes('mc-velo'));
+  assert.ok(!html.includes('role="dialog"'));
+  assert.ok(html.includes('class="mc-panel mc-cmp"'));
+});
+
+test('htmlFicha: muestra todo lo del editor con títulos chicos', () => {
+  const f = ficha(jugador({ name: 'Uno', base: 82, sec: { inj: 'B', cons: 6, cond: 5, wff: 3, wfa: 2 } }));
+  for (const titulo of ['Principales', 'Secundarios', 'Datos', 'Posiciones']) {
+    assert.ok(f.includes('>' + titulo + '<'), 'falta la sección ' + titulo);
+  }
+  assert.ok(f.includes('Ataque'));
+  assert.ok(f.includes('Res. lesión'));
+  assert.ok(f.includes('Regularidad en el juego'));
+  assert.ok(f.includes('Altura') && f.includes('178 cm'));
+  assert.ok(f.includes('Edad') && f.includes('25'));
+  assert.ok(f.includes('Pie') && f.includes('Der.'));
+  assert.ok(!f.includes('mc-row'), 'la ficha es de una columna, sin filas comparadas');
+  assert.ok(!f.includes('mc-actions'), 'sin acciones: no hay cambio que confirmar');
+});
+
+test('htmlFicha: habilidades solo si tiene y posición principal marcada', () => {
+  const con = ficha(jugador({ primaryPos: 'CF', positions: { CF: true, SS: true },
+    abilities: { striker: true } }));
+  assert.ok(con.includes('Habilidades'));
+  assert.ok(con.includes('Hab. goleadora'));
+  assert.ok(con.includes('mc-pos-att mc-pos-main'));
+
+  const sin = ficha(jugador({}));
+  assert.ok(!sin.includes('Habilidades'), 'sin habilidades no se muestra el bloque');
+  assert.ok(sin.includes('Posiciones'));
+});
+
+test('htmlFicha: sin jugador devuelve cadena vacía', () => {
+  assert.strictEqual(ficha(null), '');
 });
