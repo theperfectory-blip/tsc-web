@@ -526,6 +526,149 @@
   }
 
   /* ============================================================
+     HIST2 · agruparHistorialCoins — agrupación del historial de YuNaCoins de
+     UN equipo para el modal del panel admin (jerarquía temporada › tipo ›
+     movimiento). Puro: recibe los movimientos ya filtrados por equipo y la
+     temporada de cobro; no toca Firestore ni el DOM.
+
+     Tipos (en este orden; los grupos vacíos no aparecen):
+       - mejoras:      reason que empieza con 'mejora PES5' y no es reembolso
+                       ni retroactiva.
+       - retroactivas: 'mejora PES5 retroactiva'.
+       - reembolsos:   'mejora PES5 reembolso' y 'reembolso'.
+       - ingresos:     el resto con mode 'add'.
+       - descuentos:   el resto (mode 'sub' o sin mode reconocido).
+     Retroactiva y reembolso se clasifican ANTES del prefijo 'mejora PES5'
+     para que no caigan en mejoras.
+
+     Devuelve:
+       totales        {n, ingresos, gastos, suma}
+       temporadaCobro {n, nombre, movimientos, ingresos, gastos, suma}
+                      ← tarjetas de la cabecera del modal
+       temporadas     [{season, key, nombre, n, ingresos, gastos, suma,
+                        abierta, tipos}]
+         - season: número o null ('Sin temporada'). Las temporadas van de la
+           más reciente a la más vieja y 'Sin temporada' al final.
+         - abierta: true solo en la temporada de cobro.
+         - tipos: [{key, label, n, ingresos, gastos, suma, movimientos}], con
+           los movimientos de cada tipo del más reciente al más viejo.
+       ingresos = suma de `amount` de los mode 'add'; gastos = mode 'sub';
+       suma = ingresos - gastos (para pintar +ingresos / −gastos).
+     ============================================================ */
+  const HIST_TIPOS_COINS = [
+    { key: 'mejoras', label: 'Mejoras PES5' },
+    { key: 'retroactivas', label: 'Retroactivas' },
+    { key: 'reembolsos', label: 'Reembolsos' },
+    { key: 'ingresos', label: 'Ingresos' },
+    { key: 'descuentos', label: 'Descuentos' },
+  ];
+  function tipoHistorialCoins(mov) {
+    const reason = mov && typeof mov.reason === 'string' ? mov.reason : '';
+    if (reason === 'mejora PES5 retroactiva') return 'retroactivas';
+    if (reason === 'mejora PES5 reembolso' || reason === 'reembolso') return 'reembolsos';
+    if (reason.indexOf('mejora PES5') === 0) return 'mejoras';
+    return mov && mov.mode === 'add' ? 'ingresos' : 'descuentos';
+  }
+  function _histCoinsMs(mov) {
+    const t = Date.parse(mov && mov.date);
+    return isNaN(t) ? 0 : t;
+  }
+  function _histCoinsMonto(mov) {
+    const n = Number(mov && mov.amount);
+    return Number.isFinite(n) ? Math.abs(n) : 0;
+  }
+  function _histCoinsSeason(mov) {
+    if (!mov || mov.season == null || mov.season === '') return null;
+    const n = Number(mov.season);
+    return Number.isFinite(n) ? n : null;
+  }
+  function agruparHistorialCoins(movs, temporadaCobro) {
+    const cobroNum = Number(temporadaCobro);
+    const cobro = temporadaCobro != null && temporadaCobro !== '' && Number.isFinite(cobroNum) ? cobroNum : null;
+    const grupos = new Map();
+    const totales = { n: 0, ingresos: 0, gastos: 0, suma: 0 };
+
+    (movs || []).forEach(function (mov) {
+      if (!mov) return;
+      const season = _histCoinsSeason(mov);
+      const key = season == null ? 'sin' : 's' + season;
+      let g = grupos.get(key);
+      if (!g) {
+        g = {
+          season: season,
+          key: key,
+          nombre: season == null ? 'Sin temporada' : 'Temporada ' + season,
+          n: 0, ingresos: 0, gastos: 0, suma: 0,
+          abierta: season != null && cobro != null && season === cobro,
+          _movs: [],
+        };
+        grupos.set(key, g);
+      }
+      const monto = _histCoinsMonto(mov);
+      const esIngreso = mov.mode === 'add';
+      g.n++;
+      if (esIngreso) g.ingresos += monto; else g.gastos += monto;
+      g._movs.push(mov);
+      totales.n++;
+      if (esIngreso) totales.ingresos += monto; else totales.gastos += monto;
+    });
+
+    const temporadas = Array.from(grupos.values()).map(function (g) {
+      const porTipo = new Map();
+      g._movs.forEach(function (mov) {
+        const tipo = tipoHistorialCoins(mov);
+        if (!porTipo.has(tipo)) porTipo.set(tipo, []);
+        porTipo.get(tipo).push(mov);
+      });
+      const tipos = HIST_TIPOS_COINS.map(function (t) {
+        const lista = (porTipo.get(t.key) || []).slice().sort(function (a, b) {
+          return _histCoinsMs(b) - _histCoinsMs(a);
+        });
+        let ingresos = 0, gastos = 0;
+        lista.forEach(function (mov) {
+          const monto = _histCoinsMonto(mov);
+          if (mov.mode === 'add') ingresos += monto; else gastos += monto;
+        });
+        return {
+          key: t.key,
+          label: t.label,
+          n: lista.length,
+          ingresos: ingresos,
+          gastos: gastos,
+          suma: ingresos - gastos,
+          movimientos: lista,
+        };
+      }).filter(function (t) { return t.n > 0; });
+      g.suma = g.ingresos - g.gastos;
+      delete g._movs;
+      g.tipos = tipos;
+      return g;
+    });
+
+    temporadas.sort(function (a, b) {
+      if (a.season == null && b.season == null) return 0;
+      if (a.season == null) return 1;
+      if (b.season == null) return -1;
+      return b.season - a.season;
+    });
+
+    totales.suma = totales.ingresos - totales.gastos;
+    const enCobro = cobro == null ? null : temporadas.find(function (t) { return t.season === cobro; });
+    return {
+      totales: totales,
+      temporadaCobro: {
+        n: cobro,
+        nombre: cobro == null ? 'Sin temporada' : 'Temporada ' + cobro,
+        movimientos: enCobro ? enCobro.n : 0,
+        ingresos: enCobro ? enCobro.ingresos : 0,
+        gastos: enCobro ? enCobro.gastos : 0,
+        suma: enCobro ? enCobro.suma : 0,
+      },
+      temporadas: temporadas,
+    };
+  }
+
+  /* ============================================================
      evaluarPago — version completa de `puedePagar` (punto 5 del
      macro-slice): "puedePagar = saldo real >= total Y los topes de
      temporada no se exceden (tope general para todos, bono solo para
@@ -1248,6 +1391,7 @@
     bonoRestanteJugador: bonoRestanteJugador,
     resumenPresupuesto: resumenPresupuesto,
     resumenCarga: resumenCarga,
+    agruparHistorialCoins: agruparHistorialCoins,
     normalizarTopesExtra: normalizarTopesExtra,
     extraDeEquipo: extraDeEquipo,
     reglasConExtra: reglasConExtra,

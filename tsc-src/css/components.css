@@ -484,3 +484,98 @@
 }
 .site-footer-author:hover{color:var(--txt2);}
 .site-footer-sep{opacity:0.5;}
+
+/* ============================================================
+   HIST2 — historial de YuNaCoins del equipo (acordeón del panel admin)
+   Jerarquía temporada › tipo › movimiento. Colores con las variables del
+   tema (claro y oscuro); sin estilos inline en coins.js.
+   ============================================================ */
+.ch-modal{max-width:720px;}
+.ch-hdr{padding:12px 16px;}
+.ch-hdr .modal-title{min-width:0;overflow-wrap:anywhere;}
+.ch-body{padding:14px 16px;}
+.ch-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.ch-card{background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);padding:9px 10px;min-width:0;}
+.ch-card-lbl{font-size:10.5px;line-height:1.25;letter-spacing:0.4px;text-transform:uppercase;color:var(--txt3);font-weight:700;}
+.ch-card-val{font-family:'Bebas Neue';font-size:21px;line-height:1.15;margin-top:2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.ch-gold{color:var(--gold-ink);}
+.ch-green{color:var(--green-ink);}
+.ch-red{color:var(--red);}
+.ch-cobro{margin:8px 0 12px;font-size:12px;color:var(--txt3);}
+.ch-cobro strong{color:var(--txt2);font-weight:600;}
+.ch-vacio{padding:22px;text-align:center;color:var(--txt3);font-size:14px;}
+
+/* Nivel 1 — temporada */
+.ch-season{border:1px solid var(--brd2);border-radius:var(--rl);background:var(--card2);overflow:hidden;}
+.ch-season + .ch-season{margin-top:10px;}
+.ch-season-sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 12px;cursor:pointer;font:inherit;}
+.ch-season-sum:hover{background:var(--card3);}
+.ch-season-nombre{flex:1 1 130px;min-width:0;font-family:'Barlow Condensed';font-weight:700;font-size:15px;letter-spacing:0.4px;color:var(--txt);overflow-wrap:anywhere;}
+.ch-meta{flex:none;font-size:11.5px;color:var(--txt3);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.ch-flujo{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ch-sep{color:var(--txt3);font-weight:400;}
+.ch-season-body{display:flex;flex-direction:column;gap:6px;padding:0 10px 10px;}
+
+/* Chevron Lucide: gira al abrir el <details> */
+.ch-chev{flex:none;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--txt3);transition:transform var(--dur-fast) var(--ease-out);}
+.ch-chev--sm{width:12px;height:12px;}
+details[open] > summary .ch-chev{transform:rotate(180deg);}
+.ch-season-sum,.ch-tipo-sum,.ch-mov-sum,.ch-mas-btn{list-style:none;}
+.ch-season-sum::-webkit-details-marker,.ch-tipo-sum::-webkit-details-marker,
+.ch-mov-sum::-webkit-details-marker,.ch-mas-btn::-webkit-details-marker{display:none;}
+.ch-season-sum:focus-visible,.ch-tipo-sum:focus-visible,
+.ch-mov-sum:focus-visible,.ch-mas-btn:focus-visible{outline:2px solid var(--focus-ring);outline-offset:-2px;border-radius:4px;}
+
+/* Nivel 2 — tipo */
+.ch-tipo{border:1px solid var(--brd);border-radius:var(--r);background:var(--card);overflow:hidden;}
+.ch-tipo-sum{display:flex;align-items:center;gap:8px;padding:8px 10px;min-height:40px;cursor:pointer;}
+.ch-tipo-sum:hover{background:var(--card2);}
+.ch-tipo-nombre{flex:1;min-width:0;font-family:'Barlow Condensed';font-weight:700;font-size:13px;letter-spacing:0.8px;text-transform:uppercase;color:var(--txt2);overflow-wrap:anywhere;}
+.ch-cant{flex:none;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--card3);border:1px solid var(--brd);color:var(--txt2);font-variant-numeric:tabular-nums;}
+.ch-suma{flex:none;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ch-tipo-body{display:flex;flex-direction:column;}
+
+/* Nivel 3 — movimiento */
+.ch-mov{border-top:1px solid var(--brd);}
+.ch-mov:first-child{border-top:none;}
+.ch-mov-sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;min-height:40px;cursor:pointer;}
+.ch-mov-sum:hover{background:var(--card2);}
+.ch-fecha{flex:none;font-size:11.5px;color:var(--txt3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ch-motivo{flex:1 1 120px;min-width:0;font-size:13.5px;line-height:1.3;color:var(--txt);overflow-wrap:anywhere;}
+.ch-jugador{font-size:12.5px;color:var(--txt3);}
+.ch-jugador::before{content:' · ';color:var(--txt3);}
+.ch-monto{flex:none;font-family:'Bebas Neue';font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ch-saldo{flex:none;font-family:'Bebas Neue';font-size:15px;color:var(--gold-ink);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ch-det{padding:9px 10px 11px;border-top:1px solid var(--brd);font-size:12.5px;line-height:1.5;color:var(--txt2);}
+.ch-det-nota{overflow-wrap:anywhere;}
+.ch-lineas{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:3px;}
+.ch-lineas li{display:flex;flex-wrap:wrap;gap:2px 6px;font-variant-numeric:tabular-nums;}
+.ch-linea-campo{color:var(--txt);font-weight:600;overflow-wrap:anywhere;}
+.ch-linea-val{color:var(--txt2);overflow-wrap:anywhere;}
+.ch-linea-costo{color:var(--gold-ink);}
+.ch-det-partes{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;}
+.ch-det-partes b{color:var(--txt);font-weight:700;font-variant-numeric:tabular-nums;}
+.ch-det-pedido{margin-top:6px;font-size:11.5px;color:var(--txt3);overflow-wrap:anywhere;}
+.ch-det-vacio{color:var(--txt3);}
+
+/* «Ver más»: 31.º movimiento en adelante, sin handler (details nativo) */
+.ch-mas{border-top:1px solid var(--brd);}
+.ch-mas-btn{display:block;padding:8px 10px;text-align:center;font-family:'Barlow Condensed';font-weight:700;font-size:12.5px;letter-spacing:0.5px;text-transform:uppercase;color:var(--gold-ink);cursor:pointer;}
+.ch-mas-btn:hover{background:var(--card2);}
+.ch-mas-body{display:flex;flex-direction:column;}
+
+/* Celular: modal a pantalla completa a 375 px, sin scroll horizontal */
+@media(max-width:640px){
+  .ch-overlay{padding:0;}
+  .ch-overlay .ch-modal{max-width:none;width:100%;height:100vh;max-height:100vh;border-radius:0;border:none;}
+  .ch-body{padding:12px;}
+  .ch-cards{gap:6px;}
+  .ch-card{padding:8px;}
+  .ch-card-lbl{font-size:9.5px;}
+  .ch-card-val{font-size:18px;}
+  .ch-season-sum{padding:10px;}
+  .ch-season-body{padding:0 8px 8px;}
+  .ch-tipo-sum,.ch-mov-sum{padding:10px 8px;}
+  .ch-det{padding:9px 8px 11px;}
+  .ch-cobro{margin:8px 0 10px;}
+}

@@ -458,40 +458,147 @@ function saveCoinsTransaction(teamId, mode){
   });
 }
 
+/* ==========================================================
+   HIST2 · Historial de YuNaCoins del equipo (acordeón)
+   ----------------------------------------------------------
+   Jerarquía temporada › tipo › movimiento con <details>/<summary>
+   nativos (sin handlers propios). La agrupación y las sumas las hace
+   YUNACOINS_RULES.agruparHistorialCoins (pura, con test en tools/).
+   Estilos en css/components.css (clases .ch-*).
+   ========================================================== */
+const _COINS_HIST_RLABELS = {stream:'Stream',victoria:'Victoria',campeon:'Campeón',evento:'Evento',bonus:'Bonus',compra:'Compra jugador',mejora:'Mejora stats',tactica:'Táctica',multa:'Multa',otro:'Otro',reembolso:'Reembolso de mejora','mejora PES5':'Mejora PES5','mejora PES5 (admin)':'Mejora PES5','mejora PES5 (pedido)':'Mejora PES5','mejora PES5 reembolso':'Reembolso de mejora','mejora PES5 retroactiva':'Retroactiva'};
+
+function _coinsHistNF(n){
+  return (Number(n) || 0).toLocaleString('es-CL');
+}
+
+/* dd/mm hh:mm en hora local (la tabla vieja mostraba la fecha larga). */
+function _coinsHistFecha(iso){
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return '—';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function _coinsHistLineaHTML(l){
+  if(!l) return '';
+  const costo = Number(l.costo);
+  const costoHTML = Number.isFinite(costo) && costo > 0
+    ? ` <span class="ch-linea-costo">+${_coinsHistNF(costo)}</span>` : '';
+  return `<li><span class="ch-linea-campo">${escHtml(l.campo || '—')}</span><span class="ch-linea-val">${escHtml(l.de == null ? '—' : l.de)} → ${escHtml(l.a == null ? '—' : l.a)}</span>${costoHTML}</li>`;
+}
+
+/* Detalle de un movimiento: nota completa, líneas del cambio y desglose pes5. */
+function _coinsHistDetalleHTML(t, nota){
+  const partes = [];
+  if(nota) partes.push(`<div class="ch-det-nota">${escHtml(nota)}</div>`);
+  const p = t.pes5 && typeof t.pes5 === 'object' ? t.pes5 : null;
+  if(p){
+    if(Array.isArray(p.lineas) && p.lineas.length){
+      partes.push(`<ul class="ch-lineas">${p.lineas.map(_coinsHistLineaHTML).join('')}</ul>`);
+    }
+    const dinero = [];
+    if(p.fromSub != null) dinero.push(`<span>Del bono: <b>${_coinsHistNF(p.fromSub)}</b></span>`);
+    if(p.fromGeneral != null) dinero.push(`<span>Del general: <b>${_coinsHistNF(p.fromGeneral)}</b></span>`);
+    if(p.reembolso) dinero.push('<span>Reembolso de mejora</span>');
+    if(dinero.length) partes.push(`<div class="ch-det-partes">${dinero.join('')}</div>`);
+    if(p.pedidoId) partes.push(`<div class="ch-det-pedido">Pedido: ${escHtml(p.pedidoId)}</div>`);
+  }
+  return partes.join('');
+}
+
+function _coinsHistMovHTML(t){
+  const isAdd = t.mode === 'add';
+  const label = _COINS_HIST_RLABELS[t.reason] || t.reason || (isAdd ? 'Ingreso' : 'Descuento');
+  const esMejora = typeof t.reason === 'string' && t.reason.indexOf('mejora PES5') === 0;
+  const jugador = esMejora && t.pes5 && t.pes5.playerName ? String(t.pes5.playerName) : '';
+  // La etiqueta ya dice «Retroactiva»: no se repite el prefijo de la nota.
+  const nota = t.reason === 'mejora PES5 retroactiva' && String(t.note||'').indexOf('Retroactiva:') === 0
+    ? String(t.note).slice('Retroactiva:'.length).trim() : t.note;
+  const monto = Math.abs(Number(t.amount) || 0);
+  const saldo = t.after == null ? '—' : _coinsHistNF(t.after);
+  const detalle = _coinsHistDetalleHTML(t, nota);
+  return `<details class="ch-mov">
+    <summary class="ch-mov-sum">
+      <span class="ch-fecha">${_coinsHistFecha(t.date)}</span>
+      <span class="ch-motivo">${escHtml(label)}${jugador ? `<span class="ch-jugador">${escHtml(jugador)}</span>` : ''}</span>
+      <span class="ch-monto ${isAdd ? 'ch-green' : 'ch-red'}">${isAdd ? '+' : '−'}${_coinsHistNF(monto)}</span>
+      <span class="ch-saldo">${escHtml(saldo)}</span>
+      <svg class="ch-chev ch-chev--sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    </summary>
+    <div class="ch-det">${detalle || '<div class="ch-det-vacio">Sin detalle.</div>'}</div>
+  </details>`;
+}
+
+function _coinsHistTipoHTML(t){
+  // Hasta 30 movimientos a la vista; el resto, detrás de «Ver más».
+  const visibles = t.movimientos.slice(0, 30);
+  const resto = t.movimientos.slice(30);
+  const suma = Number(t.suma) || 0;
+  return `<details class="ch-tipo">
+    <summary class="ch-tipo-sum">
+      <svg class="ch-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      <span class="ch-tipo-nombre">${escHtml(t.label)}</span>
+      <span class="ch-cant">${t.n}</span>
+      <span class="ch-suma ${suma < 0 ? 'ch-red' : 'ch-green'}">${suma < 0 ? '−' : '+'}${_coinsHistNF(Math.abs(suma))}</span>
+    </summary>
+    <div class="ch-tipo-body">
+      ${visibles.map(_coinsHistMovHTML).join('')}
+      ${resto.length ? `<details class="ch-mas">
+        <summary class="ch-mas-btn">Ver más (${resto.length})</summary>
+        <div class="ch-mas-body">${resto.map(_coinsHistMovHTML).join('')}</div>
+      </details>` : ''}
+    </div>
+  </details>`;
+}
+
+function _coinsHistTemporadaHTML(t, nombres){
+  const nombre = (nombres && nombres[t.season]) || t.nombre;
+  return `<details class="ch-season"${t.abierta ? ' open' : ''}>
+    <summary class="ch-season-sum">
+      <svg class="ch-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      <span class="ch-season-nombre">${escHtml(nombre)}</span>
+      <span class="ch-meta">${t.n} ${t.n === 1 ? 'movimiento' : 'movimientos'}</span>
+      <span class="ch-flujo"><span class="ch-green">+${_coinsHistNF(t.ingresos)}</span><span class="ch-sep">/</span><span class="ch-red">−${_coinsHistNF(t.gastos)}</span></span>
+    </summary>
+    <div class="ch-season-body">${t.tipos.map(_coinsHistTipoHTML).join('')}</div>
+  </details>`;
+}
+
 async function openCoinsHistory(teamId){
-  const team    = await dbGet('teams', teamId);
-  const history = await dbGetAll('coins', c=>c.teamId===teamId);
-  const sorted  = history.sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const wrap    = document.getElementById('coins-history-wrap');
-  const RLABELS = {stream:'Stream',victoria:'Victoria',campeon:'Campeón',evento:'Evento',bonus:'Bonus',compra:'Compra jugador',mejora:'Mejora stats',tactica:'Táctica',multa:'Multa',otro:'Otro',reembolso:'Reembolso de mejora','mejora PES5 reembolso':'Reembolso de mejora','mejora PES5 retroactiva':'Retroactiva'};
+  const team = await dbGet('teams', teamId);
+  if(!team){ showToast('El equipo ya no existe', 'error'); renderAdmCoins(); return; }
+  const [cobro, history, seasons] = await Promise.all([
+    _coinsTemporadaInfo(),
+    dbGetAll('coins', c => String(c.teamId) === String(teamId)),
+    dbGetAll('seasons'),
+  ]);
+  const nombres = {};
+  (seasons || []).forEach(s => {
+    if(s && s.number != null) nombres[Number(s.number)] = getSeasonName(s);
+  });
+  const grupos = YUNACOINS_RULES.agruparHistorialCoins(history, cobro.n);
+  const cobroNombre = nombres[Number(cobro.n)] || cobro.nombre;
+  const saldo = Number(team.yunacoin) || 0;
+  const wrap = document.getElementById('coins-history-wrap');
+  if(!wrap) return;
   wrap.innerHTML = `
-  <div class="modal-overlay open">
-    <div class="modal" style="max-width:500px;">
-      <div class="modal-hdr">
+  <div class="modal-overlay open ch-overlay">
+    <div class="modal ch-modal" role="dialog" aria-modal="true" aria-label="Historial de YuNaCoins de ${escAttr(team.name)}">
+      <div class="modal-hdr ch-hdr">
         <div class="modal-title">Historial · ${escHtml(team.name)}</div>
-        <button class="modal-close" data-onclick="_tscClear('coins-history-wrap')">×</button>
+        <button class="modal-close" data-onclick="_tscClear('coins-history-wrap')" aria-label="Cerrar">×</button>
       </div>
-      <div class="modal-body" style="padding:0;">
-        ${!sorted.length?'<div style="padding:24px;text-align:center;color:var(--txt3);">Sin movimientos.</div>':`
-        <div style="max-height:400px;overflow-y:auto;">
-          <table class="tbl">
-            <thead><tr><th>Fecha</th><th>Motivo</th><th style="text-align:right;">Monto</th><th style="text-align:right;">Saldo</th></tr></thead>
-            <tbody>${sorted.map(t=>{
-              const isAdd=t.mode==='add';
-              const d=new Date(t.date);
-              const fecha=d.toLocaleDateString('es-CL')+' '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-              // La etiqueta ya dice «Retroactiva»: no se repite el prefijo de la nota.
-              const nota = t.reason === 'mejora PES5 retroactiva' && String(t.note||'').indexOf('Retroactiva:') === 0
-                ? String(t.note).slice('Retroactiva:'.length).trim() : t.note;
-              return `<tr>
-                <td style="font-size:13px;color:var(--txt3);white-space:nowrap;">${fecha}</td>
-                <td><div style="font-size:14px;">${escHtml(RLABELS[t.reason]||t.reason)}</div>${nota?`<div style="font-size:12px;color:var(--txt3);">${escHtml(nota)}</div>`:''}</td>
-                <td style="text-align:right;font-family:'Bebas Neue';font-size:19px;color:${isAdd?'var(--green)':'var(--red)'};">${isAdd?'+':'-'}${t.amount.toLocaleString('es-CL')}</td>
-                <td style="text-align:right;font-family:'Bebas Neue';font-size:17px;color:var(--gold);">${t.after.toLocaleString('es-CL')}</td>
-              </tr>`;
-            }).join('')}</tbody>
-          </table>
-        </div>`}
+      <div class="modal-body ch-body">
+        <div class="ch-cards">
+          <div class="ch-card"><div class="ch-card-lbl">Saldo actual</div><div class="ch-card-val ch-gold">${_coinsHistNF(saldo)}</div></div>
+          <div class="ch-card"><div class="ch-card-lbl">Ingresos esta temporada</div><div class="ch-card-val ch-green">+${_coinsHistNF(grupos.temporadaCobro.ingresos)}</div></div>
+          <div class="ch-card"><div class="ch-card-lbl">Gastos esta temporada</div><div class="ch-card-val ch-red">−${_coinsHistNF(grupos.temporadaCobro.gastos)}</div></div>
+        </div>
+        <div class="ch-cobro">Temporada de cobro: <strong>${escHtml(cobroNombre)}</strong></div>
+        ${grupos.temporadas.length
+          ? grupos.temporadas.map(t => _coinsHistTemporadaHTML(t, nombres)).join('')
+          : '<div class="ch-vacio">Sin movimientos.</div>'}
       </div>
       <div class="modal-footer"><button class="btn" data-onclick="_tscClear('coins-history-wrap')">Cerrar</button></div>
     </div>
