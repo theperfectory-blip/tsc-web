@@ -2234,7 +2234,10 @@ function renderCart(){
   renderAviso();
   renderCarritoPanel();
   const applyBtn = document.getElementById('ep-apply');
-  const sinNada = !entradas.length && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
+  // En la Tool no hay carrito (entradas siempre vacío): cuenta el borrador abierto o el pendiente previo.
+  const sinNada = ADMIN_EMBED
+    ? !n && !(ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)
+    : !entradas.length;
   applyBtn.disabled = sinNada || (!ADMIN_EMBED && (yaPedido || !!APP.bloqueoPorAplicado || excede));
   applyBtn.title = ADMIN_EMBED
     ? ''

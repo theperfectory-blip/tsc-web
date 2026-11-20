@@ -103,14 +103,20 @@ function _nombreTemporadaCobro(){
 
 /* EMP-80-2 · perfiles fijados por temporada y jugador: pes5_perfiles/{temporada}_{teamId} = { perfiles: {[registro]: 'base'|'suscriptor'|'ninguno'} }.
    Solo el admin escribe. Sin valor fijado, el perfil es el calculo en vivo (perfilEmparejar). */
-let PERFILES_TOOL = null; // { [docId]: { [registro]: valor } } cargado desde Firestore; null = todavia no leido
+let PERFILES_TOOL = null; // { [docId]: { [registro]: valor } } cargado desde Firestore; null = todavia no leido (o la lectura fallo)
 function _docPerfiles(teamId, season){ return String(season) + '_' + String(teamId); }
 async function _cargarPerfilesTool(){
-  const snap = await firebase.firestore().collection('pes5_perfiles').get();
-  const mapa = {};
-  snap.forEach(d => { mapa[d.id] = (d.data() && d.data().perfiles) || {}; });
-  PERFILES_TOOL = mapa;
-  return mapa;
+  try {
+    const snap = await firebase.firestore().collection('pes5_perfiles').get();
+    const mapa = {};
+    snap.forEach(d => { mapa[d.id] = (d.data() && d.data().perfiles) || {}; });
+    PERFILES_TOOL = mapa;
+    return mapa;
+  } catch (e) {
+    // Queda en null a proposito: el proximo que lo necesite reintenta la lectura.
+    PERFILES_TOOL = null;
+    throw e;
+  }
 }
 function _fijadoTool(teamId, registro){
   if (!PERFILES_TOOL || teamId == null || registro == null) return null;
@@ -200,10 +206,17 @@ async function ptPerfilOverride(registro, el){
   }
 }
 // Select del editor del jugador: perfil fijado para la temporada (o «sin fijar» si no hay).
+// Si la lectura de los perfiles todavia no llego o fallo (PERFILES_TOOL null), NO se
+// muestra «sin fijar»: un desplegable «no se pudo leer», deshabilitado, para que no se
+// guarde un perfil encima sin saber el que habia.
 function _selectPerfilHTML(registro){
   if (!_emparejarCfg()) return '';
   const team = equipoTSCActual();
   if (!team) return '';
+  if (!PERFILES_TOOL){
+    return `<select class="pt-ed-perfil" disabled title="No se pudieron leer los perfiles fijados de la temporada: se reintenta al volver a abrir el jugador">
+      <option>Perfil: no se pudo leer</option></select>`;
+  }
   const fijado = _fijadoTool(team.id, registro);
   const opt = (v, t) => `<option value="${v}"${fijado === v ? ' selected' : ''}>${t}</option>`;
   return `<select class="pt-ed-perfil" data-onchange="ptPerfilOverride(${Number(registro)}, this)" title="Perfil de emparejar fijado para la temporada: corrige el cobro gratis">
@@ -285,9 +298,12 @@ function equipoTSCActual(){
 // cargarEquiposYPresidentes / PRESIDENTES_POR_TEAM, la MISMA fuente que ya
 // pinta la columna Presidente en la pestaña Equipos — no se recalcula
 // distinto, punto 3 del macro-slice D.R).
-// Se cobra al equipo si tiene presidente y el admin no marco «Edición gratis».
+// Se cobra al EQUIPO (saldo teams.yunacoin + libro `coins`) siempre que haya un
+// equipo TSC vinculado al club y el admin no marcó «Edición gratis»; tener
+// presidente o no ya no cambia el cobro. Solo un club PES5 sin equipo TSC
+// vinculado queda en edición libre.
 function _cobraEquipo(team){
-  return !!(team && tienePresidente(team) && !EDICION_GRATIS);
+  return !!(team && !EDICION_GRATIS);
 }
 function tienePresidente(team){
   return !!(team && PRESIDENTES_POR_TEAM[team.id]);
@@ -877,7 +893,10 @@ function renderPlantillaTab(){
     </div>`;
   // EMP-80-2: leer los perfiles fijados de la temporada y repintar el cuerpo cuando lleguen.
   if (!PERFILES_TOOL){
-    _cargarPerfilesTool().then(() => { if (PLANTILLA_ACTUAL) renderPlantillaBody(); }).catch(e => console.warn('[pes5-tool] perfiles fijados', e));
+    _cargarPerfilesTool().then(() => { if (PLANTILLA_ACTUAL) renderPlantillaBody(); }).catch(e => {
+      console.warn('[pes5-tool] perfiles fijados', e);
+      showToast('No se pudieron leer los perfiles fijados de la temporada: ' + (e.message || e), 'error');
+    });
   }
   // Si ya habia un club abierto (volvimos a esta pestana), restaurarlo con sus cambios pendientes.
   if (PLANTILLA_INDICE != null && PLANTILLA_ACTUAL){
@@ -1065,6 +1084,16 @@ async function abrirEditorJugador(id){
   const j = PLANTILLA_ACTUAL.find(p => p.id === id);
   if (!j) return;
   if (!(await asegurarBloqueoEquipo(equipoTSCActual(), () => abrirEditorJugador(id)))) return;
+  // EMP-80-2: la lectura de los perfiles fijados va en segundo plano; si Luis abre un
+  // jugador antes de que termine (o fallo), se espera aca antes de pintar el select.
+  // Si vuelve a fallar, el select queda en «no se pudo leer» (deshabilitado).
+  if (!PERFILES_TOOL && _emparejarCfg() && equipoTSCActual()){
+    try { await _cargarPerfilesTool(); }
+    catch (e) {
+      console.warn('[pes5-tool] perfiles fijados', e);
+      showToast('No se pudieron leer los perfiles fijados de la temporada: ' + (e.message || e), 'error');
+    }
+  }
   const previo = document.getElementById('pt-ed-overlay');
   if (previo) previo.remove();
   MEJORAS_EDITOR.desmontar();
@@ -1094,9 +1123,10 @@ function cerrarEditorJugador(){
   if (BLOQUEO_EQUIPO != null && !Object.keys(CAMBIOS_PENDIENTES).length) liberarBloqueoEquipo();
 }
 
-// Opciones del editor para el jugador abierto. Si el equipo tiene presidente se
-// cobra (reglas y presupuesto reales, descontando lo ya pendiente de OTROS
-// jugadores); si no, edicion libre: reglas en cero y presupuesto enorme.
+// Opciones del editor para el jugador abierto. Si el club está vinculado a un
+// equipo TSC se cobra (reglas y presupuesto reales, descontando lo ya pendiente
+// de OTROS jugadores), tenga presidente o no; si no, edicion libre: reglas en
+// cero y presupuesto enorme.
 function _opcionesEditor(j){
   const team = equipoTSCActual();
   const cobra = _cobraEquipo(team);
@@ -1131,9 +1161,9 @@ function _opcionesEditor(j){
     gastado = { general: delEquipo ? GASTO_TEMPORADA_CACHE.general : 0, sub: delEquipo ? GASTO_TEMPORADA_CACHE.sub : 0 };
     pendientesOtros = { total: otrosTotal, general: otrosGeneral, sub: otrosSub };
   } else {
-    // Edicion gratis de un equipo con presidente: sin costos, pero con el maximo de posiciones de la TSC.
-    const gratisConPresidente = !!(team && tienePresidente(team));
-    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0, maxPositions: gratisConPresidente ? YC_RULES.maxPositions : 12 });
+    // Edicion gratis de un equipo vinculado: sin costos, pero con el maximo de posiciones de la TSC.
+    const gratisEquipo = !!team;
+    reglas = Object.assign({}, YC_RULES, { bandCosts: [0, 0, 0, 0, 0], scale8Cost: 0, abilityCost: 0, injuryCost: 0, budgetGeneral: 0, budgetSubscribers: 0, maxPositions: gratisEquipo ? YC_RULES.maxPositions : 12 });
     presupuesto = { general: 1e9, subscribers: 1e9, saldo: 0 };
   }
   const pres = cobra ? PRESIDENTES_POR_TEAM[team.id] : null;
@@ -1147,7 +1177,7 @@ function _opcionesEditor(j){
       pes5ClubIdx: PLANTILLA_INDICE,
       yunacoin: team ? (team.yunacoin || 0) : 0,
       cobra: cobra,
-      gratis: !cobra && !!(team && tienePresidente(team)),
+      gratis: !cobra && !!team,
       presidente: pres ? (pres.displayName || pres.email || null) : null,
     },
     reglas: reglas,
@@ -1183,9 +1213,9 @@ function recibirAplicarDelEditor(m){
   renderWriteBar();
 }
 
-// Casilla grande «Edición gratis»: solo para un equipo con presidente (a los demas no se les cobra nunca).
+// Casilla grande «Edición gratis»: para cualquier equipo TSC vinculado (a un club sin equipo no se le cobra nunca).
 function _casillaGratisHTML(team, donde){
-  if (!team || !tienePresidente(team)) return '';
+  if (!team) return '';
   return `<label class="pt-gratis${EDICION_GRATIS ? ' on' : ''}" for="pt-gratis-${donde}">
     <input type="checkbox" id="pt-gratis-${donde}" ${EDICION_GRATIS ? 'checked' : ''} data-onchange="ptToggleEdicionGratis(this)">
     <span class="pt-gratis-txt"><b>Edición gratis</b><span>No cobrar YunaCoins a ${escHtml(team.name)} por estos cambios</span></span>
@@ -1353,7 +1383,6 @@ function renderWriteBar(){
   const prevGeneral = _ptNumero(document.getElementById('pt-barra-general-val'), 0);
   const cerrado = !!document.getElementById('pes5-cerrado')?.checked;
   const equipoTSC = equipoTSCActual();
-  const presidente = tienePresidente(equipoTSC);
   const cobra = _cobraEquipo(equipoTSC);
   const total = Object.keys(CAMBIOS_PENDIENTES).length;
   const modoDescarga = !PES5_SAVE.tieneSoporte();
@@ -1361,8 +1390,6 @@ function renderWriteBar(){
   let barras = null;
   if (!equipoTSC){
     cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} Sin equipo TSC vinculado · edición libre</span>`;
-  } else if (!presidente){
-    cobroHtml = `<span class="pt-cobro-badge libre">${ICN.unlock} ${escHtml(equipoTSC.name)} · sin presidente · edición libre</span>`;
   } else if (!cobra){
     cobroHtml = `<span class="pt-cobro-badge gratis">${ICN.unlock} Edición gratis · no se cobra a ${escHtml(equipoTSC.name)} (saldo ${(equipoTSC.yunacoin || 0).toLocaleString('es-CL')})</span>`;
   } else {
@@ -1442,10 +1469,10 @@ function actualizarBotonEscritura(){
   const totalPendientes = Object.keys(CAMBIOS_PENDIENTES).length;
   const countEl = document.querySelector('.pt-changes-count');
   if (countEl) countEl.textContent = `${totalPendientes} jugador(es) con cambios`;
-  // Slice D.R punto 5: si el equipo del club abierto tiene presidente, el
-  // saldo real (teams.yunacoin) tiene que alcanzar el total de TODOS los
-  // cambios pendientes de este plantel Y el tope general de temporada no
-  // se puede exceder (evaluarPago) — si no, no se puede escribir
+  // Slice D.R punto 5: si el club abierto tiene equipo TSC (se le cobra, tenga
+  // presidente o no), el saldo real (teams.yunacoin) tiene que alcanzar el total
+  // de TODOS los cambios pendientes de este plantel Y el tope general de
+  // temporada no se puede exceder (evaluarPago) — si no, no se puede escribir
   // (macro-slice D.R punto 3: "si el saldo no alcanza, no se escribe").
   const equipoTSC = equipoTSCActual();
   let sinSaldo = false;
@@ -1552,7 +1579,7 @@ async function confirmarEscribirAlSave(){
   const nota = PES5_SAVE.tieneSoporte()
     ? 'Se crea backup automático.'
     : 'Se va a descargar el archivo editado (el original de tu carpeta no se toca).';
-  const avisoGratis = (EDICION_GRATIS && equipoTSCConfirm && tienePresidente(equipoTSCConfirm)) ? '\nEDICIÓN GRATIS: no se cobran YunaCoins.\n' : '';
+  const avisoGratis = (EDICION_GRATIS && equipoTSCConfirm) ? '\nEDICIÓN GRATIS: no se cobran YunaCoins.\n' : '';
   const avisoCobro = (_cobraEquipo(equipoTSCConfirm) && !EDICION_GRATIS) ? `Cobro en: ${_nombreTemporadaCobro()}\n` : '';
   const ok = confirm(`Equipo: ${nombreEquipo}\nJugadores: ${nombresJugadores}\n${avisoGratis}${avisoCobro}\n${nota} ¿Confirmar?`);
   if (!ok) return;
@@ -1707,7 +1734,7 @@ async function escribirAlSave(op){
   const equipoCobro = equipoTSCActual();
   // EMP-80-1: un emparejar (op) nunca cobra; la edición gratis del equipo no aplica a él.
   const debeCobrar = op ? false : _cobraEquipo(equipoCobro);
-  if (!op && !debeCobrar && EDICION_GRATIS && equipoCobro && tienePresidente(equipoCobro)){
+  if (!op && !debeCobrar && EDICION_GRATIS && equipoCobro){
     log(`edición gratis: no se cobra a ${equipoCobro.name} (marcada por ${(AUTH.user && AUTH.user.email) || 'admin'})`);
   }
   // EMP-80-2 (cierre): antes de cobrar o escribir, si algun jugador tocado no tiene perfil fijado, se fija el plantel.
