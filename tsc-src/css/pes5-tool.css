@@ -460,3 +460,104 @@
 #page-pes5-admin .pt-det-val{max-width:100%;text-align:left;}
 #page-pes5-admin .pt-det-foot .btn{flex:1 1 auto;justify-content:center;min-height:44px;}
 }
+
+/* ============================================================
+   RETRO — «Mejoras retroactivas» (Tool PES5 › Plantilla)
+   Se registran como un cobro normal, pero el save no se escribe.
+   Los colores salen de las variables del tema (claro y oscuro).
+   ============================================================ */
+#page-pes5-admin .pt-retro-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;
+  padding:10px 12px;margin:0 0 12px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);}
+#page-pes5-admin .pt-retro-bar-txt{font-size:12.5px;color:var(--txt2);}
+#page-pes5-admin .pt-retro-ov{position:fixed;inset:0;z-index:970;background:rgba(4,6,10,0.72);display:flex;
+  align-items:center;justify-content:center;padding:16px;}
+#page-pes5-admin .pt-retro-box{width:min(880px,100%);max-height:calc(100vh - 32px);background:var(--card);
+  border:1px solid var(--brd2);border-radius:var(--rl);display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 18px 60px rgba(0,0,0,0.45);}
+#page-pes5-admin .pt-retro-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+  padding:12px 16px 10px;border-bottom:1px solid var(--brd);}
+#page-pes5-admin .pt-retro-hd h3{font-family:'Bebas Neue';font-size:20px;letter-spacing:0.5px;margin:0;line-height:1.15;}
+#page-pes5-admin .pt-retro-sub{font-size:12.5px;color:var(--txt3);margin-top:2px;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-retro-body{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 16px;
+  display:flex;flex-direction:column;gap:12px;}
+#page-pes5-admin .pt-retro-bloque{display:flex;flex-direction:column;gap:8px;padding:10px 12px;
+  border:1px solid var(--brd);border-radius:var(--r);background:var(--card2);}
+#page-pes5-admin .pt-retro-bloque-t{font-family:'Barlow Condensed';font-weight:700;font-size:11px;
+  letter-spacing:0.9px;text-transform:uppercase;color:var(--txt3);}
+#page-pes5-admin .pt-retro-fila-acciones{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+#page-pes5-admin .pt-retro-hint{font-size:12px;color:var(--txt3);}
+#page-pes5-admin .pt-retro-file{display:none;}
+#page-pes5-admin .pt-retro-manual{display:grid;grid-template-columns:minmax(0,1.1fr) 110px minmax(0,1.2fr) auto;
+  gap:8px 10px;align-items:end;}
+#page-pes5-admin .pt-retro-campo{display:flex;flex-direction:column;gap:3px;min-width:0;
+  font-family:'Barlow Condensed';font-weight:700;font-size:10.5px;letter-spacing:0.8px;
+  text-transform:uppercase;color:var(--txt3);}
+#page-pes5-admin .pt-retro-campo input,
+#page-pes5-admin .pt-retro-campo select{width:100%;min-width:0;padding:6px 8px;background:var(--card);
+  border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-family:inherit;
+  font-size:13px;font-weight:400;letter-spacing:0;text-transform:none;}
+#page-pes5-admin .pt-retro-campo input:focus,
+#page-pes5-admin .pt-retro-campo select:focus{outline:2px solid var(--focus-ring);outline-offset:1px;}
+#page-pes5-admin .pt-retro-lista-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  flex-wrap:wrap;margin-bottom:6px;font-size:12px;color:var(--txt3);}
+#page-pes5-admin .pt-retro-lista{display:flex;flex-direction:column;gap:6px;}
+#page-pes5-admin .pt-retro-row{display:grid;grid-template-columns:24px minmax(0,1fr) 190px 28px;
+  gap:8px 12px;align-items:start;padding:9px 10px;border:1px solid var(--brd);border-radius:var(--r);
+  background:var(--card2);}
+#page-pes5-admin .pt-retro-row.on{border-color:var(--gold-b);}
+#page-pes5-admin .pt-retro-check{display:flex;align-items:center;justify-content:center;padding-top:2px;}
+#page-pes5-admin .pt-retro-check input{width:18px;height:18px;margin:0;accent-color:var(--gold);cursor:pointer;}
+#page-pes5-admin .pt-retro-main{min-width:0;display:flex;flex-direction:column;gap:4px;}
+#page-pes5-admin .pt-retro-nombre{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:14px;font-weight:600;color:var(--txt);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-retro-resumen{font-size:12px;color:var(--txt2);line-height:1.4;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-retro-nota{max-width:520px;}
+#page-pes5-admin .pt-retro-cifras{display:flex;flex-direction:column;gap:4px;min-width:0;}
+#page-pes5-admin .pt-retro-calc{font-size:11.5px;color:var(--txt3);font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-calc b{color:var(--txt2);font-weight:700;}
+#page-pes5-admin .pt-retro-fila-acc{display:flex;justify-content:flex-end;}
+#page-pes5-admin .pt-retro-quitar{background:none;border:none;color:var(--txt3);cursor:pointer;padding:4px;}
+#page-pes5-admin .pt-retro-quitar:hover{color:var(--red);}
+#page-pes5-admin .pt-retro-chip{display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;
+  border:1px solid var(--brd);background:var(--card3);color:var(--txt2);font-size:10.5px;font-weight:700;
+  letter-spacing:0.4px;text-transform:uppercase;white-space:nowrap;}
+#page-pes5-admin .pt-retro-chip.base{color:var(--gold-ink);border-color:var(--gold-b);background:var(--gold-l);}
+#page-pes5-admin .pt-retro-chip.sub{color:var(--pt-chip-alineacion);border-color:var(--pt-chip-alineacion-brd);background:var(--pt-chip-alineacion-bg);}
+#page-pes5-admin .pt-retro-chip.ninguno{color:var(--txt3);}
+#page-pes5-admin .pt-retro-chip.manual{color:var(--pt-amber);border-color:var(--pt-amber-brd);background:var(--pt-amber-bg);}
+#page-pes5-admin .pt-retro-chip.warn{color:var(--pt-amber);border-color:var(--pt-amber-brd);background:var(--pt-amber-bg);}
+#page-pes5-admin .pt-retro-ok,
+#page-pes5-admin .pt-retro-info,
+#page-pes5-admin .pt-retro-warn,
+#page-pes5-admin .pt-retro-err{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:var(--r);
+  font-size:12.5px;line-height:1.45;}
+#page-pes5-admin .pt-retro-ok{background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.45);color:var(--txt2);}
+#page-pes5-admin .pt-retro-info{background:var(--card2);border:1px solid var(--brd);color:var(--txt2);}
+#page-pes5-admin .pt-retro-warn{background:var(--pt-amber-bg);border:1px solid var(--pt-amber-brd);color:var(--pt-amber);}
+#page-pes5-admin .pt-retro-err{background:rgba(248,113,113,0.1);border:1px solid #f87171;color:#f87171;}
+#page-pes5-admin .pt-retro-resumen{display:flex;flex-direction:column;gap:4px;padding:10px 12px;
+  border:1px solid var(--brd2);border-radius:var(--r);background:var(--card2);}
+#page-pes5-admin .pt-retro-res-line{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font-size:12.5px;color:var(--txt2);}
+#page-pes5-admin .pt-retro-res-line b{color:var(--txt);font-variant-numeric:tabular-nums;text-align:right;}
+#page-pes5-admin .pt-retro-res-jugs{display:flex;flex-direction:column;gap:3px;margin-top:6px;padding-top:8px;
+  border-top:1px solid var(--brd);}
+#page-pes5-admin .pt-retro-res-jug{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  font-size:11.5px;color:var(--txt3);}
+#page-pes5-admin .pt-retro-res-jug span:first-child{color:var(--txt2);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-retro-res-jug span:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-vacio{padding:14px 4px;font-size:12.5px;color:var(--txt3);}
+#page-pes5-admin .pt-retro-foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;
+  padding:10px 16px 14px;border-top:1px solid var(--brd);background:var(--card2);}
+@media(max-width:639px){
+#page-pes5-admin .pt-retro-ov{padding:10px;}
+#page-pes5-admin .pt-retro-box{max-height:calc(100vh - 20px);}
+#page-pes5-admin .pt-retro-body{padding:10px;}
+#page-pes5-admin .pt-retro-manual{grid-template-columns:minmax(0,1fr);}
+#page-pes5-admin .pt-retro-manual .btn{min-height:44px;justify-content:center;}
+#page-pes5-admin .pt-retro-row{grid-template-columns:24px minmax(0,1fr);}
+#page-pes5-admin .pt-retro-cifras{grid-column:2;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+#page-pes5-admin .pt-retro-nota{max-width:none;}
+#page-pes5-admin .pt-retro-fila-acc{grid-column:2;justify-self:end;margin-top:0;}
+#page-pes5-admin .pt-retro-foot .btn{flex:1 1 auto;justify-content:center;min-height:44px;}
+}

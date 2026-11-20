@@ -248,6 +248,66 @@
   }
 
   /* ============================================================
+     repartoRetroactivo — arma el reparto de un lote de «mejoras
+     retroactivas» (Tool PES5 › Plantilla): mejoras que ya estan en el save
+     y solo se cobran. Puro: recibe las filas de la UI, no toca el DOM.
+       filas: [{ playerId, playerName, subscriber, marcada, costoCalculado,
+                 monto, lineas, manual }]
+         - `marcada === false` no entra; un monto 0 tampoco.
+         - `monto` vacio/null usa `costoCalculado` (la propuesta del diff).
+         - si el monto difiere del calculado, la linea es un unico
+           «ajuste manual»; `manual: true` siempre es una linea 'manual'.
+       bonoRestantePorJugador: { [playerId]: lo que le queda de su bono }.
+     Cada fila se reparte con distribuirCosto y, si el mismo jugador tiene
+     varias filas, se descuenta el bono que ya consumieron las anteriores.
+     Devuelve {totalCosto, fromGeneral, fromSub, porJugador} con la misma
+     forma que repartoPendienteEquipo() (una entrada por jugador).
+     ============================================================ */
+  function repartoRetroactivo(filas, bonoRestantePorJugador) {
+    const bono = bonoRestantePorJugador || {};
+    const usadoSub = {};
+    const porJugador = {};
+    let totalCosto = 0, totalGeneral = 0, totalSub = 0;
+    (filas || []).forEach(function (f) {
+      if (!f || f.marcada === false || f.playerId == null) return;
+      const calculado = Math.max(0, Math.round(Number(f.costoCalculado) || 0));
+      const tieneMonto = f.monto != null && f.monto !== '';
+      const monto = Math.max(0, Math.round(Number(tieneMonto ? f.monto : calculado) || 0));
+      if (monto <= 0) return;
+      const id = String(f.playerId);
+      const subscriber = !!f.subscriber;
+      const restante = Math.max(0, (Number(bono[id]) || 0) - (usadoSub[id] || 0));
+      const rep = distribuirCosto(monto, restante, subscriber);
+      usadoSub[id] = (usadoSub[id] || 0) + rep.fromSub;
+      let lineas;
+      if (f.manual || !Array.isArray(f.lineas) || !f.lineas.length) {
+        lineas = [{ campo: 'manual', de: '', a: '', costo: monto }];
+      } else if (tieneMonto && monto !== calculado) {
+        lineas = [{ campo: 'ajuste manual', de: '', a: '', costo: monto }];
+      } else {
+        lineas = f.lineas.map(function (l) {
+          return { campo: l.campo, de: l.de, a: l.a, costo: Number(l.costo) || 0 };
+        });
+      }
+      if (!porJugador[id]) {
+        porJugador[id] = {
+          playerId: f.playerId, playerName: f.playerName || '', subscriber: subscriber,
+          total: 0, lineas: [], fromGeneral: 0, fromSub: 0,
+        };
+      }
+      const e = porJugador[id];
+      e.total += monto;
+      e.fromGeneral += rep.fromGeneral;
+      e.fromSub += rep.fromSub;
+      e.lineas = e.lineas.concat(lineas);
+      totalCosto += monto;
+      totalGeneral += rep.fromGeneral;
+      totalSub += rep.fromSub;
+    });
+    return { totalCosto: totalCosto, fromGeneral: totalGeneral, fromSub: totalSub, porJugador: porJugador };
+  }
+
+  /* ============================================================
      gastoTemporada / topesRestantes — derivan cuanto queda de cada tope de
      temporada SIN guardar nada nuevo en `teams` (punto 5c del macro-slice):
      se recorre el libro `coins` (ya filtrado por el llamador: `season`
@@ -1181,6 +1241,7 @@
     bonoEquipo: bonoEquipo,
     bonoSuscriptor: bonoSuscriptor,
     distribuirCosto: distribuirCosto,
+    repartoRetroactivo: repartoRetroactivo,
     gastoTemporada: gastoTemporada,
     topesRestantes: topesRestantes,
     gastoBonoJugador: gastoBonoJugador,

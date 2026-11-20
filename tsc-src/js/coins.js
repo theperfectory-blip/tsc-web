@@ -463,7 +463,7 @@ async function openCoinsHistory(teamId){
   const history = await dbGetAll('coins', c=>c.teamId===teamId);
   const sorted  = history.sort((a,b)=>new Date(b.date)-new Date(a.date));
   const wrap    = document.getElementById('coins-history-wrap');
-  const RLABELS = {stream:'Stream',victoria:'Victoria',campeon:'Campeón',evento:'Evento',bonus:'Bonus',compra:'Compra jugador',mejora:'Mejora stats',tactica:'Táctica',multa:'Multa',otro:'Otro',reembolso:'Reembolso de mejora','mejora PES5 reembolso':'Reembolso de mejora'};
+  const RLABELS = {stream:'Stream',victoria:'Victoria',campeon:'Campeón',evento:'Evento',bonus:'Bonus',compra:'Compra jugador',mejora:'Mejora stats',tactica:'Táctica',multa:'Multa',otro:'Otro',reembolso:'Reembolso de mejora','mejora PES5 reembolso':'Reembolso de mejora','mejora PES5 retroactiva':'Retroactiva'};
   wrap.innerHTML = `
   <div class="modal-overlay open">
     <div class="modal" style="max-width:500px;">
@@ -480,9 +480,12 @@ async function openCoinsHistory(teamId){
               const isAdd=t.mode==='add';
               const d=new Date(t.date);
               const fecha=d.toLocaleDateString('es-CL')+' '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+              // La etiqueta ya dice «Retroactiva»: no se repite el prefijo de la nota.
+              const nota = t.reason === 'mejora PES5 retroactiva' && String(t.note||'').indexOf('Retroactiva:') === 0
+                ? String(t.note).slice('Retroactiva:'.length).trim() : t.note;
               return `<tr>
                 <td style="font-size:13px;color:var(--txt3);white-space:nowrap;">${fecha}</td>
-                <td><div style="font-size:14px;">${escHtml(RLABELS[t.reason]||t.reason)}</div>${t.note?`<div style="font-size:12px;color:var(--txt3);">${escHtml(t.note)}</div>`:''}</td>
+                <td><div style="font-size:14px;">${escHtml(RLABELS[t.reason]||t.reason)}</div>${nota?`<div style="font-size:12px;color:var(--txt3);">${escHtml(nota)}</div>`:''}</td>
                 <td style="text-align:right;font-family:'Bebas Neue';font-size:19px;color:${isAdd?'var(--green)':'var(--red)'};">${isAdd?'+':'-'}${t.amount.toLocaleString('es-CL')}</td>
                 <td style="text-align:right;font-family:'Bebas Neue';font-size:17px;color:var(--gold);">${t.after.toLocaleString('es-CL')}</td>
               </tr>`;

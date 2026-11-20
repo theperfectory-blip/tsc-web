@@ -28,6 +28,8 @@ const ICN = {
   save: '<svg class="icn" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   alert: '<svg class="icn" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
   lista: '<svg class="icn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  clock: '<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>',
+  plus: '<svg class="icn" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
 };
 
 
@@ -56,6 +58,10 @@ let JUGADOR_SELECCIONADO = null; // id de registro seleccionado en el panel late
 // Se apaga sola al cambiar de club y despues de escribir el save.
 let EDICION_GRATIS = false;
 let CAMBIOS_PENDIENTES = {};    // { [jugadorId]: {atributos:{},escala8:{},habilidades:{},edad,altura,pieDominante,lesiones} }
+// RETRO: save ANTERIOR cargado solo como referencia para las mejoras retroactivas
+// (nunca reemplaza PLANO ni dispara observadores/publicacion). null = no hay.
+let PLANO_RETRO = null;
+let RETRO = null;               // estado del modal «Mejoras retroactivas» (ver abrirRetro)
 
 /* ============================================================
    Slice D.R — cobro condicional (mismas reglas que el editor del
@@ -391,9 +397,12 @@ async function cobrarMejorasEquipo(team, reparto, reason = 'mejora PES5 (admin)'
     const info = reparto.porJugador[id];
     if (!info || info.total <= 0) continue;
     const newTotal = current - info.total;
+    // `info.nota` (opcional) la arma quien llama, p. ej. «Retroactiva: …» para
+    // las mejoras ya hechas. Sin ella, el resumen de siempre.
+    const nota = info.nota != null ? String(info.nota) : _resumenLineas(info.lineas);
     await dbAdd('coins', {
       teamId: team.id, teamName: team.name, mode: 'sub', amount: info.total,
-      reason, note: _resumenLineas(info.lineas),
+      reason, note: nota,
       before: current, after: newTotal, season: _temporadaCobro(), date: new Date().toISOString(),
       streamlabs: YUNACOINS_RULES.marcaStreamlabsInicial(team),
       pes5: {
@@ -482,6 +491,7 @@ function salir(){
   cerrarDetallePedido();
   document.getElementById('pt-rech-ov')?.remove();
   RECHAZO_ID = null;
+  cerrarRetro();
   window.removeEventListener('tsc:auth', _alCambiarAuth);
   if (OBSERVAR_STOP){ try { OBSERVAR_STOP(); } catch (e) {} OBSERVAR_STOP = null; }
   if (window.MEJORAS_EDITOR) MEJORAS_EDITOR.desmontar();
@@ -494,11 +504,13 @@ function render(){
   const app = document.getElementById('pt-app');
   if (!gate || !app) return;
   if (!AUTH.user){
+    cerrarRetro();
     gate.innerHTML = `<div class="gate">${ICN.lock}<div>Inicia sesión como admin para usar la Tool PES5.</div></div>`;
     app.style.display = 'none';
     return;
   }
   if (AUTH.role !== 'admin'){
+    cerrarRetro();
     gate.innerHTML = `<div class="gate">${ICN.lock}<div>Esta página es solo para el admin.</div></div>`;
     app.style.display = 'none';
     return;
@@ -691,6 +703,9 @@ async function releerPlantillaAbierta(){
   PLANTILLA_ACTUAL = PES5_EDITOR.leerPlantillaCompleta(PLANO, PLANTILLA_INDICE);
 }
 async function cargarSaveDesdeCarpeta(){
+  // Si el modal de mejoras retroactivas estaba abierto, sus filas quedan viejas
+  // cuando cambia PLANO: se cierra (el save anterior se vuelve a elegir).
+  if (document.getElementById('pt-retro-ov')) cerrarRetro();
   const leido = await PES5_SAVE.leer();
   SAVE_META = { nombre: leido.nombre, tamaño: leido.tamaño, lastModified: leido.lastModified };
   renderPausaTool(); // SAVE-1: el boton «Publicar save» se habilita al tener un save abierto
@@ -983,7 +998,13 @@ function renderPlantillaBody(){
     ? `<div class="pt-perfiles-bar"><span class="pt-perfiles-txt">Perfiles de emparejar · ${escHtml(_nombreTemporadaCobro())}</span>
         <button class="btn btn-sm" data-onclick="ptFijarPerfiles()" title="Calcula el perfil de los jugadores que todavía no lo tienen. No pisa los fijados.">Fijar perfiles de la temporada</button></div>`
     : '';
-  el.innerHTML = barraPerfiles + `
+  // RETRO: mejoras hechas fuera de la web (se cobran, no se escriben en el save).
+  // Visible con el club vinculado a un equipo TSC, tenga o no presidente.
+  const barraRetro = _eqFijar
+    ? `<div class="pt-retro-bar"><span class="pt-retro-bar-txt">¿Hiciste mejoras fuera de la web? Regístralas como cobro: no se toca el save.</span>
+        <button class="btn btn-sm" data-onclick="ptAbrirRetro()">${ICN.clock} Mejoras retroactivas</button></div>`
+    : '';
+  el.innerHTML = barraPerfiles + barraRetro + `
     <div class="tbl-wrap pt-tbl-wrap">
       <table class="tbl pt-plantilla-table">
         <thead><tr>
@@ -994,6 +1015,404 @@ function renderPlantillaBody(){
       </table>
     </div>
     <div class="pt-hint-click">Toca un jugador para editarlo con el mismo editor que usan los presidentes.</div>`;
+}
+
+// ============================================================
+// MEJORAS RETROACTIVAS (RETRO)
+// Luis carga el saldo y registra como cobro las mejoras que ya hizo fuera de la
+// web. El único dato automático es el diff entre un save ANTERIOR (referencia)
+// y el save actual; todo lo calculado es una propuesta editable. Nunca escribe
+// el save: solo llama a cobrarMejorasEquipo con reason 'mejora PES5 retroactiva'.
+// ============================================================
+const RETRO_PREFIJO = 'Retroactiva:';
+
+function _retroFmt(n){ return Math.max(0, Math.round(Number(n) || 0)).toLocaleString('es-CL'); }
+function _retroPerfilEtiqueta(p){ return p === 'base' ? 'Base' : p === 'suscriptor' ? 'Suscriptor' : 'ninguno'; }
+
+// Monto efectivo de una fila: el editado por Luis o, si está vacío, el calculado.
+function _retroMontoDe(f){
+  if (!f) return 0;
+  const v = f.monto;
+  return Math.max(0, Math.round(Number(v != null && v !== '' ? v : f.costoCalculado) || 0));
+}
+
+/* Bono que le queda a cada «$» del lote AHORA (libro coins + lo ya gastado).
+   Se llama después de refrescar GASTO_TEMPORADA_CACHE del equipo. */
+function _retroBonoPorJugador(team){
+  const out = {};
+  (RETRO && RETRO.filas || []).forEach(f => {
+    if (!f || !f.subscriber || f.playerId == null) return;
+    out[String(f.playerId)] = _bonoRestanteJugadorTool(f.playerId, true, team.id);
+  });
+  return out;
+}
+function _retroReparto(){
+  const team = equipoTSCActual();
+  if (!team || !RETRO) return null;
+  return YUNACOINS_RULES.repartoRetroactivo(RETRO.filas, _retroBonoPorJugador(team));
+}
+
+/* Arma las filas del diff save anterior → save actual. Los jugadores que no
+   existen en el anterior (o cambiaron de nombre) quedan «sin dato», con monto 0
+   para completar a mano. Las filas manuales agregadas antes se conservan. */
+function _retroFilasDesdeSaveAnterior(){
+  const team = equipoTSCActual();
+  if (!team || !PLANO || !PLANO_RETRO || !RETRO) return;
+  const manuales = (RETRO.filas || []).filter(f => f && f.manual);
+  const filas = [];
+  (PLANTILLA_ACTUAL || []).forEach((j, slot) => {
+    const base = {
+      playerId: j.id, playerName: j.nombre, subscriber: !!j.subscriber, perfil: 'ninguno',
+      resumen: '(sin cambios)', nota: '', marcada: false, conCambios: false, sinDato: false,
+      manual: false, costoCalculado: 0, monto: 0, lineas: [],
+    };
+    let oldEd, curEd, oldJ;
+    try {
+      oldEd = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, PLANO_RETRO, j.id, slot);
+      curEd = PES5_PLANTILLA.jugadorParaEditor(PES5_EDITOR, PLANO, j.id, slot);
+      oldJ = PES5_EDITOR.leerJugadorCompleto(PLANO_RETRO, j.id);
+    } catch (e) {
+      filas.push(Object.assign({}, base, { sinDato: true, resumen: 'sin dato: no se pudo leer en el save anterior' }));
+      return;
+    }
+    const nombreViejo = oldEd && oldEd.name ? String(oldEd.name).trim().toLowerCase() : '';
+    const nombreAhora = curEd && curEd.name ? String(curEd.name).trim().toLowerCase() : '';
+    if (!oldJ || !nombreViejo || !nombreAhora || nombreViejo !== nombreAhora) {
+      filas.push(Object.assign({}, base, { sinDato: true, resumen: 'sin dato: el jugador no coincide con el save anterior' }));
+      return;
+    }
+    const cambios = PES5_PLANTILLA.cambiosDesdeEditor(oldEd, curEd);
+    // El costo se calcula sobre el jugador VIEJO: costoCambios usa sus valores
+    // como «de» y el perfil fijado del registro para la temporada de cobro.
+    const { total, lineas } = _costoTool(team.id, oldJ, cambios);
+    const perfil = _perfilTool(team.id, oldJ) || 'ninguno';
+    const conCambios = Object.keys(cambios).length > 0;
+    const cobrable = perfil !== 'ninguno' && total > 0;
+    filas.push(Object.assign({}, base, {
+      perfil: perfil,
+      resumen: conCambios ? _resumenLineas(lineas) : '(sin cambios)',
+      costoCalculado: total,
+      monto: cobrable ? total : 0,
+      marcada: cobrable,
+      lineas: lineas,
+      conCambios: conCambios,
+    }));
+  });
+  RETRO.filas = filas.concat(manuales);
+}
+
+function _retroVisibles(){
+  if (!RETRO) return [];
+  return RETRO.filas.map((f, i) => ({ f: f, i: i })).filter(x => {
+    const f = x.f;
+    return RETRO.verTodos || f.manual || f.sinDato || f.conCambios || _retroMontoDe(f) > 0;
+  });
+}
+
+function _retroFilaHTML(f, i){
+  const chip = `<span class="pt-retro-chip ${f.perfil === 'suscriptor' ? 'sub' : f.perfil === 'base' ? 'base' : 'ninguno'}">${escHtml(_retroPerfilEtiqueta(f.perfil))}</span>`;
+  const sinDato = f.sinDato ? '<span class="pt-retro-chip warn">sin dato</span>' : '';
+  const manual = f.manual ? '<span class="pt-retro-chip manual">manual</span>' : '';
+  const calc = _retroFmt(f.costoCalculado);
+  const monto = _retroMontoDe(f);
+  return `<div class="pt-retro-row${f.marcada ? ' on' : ''}">
+    <label class="pt-retro-check" title="Incluir en el cobro">
+      <input type="checkbox" ${f.marcada ? 'checked' : ''} data-onchange="ptRetroMarcar(${i}, this)">
+    </label>
+    <div class="pt-retro-main">
+      <div class="pt-retro-nombre">${escHtml(f.playerName)} ${chip}${sinDato}${manual}</div>
+      <div class="pt-retro-resumen">${escHtml(f.resumen || '')}</div>
+      <label class="pt-retro-campo pt-retro-nota"><span>Nota</span>
+        <input type="text" maxlength="120" placeholder="Opcional: lo que se hizo" value="${escAttr(f.nota || '')}" data-oninput="ptRetroNota(${i}, this)"></label>
+    </div>
+    <div class="pt-retro-cifras">
+      <div class="pt-retro-calc">Calculado <b>${calc}</b></div>
+      <label class="pt-retro-campo"><span>A cobrar</span>
+        <input type="number" min="0" step="50" inputmode="numeric" value="${monto > 0 ? String(monto) : ''}" data-oninput="ptRetroMonto(${i}, this)"></label>
+    </div>
+    <div class="pt-retro-fila-acc">${f.manual ? `<button type="button" class="pt-retro-quitar" data-onclick="ptRetroQuitar(${i})" title="Quitar línea" aria-label="Quitar línea">${ICN.x}</button>` : ''}</div>
+  </div>`;
+}
+
+function _retroPintarLista(){
+  const el = document.getElementById('pt-retro-lista-wrap');
+  if (!el || !RETRO) return;
+  const vis = _retroVisibles();
+  const ocultas = RETRO.filas.length - vis.length;
+  let verTodos = '';
+  if (RETRO.verTodos) verTodos = '<button type="button" class="btn btn-sm" data-onclick="ptRetroVerTodos()">Ver solo con cambios</button>';
+  else if (ocultas > 0) verTodos = `<button type="button" class="btn btn-sm" data-onclick="ptRetroVerTodos()">Ver todos (${ocultas})</button>`;
+  const filas = vis.length
+    ? vis.map(x => _retroFilaHTML(x.f, x.i)).join('')
+    : '<div class="pt-retro-vacio">No hay filas con cambios. Puedes agregar una línea manual arriba.</div>';
+  el.innerHTML = `<div class="pt-retro-lista-hd"><span>${vis.length} fila(s) visible(s)</span>${verTodos}</div>
+    <div class="pt-retro-lista">${filas}</div>`;
+}
+
+function _retroPintarAviso(){
+  const el = document.getElementById('pt-retro-aviso');
+  if (!el || !RETRO) return;
+  const partes = [];
+  partes.push(RETRO.nombreRetro
+    ? `<div class="pt-retro-ok">${ICN.file} Save anterior: <b>${escHtml(RETRO.nombreRetro)}</b></div>`
+    : `<div class="pt-retro-info">${ICN.file} Carga un save anterior para calcular las mejoras hechas. Sin él, solo puedes agregar líneas manuales.</div>`);
+  if (RETRO.prev && RETRO.prev.n > 0){
+    partes.push(`<div class="pt-retro-warn">${ICN.alert} Este equipo ya tiene ${RETRO.prev.n} movimiento(s) «mejora PES5 retroactiva» en ${escHtml(_nombreTemporadaCobro())} por ${_retroFmt(RETRO.prev.total)} YC. Revisa no registrarlos dos veces.</div>`);
+  }
+  el.innerHTML = partes.join('');
+}
+
+function _retroPintarResumen(){
+  const el = document.getElementById('pt-retro-resumen');
+  const ok = document.getElementById('pt-retro-ok');
+  if (!el || !RETRO) return;
+  const team = equipoTSCActual();
+  const reparto = _retroReparto();
+  if (!team || !reparto){ el.innerHTML = ''; if (ok) ok.disabled = true; return; }
+  const saldo = Number(team.yunacoin) || 0;
+  const restantes = _restantesTemporada();
+  const ev = YUNACOINS_RULES.evaluarPago(saldo, reparto.totalCosto, reparto.fromGeneral, restantes.general);
+  const despues = saldo - reparto.totalCosto;
+  const jugadores = Object.keys(reparto.porJugador).map(id => {
+    const p = reparto.porJugador[id];
+    return `<div class="pt-retro-res-jug"><span>${escHtml(p.playerName)}${p.subscriber ? ' ($)' : ''}</span>
+      <span>Bono ${_retroFmt(p.fromSub)} · General ${_retroFmt(p.fromGeneral)} · Total ${_retroFmt(p.total)}</span></div>`;
+  }).join('');
+  const avisos = [];
+  if (ev.excedeSaldo) avisos.push(`<div class="pt-retro-err">${ICN.alert} El saldo no alcanza: carga YunaCoins al equipo en Admin → YunaCoins.</div>`);
+  if (ev.excedeTopeGeneral) avisos.push(`<div class="pt-retro-warn">${ICN.alert} El total general (${_retroFmt(reparto.fromGeneral)}) supera el tope general restante (${_retroFmt(restantes.general)}). Se permite: son mejoras ya hechas.</div>`);
+  el.innerHTML = `
+    <div class="pt-retro-res-line"><span>Total a cobrar</span><b>${_retroFmt(reparto.totalCosto)} YC</b></div>
+    <div class="pt-retro-res-line"><span>Reparto bono / general</span><b>${_retroFmt(reparto.fromSub)} / ${_retroFmt(reparto.fromGeneral)}</b></div>
+    <div class="pt-retro-res-line"><span>Saldo de ${escHtml(team.name)}</span><b>${_retroFmt(saldo)} → ${_retroFmt(despues)}</b></div>
+    <div class="pt-retro-res-line"><span>Tope general restante</span><b>${_retroFmt(restantes.general)}</b></div>
+    ${jugadores ? `<div class="pt-retro-res-jugs">${jugadores}</div>` : ''}
+    ${avisos.join('')}`;
+  if (ok) ok.disabled = ev.excedeSaldo || !(reparto.totalCosto > 0);
+}
+
+function _retroModalHTML(){
+  const team = equipoTSCActual();
+  const opciones = (PLANTILLA_ACTUAL || []).map(j =>
+    `<option value="${j.id}">${escHtml(j.nombre)}${j.subscriber ? ' ($)' : ''}</option>`).join('');
+  return `
+    <div class="pt-retro-box" role="dialog" aria-modal="true" aria-labelledby="pt-retro-tit">
+      <div class="pt-retro-hd">
+        <div>
+          <h3 id="pt-retro-tit">Mejoras retroactivas</h3>
+          <div class="pt-retro-sub">${escHtml(team ? team.name : '')} · ${escHtml(_nombreTemporadaCobro())} · se cobran; el save no se toca</div>
+        </div>
+        <button type="button" class="pt-ed-close" data-onclick="ptCerrarRetro()" title="Cerrar" aria-label="Cerrar">${ICN.x}</button>
+      </div>
+      <div class="pt-retro-body">
+        <div id="pt-retro-aviso"></div>
+        <div class="pt-retro-bloque">
+          <div class="pt-retro-bloque-t">1 · Save anterior (referencia)</div>
+          <div class="pt-retro-fila-acciones">
+            <input type="file" id="retro-file" class="pt-retro-file" data-onchange="ptRetroSaveAnterior(this)">
+            <button type="button" class="btn btn-sm" data-onclick="ptRetroCargarAnterior()">${ICN.upload} Cargar save anterior</button>
+            <span class="pt-retro-hint">Solo se lee: no reemplaza el save abierto ni dispara publicación.</span>
+          </div>
+        </div>
+        <div class="pt-retro-bloque">
+          <div class="pt-retro-bloque-t">2 · Agregar línea manual</div>
+          <div class="pt-retro-manual">
+            <label class="pt-retro-campo"><span>Jugador</span><select id="retro-manual-jugador">${opciones}</select></label>
+            <label class="pt-retro-campo"><span>Monto (YC)</span><input type="number" id="retro-manual-monto" min="0" step="50" inputmode="numeric" placeholder="0"></label>
+            <label class="pt-retro-campo pt-retro-manual-nota"><span>Nota</span><input type="text" id="retro-manual-nota" maxlength="120" placeholder="Ej: subida hecha a mano en el juego"></label>
+            <button type="button" class="btn btn-sm" data-onclick="ptRetroAgregarManual()">${ICN.plus} Agregar</button>
+          </div>
+        </div>
+        <div id="pt-retro-lista-wrap"></div>
+        <div class="pt-retro-resumen" id="pt-retro-resumen"></div>
+      </div>
+      <div class="pt-retro-foot">
+        <button type="button" class="btn btn-sm" data-onclick="ptCerrarRetro()">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="pt-retro-ok" disabled data-onclick="ptRetroConfirmar()">Registrar cobro</button>
+      </div>
+    </div>`;
+}
+
+async function abrirRetro(){
+  const team = equipoTSCActual();
+  if (!team || !PLANO){ showToast('Elige un club vinculado a un equipo TSC para cobrar mejoras retroactivas.', 'error'); return; }
+  if (document.getElementById('pt-retro-ov')) return;
+  if (!PERFILES_TOOL && _emparejarCfg()){
+    try { await _cargarPerfilesTool(); }
+    catch (e) { console.warn('[pes5-tool] retro: perfiles fijados', e); }
+  }
+  try { await _refrescarGastoTemporadaEquipo(team, true); }
+  catch (e) { console.warn('[pes5-tool] retro: gasto de la temporada', e); }
+  let prev = { n: 0, total: 0 };
+  try {
+    const temp = _temporadaCobro();
+    const movs = await dbGetAll('coins', c => String(c.teamId) === String(team.id)
+      && Number(c.season) === Number(temp) && c.reason === 'mejora PES5 retroactiva');
+    prev = { n: movs.length, total: movs.reduce((s, m) => s + (Number(m.amount) || 0), 0) };
+  } catch (e) { console.warn('[pes5-tool] retro: movimientos previos', e); }
+  RETRO = { teamId: team.id, filas: [], verTodos: false, nombreRetro: null, prev: prev, seq: 0 };
+  PLANO_RETRO = null;
+  const previo = document.getElementById('pt-retro-ov');
+  if (previo) previo.remove();
+  const ov = document.createElement('div');
+  ov.id = 'pt-retro-ov';
+  ov.className = 'pt-retro-ov';
+  ov.setAttribute('data-onclick', 'ptCerrarRetroFondo(event)');
+  ov.innerHTML = _retroModalHTML();
+  (_montadoEn || document.body).appendChild(ov);
+  document.addEventListener('keydown', _retroEsc);
+  _retroPintarAviso();
+  _retroPintarLista();
+  _retroPintarResumen();
+}
+function _retroEsc(e){
+  if (e && e.key === 'Escape'){ e.preventDefault(); cerrarRetro(); }
+}
+function cerrarRetroFondo(e){
+  if (e && e.target && e.target.id === 'pt-retro-ov') cerrarRetro();
+}
+function cerrarRetro(){
+  document.getElementById('pt-retro-ov')?.remove();
+  document.removeEventListener('keydown', _retroEsc);
+  RETRO = null;
+  PLANO_RETRO = null;
+}
+function retroCargarAnterior(){
+  const input = document.getElementById('retro-file');
+  if (input) input.click();
+}
+async function retroLeerSaveAnterior(input){
+  const file = input && input.files && input.files[0];
+  if (!file || !RETRO) return;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    PLANO_RETRO = PES5_CRYPT.descifrar(bytes);
+    RETRO.nombreRetro = file.name;
+    _retroFilasDesdeSaveAnterior();
+    _retroPintarAviso();
+    _retroPintarLista();
+    _retroPintarResumen();
+    showToast('Save anterior cargado: ' + file.name);
+  } catch (e) {
+    PLANO_RETRO = null;
+    RETRO.nombreRetro = null;
+    console.error('[pes5-tool] retro: leer save anterior', e);
+    showToast('No se pudo leer el save anterior: ' + (e.message || e), 'error');
+  } finally {
+    if (input) input.value = '';
+  }
+}
+function retroMarcar(i, el){
+  const f = RETRO && RETRO.filas[i];
+  if (!f) return;
+  f.marcada = !!(el && el.checked);
+  const row = el && el.closest ? el.closest('.pt-retro-row') : null;
+  if (row) row.classList.toggle('on', f.marcada);
+  _retroPintarResumen();
+}
+function retroMonto(i, el){
+  const f = RETRO && RETRO.filas[i];
+  if (!f) return;
+  const n = Math.max(0, Math.round(Number(el && el.value) || 0));
+  f.monto = n;
+  if (n > 0 && !f.marcada){
+    f.marcada = true;
+    // La casilla no se repinta en cada tecla: se marca sola para que el cobro sea coherente.
+    const row = el && el.closest ? el.closest('.pt-retro-row') : null;
+    const chk = row ? row.querySelector('input[type=checkbox]') : null;
+    if (chk) chk.checked = true;
+    if (row) row.classList.add('on');
+  }
+  _retroPintarResumen();
+}
+function retroNota(i, el){
+  const f = RETRO && RETRO.filas[i];
+  if (!f) return;
+  f.nota = (el && el.value) || '';
+}
+function retroVerTodos(){
+  if (!RETRO) return;
+  RETRO.verTodos = !RETRO.verTodos;
+  _retroPintarLista();
+}
+function retroAgregarManual(){
+  const team = equipoTSCActual();
+  if (!team || !RETRO) return;
+  const sel = document.getElementById('retro-manual-jugador');
+  const montoEl = document.getElementById('retro-manual-monto');
+  const notaEl = document.getElementById('retro-manual-nota');
+  const registro = sel ? parseInt(sel.value, 10) : NaN;
+  const j = (PLANTILLA_ACTUAL || []).find(p => Number(p.id) === registro);
+  const monto = Math.max(0, Math.round(Number(montoEl && montoEl.value) || 0));
+  if (!j || !(monto > 0)){ showToast('Elige un jugador y un monto mayor que 0.', 'error'); return; }
+  const perfil = _perfilTool(team.id, j) || 'ninguno';
+  RETRO.seq = (RETRO.seq || 0) + 1;
+  RETRO.filas.push({
+    playerId: j.id, playerName: j.nombre, subscriber: !!j.subscriber, perfil: perfil,
+    resumen: 'línea manual', nota: ((notaEl && notaEl.value) || '').trim(),
+    marcada: true, conCambios: true, sinDato: false, manual: true,
+    costoCalculado: 0, monto: monto, lineas: [],
+  });
+  if (montoEl) montoEl.value = '';
+  if (notaEl) notaEl.value = '';
+  _retroPintarLista();
+  _retroPintarResumen();
+}
+function retroQuitar(i){
+  if (!RETRO || !RETRO.filas[i]) return;
+  RETRO.filas.splice(i, 1);
+  _retroPintarLista();
+  _retroPintarResumen();
+}
+async function retroConfirmar(){
+  const team = equipoTSCActual();
+  if (!team || !RETRO) return;
+  const reparto = _retroReparto();
+  if (!reparto || !(reparto.totalCosto > 0)){ showToast('No hay filas para cobrar.', 'error'); return; }
+  const saldo = Number(team.yunacoin) || 0;
+  if (saldo < reparto.totalCosto){
+    showToast('El saldo no alcanza: carga YunaCoins al equipo en Admin → YunaCoins.', 'error');
+    return;
+  }
+  // COBRO-1: la temporada de cobro tiene que admitir movimientos (activa y no archivada).
+  if (!(await _validarCobroAntesDeEscribir())) return;
+  if (!RETRO) return; // se cerró el modal mientras se releían las temporadas
+  // Nota por jugador: «Retroactiva:» + las notas de Luis + resumen de líneas.
+  Object.keys(reparto.porJugador).forEach(id => {
+    const info = reparto.porJugador[id];
+    const notas = (RETRO.filas || [])
+      .filter(f => f && f.marcada !== false && f.playerId != null
+        && String(f.playerId) === String(id) && _retroMontoDe(f) > 0
+        && f.nota && String(f.nota).trim())
+      .map(f => String(f.nota).trim());
+    const partes = notas.slice();
+    partes.push(_resumenLineas(info.lineas));
+    info.nota = RETRO_PREFIJO + ' ' + partes.join(' · ');
+  });
+  const nombres = Object.values(reparto.porJugador).map(p => p.playerName).join(', ');
+  const total = reparto.totalCosto;
+  showConfirm('Registrar mejoras retroactivas',
+    `Equipo: ${team.name} · Jugadores: ${nombres} · Total: ${_retroFmt(total)} YunaCoins · Temporada: ${_nombreTemporadaCobro()}. Se registra el cobro; el save no se toca.`,
+    async () => {
+      const btn = document.getElementById('pt-retro-ok');
+      if (btn) btn.disabled = true;
+      try {
+        await cobrarMejorasEquipo(team, reparto, 'mejora PES5 retroactiva');
+      } catch (e) {
+        console.error('[pes5-tool] cobro retroactivo', e);
+        showToast('No se pudo registrar el cobro: ' + (e.message || e), 'error');
+        if (btn) btn.disabled = false;
+        return;
+      }
+      showToast(`-${_retroFmt(total)} YunaCoins a ${team.name} (mejoras retroactivas)`);
+      cerrarRetro();
+      // Refrescar topes/barras como después de un cobro normal. Si la lectura
+      // falla, el cobro YA quedó registrado: solo se avisa en consola.
+      try { await _refrescarGastoTemporadaEquipo(team, true); }
+      catch (e) { console.warn('[pes5-tool] retro: refrescar gasto tras el cobro', e); }
+      if (TAB === 'plantilla'){ renderPlantillaBody(); renderWriteBar(); }
+      if (TAB === 'equipos') renderEquiposTab();
+    });
 }
 
 // ============================================================
@@ -3449,6 +3868,18 @@ window.ptOcultarErrorEscritura = _ocultarErrorEscritura;
 window.ptOcultarExitoEscritura = _ocultarExitoEscritura;
 window.ptAbrirEditorJugador = abrirEditorJugador;
 window.ptFijarPerfiles = ptFijarPerfiles;
+window.ptAbrirRetro = abrirRetro;
+window.ptCerrarRetro = cerrarRetro;
+window.ptCerrarRetroFondo = cerrarRetroFondo;
+window.ptRetroCargarAnterior = retroCargarAnterior;
+window.ptRetroSaveAnterior = retroLeerSaveAnterior;
+window.ptRetroMarcar = retroMarcar;
+window.ptRetroMonto = retroMonto;
+window.ptRetroNota = retroNota;
+window.ptRetroVerTodos = retroVerTodos;
+window.ptRetroAgregarManual = retroAgregarManual;
+window.ptRetroQuitar = retroQuitar;
+window.ptRetroConfirmar = retroConfirmar;
 window.ptPerfilOverride = ptPerfilOverride;
 window.ptEmparejarJugador = emparejarJugadorAdmin;
 window.ptCerrarEmparejar = cerrarEmparejar;
