@@ -500,24 +500,48 @@
 #page-pes5-admin .pt-retro-campo select:focus{outline:2px solid var(--focus-ring);outline-offset:1px;}
 #page-pes5-admin .pt-retro-lista-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;
   flex-wrap:wrap;margin-bottom:6px;font-size:12px;color:var(--txt3);}
-#page-pes5-admin .pt-retro-lista{display:flex;flex-direction:column;gap:6px;}
-#page-pes5-admin .pt-retro-row{display:grid;grid-template-columns:24px minmax(0,1fr) 190px 28px;
-  gap:8px 12px;align-items:start;padding:9px 10px;border:1px solid var(--brd);border-radius:var(--r);
-  background:var(--card2);}
-#page-pes5-admin .pt-retro-row.on{border-color:var(--gold-b);}
-#page-pes5-admin .pt-retro-check{display:flex;align-items:center;justify-content:center;padding-top:2px;}
+#page-pes5-admin .pt-retro-lista{display:flex;flex-direction:column;gap:8px;}
+#page-pes5-admin .pt-retro-fila{border:1px solid var(--brd);border-radius:var(--r);background:var(--card2);overflow:hidden;}
+#page-pes5-admin .pt-retro-fila.on{border-color:var(--gold-b);}
+#page-pes5-admin .pt-retro-hd{display:flex;align-items:center;gap:8px;padding:0 10px;min-height:44px;}
+#page-pes5-admin .pt-retro-check{display:flex;align-items:center;justify-content:center;flex:none;}
 #page-pes5-admin .pt-retro-check input{width:18px;height:18px;margin:0;accent-color:var(--gold);cursor:pointer;}
-#page-pes5-admin .pt-retro-main{min-width:0;display:flex;flex-direction:column;gap:4px;}
-#page-pes5-admin .pt-retro-nombre{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+#page-pes5-admin .pt-retro-toggle{flex:1;min-width:0;min-height:44px;padding:8px 0;flex-wrap:wrap;}
+#page-pes5-admin .pt-retro-chev{width:14px;height:14px;border:0;color:var(--txt3);}
+#page-pes5-admin .pt-retro-nombre{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1 1 130px;min-width:0;
   font-size:14px;font-weight:600;color:var(--txt);overflow-wrap:anywhere;}
-#page-pes5-admin .pt-retro-resumen{font-size:12px;color:var(--txt2);line-height:1.4;overflow-wrap:anywhere;}
+#page-pes5-admin .pt-retro-cant{flex:none;font-size:11px;color:var(--txt2);white-space:nowrap;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-monto{flex:none;font-size:13px;font-weight:700;color:var(--gold-ink);white-space:nowrap;
+  font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-det{display:flex;flex-direction:column;gap:8px;padding:8px 10px 10px;
+  border-top:1px solid var(--brd);}
+#page-pes5-admin .pt-retro-det[hidden]{display:none;}
 #page-pes5-admin .pt-retro-antes{font-size:11.5px;color:var(--txt3);line-height:1.3;overflow-wrap:anywhere;}
-#page-pes5-admin .pt-retro-nota{max-width:520px;}
-#page-pes5-admin .pt-retro-cifras{display:flex;flex-direction:column;gap:4px;min-width:0;}
-#page-pes5-admin .pt-retro-calc{font-size:11.5px;color:var(--txt3);font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-grupos{gap:6px;}
+#page-pes5-admin .pt-retro-grupo-costo{flex:none;font-size:11.5px;font-weight:700;color:var(--gold-ink);
+  white-space:nowrap;font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-grupo-solo{border:1px solid var(--brd);border-radius:var(--r);
+  background:var(--card2);overflow:hidden;}
+#page-pes5-admin .pt-retro-linea{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;
+  align-items:baseline;gap:2px 10px;padding:6px 10px;border-top:1px solid var(--brd);font-size:12.5px;
+  line-height:1.35;color:var(--txt2);}
+#page-pes5-admin .pt-retro-linea:first-child{border-top:none;}
+#page-pes5-admin .pt-retro-linea-campo{min-width:0;color:var(--txt);overflow-wrap:anywhere;}
+#page-pes5-admin .pt-retro-linea-de{white-space:nowrap;color:var(--txt2);font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-linea-costo{text-align:right;color:var(--gold-ink);font-weight:700;white-space:nowrap;
+  font-variant-numeric:tabular-nums;}
+#page-pes5-admin .pt-retro-linea-costo.gratis{color:var(--txt3);font-weight:400;}
+#page-pes5-admin .pt-retro-linea--sola,
+#page-pes5-admin .pt-retro-linea--hab{grid-template-columns:minmax(0,1fr) auto;}
+#page-pes5-admin .pt-retro-ganada{color:var(--gold-ink);font-weight:600;}
+#page-pes5-admin .pt-retro-perdida{color:var(--red);font-weight:600;}
+#page-pes5-admin .pt-retro-sindato{padding:8px 10px;border:1px solid var(--brd);border-radius:var(--r);
+  background:var(--card2);font-size:12.5px;line-height:1.4;color:var(--txt3);}
+#page-pes5-admin .pt-retro-edit{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 10px;align-items:end;}
+#page-pes5-admin .pt-retro-edit .pt-retro-nota{max-width:none;}
+#page-pes5-admin .pt-retro-calc{grid-column:1/-1;font-size:11.5px;color:var(--txt3);font-variant-numeric:tabular-nums;}
 #page-pes5-admin .pt-retro-calc b{color:var(--txt2);font-weight:700;}
-#page-pes5-admin .pt-retro-fila-acc{display:flex;justify-content:flex-end;}
-#page-pes5-admin .pt-retro-quitar{background:none;border:none;color:var(--txt3);cursor:pointer;padding:4px;}
+#page-pes5-admin .pt-retro-quitar{flex:none;background:none;border:none;color:var(--txt3);cursor:pointer;padding:4px;}
 #page-pes5-admin .pt-retro-quitar:hover{color:var(--red);}
 #page-pes5-admin .pt-retro-chip{display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;
   border:1px solid var(--brd);background:var(--card3);color:var(--txt2);font-size:10.5px;font-weight:700;
@@ -556,9 +580,14 @@
 #page-pes5-admin .pt-retro-body{padding:10px;}
 #page-pes5-admin .pt-retro-manual{grid-template-columns:minmax(0,1fr);}
 #page-pes5-admin .pt-retro-manual .btn{min-height:44px;justify-content:center;}
-#page-pes5-admin .pt-retro-row{grid-template-columns:24px minmax(0,1fr);}
-#page-pes5-admin .pt-retro-cifras{grid-column:2;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-#page-pes5-admin .pt-retro-nota{max-width:none;}
-#page-pes5-admin .pt-retro-fila-acc{grid-column:2;justify-self:end;margin-top:0;}
+#page-pes5-admin .pt-retro-hd{padding:0 8px;gap:6px;}
+#page-pes5-admin .pt-retro-det{padding:8px;}
+#page-pes5-admin .pt-retro-linea{grid-template-columns:minmax(0,1fr) auto;gap:1px 8px;padding:7px 8px;}
+#page-pes5-admin .pt-retro-linea-de{grid-column:1;grid-row:2;font-size:11.5px;}
+#page-pes5-admin .pt-retro-linea-costo{grid-column:2;grid-row:1;}
+#page-pes5-admin .pt-retro-linea--sola,
+#page-pes5-admin .pt-retro-linea--hab{grid-template-columns:minmax(0,1fr) auto;}
+#page-pes5-admin .pt-retro-edit{grid-template-columns:minmax(0,1fr);}
+#page-pes5-admin .pt-retro-cant{font-size:10.5px;}
 #page-pes5-admin .pt-retro-foot .btn{flex:1 1 auto;justify-content:center;min-height:44px;}
 }

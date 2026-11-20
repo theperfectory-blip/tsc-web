@@ -1115,30 +1115,171 @@ function _retroVisibles(){
   });
 }
 
+/* RETRO-ACC — acordeón de «Mejoras retroactivas» con el mismo modelo que la
+   pestaña Pedidos: una fila cerrada por jugador y, al desplegarla, los cambios
+   agrupados por tipo en sub-desplegables (.pt-ped-type). Se reutilizan esas
+   clases (y su chevron) para no inventar otro estilo. El estado abierto se
+   guarda en RETRO.abiertos (claves de fila y de fila+grupo) para que un
+   repintado no colapse lo que Luis tenía abierto. */
+const RETRO_GRUPO_ORDEN = ['atributos', 'habilidades', 'posiciones', 'escala', 'datos', 'otros'];
+const RETRO_GRUPO_LABEL = {
+  atributos: 'Atributos',
+  habilidades: 'Habilidades',
+  posiciones: 'Posiciones',
+  escala: 'Parámetros 1-8',
+  datos: 'Datos (altura, pie, edad…)',
+  otros: 'Otros',
+};
+const RETRO_CAMPO_LABEL = {
+  lesiones: 'Lesión',
+  altura: 'Altura',
+  edad: 'Edad',
+  pieDominante: 'Pie dominante',
+  posicionRegistrada: 'Posición natural',
+  banda: 'Banda',
+  posiciones: 'Posiciones',
+};
+// Chevron Lucide que gira con la misma regla de Pedidos (.pt-ped-chev).
+const RETRO_CHEV = '<svg class="pt-ped-chev pt-retro-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+let _RETRO_CAMPOS = null;
+/* Clasificación por `campo`, sin inventar tipos: los nombres salen de los
+   mapas que ya usa la tool (STAT_MAP, SEC_MAP y ABILITY_MAP). Lo que no sea
+   atributo, parámetro 1-8, habilidad, posición ni dato conocido va a «Otros». */
+function _retroIndiceCampos(){
+  if (_RETRO_CAMPOS) return _RETRO_CAMPOS;
+  const idx = { atributos: new Set(), escala: new Set(), habilidades: new Set() };
+  const pl = window.PES5_PLANTILLA;
+  if (pl && pl.SEC_MAP){
+    ['cons', 'cond', 'wff', 'wfa'].forEach(k => { if (pl.SEC_MAP[k]) idx.escala.add(pl.SEC_MAP[k]); });
+    Object.keys(pl.SEC_MAP).forEach(k => { if (!idx.escala.has(pl.SEC_MAP[k])) idx.atributos.add(pl.SEC_MAP[k]); });
+  }
+  if (pl && pl.STAT_MAP) Object.keys(pl.STAT_MAP).forEach(k => idx.atributos.add(pl.STAT_MAP[k]));
+  if (pl && pl.ABILITY_MAP) Object.keys(pl.ABILITY_MAP).forEach(k => idx.habilidades.add(pl.ABILITY_MAP[k]));
+  ['Regularidad en el juego', 'Estabilidad', 'Frec. pie malo', 'Prec. pie malo'].forEach(c => idx.escala.add(c));
+  if (!idx.atributos.size) COLS_ATTR.forEach(c => idx.atributos.add(c));
+  _RETRO_CAMPOS = idx;
+  return idx;
+}
+function _retroGrupoDe(campo){
+  const c = String(campo == null ? '' : campo).trim();
+  const idx = _retroIndiceCampos();
+  if (idx.habilidades.has(c)) return 'habilidades';
+  if (idx.escala.has(c)) return 'escala';
+  if (idx.atributos.has(c)) return 'atributos';
+  const low = c.toLowerCase();
+  if (low.indexOf('posic') === 0 || low.indexOf('posición') === 0) return 'posiciones';
+  if (c === 'lesiones' || c === 'altura' || c === 'edad' || c === 'pieDominante' || c === 'banda') return 'datos';
+  return 'otros';
+}
+function _retroCampoLabel(campo){
+  const c = String(campo == null ? '' : campo);
+  return RETRO_CAMPO_LABEL[c] || c;
+}
+/* Clave estable de una fila para conservar el acordeón abierto al repintar:
+   las filas del diff se identifican por registro y las manuales por su seq. */
+function _retroClaveFila(f){
+  if (!f) return '';
+  if (f.manual) return 'm' + (f._k != null ? f._k : String(f.playerId));
+  return 'j' + (f.playerId != null ? f.playerId : String(f.playerName || ''));
+}
+function _retroLineaHTML(l, grupo){
+  const campo = String(l && l.campo == null ? '' : l.campo);
+  const costo = Number(l && l.costo) || 0;
+  const costoHtml = costo > 0
+    ? `<span class="pt-retro-linea-costo">+${_retroFmt(costo)}</span>`
+    : '<span class="pt-retro-linea-costo gratis">gratis</span>';
+  // Habilidades: una ganada o perdida se lee «+ Nombre» / «− Nombre», no true/false.
+  if (grupo === 'habilidades'){
+    const gano = !!(l && l.a);
+    return `<div class="pt-retro-linea pt-retro-linea--hab">
+      <span class="pt-retro-linea-campo ${gano ? 'pt-retro-ganada' : 'pt-retro-perdida'}">${gano ? '+' : '−'} ${escHtml(campo)}</span>
+      ${costoHtml}
+    </div>`;
+  }
+  let de = l ? l.de : '';
+  let a = l ? l.a : '';
+  if (campo === 'altura'){
+    de = (de == null ? '—' : de) + ' cm';
+    a = (a == null ? '—' : a) + ' cm';
+  }
+  return `<div class="pt-retro-linea">
+    <span class="pt-retro-linea-campo">${escHtml(_retroCampoLabel(campo))}</span>
+    <span class="pt-retro-linea-de">${escHtml(String(de == null ? '—' : de))} → ${escHtml(String(a == null ? '—' : a))}</span>
+    ${costoHtml}
+  </div>`;
+}
+function _retroGruposHTML(f, clave){
+  const grupos = new Map();
+  (f.lineas || []).forEach(l => {
+    if (!l) return;
+    const g = _retroGrupoDe(l.campo);
+    if (!grupos.has(g)) grupos.set(g, []);
+    grupos.get(g).push(l);
+  });
+  const abiertos = (RETRO && RETRO.abiertos) || new Set();
+  return RETRO_GRUPO_ORDEN.filter(g => grupos.has(g)).map(g => {
+    const lineas = grupos.get(g);
+    const suma = lineas.reduce((s, l) => s + (Number(l.costo) || 0), 0);
+    const gk = clave + '|' + g;
+    const abierto = abiertos.has(gk);
+    return `<div class="pt-ped-type">
+      <button type="button" class="pt-ped-type-toggle pt-ped-toggle" aria-expanded="${abierto ? 'true' : 'false'}" data-retro-key="${escAttr(gk)}" data-onclick="ptRetroToggleGrupo(this)">
+        ${RETRO_CHEV}
+        <span class="pt-ped-type-nombre">${escHtml(RETRO_GRUPO_LABEL[g] || g)}</span>
+        <span class="pt-ped-cant">${lineas.length}</span>
+        <span class="pt-retro-grupo-costo">${suma > 0 ? '+' + _retroFmt(suma) + ' YC' : 'gratis'}</span>
+      </button>
+      <div class="pt-ped-type-body"${abierto ? '' : ' hidden'}>${lineas.map(l => _retroLineaHTML(l, g)).join('')}</div>
+    </div>`;
+  }).join('');
+}
+function _retroDetalleHTML(f, clave){
+  // Filas manuales/ajuste: una sola línea «Monto manual», sin sub-grupos.
+  if (f.manual){
+    const monto = _retroMontoDe(f);
+    return `<div class="pt-retro-grupo-solo"><div class="pt-retro-linea pt-retro-linea--sola">
+      <span class="pt-retro-linea-campo">Monto manual</span>
+      <span class="pt-retro-linea-costo" data-retro-monto-linea>${monto > 0 ? '+' + _retroFmt(monto) + ' YC' : '—'}</span>
+    </div></div>`;
+  }
+  if (f.sinDato) return `<div class="pt-retro-sindato">${ICN.alert} Sin dato: no se pudo leer en el save anterior. Completa el monto a mano.</div>`;
+  if (!(f.lineas || []).length) return '<div class="pt-retro-sindato">Sin cambios registrados.</div>';
+  return `<div class="pt-ped-acc pt-retro-grupos">${_retroGruposHTML(f, clave)}</div>`;
+}
 function _retroFilaHTML(f, i){
+  const clave = _retroClaveFila(f);
   const chip = `<span class="pt-retro-chip ${f.perfil === 'suscriptor' ? 'sub' : f.perfil === 'base' ? 'base' : 'ninguno'}">${escHtml(_retroPerfilEtiqueta(f.perfil))}</span>`;
   const sinDato = f.sinDato ? '<span class="pt-retro-chip warn">sin dato</span>' : '';
   const manual = f.manual ? '<span class="pt-retro-chip manual">manual</span>' : '';
   const antes = f.nombreAntes ? `<div class="pt-retro-antes">antes: ${escHtml(f.nombreAntes)}</div>` : '';
   const calc = _retroFmt(f.costoCalculado);
   const monto = _retroMontoDe(f);
-  return `<div class="pt-retro-row${f.marcada ? ' on' : ''}">
-    <label class="pt-retro-check" title="Incluir en el cobro">
-      <input type="checkbox" ${f.marcada ? 'checked' : ''} data-onchange="ptRetroMarcar(${i}, this)">
-    </label>
-    <div class="pt-retro-main">
-      <div class="pt-retro-nombre">${escHtml(f.playerName)} ${chip}${sinDato}${manual}</div>
-      <div class="pt-retro-resumen">${escHtml(f.resumen || '')}</div>
+  const nCambios = f.manual ? 1 : (f.lineas || []).length;
+  const abierta = !!(RETRO && RETRO.abiertos && RETRO.abiertos.has(clave));
+  return `<div class="pt-retro-fila${f.marcada ? ' on' : ''}" data-retro-fila="${escAttr(clave)}">
+    <div class="pt-retro-hd">
+      <label class="pt-retro-check" title="Incluir en el cobro">
+        <input type="checkbox" ${f.marcada ? 'checked' : ''} data-onchange="ptRetroMarcar(${i}, this)" aria-label="Incluir en el cobro">
+      </label>
+      <button type="button" class="pt-retro-toggle pt-ped-toggle" aria-expanded="${abierta ? 'true' : 'false'}" data-retro-key="${escAttr(clave)}" data-onclick="ptRetroToggle(this)">
+        ${RETRO_CHEV}
+        <span class="pt-retro-nombre">${escHtml(f.playerName)} ${chip}${sinDato}${manual}</span>
+        <span class="pt-retro-cant">${nCambios} ${nCambios === 1 ? 'cambio' : 'cambios'}</span>
+      </button>
+      <span class="pt-retro-monto" data-retro-monto>${monto > 0 ? _retroFmt(monto) + ' YC' : '—'}</span>
+      ${f.manual ? `<button type="button" class="pt-retro-quitar" data-onclick="ptRetroQuitar(${i})" title="Quitar línea" aria-label="Quitar línea">${ICN.x}</button>` : ''}
+    </div>
+    <div class="pt-retro-det"${abierta ? '' : ' hidden'}>
       ${antes}
-      <label class="pt-retro-campo pt-retro-nota"><span>Nota</span>
-        <input type="text" maxlength="120" placeholder="Opcional: lo que se hizo" value="${escAttr(f.nota || '')}" data-oninput="ptRetroNota(${i}, this)"></label>
+      ${_retroDetalleHTML(f, clave)}
+      <div class="pt-retro-edit">
+        <label class="pt-retro-campo"><span>A cobrar (YC)</span>
+          <input type="number" min="0" step="50" inputmode="numeric" value="${monto > 0 ? String(monto) : ''}" data-oninput="ptRetroMonto(${i}, this)"></label>
+        <label class="pt-retro-campo pt-retro-nota"><span>Nota</span>
+          <input type="text" maxlength="120" placeholder="Opcional: lo que se hizo" value="${escAttr(f.nota || '')}" data-oninput="ptRetroNota(${i}, this)"></label>
+        ${f.manual ? '' : `<div class="pt-retro-calc">Calculado <b>${calc}</b></div>`}
+      </div>
     </div>
-    <div class="pt-retro-cifras">
-      <div class="pt-retro-calc">Calculado <b>${calc}</b></div>
-      <label class="pt-retro-campo"><span>A cobrar</span>
-        <input type="number" min="0" step="50" inputmode="numeric" value="${monto > 0 ? String(monto) : ''}" data-oninput="ptRetroMonto(${i}, this)"></label>
-    </div>
-    <div class="pt-retro-fila-acc">${f.manual ? `<button type="button" class="pt-retro-quitar" data-onclick="ptRetroQuitar(${i})" title="Quitar línea" aria-label="Quitar línea">${ICN.x}</button>` : ''}</div>
   </div>`;
 }
 
@@ -1258,7 +1399,7 @@ async function abrirRetro(){
       && Number(c.season) === Number(temp) && c.reason === 'mejora PES5 retroactiva');
     prev = { n: movs.length, total: movs.reduce((s, m) => s + (Number(m.amount) || 0), 0) };
   } catch (e) { console.warn('[pes5-tool] retro: movimientos previos', e); }
-  RETRO = { teamId: team.id, filas: [], verTodos: false, nombreRetro: null, prev: prev, seq: 0 };
+  RETRO = { teamId: team.id, filas: [], verTodos: false, nombreRetro: null, prev: prev, seq: 0, abiertos: new Set() };
   PLANO_RETRO = null;
   const previo = document.getElementById('pt-retro-ov');
   if (previo) previo.remove();
@@ -1310,11 +1451,47 @@ async function retroLeerSaveAnterior(input){
     if (input) input.value = '';
   }
 }
+function retroToggle(btn){
+  if (!btn || !RETRO) return;
+  const fila = btn.closest('.pt-retro-fila');
+  const body = fila ? fila.querySelector(':scope > .pt-retro-det') : null;
+  if (!body) return;
+  const abierto = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+  body.hidden = abierto;
+  if (!RETRO.abiertos) RETRO.abiertos = new Set();
+  const k = btn.dataset ? (btn.dataset.retroKey || '') : '';
+  if (abierto) RETRO.abiertos.delete(k); else RETRO.abiertos.add(k);
+}
+function retroToggleGrupo(btn){
+  if (!btn || !RETRO) return;
+  const grupo = btn.closest('.pt-ped-type');
+  const body = grupo ? grupo.querySelector(':scope > .pt-ped-type-body') : null;
+  if (!body) return;
+  const abierto = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+  body.hidden = abierto;
+  if (!RETRO.abiertos) RETRO.abiertos = new Set();
+  const k = btn.dataset ? (btn.dataset.retroKey || '') : '';
+  if (abierto) RETRO.abiertos.delete(k); else RETRO.abiertos.add(k);
+}
+/* Refresca el monto visible de la fila cerrada y de la línea «Monto manual»
+   sin repintar la lista: así el acordeón abierto no se colapsa al escribir. */
+function _retroRefrescarMontoFila(el, f){
+  const fila = el && el.closest ? el.closest('.pt-retro-fila') : null;
+  if (!fila || !f) return;
+  const monto = _retroMontoDe(f);
+  const txt = monto > 0 ? _retroFmt(monto) + ' YC' : '—';
+  const cab = fila.querySelector('[data-retro-monto]');
+  if (cab) cab.textContent = txt;
+  const linea = fila.querySelector('[data-retro-monto-linea]');
+  if (linea) linea.textContent = monto > 0 ? '+' + _retroFmt(monto) + ' YC' : '—';
+}
 function retroMarcar(i, el){
   const f = RETRO && RETRO.filas[i];
   if (!f) return;
   f.marcada = !!(el && el.checked);
-  const row = el && el.closest ? el.closest('.pt-retro-row') : null;
+  const row = el && el.closest ? el.closest('.pt-retro-fila') : null;
   if (row) row.classList.toggle('on', f.marcada);
   _retroPintarResumen();
 }
@@ -1326,11 +1503,12 @@ function retroMonto(i, el){
   if (n > 0 && !f.marcada){
     f.marcada = true;
     // La casilla no se repinta en cada tecla: se marca sola para que el cobro sea coherente.
-    const row = el && el.closest ? el.closest('.pt-retro-row') : null;
+    const row = el && el.closest ? el.closest('.pt-retro-fila') : null;
     const chk = row ? row.querySelector('input[type=checkbox]') : null;
     if (chk) chk.checked = true;
     if (row) row.classList.add('on');
   }
+  _retroRefrescarMontoFila(el, f);
   _retroPintarResumen();
 }
 function retroNota(i, el){
@@ -1359,7 +1537,7 @@ function retroAgregarManual(){
     playerId: j.id, playerName: j.nombre, subscriber: !!j.subscriber, perfil: perfil,
     resumen: 'línea manual', nota: ((notaEl && notaEl.value) || '').trim(),
     marcada: true, conCambios: true, sinDato: false, manual: true,
-    costoCalculado: 0, monto: monto, lineas: [],
+    costoCalculado: 0, monto: monto, lineas: [], _k: RETRO.seq,
   });
   if (montoEl) montoEl.value = '';
   if (notaEl) notaEl.value = '';
@@ -1368,7 +1546,12 @@ function retroAgregarManual(){
 }
 function retroQuitar(i){
   if (!RETRO || !RETRO.filas[i]) return;
+  const clave = _retroClaveFila(RETRO.filas[i]);
   RETRO.filas.splice(i, 1);
+  if (RETRO.abiertos){
+    RETRO.abiertos.delete(clave);
+    Array.from(RETRO.abiertos).forEach(k => { if (k.indexOf(clave + '|') === 0) RETRO.abiertos.delete(k); });
+  }
   _retroPintarLista();
   _retroPintarResumen();
 }
@@ -3881,6 +4064,8 @@ window.ptCerrarRetro = cerrarRetro;
 window.ptCerrarRetroFondo = cerrarRetroFondo;
 window.ptRetroCargarAnterior = retroCargarAnterior;
 window.ptRetroSaveAnterior = retroLeerSaveAnterior;
+window.ptRetroToggle = retroToggle;
+window.ptRetroToggleGrupo = retroToggleGrupo;
 window.ptRetroMarcar = retroMarcar;
 window.ptRetroMonto = retroMonto;
 window.ptRetroNota = retroNota;
