@@ -227,14 +227,24 @@ const PES5_EDITOR = (() => {
   }
 
   // ---------- formacion (bloque 5, registro de equipos editados) ----------
-  // Cada equipo editado tiene un registro en el bloque 5 que empieza con su
-  // codigo corto (3 letras, ej. BIR) seguido de la lista 00 01 02 ... 1F.
+  // Cada club tiene un registro en el bloque 5 que empieza con su codigo (2 o 3
+  // letras, ej. BIR) en un campo de 4 bytes y sigue con 32 bytes que son una
+  // permutacion de 0..31 (el juego los reordena al cambiar titulares y
+  // suplentes; ver FORMFIX mas abajo).
   // La formacion arranca 100 bytes despues del codigo:
   //   +12 .. +22  11 bytes = profundidad (defensa<->ataque), slots 0..10, 1..47
   //   +23 .. +32  10 bytes = lateral, slots 1..10 (el arquero va fijo al centro), 6..99
   // Verificado 2026-11-06 con cuatro cambios aislados in-game (Cunningham,
   // Upson, Melchiot, Jarosik, Heskey) contra el save real.
   const FORM_BUSCAR_DESDE = 657712, FORM_BUSCAR_HASTA = 803591; // bloque 5
+  // FORMFIX: los 138 clubes tienen un registro de formacion en orden, uno por
+  // club: 716932 + club * 628. El codigo de 3 letras del registro NO se
+  // actualiza cuando el club se renombra (HECHICEROS FC conserva FCN, el de
+  // FC Nantes; ATLETICO LECHUGUERO conserva WBA), asi que la posicion es la
+  // forma segura de encontrar el registro propio. Ademas, cuando dos clubes
+  // comparten codigo (FC Nantes y Nurnberg = FCN, Arsenal y AS Nancy = ASN)
+  // la busqueda por codigo devolvia el registro del primero para los dos.
+  const FORM_REGISTRO_BASE = 716932, FORM_REGISTRO_STRIDE = 628, FORM_TOTAL_CLUBES = 138;
   const FORM_REL_DEPTH = 12, FORM_REL_LATERAL = 23, FORM_OFF_REGISTRO = 100;
   //   +33 .. +43  11 bytes = posicion declarada de cada slot (codigo interno
   //   del juego), independiente de la ubicacion en la cancha.
@@ -272,22 +282,63 @@ const PES5_EDITOR = (() => {
     if (n.length >= 3) out.push(n.slice(0, 3));
     return out.filter((v, i) => v && out.indexOf(v) === i);
   }
-  function _buscarRegistroFormacion(bytes, codigos) {
+  function _esPermutacion32(bytes, off) {
+    const visto = new Uint8Array(32);
+    for (let k = 0; k < 32; k++) {
+      const v = bytes[off + k];
+      if (v >= 32 || visto[v]) return false;
+      visto[v] = 1;
+    }
+    return true;
+  }
+  // Un registro de formacion empieza con el codigo (2 o 3 letras) y un 0, y
+  // sigue con 32 bytes que son una permutacion de 0..31. El juego reordena esa
+  // permutacion cuando cambian titulares/suplentes (no es siempre 0,1,2,...).
+  function _registroValidoEn(bytes, i, codigos) {
+    for (const cod of codigos) {
+      if (!cod || cod.length > 3 || i + 4 + 32 > FORM_BUSCAR_HASTA) continue;
+      let ok = true;
+      for (let j = 0; ok && j < cod.length; j++) if (bytes[i + j] !== cod.charCodeAt(j)) ok = false;
+      // el codigo ocupa 4 bytes: las letras y relleno con 0 (los codigos de 2
+      // letras, como AZ, llevan dos 0 antes de la secuencia).
+      for (let j = cod.length; ok && j < 4; j++) if (bytes[i + j] !== 0) ok = false;
+      if (ok && _esPermutacion32(bytes, i + 4)) return true;
+    }
+    return false;
+  }
+  // FORMFIX: registro propio por posicion (no depende de que el codigo del
+  // registro coincida con el nombre/codigo actual del club).
+  function _registroPropioValido(bytes, i) {
+    if (!Number.isInteger(i) || i < FORM_BUSCAR_DESDE || i + 4 + 32 > FORM_BUSCAR_HASTA) return false;
+    // dos o tres letras y relleno con 0 hasta el byte 4
+    if (bytes[i] < 65 || bytes[i] > 90 || bytes[i + 1] < 65 || bytes[i + 1] > 90) return false;
+    for (let k = 2; k < 4; k++) {
+      const v = bytes[i + k];
+      if (k === 2 && v >= 65 && v <= 90) continue;
+      if (v !== 0) return false;
+    }
+    return _esPermutacion32(bytes, i + 4);
+  }
+  function _buscarRegistroFormacion(bytes, codigos, indiceEquipo) {
+    // 1) el registro del propio club (posicion fija en el bloque 5). Es el
+    //    unico criterio que distingue clubes con el mismo codigo y el que
+    //    sigue funcionando cuando el club se renombro y el registro conserva
+    //    el codigo viejo.
+    if (Number.isInteger(indiceEquipo) && indiceEquipo >= 0 && indiceEquipo < FORM_TOTAL_CLUBES) {
+      const propio = FORM_REGISTRO_BASE + indiceEquipo * FORM_REGISTRO_STRIDE;
+      if (_registroPropioValido(bytes, propio)) return propio;
+    }
+    // 2) respaldo: buscar por codigo dentro del rango, aceptando cualquier
+    //    permutacion de 0..31 (asi se encuentran los registros que el juego
+    //    reordeno y los buffers sin la posicion del club).
     for (let i = FORM_BUSCAR_DESDE; i + 40 <= FORM_BUSCAR_HASTA; i++) {
-      for (const cod of codigos) {
-        const seq = i + cod.length + 1;
-        if (seq + 32 > FORM_BUSCAR_HASTA) continue;
-        let ok = bytes[i + cod.length] === 0;
-        for (let j = 0; ok && j < cod.length; j++) if (bytes[i + j] !== cod.charCodeAt(j)) ok = false;
-        for (let k = 0; ok && k < 32; k++) if (bytes[seq + k] !== k) ok = false;
-        if (ok) return i;
-      }
+      if (_registroValidoEn(bytes, i, codigos)) return i;
     }
     return -1;
   }
   function leerFormacionEquipo(bytes, indiceEquipo) {
     const codigos = _codigosEquipo(bytes, indiceEquipo);
-    const rec = _buscarRegistroFormacion(bytes, codigos);
+    const rec = _buscarRegistroFormacion(bytes, codigos, indiceEquipo);
     if (rec < 0) return null;
     const base = rec + FORM_OFF_REGISTRO;
     const ids = leerPlantillaEquipo(bytes, indiceEquipo);
@@ -307,7 +358,7 @@ const PES5_EDITOR = (() => {
   }
   function escribirFormacionEquipo(bytes, indiceEquipo, slots) {
     const codigos = _codigosEquipo(bytes, indiceEquipo);
-    const rec = _buscarRegistroFormacion(bytes, codigos);
+    const rec = _buscarRegistroFormacion(bytes, codigos, indiceEquipo);
     if (rec < 0) throw new Error('no hay registro de formacion para el club ' + indiceEquipo);
     const base = rec + FORM_OFF_REGISTRO;
     for (const s of slots || []) {
