@@ -2234,7 +2234,10 @@ function renderCart(){
   renderAviso();
   renderCarritoPanel();
   const applyBtn = document.getElementById('ep-apply');
-  const sinNada = !entradas.length && !(ADMIN_EMBED && ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length);
+  // En la Tool no hay carrito (entradas siempre vacío): cuenta el borrador abierto o el pendiente previo.
+  const sinNada = ADMIN_EMBED
+    ? !n && !(ADMIN_PENDIENTE && Object.keys(ADMIN_PENDIENTE).length)
+    : !entradas.length;
   applyBtn.disabled = sinNada || (!ADMIN_EMBED && (yaPedido || !!APP.bloqueoPorAplicado || excede));
   applyBtn.title = ADMIN_EMBED
     ? ''
@@ -3010,9 +3013,15 @@ function _filaCobrosHTML(){
   const filas = movs.length ? movs.map(m => {
     const reembolso = !!(m.pes5 && m.pes5.reembolso);
     const quien = (m.pes5 && m.pes5.playerName) || '';
-    const lbl = reembolso ? 'Reembolso' + (quien ? ' · ' + quien : '') : quien;
+    const retro = m.reason === 'mejora PES5 retroactiva';
+    const base = reembolso ? 'Reembolso' + (quien ? ' · ' + quien : '') : quien;
+    // La etiqueta dice «Retroactiva» sin repetir el prefijo que ya trae la nota.
+    const lbl = retro ? (base ? base + ' · Retroactiva' : 'Retroactiva') : base;
+    const nota = retro && String(m.note || '').indexOf('Retroactiva:') === 0
+      ? String(m.note).slice('Retroactiva:'.length).trim()
+      : m.note;
     return `<div class="ep-diffline">
-      <div class="lbl">${escHtml(lbl)}${m.note ? ' &middot; ' + escHtml(m.note) : ''}</div>
+      <div class="lbl">${escHtml(lbl)}${nota ? ' &middot; ' + escHtml(nota) : ''}</div>
       <div class="chg">${escHtml(m.date ? new Date(m.date).toLocaleDateString('es-CL') : '')}</div>
       <div class="cost">${reembolso ? '+' : '-'}${Number(m.amount || 0).toLocaleString('es-CL')}</div>
     </div>`;
