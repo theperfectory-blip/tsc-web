@@ -610,7 +610,7 @@ function _formacionPendiente(){
 }
 /* Lo que se muestra como 11: con el modal abierto, el borrador; si no, la alineacion vigente. */
 function alineacionVigente(){
-  return (FORM_ABIERTO && FORM.draft) ? FORM.draft : formacionVigente();
+  return (FORM_ABIERTO && FORM.draft) ? FORM.draft : (formacionVigente() || []);
 }
 function titularSpot(id){ return alineacionVigente().find(s => s.id === id) || null; }
 /* Nombre de cada lugar de la cancha: solo expande la sigla de la cancha (no es una posicion del juego). */
@@ -639,7 +639,7 @@ function _rosterVisible(){
   return _rosterVigente();
 }
 function _rosterVigente(){
-  const tit = formacionVigente().map(s => s.id);
+  const tit = (formacionVigente() || []).map(s => s.id);
   const base = PLAYERS.filter(p => p.slot != null).slice().sort((a, b) => a.slot - b.slot).map(p => p.id);
   const banca = PES5_PLANTILLA.rosterTrasTitulares(base, tit).slice(11);
   // ORD-4: el pedido pendiente que manda lleva sus intercambios de banca (pares): se replican en el mismo orden
@@ -679,7 +679,15 @@ function formacionVigente(){
     const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
     if (pub && pub.every(s => s && PLAYER_BY_ID[s.id])) return pub;
   }
-  return formacionPorDefecto();
+  // FORMFIX: sin formacion publicada no hay formacion real que mostrar. Antes
+  // caia en formacionPorDefecto() (4-3-3 de la demo) y el presidente veia una
+  // alineacion inventada como si fuera la del save.
+  return null;
+}
+function _formacionPublicadaUsable(){
+  if (!FORMACION_PUBLICADA) return false;
+  const pub = formacionDesdePublicada(FORMACION_PUBLICADA);
+  return !!(pub && pub.every(s => s && PLAYER_BY_ID[s.id]));
 }
 let FORMATION = null; // se arma al abrir el modal, cuando ya hay plantel
 
@@ -1389,6 +1397,9 @@ function sectionKeyOfSlot(slot){ const s = slot ?? 999; return s < 11 ? 'titular
 function renderRoster(){
   const q = (document.getElementById('ep-search').value||'').toLowerCase();
   const list = document.getElementById('ep-roster-list');
+  // FORMFIX: sin formacion publicada no hay titulares. Arrancar en Suplentes
+  // para que la lista no quede vacia (los jugadores siguen editables).
+  if (!q && !formacionVigente() && APP.squadTab === 'titular') APP.squadTab = 'suplente';
   const secs = _seccionesPlantel();
   const ordenPlantel = plantelOrdenado();
   // CARRO1: marca de los jugadores que tienen un borrador en espera (punto + costo).
@@ -3154,8 +3165,44 @@ let FORM_COORDS_T = 0;     // temporizador que lo esconde
 let FORM_CMP = null;  // { slot, entra, prev:{sel,armado,banca,verId} } con el panel abierto
 let FORM_CMP_HTML = ''; // ultimo HTML pintado del panel: no se rehace en cada render
 
+const FORM_SIN_DATOS_MSG = 'La formación de tu equipo no está disponible todavía. Avísale a Luis.';
+/* FORMFIX: aviso persistente cuando la plantilla publicada no trae formacion.
+   No se abre la cancha y no se puede mandar un pedido de formacion/alineacion. */
+function _avisarFormacionNoDisponible(){
+  const wrap = document.getElementById('ep-pitch-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = `
+  <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeFormacionNoDisponible)">
+    <div class="ep-modal" role="alertdialog" aria-modal="true" aria-labelledby="ep-form-sin-datos-t">
+      <div class="ep-modal-hd">
+        <h2 id="ep-form-sin-datos-t">Formación no disponible</h2>
+        <button class="ep-modal-close" data-onclick="closeFormacionNoDisponible()" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="ep-modal-body">
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+          <svg class="icn" viewBox="0 0 24 24" style="flex:0 0 auto;width:24px;height:24px;color:var(--gold);" aria-hidden="true">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+            <path d="M12 9v4"/><path d="M12 17h.01"/>
+          </svg>
+          <p style="margin:0;color:var(--txt2);line-height:1.5;">${FORM_SIN_DATOS_MSG}</p>
+        </div>
+      </div>
+      <div class="ep-modal-foot">
+        <button class="ep-btn primary" data-onclick="closeFormacionNoDisponible()">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
+}
+function closeFormacionNoDisponible(){
+  const wrap = document.getElementById('ep-pitch-wrap');
+  if (wrap) wrap.innerHTML = '';
+}
+
 function openFormationModal(){
   if (_bloqueadoPorPausa()) return;
+  // FORMFIX: sin formacion publicada no se abre el editor: no hay base real
+  // (antes se mostraba formacionPorDefecto, un 4-3-3 inventado).
+  if (!_formacionPublicadaUsable()){ _avisarFormacionNoDisponible(); return; }
   if (PLAYERS.length < FORMATION_COORDS.length){
     showMiniToast('El plantel todavía no tiene 11 jugadores para armar la formación.');
     return;
@@ -4069,7 +4116,9 @@ function moveFormationScreen(dir){
 }
 function resetFormationDraft(){
   if (_bloqueadoPorPausa()) return;
-  FORM.draft = JSON.parse(JSON.stringify(formacionVigente()));
+  const base = formacionVigente();
+  if (!base){ closeFormationModal(); _avisarFormacionNoDisponible(); return; }
+  FORM.draft = JSON.parse(JSON.stringify(base));
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
   FORM.verId = null;   // CMP3: restablecer también quita la ficha
   completarPosiciones();
@@ -4089,6 +4138,8 @@ function _nombreFormacionDraft(draft){
    escribe en el save. No cuesta YunaCoins. */
 async function confirmFormation(){
   if (_bloqueadoPorPausa()) return;
+  // FORMFIX: sin formacion publicada no se manda pedido de formacion/alineacion.
+  if (!_formacionPublicadaUsable()){ _avisarFormacionNoDisponible(); return; }
   FORMATION = JSON.parse(JSON.stringify(FORM.draft));
   const error = validarFormacion(FORMATION);
   if (error){ showMiniToast('Formación inválida: ' + error + '.'); return; }
@@ -4140,6 +4191,9 @@ async function confirmFormation(){
 document.addEventListener('keydown', function(e){
   const wrap = document.getElementById('ep-pitch-wrap');
   if(!wrap || !wrap.innerHTML) return;
+  // FORMFIX: con el aviso de formacion no disponible abierto, las teclas no
+  // son de la cancha (no hay borrador).
+  if(document.getElementById('ep-form-sin-datos-t')) return;
   if(_formAyudaAbierta()) return;   // FORM4: con la ayuda abierta, las teclas son de la ayuda
   if(FORM_CMP) return;   // INTEG: con el panel de comparacion abierto, las teclas son del panel
   const move = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down'};
@@ -5096,6 +5150,7 @@ window.cancelarPedidoDesdeHistorial = cancelarPedidoDesdeHistorial;
 window.closeApplyConfirm = closeApplyConfirm;
 window.closeAuditModal = closeAuditModal;
 window.closeFormationModal = closeFormationModal;
+window.closeFormacionNoDisponible = closeFormacionNoDisponible;
 window.closeFormationHelp = closeFormationHelp;
 window.closeIfBackdrop = closeIfBackdrop;
 window.commitChanges = commitChanges;

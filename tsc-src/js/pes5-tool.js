@@ -631,6 +631,15 @@ function renderStatusBar(){
         <div class="pt-status-item"><span class="badge badge-warn">${ICN.alert} ${pend.length} ${pend.length === 1 ? 'plantilla desactualizada' : 'plantillas desactualizadas'}: el presidente ve datos viejos. Usa «Publicar save» para publicarlas.</span></div>
       </div>`
     : '';
+  // FORMAVISO: un equipo sin formación en el save (o publicada como null) deja al presidente
+  // sin su editor de alineación. No alcanza con el aviso de plantillas desactualizadas:
+  // una plantilla puede estar «al día» y aun así no tener formación.
+  const sinForm = EQUIPOS_SIN_FORMACION || [];
+  const avisoForm = sinForm.length
+    ? `<div class="pt-statusbar">
+        <div class="pt-status-item"><span class="badge badge-warn">${ICN.alert} ${sinForm.length} ${sinForm.length === 1 ? 'equipo sin' : 'equipos sin'} formación publicada: ${sinForm.map(n => escHtml(n)).join(', ')}. Avisa a Jimbo.</span></div>
+      </div>`
+    : '';
   el.innerHTML = `
     <div class="pt-statusbar">
       <div class="pt-status-item">${ICN.folder} <b>${escHtml(carpeta)}</b></div>
@@ -639,22 +648,40 @@ function renderStatusBar(){
       <div class="pt-status-actions">
         <button class="btn btn-sm" data-onclick="ptActualizarSaveClick()">${ICN.refresh} Actualizar save</button>
       </div>
-    </div>${aviso}`;
+    </div>${aviso}${avisoForm}`;
 }
 
 /* Aviso de plantillas desactualizadas (2.0-4). Compara cada pes5_plantillas con el save abierto
    (saveHash y pes5ClubIdx). Solo AVISA: publicar lo decide el admin con el boton, nunca solo,
    porque el save puede estar a mitad de edicion. */
 let PLANTILLAS_DESACTUALIZADAS = null;
+/* FORMAVISO: equipos TSC activos vinculados que hoy no tienen formación publicable. Se llena en
+   revisarPlantillasDesactualizadas (misma lectura de pes5_plantillas, sin consultas extra) y lo
+   pinta renderStatusBar. Lista de nombres, sin escapar: se escapa al pintar. */
+let EQUIPOS_SIN_FORMACION = [];
 async function revisarPlantillasDesactualizadas(){
   PLANTILLAS_DESACTUALIZADAS = null;
+  EQUIPOS_SIN_FORMACION = [];
   if (PLANO){
     const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null);
+    // FORMAVISO: primero el save abierto. Si leerFormacionEquipo no encuentra el registro,
+    // la plantilla se publica con formacion: null y el presidente ve «no disponible».
+    const sinForm = {};
+    for (const t of equipos){
+      let form = null;
+      try { form = PES5_EDITOR.leerFormacionEquipo(PLANO, t.pes5ClubIdx); } catch (e) { form = null; }
+      if (!form) sinForm[String(t.id)] = true;
+    }
     try {
       if (equipos.length){
         const publicadas = {};
         const snap = await firebase.firestore().collection('pes5_plantillas').get();
         snap.forEach(d => { publicadas[d.id] = d.data(); });
+        // FORMAVISO: lo ya publicado tambien cuenta; una publicacion vieja puede no traer el campo.
+        for (const t of equipos){
+          const pub = publicadas[String(t.id)];
+          if (pub && (!pub.formacion || !Array.isArray(pub.formacion.slots))) sinForm[String(t.id)] = true;
+        }
         const hashes = {};
         for (const t of equipos){ if (publicadas[t.id]) hashes[t.id] = await _teamHashDe(t); }
         PLANTILLAS_DESACTUALIZADAS = PES5_PLANTILLA.desactualizadas(equipos, publicadas, hashes);
@@ -662,6 +689,7 @@ async function revisarPlantillasDesactualizadas(){
     } catch (e){
       console.error('[pes5-tool] plantillas desactualizadas', e);
     }
+    EQUIPOS_SIN_FORMACION = equipos.filter(t => sinForm[String(t.id)]).map(t => t.name);
   }
   if (document.getElementById('pt-statusbar')) renderStatusBar();
 }
@@ -3412,11 +3440,14 @@ async function cargarEstadoPublicacion(equipos){
 function habilitarAplicarPedidos(chk){ document.getElementById('btn-aplicar-pedidos').disabled = !(chk.checked && PLANO); }
 function publicarPlantillaDeEquipo(id){ return publicarPlantillas([id]); }
 /* Escribe en pes5_plantillas las plantillas de `equipos` que cambiaron (debeReescribirPublicacion
-   salta las iguales). Llena `escritos` con los nombres escritos, aun si falla a mitad de camino. */
-async function _escribirPlantillas(equipos, escritos, linea){
+   salta las iguales). Llena `escritos` con los nombres escritos, aun si falla a mitad de camino.
+   FORMAVISO: si leerFormacionEquipo da null, la plantilla se publica igual (los jugadores sirven)
+   y el nombre del equipo se suma a `sinFormacion` para que quien publica lo vea al terminar. */
+async function _escribirPlantillas(equipos, escritos, linea, sinFormacion){
   const saveHash = await _hashPlano();
   for (const t of equipos){
     const { jugadores, formacion, teamHash } = await _contenidoEquipo(t);
+    if (!formacion && sinFormacion && !sinFormacion.includes(t.name)) sinFormacion.push(t.name);
     // EMP-80-2: al publicar, los jugadores nuevos (fichajes) quedan con su perfil; los fijados no se tocan.
     try {
       const rp = await _completarPerfilesEquipo(t.id, t.pes5ClubIdx);
@@ -3435,8 +3466,12 @@ async function _escribirPlantillas(equipos, escritos, linea){
       publicadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
     escritos.push(t.name);
-    linea(`${t.name}: ${jugadores.length} jugadores publicados${formacion ? ` · formación ${formacion.nombre}` : ''}`, 'ok');
+    linea(`${t.name}: ${jugadores.length} jugadores publicados${formacion ? ` · formación ${formacion.nombre}` : ' · SIN FORMACIÓN (avisar a Jimbo)'}`, formacion ? 'ok' : 'err');
   }
+}
+/* FORMAVISO: texto unico del aviso, para el resultado de publicar y el toast de error. */
+function _textoSinFormacion(nombres){
+  return `Sin formación: ${nombres.join(', ')}. El presidente no puede editar su formación: avisa a Jimbo.`;
 }
 async function _liberarBloqueoSiPublicado(equipos){
   if (BLOQUEO_EQUIPO != null && equipos.some(t => t.id === BLOQUEO_EQUIPO) && !Object.keys(CAMBIOS_PENDIENTES).length) await liberarBloqueoEquipo();
@@ -3448,9 +3483,15 @@ async function publicarPlantillas(ids){
   const equipos = EQUIPOS_TSC.filter(t => t.status !== 'INACTIVO' && t.pes5ClubIdx != null && (!ids || ids.includes(t.id)));
   if (!equipos.length){ showToast('No hay equipos para publicar.', 'error'); return; }
   if (log) log.innerHTML = '';
+  const sinFormacion = [];
   try {
-    await _escribirPlantillas(equipos, [], linea);
+    await _escribirPlantillas(equipos, [], linea, sinFormacion);
     showToast(`Publicado: ${equipos.length} equipo(s).`);
+    if (sinFormacion.length){
+      const avisoForm = _textoSinFormacion(sinFormacion);
+      linea(avisoForm, 'err');
+      showToast(avisoForm, 'error');
+    }
     await _liberarBloqueoSiPublicado(equipos);
     return true;
   } catch (e) {
@@ -3939,6 +3980,7 @@ async function _ejecutarPublicarSave(reanudar){
   const hecho = [];
   const noHecho = [];
   const escritos = [];
+  const sinFormacion = [];   // FORMAVISO
   let paso = 'a';
   try {
     // a) relee: lo que se publica es lo que hay en el archivo en este momento
@@ -3947,11 +3989,13 @@ async function _ejecutarPublicarSave(reanudar){
     // b) plantillas que cambiaron (incluye equipos sin presidente vinculado)
     paso = 'b';
     const equipos = _equiposPublicables();
-    await _escribirPlantillas(equipos, escritos, () => {});
+    await _escribirPlantillas(equipos, escritos, () => {}, sinFormacion);
     await _liberarBloqueoSiPublicado(equipos);
     hecho.push(escritos.length
       ? `Plantillas publicadas (${escritos.length}): ${escritos.join(', ')}.`
       : 'Plantillas: ninguna cambió.');
+    // FORMAVISO: aunque la plantilla se haya publicado, sin formación el presidente no puede editar.
+    if (sinFormacion.length) hecho.push(_textoSinFormacion(sinFormacion));
     // c) sube el save que se acaba de leer (mismos bytes que quedaron en PLANO)
     paso = 'c';
     const blob = new Blob([leido.bytes], { type: 'application/octet-stream' });
@@ -3984,6 +4028,8 @@ async function _ejecutarPublicarSave(reanudar){
     renderStatusBar();
     cargarEstadoPublicacion(_equiposPublicables());
     revisarPlantillasDesactualizadas();
+    // FORMAVISO: el toast de error va al final para que quede visible sobre el de exito.
+    if (sinFormacion.length) showToast(_textoSinFormacion(sinFormacion), 'error');
   }
 }
 
