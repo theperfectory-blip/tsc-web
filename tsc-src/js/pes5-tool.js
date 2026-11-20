@@ -1052,9 +1052,11 @@ function _retroReparto(){
   return YUNACOINS_RULES.repartoRetroactivo(RETRO.filas, _retroBonoPorJugador(team));
 }
 
-/* Arma las filas del diff save anterior → save actual. Los jugadores que no
-   existen en el anterior (o cambiaron de nombre) quedan «sin dato», con monto 0
-   para completar a mano. Las filas manuales agregadas antes se conservan. */
+/* Arma las filas del diff save anterior → save actual. La comparación es SIEMPRE
+   por registro (j.id): el nombre puede haber cambiado (los presidentes renombran)
+   y no cuesta nada, solo se muestra como «antes: …». Queda «sin dato» únicamente
+   si el registro no se puede leer en el save anterior (excepción o lectura null),
+   con monto 0 para completar a mano. Las filas manuales previas se conservan. */
 function _retroFilasDesdeSaveAnterior(){
   const team = equipoTSCActual();
   if (!team || !PLANO || !PLANO_RETRO || !RETRO) return;
@@ -1063,8 +1065,8 @@ function _retroFilasDesdeSaveAnterior(){
   (PLANTILLA_ACTUAL || []).forEach((j, slot) => {
     const base = {
       playerId: j.id, playerName: j.nombre, subscriber: !!j.subscriber, perfil: 'ninguno',
-      resumen: '(sin cambios)', nota: '', marcada: false, conCambios: false, sinDato: false,
-      manual: false, costoCalculado: 0, monto: 0, lineas: [],
+      resumen: '(sin cambios)', nombreAntes: '', nota: '', marcada: false, conCambios: false,
+      sinDato: false, manual: false, costoCalculado: 0, monto: 0, lineas: [],
     };
     let oldEd, curEd, oldJ;
     try {
@@ -1075,13 +1077,16 @@ function _retroFilasDesdeSaveAnterior(){
       filas.push(Object.assign({}, base, { sinDato: true, resumen: 'sin dato: no se pudo leer en el save anterior' }));
       return;
     }
-    const nombreViejo = oldEd && oldEd.name ? String(oldEd.name).trim().toLowerCase() : '';
-    const nombreAhora = curEd && curEd.name ? String(curEd.name).trim().toLowerCase() : '';
-    if (!oldJ || !nombreViejo || !nombreAhora || nombreViejo !== nombreAhora) {
-      filas.push(Object.assign({}, base, { sinDato: true, resumen: 'sin dato: el jugador no coincide con el save anterior' }));
+    if (!oldJ) {
+      filas.push(Object.assign({}, base, { sinDato: true, resumen: 'sin dato: no se pudo leer en el save anterior' }));
       return;
     }
-    const cambios = PES5_PLANTILLA.cambiosDesdeEditor(oldEd, curEd);
+    // Mismo registro, aunque el nombre haya cambiado. El nombre no entra en el
+    // diff ni en el costo (cambiosDesdeEditor no lo compara): solo se informa.
+    const nombreViejo = oldEd && oldEd.name ? String(oldEd.name).trim() : '';
+    const nombreAhora = curEd && curEd.name ? String(curEd.name).trim() : '';
+    const nombreAntes = nombreViejo && nombreViejo !== nombreAhora ? nombreViejo : '';
+    const cambios = oldEd && curEd ? PES5_PLANTILLA.cambiosDesdeEditor(oldEd, curEd) : {};
     // El costo se calcula sobre el jugador VIEJO: costoCambios usa sus valores
     // como «de» y el perfil fijado del registro para la temporada de cobro.
     const { total, lineas } = _costoTool(team.id, oldJ, cambios);
@@ -1090,6 +1095,7 @@ function _retroFilasDesdeSaveAnterior(){
     const cobrable = perfil !== 'ninguno' && total > 0;
     filas.push(Object.assign({}, base, {
       perfil: perfil,
+      nombreAntes: nombreAntes,
       resumen: conCambios ? _resumenLineas(lineas) : '(sin cambios)',
       costoCalculado: total,
       monto: cobrable ? total : 0,
@@ -1113,6 +1119,7 @@ function _retroFilaHTML(f, i){
   const chip = `<span class="pt-retro-chip ${f.perfil === 'suscriptor' ? 'sub' : f.perfil === 'base' ? 'base' : 'ninguno'}">${escHtml(_retroPerfilEtiqueta(f.perfil))}</span>`;
   const sinDato = f.sinDato ? '<span class="pt-retro-chip warn">sin dato</span>' : '';
   const manual = f.manual ? '<span class="pt-retro-chip manual">manual</span>' : '';
+  const antes = f.nombreAntes ? `<div class="pt-retro-antes">antes: ${escHtml(f.nombreAntes)}</div>` : '';
   const calc = _retroFmt(f.costoCalculado);
   const monto = _retroMontoDe(f);
   return `<div class="pt-retro-row${f.marcada ? ' on' : ''}">
@@ -1122,6 +1129,7 @@ function _retroFilaHTML(f, i){
     <div class="pt-retro-main">
       <div class="pt-retro-nombre">${escHtml(f.playerName)} ${chip}${sinDato}${manual}</div>
       <div class="pt-retro-resumen">${escHtml(f.resumen || '')}</div>
+      ${antes}
       <label class="pt-retro-campo pt-retro-nota"><span>Nota</span>
         <input type="text" maxlength="120" placeholder="Opcional: lo que se hizo" value="${escAttr(f.nota || '')}" data-oninput="ptRetroNota(${i}, this)"></label>
     </div>
