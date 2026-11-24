@@ -7,7 +7,7 @@ agente (sin Firestore): los pedidos de los presidentes llegarán después.
 - Núcleo: `tools/pes5/pes5_vivo.py` (Python 3, solo biblioteca estándar y
   `ctypes`).
 - CLI: `tools/pes5/live-agent.py`.
-- Pruebas: `tools/pes5/test_pes5_vivo.py` (75 pruebas, sin juego).
+- Pruebas: `tools/pes5/test_pes5_vivo.py` (82 pruebas, sin juego).
 - Mapa de referencia: [MAPA_ALINEACION_VIVO.md](MAPA_ALINEACION_VIVO.md).
 - Hallazgos del coordinador: `HALLAZGOS.md` (scratchpad de la sesión).
 
@@ -157,30 +157,46 @@ partido empezado los cambios van por la cola».
 {"op": "campo", "nombre": "profundidad", "casilla": 6, "valor": 12}
 {"op": "campo", "nombre": "flechasAtaque", "casilla": 3, "indice": 2, "valor": 1}
 {"op": "campo", "nombre": "sistemaDefensivo", "bloque": "A", "valor": 2}
+{"op": "campo", "nombre": "capitan", "bloque": "cabecera", "valor": 11}
+{"op": "campo", "nombre": "capitan", "valor": 11}
+{"op": "campo", "nombre": "estrategiaBoton", "bloque": "cabecera", "indice": 2, "valor": 9}
+{"op": "campo", "nombre": "modoEstrategia", "bloque": "cabecera", "valor": 1}
 ```
 
 - Escribe un campo del bloque principal (o de la Alineación A/B con
-  `"bloque": "A"` / `"B"`, o de la cabecera con `"bloque": "cabecera"` para el
-  capitán y los lanzadores). Los offsets y tamaños salen de
-  `pes5-live-map.json`, no están copiados en el código.
+  `"bloque": "A"` / `"B"`, o de la cabecera con `"bloque": "cabecera"`).
+  Los offsets y tamaños salen de `pes5-live-map.json`, no están copiados en
+  el código.
+- `bloque` es opcional y su defecto es `principal`. Si el nombre **no existe**
+  en principal/A/B pero sí en la cabecera (`capitan`, `penal`,
+  `estrategiaBoton`…), se resuelve a `cabecera`: escribir `capitan` sin bloque
+  escribe `rec+111`. Si existe en principal/A/B, el defecto sigue siendo
+  `principal` aunque también esté en la cabecera.
 - `casilla` es obligatoria en los campos por casilla; `indice` solo en los que
   tienen `stride > 1` (las flechas de ataque, 8 por casilla) o en los campos de
-  varios bytes.
-- `valor` se valida contra `valores` del JSON (enumeraciones), contra `rango`
+  varios bytes (`estrategiaBoton`: 0–3 = □ △ ○ ✕).
+- `valor` se valida contra `valores` del JSON (enumeraciones: p. ej.
+  `estrategiaBoton` 0–12 y `modoEstrategia` 0–1), contra `rango`
   (profundidad 1–47, lateral 6–99, capitán y lanzadores 0–31) o contra 0–255 si
   el campo no declara nada. Las flechas y los bytes de 0/1 solo aceptan 0 o 1.
 - Después de aplicar el lote se comprueban las reglas de
   [coherencia del estado final](#coherencia-del-estado-final): el `libero`
-  queda limitado a una casilla 1–10 con posición CT o LIB y `rivalMarcado` a
-  0–10 o 255.
+  queda limitado a una casilla 1–10 con posición CT o LIB, `rivalMarcado` a
+  0–10 o 255 y el capitán y los lanzadores a índices de plantel de un titular.
 - **Prohibido** escribir `orden` e `idsPlantel` con esta operación (para el
-  orden está `intercambiar` / `cambio`).
-- **Capitán y lanzadores** se escriben con `"bloque": "cabecera"`:
+  orden está `intercambiar` / `cambio`), y `desconocido104` (su significado
+  todavía no está identificado).
+- **Capitán y lanzadores** se escriben con `"bloque": "cabecera"` o sin
+  bloque:
   `{"op": "campo", "nombre": "capitan", "bloque": "cabecera", "valor": 11}`.
   El `valor` es el **índice de plantel** (0–31), no la casilla, y el lote se
-  rechaza si ese índice no queda en una casilla 0–10 del orden final. El resto
-  de la cabecera (botones de estrategia, `modoEstrategia`, `desconocido104`)
-  sigue sin escribirse con `campo`.
+  rechaza si ese índice no queda en una casilla 0–10 del orden final.
+- **Cabecera completa (VIVO4):** además del capitán y los lanzadores se
+  escriben el código de estrategia de cada botón (`estrategiaBoton`, con
+  `indice` 0–3 = □ △ ○ ✕ y `valor` = código 0–12 del JSON; 9 = Contraataque)
+  y el modo (`modoEstrategia`: 0 Manual, 1 Semi-automático). Los dos se validan
+  solo contra `valores`: un 13 en `estrategiaBoton` o un 2 en `modoEstrategia`
+  se rechazan.
 
 ### Ejemplo completo
 
@@ -360,10 +376,11 @@ python -m unittest tools/pes5/test_pes5_vivo.py -v
    ni el que salió ni el que entró pueden volver a salir.
 6. **Antes del partido un `cambio` admite reservas** (es un intercambio de
    casillas y el juego lo permite); con el partido empezado, no.
-7. **La cabecera se escribe con `campo` solo para el capitán y los lanzadores**
-   (VIVO3), con `"bloque": "cabecera"`; el resto de la cabecera (botones,
-   `modoEstrategia`, `desconocido104`) no. `orden` e `idsPlantel` están
-   prohibidos explícitamente.
+7. **La cabecera se escribe con `campo`** (VIVO4): capitán, lanzadores,
+   `estrategiaBoton` y `modoEstrategia`, con `"bloque": "cabecera"` o sin
+   bloque cuando el nombre solo existe en la cabecera. `desconocido104` no se
+   escribe (su significado no está identificado) y `orden` / `idsPlantel`
+   están prohibidos explícitamente.
 8. **Un lote se valida contra el estado que deja el lote**: dos `cambio`
    seguidos van a `k=0` y `k=1`, y un `intercambiar` posterior ve el orden ya
    cambiado. Todo o nada: si una operación falla, no se escribe ninguna.
@@ -405,6 +422,9 @@ solo porque escribir en el juego no es parte de esta tarea):
   (la regla nueva ya impide que salga el arquero).
 - Escribir `capitan` o un lanzador con `"bloque": "cabecera"` (índice de
   plantel): falta ver en el juego que el menú Lanzador/Capit lo muestra y lo
+  conserva al reanudar.
+- Escribir `estrategiaBoton` (índice 0–3) y `modoEstrategia` (0/1): confirmar
+  que el menú de Ajustes de estrategia los muestra con el código escrito y los
   conserva al reanudar.
 - Escribir `campo` en la Alineación A/B mientras el bloque seleccionado es el
   principal: confirmar que el juego no lo pisa y qué bloque usa al reanudar.

@@ -491,12 +491,86 @@ class TestCampo(Base):
         self.assertEqual(self.byte(mem, 111), 6)
         self.assertEqual(len(resultado["escrito"]), 1)
 
-    def test_campo_cabecera_solo_capitan_y_lanzadores(self):
+    def test_campo_cabecera_rechaza_campos_de_otros_bloques(self):
         mem = self.memoria()
-        resultado = self.aplicar(mem, [{"op": "campo", "nombre": "modoEstrategia",
+        resultado = self.aplicar(mem, [{"op": "campo", "nombre": "nivelAtaqueDefensa",
                                         "bloque": "cabecera", "valor": 1}])
         self.assertFalse(resultado["ok"])
         self.assertIn("cabecera", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_campo_cabecera_sin_bloque_resuelve_a_cabecera(self):
+        # «capitan» solo existe en la cabecera: sin bloque se resuelve ahí y se
+        # valida como índice de plantel de un titular (VIVO3/VIVO4).
+        orden = list(range(32))
+        orden[9], orden[11] = 11, 9
+        mem = self.memoria(orden=orden)
+        resultado = self.aplicar(mem, [{"op": "campo", "nombre": "capitan", "valor": 11}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 111), 11)
+        self.assertEqual(resultado["escrito"][0]["dir"], hex(vivo.REC["local"] + 111))
+
+    def test_campo_del_bloque_principal_sin_bloque_no_va_a_la_cabecera(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [{"op": "campo", "nombre": "nivelAtaqueDefensa", "valor": 1}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 278), 1)
+        self.assertEqual(self.byte(mem, 105), 0)  # modoEstrategia intacto
+
+    def test_campo_estrategia_boton(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "estrategiaBoton", "bloque": "cabecera",
+             "indice": 2, "valor": 9}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 102), 9)
+        self.assertEqual(resultado["escrito"][0]["dir"], hex(vivo.REC["local"] + 102))
+
+    def test_campo_estrategia_boton_valor_13_es_error(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "estrategiaBoton", "bloque": "cabecera",
+             "indice": 0, "valor": 13}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("no válido", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+        self.assertEqual(self.byte(mem, 100), 0)
+
+    def test_campo_estrategia_boton_indice_fuera_de_rango(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "estrategiaBoton", "bloque": "cabecera",
+             "indice": 4, "valor": 9}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("indice", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_campo_modo_estrategia(self):
+        mem = self.memoria()
+        for valor in (0, 1):
+            with self.subTest(valor=valor):
+                resultado = self.aplicar(mem, [
+                    {"op": "campo", "nombre": "modoEstrategia", "bloque": "cabecera",
+                     "valor": valor}])
+                self.assertTrue(resultado["ok"], resultado["errores"])
+                self.assertEqual(self.byte(mem, 105), valor)
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "modoEstrategia", "bloque": "cabecera", "valor": 2}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("no válido", " ".join(resultado["errores"]))
+        self.assertEqual(self.byte(mem, 105), 1)
+
+    def test_campo_cabecera_desconocido104_es_error(self):
+        mem = self.memoria()
+        casos = (
+            {"op": "campo", "nombre": "desconocido104", "bloque": "cabecera", "valor": 1},
+            {"op": "campo", "nombre": "desconocido104", "valor": 1},
+        )
+        for caso in casos:
+            with self.subTest(caso=caso):
+                resultado = self.aplicar(mem, [caso])
+                self.assertFalse(resultado["ok"])
+                self.assertIn("desconocido104", " ".join(resultado["errores"]))
         self.assertEqual(mem.escrituras, [])
 
     def test_campo_invalido(self):
@@ -516,7 +590,6 @@ class TestCampo(Base):
             {"op": "campo", "nombre": "flechasAtaque", "casilla": 2, "indice": 8, "valor": 1},
             {"op": "campo", "nombre": "nivelAtaqueDefensa", "bloque": "C", "valor": 1},
             {"op": "campo", "nombre": "capitan", "bloque": "cabecera", "valor": 32},
-            {"op": "campo", "nombre": "capitan", "valor": 5},
             {"op": "campo", "nombre": "nivelAtaqueDefensa"},
             {"op": "campo", "nombre": ""},
         ]

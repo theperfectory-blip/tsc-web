@@ -34,6 +34,10 @@ Reglas que respeta el módulo
   validan cuando el lote los escribe, y ese índice tiene que estar en una
   casilla 0–10 del orden final. Si el estado final del lote no cumple, no se
   escribe ningún byte.
+- La cabecera del registro (`estrategiaBoton`, `modoEstrategia`, capitán y
+  lanzadores) también se escribe con ``campo``: ``bloque: "cabecera"`` o, si la
+  operación no trae ``bloque`` y el nombre solo existe en la cabecera, ese
+  bloque. ``desconocido104`` no se escribe.
 
 Nunca toca el option file ni los saves: solo la memoria del proceso.
 """
@@ -103,8 +107,13 @@ CAMPOS_CABECERA_INDICE = (
     ("tiroLibreCorto", "el lanzador del tiro libre corto"),
     ("penal", "el lanzador de penales"),
 )
-NOMBRES_CABECERA = frozenset(nombre for nombre, _ in CAMPOS_CABECERA_INDICE)
-NOMBRE_BLOQUE = {"principal": "bloque principal", "A": "Alineación A", "B": "Alineación B"}
+# Resto de la cabecera que se escribe con `campo` desde VIVO4 (`estrategiaBoton`
+# y `modoEstrategia`), salvo `desconocido104`: no se sabe qué es.
+CAMPOS_CABECERA_PROHIBIDOS = ("desconocido104",)
+# Bloques que acepta la operación `campo` (los de coherencia, más la cabecera).
+BLOQUES_CAMPO = BLOQUES_ESCRIBIBLES + ("cabecera",)
+NOMBRE_BLOQUE = {"principal": "bloque principal", "A": "Alineación A", "B": "Alineación B",
+                 "cabecera": "la cabecera"}
 
 # ------------------------------------------------------------------ errores
 
@@ -617,23 +626,43 @@ def _validar_valor(campo, valor):
         raise ErrorOperacion("valor %d fuera de rango (0..255) para «%s»" % (valor, campo["nombre"]))
 
 
+def _bloque_de(nombre, op):
+    """Bloque de un `campo`: el explícito o el que corresponde por defecto.
+
+    Sin ``bloque`` el defecto es ``principal``; si el nombre no existe en
+    principal/A/B pero sí en la cabecera, se resuelve a ``cabecera`` (VIVO4).
+    """
+    bloque = op.get("bloque")
+    if bloque is not None:
+        return bloque
+    for candidato in BLOQUES_ESCRIBIBLES:
+        if campo_de(nombre, candidato) is not None:
+            return "principal"
+    if campo_de(nombre, "cabecera") is not None:
+        return "cabecera"
+    return "principal"
+
+
 def _campo(vista, rec, op, campos_escritos=None):
     nombre = op.get("nombre")
     if not isinstance(nombre, str) or not nombre:
         raise ErrorOperacion("falta el campo «nombre»")
     if nombre in CAMPOS_PROHIBIDOS:
         raise ErrorOperacion("«%s» no se escribe con la operación campo; usa intercambiar o cambio" % nombre)
-    bloque = op.get("bloque", "principal")
+    bloque = _bloque_de(nombre, op)
     if bloque == "cabecera":
-        if nombre not in NOMBRES_CABECERA:
+        campo = campo_de(nombre, "cabecera")
+        if campo is None:
+            raise ErrorOperacion("campo desconocido en el bloque cabecera: %r" % (nombre,))
+        if nombre in CAMPOS_CABECERA_PROHIBIDOS:
             raise ErrorOperacion(
-                "«%s» no se escribe con la operación campo: la cabecera solo admite el "
-                "capitán y los lanzadores" % nombre)
-    elif bloque not in BLOQUES_ESCRIBIBLES:
+                "«%s» no se escribe con la operación campo: su significado no está identificado" % nombre)
+    elif bloque not in BLOQUES_CAMPO:
         raise ErrorOperacion("bloque desconocido: %r (usa principal, A, B o cabecera)" % (bloque,))
-    campo = campo_de(nombre, bloque)
-    if campo is None:
-        raise ErrorOperacion("campo desconocido en el bloque %s: %r" % (bloque, nombre))
+    else:
+        campo = campo_de(nombre, bloque)
+        if campo is None:
+            raise ErrorOperacion("campo desconocido en el bloque %s: %r" % (bloque, nombre))
     if "valor" not in op:
         raise ErrorOperacion("falta el campo «valor»")
 
