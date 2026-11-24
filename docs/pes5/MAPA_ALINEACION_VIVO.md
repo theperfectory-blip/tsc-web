@@ -703,3 +703,59 @@ file en memoria (`tools/pes5/pes5-crypt.js`) para comparar el registro byte a
 byte con el save. No escribe nada.
 
 Control en vivo (estado, lectura y escritura segura): [CONTROL_VIVO.md](CONTROL_VIVO.md).
+
+## Catálogo de esquemas y variantes
+
+El menú **Alineación → Cambio** ofrece 8 esquemas (`4-5-1`, `4-4-2`, `4-3-3`,
+`3-6-1`, `3-5-2`, `3-4-3`, `5-4-1`, `5-3-2`; la lista de esquemas agrega
+`Cancelar` y `Por defecto`) y, dentro de cada esquema, variantes agrupadas por
+letra (`A-n`, `B-n`, `C-n`) y, al final, `Cancelar`.
+
+El catálogo completo —los 11 puestos de cada variante con profundidad, lateral,
+código y sigla— está en
+[`tools/pes5/pes5-variantes.json`](../../tools/pes5/pes5-variantes.json). El
+arquero (casilla 0) no tiene lateral y se guarda como `null`.
+
+| Esquema | Grupos (A + B + C) | Variantes |
+|---|---|---|
+| 4-5-1 | 6 + 5 | 11 |
+| 4-4-2 | 5 + 4 + 6 | 15 |
+| 4-3-3 | 4 + 2 + 5 | 11 |
+| 3-6-1 | 5 + 6 | 11 |
+| 3-5-2 | 6 + 5 | 11 |
+| 3-4-3 | 5 + 4 + 6 | 15 |
+| 5-4-1 | 5 + 4 + 6 | 15 |
+| 5-3-2 | 4 + 2 + 5 | 11 |
+| **Total** | | **100** |
+
+Cómo se obtuvo:
+
+1. Se buscó una tabla estática de variantes con los valores de las dos muestras
+   (A-1 y A-2 de 4-5-1) en el volcado de memoria de la partida y en `PES5.exe`:
+   bytes consecutivos de profundidad/lateral/posición, pares `prof–lat`, orden
+   por puesto, `u16`/`u32`, `float32` (coordenadas y valores crudos),
+   desplazamientos ±1, multiconjuntos y lateral escalado. Las muestras solo
+   aparecen en el registro vivo, así que la tabla no está en el ejecutable ni
+   en el volcado y se pasó a la fase 2.
+2. Se recorrió el menú en el juego, con el partido en pausa y la pantalla de
+   alineación abierta (en el submenú, `0x39564da` = 1). Por cada esquema k y
+   variante v: `x` (abrir la lista de esquemas), `down` × k, `x` (abrir la
+   lista de variantes), `down` × (v−1) y `x` (aplicar). Después se leyeron los
+   32 bytes del bloque —profundidad `rec+112..122`, lateral `rec+123..132` y
+   códigos `rec+133..143`, con `rec = 0x3956f5e` (FKC local)— y se guardó una
+   captura por variante.
+3. X sobre `Cancelar` no aplica nada y devuelve a la **lista de esquemas** con
+   el cursor en el esquema elegido; desde ahí, `down` + `x` abre las variantes
+   del siguiente esquema. Esa es la vía para recorrer los 8 esquemas sin salir
+   del submenú. Si un `x` deja el cursor en otra entrada (por ejemplo «Selec.
+   posición»), una pulsación de △ (atrás) vuelve al submenú sin tocar el
+   registro.
+4. Las dos muestras del coordinador se reproducen exactamente: al elegir
+   `4-5-1 A-1` y `A-2` los bytes leídos coinciden con los del informe. Además,
+   ningún código de posición del catálogo es ≥ 41 y todos tienen sigla en la
+   [tabla de códigos](#tabla-de-códigos-de-posición).
+
+El script que hace el recorrido y regenera el JSON desde el progreso es
+[`tools/pes5/pes5-variantes-scan.py`](../../tools/pes5/pes5-variantes-scan.py)
+(`--desde-progreso` no toca el juego; el modo con teclas exige `--ejecutar`).
+
