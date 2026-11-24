@@ -26,6 +26,7 @@ nada de esto se escribió en el juego ni en el save.
 - [Línea de marcaje](#línea-de-marcaje)
 - [Búferes de pantalla y temporales](#búferes-de-pantalla-y-temporales)
 - [Cambios en pausa (partido empezado)](#cambios-en-pausa-partido-empezado)
+- [Condición y resistencia](#condición-y-resistencia)
 - [Lo que reescribe cada menú](#lo-que-reescribe-cada-menú)
 - [Zonas de interfaz a ignorar](#zonas-de-interfaz-a-ignorar)
 - [Controles de teclado](#controles-de-teclado)
@@ -454,6 +455,40 @@ escribe el **índice de plantel del que entra** en `rec+106..111` (VIVO3). Es
 decir, esos bytes siguen al jugador que ocupa el puesto, no a la casilla: en el
 caso real, Madsen (índice 9) salió por Bade (índice 11) y penal y capitán
 pasaron a 11.
+
+## Condición y resistencia
+
+Dos datos del partido que no forman parte del registro de formación, medidos
+por el coordinador el 24-11-2026 (partido de exhibición, con capturas):
+
+### Flecha de condición
+
+| Qué | Dirección | Detalle |
+|---|---|---|
+| Tabla principal | `rec-1678`, 32 bytes | Un byte por **índice de plantel** (0..31), no por casilla. |
+| Copia | `rec+1302`, 32 bytes | Copia que mantiene el juego; no se usa para leer. |
+
+Valores: **0 roja, 1 naranja, 2 verde, 3 azul, 4 gris**. Es la flecha que se
+ve junto al nombre del jugador; no se escribe con ninguna operación del agente
+(solo se lee).
+
+### Resistencia en partido
+
+| Qué | Dirección | Detalle |
+|---|---|---|
+| Tabla | `0x3BD3E00` | Entradas de **836 bytes** (`0x344`), hasta ~46. |
+| Id del jugador | entrada `+0` | u16 little-endian; identifica al jugador. |
+| Resistencia actual | entrada `+146` | 1 byte. Vale **0 antes del saque**. |
+
+Se recorre la tabla, se asocia cada entrada con el `id` del plantel y se
+devuelve un valor por **índice de plantel**. El **máximo** («maxSaque») no está
+en memoria: el puente lo guarda la primera vez que ve un valor mayor de ese id
+en el partido y lo reinicia cuando `partidoEmpezado` vuelve a 0. Un jugador sin
+entrada en la tabla, o con resistencia 0, sale `null`.
+
+El núcleo lo expone en `leer_equipo()["estadoJugador"]` y
+`leer_equipo()["resistencia"]`; el detalle del contrato HTTP está en
+[CONTROL_VIVO.md](CONTROL_VIVO.md#puente-local).
 
 ## Lo que reescribe cada menú
 

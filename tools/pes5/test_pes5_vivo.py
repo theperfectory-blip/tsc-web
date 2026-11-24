@@ -1051,5 +1051,188 @@ class TestVigilar(Base):
         self.assertEqual(datos["salieron"]["local"], [])
 
 
+# ------------------------------------------------ condición y resistencia
+
+class TestCondicionYResistencia(Base):
+    def sembrar_tabla(self, mem, valores):
+        """Siembra entradas de la tabla de resistencia (id, actual)."""
+        mem.sembrar(vivo.TABLA_RESISTENCIA,
+                    bytes(vivo.PASO_RESISTENCIA * vivo.ENTRADAS_RESISTENCIA))
+        for k, (ident, actual) in enumerate(valores):
+            base = vivo.TABLA_RESISTENCIA + k * vivo.PASO_RESISTENCIA
+            mem.sembrar(base + vivo.OFF_RESISTENCIA_ID, struct.pack("<H", ident))
+            mem.sembrar(base + vivo.OFF_RESISTENCIA_ACTUAL, bytes([actual]))
+
+    def test_estado_jugador_por_indice_de_plantel(self):
+        mem = self.memoria()
+        rec = vivo.REC["local"]
+        principal = bytes([0, 1, 2, 3, 4] * 6 + [0, 1])
+        copia = bytes([4] * 32)
+        mem.sembrar(rec + vivo.REL_ESTADO_JUGADOR, principal)
+        mem.sembrar(rec + vivo.REL_ESTADO_COPIA, copia)
+        equipo = vivo.leer_equipo(mem, "local")
+        self.assertEqual(equipo["estadoJugador"], list(principal))
+        self.assertEqual(vivo.leer_estado_jugador(mem, "local"), list(principal))
+
+    def test_estado_jugador_es_por_lado(self):
+        mem = self.memoria()
+        mem.sembrar(vivo.REC["local"] + vivo.REL_ESTADO_JUGADOR, bytes([2] * 32))
+        mem.sembrar(vivo.REC["visitante"] + vivo.REL_ESTADO_JUGADOR, bytes([3] * 32))
+        self.assertEqual(vivo.leer_estado_jugador(mem, "local"), [2] * 32)
+        self.assertEqual(vivo.leer_estado_jugador(mem, "visitante"), [3] * 32)
+
+    def test_resistencia_por_id_y_maximo_guardado(self):
+        mem = self.memoria()
+        ids = [1000 + i for i in range(32)]
+        self.sembrar_tabla(mem, [(1000, 80), (1001, 0), (1005, 55)])
+        maximos = {}
+        resistencia = vivo.leer_resistencia(mem, ids, maximos, True)
+        self.assertEqual(resistencia[0], {"actual": 80, "maxSaque": 80})
+        self.assertIsNone(resistencia[1])          # actual 0: antes del saque
+        self.assertIsNone(resistencia[2])          # no está en la tabla
+        self.assertEqual(resistencia[5], {"actual": 55, "maxSaque": 55})
+        self.assertEqual(maximos, {1000: 80, 1005: 55})
+
+        # Un valor menor no baja el máximo; uno mayor lo sube.
+        self.sembrar_tabla(mem, [(1000, 70), (1005, 60)])
+        resistencia = vivo.leer_resistencia(mem, ids, maximos, True)
+        self.assertEqual(resistencia[0], {"actual": 70, "maxSaque": 80})
+        self.assertEqual(resistencia[5], {"actual": 60, "maxSaque": 60})
+        self.assertEqual(maximos, {1000: 80, 1005: 60})
+
+    def test_resistencia_sin_partido_no_actualiza_maximos(self):
+        mem = self.memoria()
+        ids = [1000 + i for i in range(32)]
+        self.sembrar_tabla(mem, [(1000, 90)])
+        maximos = {}
+        resistencia = vivo.leer_resistencia(mem, ids, maximos, False)
+        self.assertEqual(resistencia[0], {"actual": 90, "maxSaque": None})
+        self.assertEqual(maximos, {})
+
+    def test_resistencia_sin_estado_guardado(self):
+        mem = self.memoria()
+        ids = [1000 + i for i in range(32)]
+        self.sembrar_tabla(mem, [(1000, 90)])
+        resistencia = vivo.leer_resistencia(mem, ids)
+        self.assertEqual(resistencia[0], {"actual": 90, "maxSaque": None})
+
+    def test_leer_equipo_incluye_condicion_y_resistencia(self):
+        mem = self.memoria(alineacion=1, partido=1, pausa=1)
+        mem.sembrar(vivo.REC["local"] + vivo.REL_ESTADO_JUGADOR, bytes([2] * 32))
+        self.sembrar_tabla(mem, [(1000, 90)])
+        maximos = {}
+        equipo = vivo.leer_equipo(mem, "local", maximos)
+        self.assertEqual(equipo["estadoJugador"], [2] * 32)
+        self.assertEqual(len(equipo["resistencia"]), 32)
+        self.assertEqual(equipo["resistencia"][0], {"actual": 90, "maxSaque": 90})
+        self.assertIsNone(equipo["resistencia"][1])
+        self.assertEqual(maximos, {1000: 90})
+
+
+# ------------------------------------------------------------------ mover
+
+class TestMover(Base):
+    def test_mover_escribe_profundidad_lateral_y_codigo(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 5, "prof": 12, "lat": 50, "pos": "DC"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 112 + 5), 12)
+        self.assertEqual(self.byte(mem, 123 + (5 - 1)), 50)
+        self.assertEqual(self.byte(mem, 133 + 5), 36)   # primer código de DC
+        self.assertTrue(all(item["coincide"] for item in resultado["escrito"]))
+
+    def test_mover_conserva_el_codigo_si_ya_es_de_la_misma_sigla(self):
+        mem = self.memoria()
+        rec = vivo.REC["local"]
+        mem.sembrar(rec + 133 + 4, bytes([38]))         # DC alternativo
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 4, "prof": 20, "lat": 70, "pos": "dc"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 4), 38)
+
+    def test_mover_arquero_rechazado(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 0, "prof": 12, "lat": 50, "pos": "CT"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("casilla", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_sigla_invalida(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 4, "prof": 12, "lat": 50, "pos": "XX"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("sigla de posición desconocida", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_rangos(self):
+        for op in ({"op": "mover", "casilla": 4, "prof": 1, "lat": 50, "pos": "CT"},
+                   {"op": "mover", "casilla": 4, "prof": 12, "lat": 5, "pos": "CT"}):
+            mem = self.memoria()
+            resultado = self.aplicar(mem, [op])
+            self.assertFalse(resultado["ok"], op)
+            self.assertEqual(mem.escrituras, [])
+
+    def test_mover_es_todo_o_nada(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 4, "prof": 12, "lat": 50, "pos": "CT"},
+            {"op": "mover", "casilla": 0, "prof": 12, "lat": 50, "pos": "PT"},
+        ])
+        self.assertFalse(resultado["ok"])
+        self.assertEqual(mem.escrituras, [])
+
+
+# ------------------------------------------------------------------ variante
+
+class TestVariante(Base):
+    def variante(self, esquema, nombre):
+        for entrada in vivo.variantes()["esquemas"]:
+            if entrada["nombre"] == esquema:
+                for variante in entrada["variantes"]:
+                    if variante["nombre"] == nombre:
+                        return variante
+        self.fail("no está la variante %s %s" % (esquema, nombre))
+
+    def test_variante_escribe_formacion_flechas_y_actitud(self):
+        mem = self.memoria(campos={"flechasAtaque": [[1] * 8 for _ in range(11)]})
+        rec = vivo.REC["local"]
+        variante = self.variante("4-5-1", "A-1")
+        resultado = self.aplicar(mem, [
+            {"op": "variante", "esquema": "4-5-1", "variante": "A-1"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        regla = vivo.variantes()["reglaActitud"]
+        for casilla, puesto in enumerate(variante["puestos"]):
+            self.assertEqual(self.byte(mem, 112 + casilla), puesto["prof"])
+            self.assertEqual(self.byte(mem, 133 + casilla), puesto["codigo"])
+            if casilla >= 1:
+                self.assertEqual(self.byte(mem, 123 + (casilla - 1)), puesto["lat"])
+            self.assertEqual(self.byte(mem, 243 + casilla), regla[puesto["sigla"]])
+        # Flechas: se borran las de los 10 de campo y se deja el arquero.
+        self.assertEqual(mem.leer(rec + 147, 8), b"\x01" * 8)
+        for casilla in range(1, 11):
+            self.assertEqual(mem.leer(rec + 147 + casilla * 8, 8), b"\x00" * 8)
+
+    def test_variante_desconocida(self):
+        mem = self.memoria()
+        for op in ({"op": "variante", "esquema": "9-9-9", "variante": "A-1"},
+                   {"op": "variante", "esquema": "4-5-1", "variante": "Z-9"}):
+            resultado = self.aplicar(mem, [op])
+            self.assertFalse(resultado["ok"], op)
+            self.assertTrue(resultado["errores"])
+        self.assertEqual(mem.escrituras, [])
+
+    def test_variante_es_todo_o_nada(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 3, "prof": 12, "lat": 50, "pos": "CT"},
+            {"op": "variante", "esquema": "4-5-1", "variante": "Z-9"},
+        ])
+        self.assertFalse(resultado["ok"])
+        self.assertEqual(mem.escrituras, [])
+
+
 if __name__ == "__main__":
     unittest.main()

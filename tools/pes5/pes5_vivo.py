@@ -38,6 +38,16 @@ Reglas que respeta el módulo
   lanzadores) también se escribe con ``campo``: ``bloque: "cabecera"`` o, si la
   operación no trae ``bloque`` y el nombre solo existe en la cabecera, ese
   bloque. ``desconocido104`` no se escribe.
+- ``mover`` escribe profundidad, lateral y código de posición de una casilla
+  1–10 (el arquero no se mueve) y conserva el código actual si ya es de la
+  misma sigla.
+- ``variante`` aplica una variante del catálogo ``pes5-variantes.json``: las 11
+  casillas (profundidad, lateral y código), borra las flechas de ataque de los
+  10 jugadores de campo y pone la actitud defensiva según ``reglaActitud``.
+- La lectura incluye ``estadoJugador`` (flecha de condición por índice de
+  plantel, en ``rec-1678``) y ``resistencia`` (tabla global en ``0x3BD3E00``,
+  asociada por id). El máximo de resistencia no está en memoria: lo guarda el
+  llamador con ``maximos`` y lo reinicia cuando el partido termina.
 
 Nunca toca el option file ni los saves: solo la memoria del proceso.
 """
@@ -70,6 +80,24 @@ IND_ALINEACION = 0x39564DA   # 1 = pantalla de alineación abierta
 IND_PARTIDO = 0xD8CCEA       # 1 = desde el saque inicial
 IND_PAUSA = 0xD8CD16         # 1 = menú de pausa / alineación dentro de la pausa
 IND_BALON = 0x100541C        # 1 = balón en juego
+
+# Estado (flecha de condición) por índice de plantel: 32 bytes relativos a rec.
+# 0 roja, 1 naranja, 2 verde, 3 azul, 4 gris. La copia de rec+1302 la mantiene
+# el juego; para leer se usa la principal (rec-1678).
+REL_ESTADO_JUGADOR = -1678
+REL_ESTADO_COPIA = 1302
+LARGO_ESTADO = 32
+NOMBRES_ESTADO = {0: "roja", 1: "naranja", 2: "verde", 3: "azul", 4: "gris"}
+
+# Resistencia en partido: una tabla global con una entrada por jugador.
+# Cada entrada mide 836 bytes (0x344); en +0 va el id u16 del jugador y en +146
+# la resistencia actual (0 antes del saque). El máximo no está en memoria: lo
+# guarda el llamador (el puente) la primera vez que ve un valor > 0.
+TABLA_RESISTENCIA = 0x3BD3E00
+PASO_RESISTENCIA = 836
+ENTRADAS_RESISTENCIA = 46
+OFF_RESISTENCIA_ID = 0
+OFF_RESISTENCIA_ACTUAL = 146
 
 # Cola de sustituciones (relativa a rec).
 COLA_ENTRA = -20
@@ -375,13 +403,74 @@ def copias_orden(mem, rec):
     return [mem.leer(rec + rel, 32) for rel in COPIAS_ORDEN]
 
 
-def leer_equipo(mem, lado):
+def leer_estado_jugador(mem, lado):
+    """Flecha de condición de los 32 índices de plantel de un lado.
+
+    Los valores son los del juego: 0 roja, 1 naranja, 2 verde, 3 azul y
+    4 gris. La tabla principal está en ``rec-1678``; el juego mantiene una
+    copia en ``rec+1302`` que no se usa para leer.
+    """
+    rec = rec_de(lado)
+    return list(mem.leer(rec + REL_ESTADO_JUGADOR, LARGO_ESTADO))
+
+
+def _tabla_resistencia(mem):
+    """``{id: resistencia actual}`` de la tabla global del partido.
+
+    Recorre hasta ``ENTRADAS_RESISTENCIA`` entradas y salta las que no tienen
+    id. Si una entrada no se puede leer (la tabla puede no estar asignada
+    antes del partido) se ignora: el jugador simplemente no aparece.
+    """
+    valores = {}
+    for k in range(ENTRADAS_RESISTENCIA):
+        base = TABLA_RESISTENCIA + k * PASO_RESISTENCIA
+        try:
+            ident = u16(mem.leer(base + OFF_RESISTENCIA_ID, 2), 0)
+            if ident == 0:
+                continue
+            actual = mem.leer(base + OFF_RESISTENCIA_ACTUAL, 1)[0]
+        except ErrorMemoria:
+            continue
+        valores[ident] = actual
+    return valores
+
+
+def leer_resistencia(mem, ids, maximos=None, partidoEmpezado=True):
+    """Resistencia de los 32 índices de plantel, asociada por id de jugador.
+
+    ``ids`` es la lista de 32 ids del plantel (``leer_equipo()["ids"]``).
+    Devuelve una lista de 32 elementos: ``None`` antes del saque o si el
+    jugador no está en la tabla, y ``{actual, maxSaque}`` en el resto.
+
+    ``maximos`` es el estado guardado por el llamador (``{id: máximo}``). Si se
+    pasa, se actualiza la primera vez que aparece un ``actual`` mayor durante
+    el partido; el llamador tiene que vaciarlo cuando ``partidoEmpezado``
+    vuelve a 0. Sin ``maximos`` el máximo sale ``None``.
+    """
+    tabla = _tabla_resistencia(mem)
+    salida = []
+    for ident in ids:
+        actual = tabla.get(ident)
+        if actual is None or actual == 0:
+            salida.append(None)
+            continue
+        if maximos is not None and partidoEmpezado:
+            if actual > maximos.get(ident, 0):
+                maximos[ident] = actual
+        salida.append({"actual": actual,
+                       "maxSaque": maximos.get(ident) if maximos is not None else None})
+    return salida
+
+
+def leer_equipo(mem, lado, maximos=None):
     """Lee el registro de un lado y lo devuelve decodificado.
 
     Incluye el orden, los ids, los tres grupos de casillas (titulares, banca y
     reservas), la cabecera (capitán y lanzadores con índice, id y casilla),
-    todos los campos del bloque principal del mapa, la cola de cambios y los
-    cambios restantes.
+    todos los campos del bloque principal del mapa, la cola de cambios, los
+    cambios restantes, la flecha de condición por índice de plantel
+    (``estadoJugador``) y la resistencia (``resistencia``, ver
+    ``leer_resistencia``). Con ``maximos`` se actualiza ese diccionario.
     """
     rec = rec_de(lado)
     buf = mem.leer(rec, LARGO_REGISTRO)
@@ -445,6 +534,15 @@ def leer_equipo(mem, lado):
             continue
         cabecera[nombre] = jugador_por_indice(buf[campo["offset"]])
 
+    # Resto de la cabecera que usa el puente: botones de estrategia y modo.
+    campo_botones = campo_de("estrategiaBoton", "cabecera")
+    if campo_botones is not None:
+        cabecera["estrategiaBoton"] = list(
+            buf[campo_botones["offset"]:campo_botones["offset"] + campo_botones["len"]])
+    campo_modo = campo_de("modoEstrategia", "cabecera")
+    if campo_modo is not None:
+        cabecera["modoEstrategia"] = buf[campo_modo["offset"]]
+
     return {
         "lado": str(lado).strip().lower(),
         "rec": hex(rec),
@@ -459,6 +557,9 @@ def leer_equipo(mem, lado):
         "colaDeclarada": declarados,
         "cambiosRestantes": cambios_restantes,
         "cambiosRestantesByte": restantes_byte,
+        "estadoJugador": list(mem.leer(rec + REL_ESTADO_JUGADOR, LARGO_ESTADO)),
+        "resistencia": leer_resistencia(mem, ids, maximos,
+                                        bool(estado(mem)["partidoEmpezado"])),
     }
 
 
@@ -698,6 +799,129 @@ def _campo(vista, rec, op, campos_escritos=None):
         campos_escritos.add((bloque, nombre))
 
 
+_VARIANTES = None
+
+
+def variantes():
+    """Carga (una vez) ``pes5-variantes.json``, el catálogo de esquemas."""
+    global _VARIANTES
+    if _VARIANTES is None:
+        ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pes5-variantes.json")
+        with open(ruta, "r", encoding="utf-8") as f:
+            _VARIANTES = json.load(f)
+    return _VARIANTES
+
+
+def _codigos_posicion():
+    return mapa().get("codificaciones", {}).get("posicion", {})
+
+
+def _sigla_de_codigo(codigo):
+    return _codigos_posicion().get(str(int(codigo)))
+
+
+def _codigo_para_sigla(sigla, actual):
+    """Código de la tabla para ``sigla``, conservando el de la casilla si sirve."""
+    if _sigla_de_codigo(actual) == sigla:
+        return actual
+    codigos = _codigos_posicion()
+    for clave in sorted(codigos, key=int):
+        if codigos[clave] == sigla:
+            return int(clave)
+    raise ErrorOperacion("sigla de posición desconocida: %r (usa PT, CT, LIB, DI, DD, "
+                         "CCD, DLI, DLD, CC, CIZ, CDR, MP, EI, ED, SD o DC)" % (sigla,))
+
+
+def _campo_principal(nombre):
+    campo = campo_de(nombre, "principal")
+    if campo is None:  # pragma: no cover - el mapa siempre los trae
+        raise ErrorOperacion("el mapa no trae el campo «%s» del bloque principal" % nombre)
+    return campo
+
+
+def _mover(vista, rec, op):
+    """Escribe profundidad, lateral y código de posición de una casilla 1..10."""
+    casilla = _entero(op, "casilla", 1, 10)
+    prof = _entero(op, "prof", 2, 47)
+    lat = _entero(op, "lat", 6, 99)
+    sigla_escrita = op.get("pos")
+    if not isinstance(sigla_escrita, str) or not sigla_escrita.strip():
+        raise ErrorOperacion("falta el campo «pos» (sigla de posición)")
+    sigla = sigla_escrita.strip().upper()
+
+    campo_prof = _campo_principal("profundidad")
+    campo_lat = _campo_principal("lateral")
+    campo_pos = _campo_principal("posicion")
+    actual = vista.leer(rec + campo_pos["offset"] + casilla, 1)[0]
+    codigo = _codigo_para_sigla(sigla, actual)
+
+    inicial = campo_lat.get("casillaInicial", 0)
+    vista.escribir(rec + campo_prof["offset"] + casilla, bytes([prof]))
+    vista.escribir(rec + campo_lat["offset"] + (casilla - inicial), bytes([lat]))
+    vista.escribir(rec + campo_pos["offset"] + casilla, bytes([codigo]))
+
+
+def _buscar_variante(esquema, nombre):
+    if not isinstance(esquema, str) or not esquema.strip():
+        raise ErrorOperacion("falta el campo «esquema»")
+    if not isinstance(nombre, str) or not nombre.strip():
+        raise ErrorOperacion("falta el campo «variante»")
+    buscado_esquema = esquema.strip().upper()
+    buscado_variante = nombre.strip().upper()
+    for entrada in variantes().get("esquemas", []):
+        if str(entrada.get("nombre", "")).strip().upper() != buscado_esquema:
+            continue
+        for variante in entrada.get("variantes", []):
+            if str(variante.get("nombre", "")).strip().upper() == buscado_variante:
+                return entrada, variante
+        raise ErrorOperacion("la variante %r no existe en el esquema %r" % (
+            nombre, entrada.get("nombre")))
+    raise ErrorOperacion("esquema desconocido: %r (consulta tools/pes5/pes5-variantes.json)" % (esquema,))
+
+
+def _variante(vista, rec, op):
+    """Aplica una variante completa: prof/lat/código, flechas y actitud."""
+    _entrada, variante = _buscar_variante(op.get("esquema"), op.get("variante"))
+    puestos = variante.get("puestos")
+    if not isinstance(puestos, list) or len(puestos) != 11:
+        raise ErrorOperacion("la variante %r no trae los 11 puestos" % (variante.get("nombre"),))
+
+    regla = variantes().get("reglaActitud")
+    if not isinstance(regla, dict):
+        raise ErrorOperacion("pes5-variantes.json no trae «reglaActitud»")
+
+    campo_prof = _campo_principal("profundidad")
+    campo_lat = _campo_principal("lateral")
+    campo_pos = _campo_principal("posicion")
+    campo_flechas = _campo_principal("flechasAtaque")
+    campo_act = _campo_principal("actitudDefensiva")
+    inicial_lat = campo_lat.get("casillaInicial", 0)
+
+    for casilla, puesto in enumerate(puestos):
+        if not isinstance(puesto, dict):
+            raise ErrorOperacion("el puesto %d de la variante no es un objeto" % casilla)
+        prof = _entero(puesto, "prof", 0, 255)
+        codigo = _entero(puesto, "codigo", 0, 255)
+        sigla = puesto.get("sigla")
+        if not isinstance(sigla, str) or not sigla:
+            raise ErrorOperacion("el puesto %d de la variante no trae sigla" % casilla)
+        vista.escribir(rec + campo_prof["offset"] + casilla, bytes([prof]))
+        if casilla >= 1:
+            lat = _entero(puesto, "lat", 6, 99)
+            vista.escribir(rec + campo_lat["offset"] + (casilla - inicial_lat), bytes([lat]))
+        vista.escribir(rec + campo_pos["offset"] + casilla, bytes([codigo]))
+        actitud = regla.get(sigla)
+        if actitud is None:
+            raise ErrorOperacion("no hay actitud para la sigla %r en «reglaActitud»" % sigla)
+        vista.escribir(rec + campo_act["offset"] + casilla, bytes([int(actitud)]))
+
+    # El juego deja vacías las flechas de ataque de los 10 jugadores de campo.
+    stride = campo_flechas.get("stride", 8)
+    for casilla in range(1, 11):
+        inicio = campo_flechas["offset"] + casilla * stride
+        vista.escribir(rec + inicio, bytes([0] * stride))
+
+
 def _validar_op(vista, rec, st, op, salieron, nuevos_salidos, campos_escritos=None):
     """Valida y aplica una operación en la vista. Devuelve si toca el orden."""
     if not isinstance(op, dict):
@@ -718,7 +942,14 @@ def _validar_op(vista, rec, st, op, salieron, nuevos_salidos, campos_escritos=No
     if tipo == "campo":
         _campo(vista, rec, op, campos_escritos)
         return False
-    raise ErrorOperacion("operación desconocida: %r (usa intercambiar, cambio o campo)" % (tipo,))
+    if tipo == "mover":
+        _mover(vista, rec, op)
+        return False
+    if tipo == "variante":
+        _variante(vista, rec, op)
+        return False
+    raise ErrorOperacion("operación desconocida: %r (usa intercambiar, cambio, campo, "
+                         "mover o variante)" % (tipo,))
 
 
 def _salidos(salieron):

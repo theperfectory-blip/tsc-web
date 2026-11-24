@@ -7,7 +7,9 @@ agente (sin Firestore): los pedidos de los presidentes llegarán después.
 - Núcleo: `tools/pes5/pes5_vivo.py` (Python 3, solo biblioteca estándar y
   `ctypes`).
 - CLI: `tools/pes5/live-agent.py`.
-- Pruebas: `tools/pes5/test_pes5_vivo.py` (82 pruebas, sin juego).
+- Puente HTTP local: `tools/pes5/live-bridge.py` (ver [Puente local](#puente-local)).
+- Pruebas: `tools/pes5/test_pes5_vivo.py` (97) y `tools/pes5/test_live_bridge.py`
+  (13), sin juego.
 - Mapa de referencia: [MAPA_ALINEACION_VIVO.md](MAPA_ALINEACION_VIVO.md).
 - Hallazgos del coordinador: `HALLAZGOS.md` (scratchpad de la sesión).
 
@@ -97,6 +99,25 @@ bytes que tienen que coincidir antes de escribir:
 tres no coinciden antes (p. ej. una quedó en cero porque la pantalla aún no se
 abrió), la operación se rechaza con «las tres copias del orden no coinciden» y
 no se escribe nada.
+
+## Condición y resistencia
+
+Dos lecturas nuevas (verificadas por el coordinador el 24-11-2026):
+
+| Qué | Dónde | Detalle |
+|---|---|---|
+| Flecha de condición | `rec-1678`, 32 bytes (copia en `rec+1302`) | Un byte por **índice de plantel**: 0 roja, 1 naranja, 2 verde, 3 azul, 4 gris. La lectura usa la principal. |
+| Resistencia actual | `0x3BD3E00`, 836 bytes (`0x344`) por jugador | Entrada `k`: id u16 del jugador en `+0`, resistencia actual (byte) en `+146`. Hasta ~46 entradas; se asocia por id. Vale 0 antes del saque. |
+
+- `leer_equipo()` devuelve `estadoJugador` (32 valores 0..4 por índice de
+  plantel) y `resistencia` (32 elementos: `null` antes del saque o si el id no
+  está en la tabla, o `{actual, maxSaque}`).
+- El **máximo de resistencia** no está en memoria: lo guarda el llamador. La
+  función `leer_resistencia(mem, ids, maximos, partidoEmpezado)` recibe el
+  diccionario `{id: máximo}` y lo sube la primera vez que ve un valor mayor
+  durante el partido. El puente lo vacía cuando `partidoEmpezado` vuelve a 0.
+- Sin diccionario de máximos, `maxSaque` sale `null` (el CLI `live-agent.py
+  leer` funciona así).
 
 ## Cola de sustituciones (partido empezado)
 
@@ -197,6 +218,46 @@ partido empezado los cambios van por la cola».
   y el modo (`modoEstrategia`: 0 Manual, 1 Semi-automático). Los dos se validan
   solo contra `valores`: un 13 en `estrategiaBoton` o un 2 en `modoEstrategia`
   se rechazan.
+
+### `mover`
+
+```json
+{"op": "mover", "casilla": 6, "prof": 22, "lat": 70, "pos": "MP"}
+```
+
+Mueve a un jugador en la cancha: escribe `profundidad` (`rec+112+c`),
+`lateral` (`rec+122+c`) y el código de `posicion` (`rec+133+c`) de una casilla
+**1–10**. El arquero (casilla 0) no se mueve y se rechaza.
+
+- Rangos: `prof` 2–47 y `lat` 6–99; `casilla` 1–10.
+- `pos` es la sigla (PT, CT, LIB, DI, DD, CCD, DLI, DLD, CC, CIZ, CDR, MP, EI,
+  ED, SD, DC; no distingue mayúsculas). El código se busca en
+  `codificaciones.posicion`: se usa el **primer** código de esa sigla, salvo
+  que la casilla ya tenga un código de la misma sigla, que se conserva (por
+  ejemplo, un DC en 38 sigue en 38).
+- Como el resto de operaciones, valida todo antes de escribir: si otra
+  operación del lote falla, `mover` tampoco escribe.
+
+### `variante`
+
+```json
+{"op": "variante", "esquema": "4-4-2", "variante": "A-1"}
+```
+
+Aplica una variante del catálogo
+[`tools/pes5/pes5-variantes.json`](../../tools/pes5/pes5-variantes.json) tal
+como lo hace el juego:
+
+- Escribe profundidad, lateral y código de posición de las 11 casillas (el
+  arquero no tiene lateral).
+- **Borra las flechas de ataque** de los 10 jugadores de campo
+  (`rec+147+8c`, 8 bytes a 0 por casilla 1–10). Las del arquero no se tocan.
+- Pone la **actitud defensiva** (`rec+243+c`) de las 11 casillas según
+  `reglaActitud` (sigla → 0 Alto, 1 Normal, 2 Bajo), igual que el juego: PT
+  Normal; CT/DI/DD/CCD Alto; DLI/DLD/CC/CIZ/CDR/MP Normal; EI/ED/DC Bajo.
+- El esquema y la variante tienen que existir en el catálogo; si no, se
+  rechaza el lote entero. No se escribe ninguna otra cosa (ni orden, ni
+  cabecera, ni ajustes).
 
 ### Ejemplo completo
 
@@ -318,6 +379,109 @@ DIR/
 - El CLI crea las tres carpetas si no existen y también acepta `id` en el
   nombre del archivo si el JSON no lo trae.
 
+## Puente local
+
+`tools/pes5/live-bridge.py` es el programa que corre en el PC de PES5 y le
+sirve la alineación a la web por HTTP. Usa solo la biblioteca estándar
+(`http.server`), escucha **solo en 127.0.0.1** y aplica el contrato de
+[`tareas/API_PUENTE.md`](../../tareas/API_PUENTE.md).
+
+```bash
+python tools/pes5/live-bridge.py
+python tools/pes5/live-bridge.py --puerto 9000
+python tools/pes5/live-bridge.py --origenes http://localhost:3000,http://localhost:3001
+python tools/pes5/live-bridge.py --desde-bin captura.bin --base 0x3940000
+```
+
+| Opción | Defecto | Qué hace |
+|---|---|---|
+| `--puerto` | `8765` | Puerto local (`0` elige uno libre). |
+| `--origenes` | `http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000` | Lista CORS exacta, separada por comas. |
+| `--desde-bin ARCHIVO` | — | Usa `MemoriaFalsa` con una captura; no abre el juego. |
+| `--base` | `0x3940000` | Dirección base del `.bin`. |
+| `--proceso` | `PES5.exe` | Ejecutable a leer. |
+
+Con `--desde-bin` los indicadores de estado que caen fuera del volcado valen 0,
+así que `POST /aplicar` responde `cerrada: true`: sirve para probar las
+lecturas, no para escribir. `--help` lista todo.
+
+### Endpoints
+
+| Método y ruta | Respuesta |
+|---|---|
+| `GET /estado` | `{ok, juego, estado}`. Si PES5 no está abierto: `{ok: true, juego: false}`. `estado` es `{alineacionAbierta, partidoEmpezado, pausa, balonEnJuego, momento, puedeEscribir}`. |
+| `GET /leer?lado=local\|visitante\|ambos` | `{ok, juego, estado, equipos: [EQUIPO]}`. Sin `lado` usa `ambos`. |
+| `POST /aplicar` | `{ok, cerrada, errores, escrito, …}` (lo que devuelve `pes5_vivo.aplicar`). |
+
+`EQUIPO` (contrato completo en `tareas/API_PUENTE.md`):
+
+```json
+{
+  "lado": "local",
+  "ids": [0],
+  "orden": [0],
+  "cambiosRestantes": 3,
+  "cola": [{"entra": 13, "sale": 5}],
+  "slots": [{"casilla": 0, "indice": 0, "id": 0,
+             "prof": 1, "lat": null, "pos": "PT", "codigo": 0,
+             "flechas": [], "act": 1, "mark": 1, "rival": 255}],
+  "cabecera": {"botones": [0, 0, 0, 0], "modo": 0,
+               "lanzadores": {"ckl": 0, "ckr": 0, "tll": 0, "tlc": 0, "pk": 0},
+               "capitan": 0},
+  "ajustes": {"nivel": 2, "sistema": 0, "libero": 0, "linea": 1,
+              "presion": 0, "offside": 2, "contra": 1},
+  "estadoJugador": [2],
+  "resistencia": [{"actual": 80, "maxSaque": 90}]
+}
+```
+
+- `ids` y `orden` tienen 32 elementos; `slots` son las 11 casillas de titular
+  (0 arquero, 1–10 campo). `pos` es la sigla del código de posición y
+  `flechas` los nombres (`izq`, `arriba-izq`, `arriba`, `arriba-dcha`, `dcha`,
+  `abajo-dcha`, `abajo`, `abajo-izq`) que están encendidos.
+- `estadoJugador` tiene 32 valores por **índice de plantel** (0 roja, 1 naranja,
+  2 verde, 3 azul, 4 gris) y `resistencia` 32 elementos (`null` antes del
+  saque o si el id no está en la tabla).
+- `cabecera.botones` son los 4 códigos de estrategia; `lanzadores` y
+  `capitan` son **índices de plantel**.
+- El puente guarda el **máximo de resistencia** de cada id durante el partido
+  (`maxSaque`) y lo reinicia cuando `partidoEmpezado` vuelve a 0.
+
+`POST /aplicar` recibe:
+
+```json
+{"lado": "local", "ops": [{"op": "mover", "casilla": 3, "prof": 15, "lat": 40, "pos": "MP"}],
+ "salieron": [7]}
+```
+
+Aplica con `pes5_vivo.aplicar`: todo o nada, y solo con la pantalla de
+alineación abierta. Devuelve **200 siempre que el JSON sea válido** (aunque
+`ok` sea `false` por validación) y **400** si el cuerpo no es JSON, no es un
+objeto o falta `lado`/`ops`. `403` para un `Origin` que no esté en
+`--origenes`; `OPTIONS` responde el preflight (204). Las peticiones sin
+`Origin` (curl, scripts) se aceptan.
+
+### Seguridad
+
+- Solo escucha en `127.0.0.1`: no queda expuesto a la red local.
+- CORS por lista exacta de orígenes. Un origen desconocido recibe `403` y no se
+  le agrega ninguna cabecera CORS.
+- **Nunca escribe saves ni el option file.** Solo usa `WriteProcessMemory`
+  sobre `PES5.exe`, y `aplicar` se niega si la pantalla de alineación no está
+  abierta (`cerrada: true`), que es la regla verificada en el juego.
+- No hay endpoint de escritura fuera de `POST /aplicar`; `GET /estado` y
+  `GET /leer` son de solo lectura.
+- El log va a la consola (`127.0.0.1 "GET /leer?lado=ambos HTTP/1.1" 200 -`).
+
+Prueba rápida con el puente levantado:
+
+```bash
+curl http://127.0.0.1:8765/estado
+curl "http://127.0.0.1:8765/leer?lado=ambos"
+curl -X POST http://127.0.0.1:8765/aplicar -H "Content-Type: application/json" \
+  -d "{\"lado\":\"local\",\"ops\":[{\"op\":\"mover\",\"casilla\":3,\"prof\":15,\"lat\":40,\"pos\":\"MP\"}]}"
+```
+
 ## Cómo probar sin juego
 
 La memoria falsa es un diccionario con la misma interfaz que el proceso
@@ -351,6 +515,7 @@ python tools/pes5/live-agent.py aplicar --desde-bin captura.bin --ops ops.json -
 
 ```bash
 python -I tools/pes5/test_pes5_vivo.py -v
+python -I tools/pes5/test_live_bridge.py -v
 python -m unittest tools/pes5/test_pes5_vivo.py -v
 ```
 
@@ -403,6 +568,23 @@ python -m unittest tools/pes5/test_pes5_vivo.py -v
 14. **`0x39564DA` vale 2 en algunos submenús** (selector de líbero): la pantalla
     está abierta con `!= 0`, no solo con `1`. `estado()` ya lo trataba así; queda
     documentado.
+15. **`mover` solo casillas 1–10** (el arquero no se mueve) con `prof` 2–47 y
+    `lat` 6–99. El código de posición se elige por sigla: se conserva el actual
+    si ya es de la misma sigla y, si no, se usa el primero de esa sigla en la
+    tabla de códigos. Se valida con el lote completo, como el resto.
+16. **`variante` reproduce lo que hace el juego**: las 11 casillas de
+    profundidad/lateral/código, las flechas de ataque de los 10 jugadores de
+    campo a 0 (las del arquero no se tocan) y la actitud de las 11 casillas por
+    `reglaActitud` (solo la sigla decide). Es lo que midió el coordinador al
+    aplicar variantes con flechas marcadas.
+17. **El máximo de resistencia lo guarda el llamador**, no la memoria: es
+    `{id: máximo}` por partido y se reinicia cuando `partidoEmpezado` vuelve a
+    0. Antes del saque, o si el id no está en la tabla, la entrada es `null`.
+    `estadoJugador` se lee de `rec-1678`; la copia `rec+1302` no se usa.
+18. **El puente no escribe saves** y solo escucha en `127.0.0.1`. CORS por
+    lista exacta: un `Origin` no permitido recibe 403; sin `Origin` (curl) se
+    acepta. `POST /aplicar` devuelve 200 si el JSON es válido aunque la
+    validación falle, y 400 si el cuerpo no es JSON o no trae `lado`/`ops`.
 
 ## Pendiente de verificar en el juego
 
@@ -430,6 +612,9 @@ solo porque escribir en el juego no es parte de esta tarea):
   principal: confirmar que el juego no lo pisa y qué bloque usa al reanudar.
 - Flechas de ataque y actitud defensiva con el partido empezado (el agente las
   permite; el coordinador solo verificó orden y sistema defensivo).
+- Probar `mover` y `variante` **a través de `aplicar` y del puente** con PES5
+  abierto: el movimiento y el efecto de las variantes están verificados en el
+  juego, pero las operaciones nuevas solo se probaron con `MemoriaFalsa`.
 - `0xD8CCEA` justo en la animación del saque (puede leer 0 un instante): el
   agente puede ver `previa` un instante de más; confirmar que no llega a
   escribir en ese hueco.
