@@ -23,69 +23,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -94,69 +106,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -165,69 +189,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -236,69 +272,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-5",
@@ -307,69 +355,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-6",
@@ -378,69 +438,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -449,69 +521,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -520,69 +604,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-3",
@@ -591,69 +687,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-4",
@@ -662,69 +770,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-5",
@@ -733,69 +853,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -814,69 +946,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -885,69 +1029,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -956,69 +1112,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -1027,69 +1195,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-5",
@@ -1098,69 +1278,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -1169,69 +1361,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -1240,69 +1444,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-3",
@@ -1311,69 +1527,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-4",
@@ -1382,69 +1610,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-1",
@@ -1453,69 +1693,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-2",
@@ -1524,69 +1776,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-3",
@@ -1595,69 +1859,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-4",
@@ -1666,69 +1942,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-5",
@@ -1737,69 +2025,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-6",
@@ -1808,69 +2108,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -1889,69 +2201,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -1960,69 +2284,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -2031,69 +2367,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -2102,69 +2450,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -2173,69 +2533,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -2244,69 +2616,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-1",
@@ -2315,69 +2699,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-2",
@@ -2386,69 +2782,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-3",
@@ -2457,69 +2865,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-4",
@@ -2528,69 +2948,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-5",
@@ -2599,69 +3031,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 63,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 41,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 85,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 11,
        "lat": 19,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -2679,69 +3123,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -2750,69 +3206,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -2821,69 +3289,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -2892,69 +3372,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-5",
@@ -2963,69 +3455,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -3034,69 +3538,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -3105,69 +3621,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-3",
@@ -3176,69 +3704,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-4",
@@ -3247,69 +3787,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-5",
@@ -3318,69 +3870,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-6",
@@ -3389,69 +3953,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -3469,69 +4045,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -3540,69 +4128,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -3611,69 +4211,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -3682,69 +4294,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-5",
@@ -3753,69 +4377,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-6",
@@ -3824,69 +4460,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -3895,69 +4543,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -3966,69 +4626,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-3",
@@ -4037,69 +4709,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-4",
@@ -4108,69 +4792,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-5",
@@ -4179,69 +4875,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -4260,69 +4968,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -4331,69 +5051,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -4402,69 +5134,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -4473,69 +5217,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-5",
@@ -4544,69 +5300,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -4615,69 +5383,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -4686,69 +5466,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-3",
@@ -4757,69 +5549,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-4",
@@ -4828,69 +5632,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-1",
@@ -4899,69 +5715,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-2",
@@ -4970,69 +5798,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-3",
@@ -5041,69 +5881,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 24,
        "lat": 80,
        "codigo": 16,
-       "sigla": "DLD"
+       "sigla": "DLD",
+       "actitud": 1
       },
       {
        "prof": 24,
        "lat": 24,
        "codigo": 15,
-       "sigla": "DLI"
+       "sigla": "DLI",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-4",
@@ -5112,69 +5964,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-5",
@@ -5183,69 +6047,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-6",
@@ -5254,69 +6130,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 72,
        "codigo": 30,
-       "sigla": "ED"
+       "sigla": "ED",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 32,
        "codigo": 29,
-       "sigla": "EI"
+       "sigla": "EI",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -5335,69 +6223,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -5406,69 +6306,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -5477,69 +6389,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -5548,69 +6472,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-5",
@@ -5619,69 +6555,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -5690,69 +6638,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -5761,69 +6721,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-3",
@@ -5832,69 +6804,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-4",
@@ -5903,69 +6887,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-1",
@@ -5974,69 +6970,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 61,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 43,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-2",
@@ -6045,69 +7053,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-3",
@@ -6116,69 +7136,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-4",
@@ -6187,69 +7219,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-5",
@@ -6258,69 +7302,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-6",
@@ -6329,69 +7385,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 20,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 61,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 43,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 18,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 52,
        "codigo": 38,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   },
@@ -6410,69 +7478,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-2",
@@ -6481,69 +7561,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-3",
@@ -6552,69 +7644,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "A-4",
@@ -6623,69 +7727,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 52,
        "codigo": 12,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-1",
@@ -6694,69 +7810,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "B-2",
@@ -6765,69 +7893,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 61,
        "codigo": 14,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 18,
        "lat": 43,
        "codigo": 10,
-       "sigla": "CCD"
+       "sigla": "CCD",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-1",
@@ -6836,69 +7976,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 29,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 29,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 32,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-2",
@@ -6907,69 +8059,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 80,
        "codigo": 23,
-       "sigla": "CDR"
+       "sigla": "CDR",
+       "actitud": 1
       },
       {
        "prof": 31,
        "lat": 24,
        "codigo": 22,
-       "sigla": "CIZ"
+       "sigla": "CIZ",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-3",
@@ -6978,69 +8142,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 70,
        "codigo": 28,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 34,
        "codigo": 24,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-4",
@@ -7049,69 +8225,81 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 22,
        "lat": 70,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 22,
        "lat": 34,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 34,
        "lat": 52,
        "codigo": 26,
-       "sigla": "MP"
+       "sigla": "MP",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     },
     {
      "nombre": "C-5",
@@ -7120,71 +8308,142 @@
        "prof": 1,
        "lat": null,
        "codigo": 0,
-       "sigla": "PT"
+       "sigla": "PT",
+       "actitud": 1
       },
       {
        "prof": 9,
        "lat": 72,
        "codigo": 7,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 52,
        "codigo": 3,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 9,
        "lat": 32,
        "codigo": 1,
-       "sigla": "CT"
+       "sigla": "CT",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 87,
        "codigo": 9,
-       "sigla": "DD"
+       "sigla": "DD",
+       "actitud": 0
       },
       {
        "prof": 12,
        "lat": 17,
        "codigo": 8,
-       "sigla": "DI"
+       "sigla": "DI",
+       "actitud": 0
       },
       {
        "prof": 26,
        "lat": 77,
        "codigo": 21,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 52,
        "codigo": 19,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 26,
        "lat": 27,
        "codigo": 17,
-       "sigla": "CC"
+       "sigla": "CC",
+       "actitud": 1
       },
       {
        "prof": 43,
        "lat": 66,
        "codigo": 40,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       },
       {
        "prof": 43,
        "lat": 38,
        "codigo": 36,
-       "sigla": "DC"
+       "sigla": "DC",
+       "actitud": 2
       }
-     ]
+     ],
+     "flechas": "vacias"
     }
    ]
   }
- ]
+ ],
+ "reglaActitud": {
+  "CC": 1,
+  "CCD": 0,
+  "CDR": 1,
+  "CIZ": 1,
+  "CT": 0,
+  "DC": 2,
+  "DD": 0,
+  "DI": 0,
+  "DLD": 1,
+  "DLI": 1,
+  "ED": 2,
+  "EI": 2,
+  "MP": 1,
+  "PT": 1,
+  "excepciones": []
+ },
+ "varact": {
+  "fuente": "Segundo recorrido del menu Alineacion -> Cambio (mismo partido en pausa): cada variante aplicada con x/down y lectura de prof/lat/pos (rec+112..143), flechas (rec+147..234) y actitud defensiva (rec+243..253). No se escribio memoria.",
+  "fecha": "2026-11-24",
+  "registro": {
+   "flechas": "rec+147..234 (11 grupos de 8 bits)",
+   "actitud": "rec+243..253 (0 Alto, 1 Normal, 2 Bajo)"
+  },
+  "variantesLeidas": 100,
+  "variantesConFlechas": 0,
+  "actitudPorCodigo": {
+   "0": 1,
+   "1": 0,
+   "3": 0,
+   "7": 0,
+   "8": 0,
+   "9": 0,
+   "10": 0,
+   "12": 0,
+   "14": 0,
+   "15": 1,
+   "16": 1,
+   "17": 1,
+   "18": 1,
+   "19": 1,
+   "20": 1,
+   "21": 1,
+   "22": 1,
+   "23": 1,
+   "24": 1,
+   "26": 1,
+   "28": 1,
+   "29": 2,
+   "30": 2,
+   "36": 2,
+   "38": 2,
+   "40": 2
+  },
+  "sinDato": [
+   "LIB",
+   "SD"
+  ]
+ }
 }

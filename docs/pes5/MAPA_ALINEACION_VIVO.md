@@ -759,3 +759,76 @@ El script que hace el recorrido y regenera el JSON desde el progreso es
 [`tools/pes5/pes5-variantes-scan.py`](../../tools/pes5/pes5-variantes-scan.py)
 (`--desde-progreso` no toca el juego; el modo con teclas exige `--ejecutar`).
 
+### Actitud y flechas al aplicar una variante
+
+Elegir una variante no solo escribe profundidad, lateral y código de posición:
+también deja **vacías las flechas de ataque** (`rec+147..234`, los 11 grupos de
+8 bits) y **reescribe la actitud defensiva** (`rec+243..253`) de los titulares
+según su posición (VARACT, 24-11-2026).
+
+Cómo se obtuvo: se repitió el recorrido del catálogo —las 100 variantes, en el
+mismo partido en pausa y desde el submenú «Alineación» con el cursor en
+«Cambio»— aplicando cada una con `x`/`down` y leyendo, además de los 32 bytes de
+formación, los 88 bytes de flechas y los 11 de actitud. Cada lectura se comparó
+con el catálogo ya guardado (profundidad, lateral y código coincidieron en las
+100) y se exigió leer lo mismo dos veces seguidas antes de darla por buena.
+Antes de empezar y después de cada variante se comprobó `0x39564da` = 1
+(submenú) y que ningún código de posición fuera ≥ 41.
+
+| Sigla | Códigos vistos | Actitud | Puestos leídos |
+|---|---|---|---|
+| PT | 0 | 1 Normal | 100 |
+| CT | 1, 3, 7 | 0 Alto | 263 |
+| DI | 8 | 0 Alto | 63 |
+| DD | 9 | 0 Alto | 63 |
+| CCD | 10, 12, 14 | 0 Alto | 104 |
+| DLI | 15 | 1 Normal | 17 |
+| DLD | 16 | 1 Normal | 17 |
+| CC | 17, 18, 19, 20, 21 | 1 Normal | 151 |
+| CIZ | 22 | 1 Normal | 23 |
+| CDR | 23 | 1 Normal | 23 |
+| MP | 24, 26, 28 | 1 Normal | 87 |
+| EI | 29 | 2 Bajo | 26 |
+| ED | 30 | 2 Bajo | 26 |
+| DC | 36, 38, 40 | 2 Bajo | 137 |
+
+Las cuatro variantes que ya había mirado el coordinador (4-4-2 B-1, 4-4-2 A-1,
+4-3-3 A-1 y 3-5-2 A-1) salen idénticas a su informe: CT/DI/DD/CCD Alto,
+CIZ/CDR/MP/DLI/DLD Normal, EI/ED/DC Bajo y el arquero Normal.
+
+La actitud depende **solo de la sigla** (la familia del código de posición):
+
+- Ni el código exacto dentro de la familia, ni la variante, ni el esquema, ni la
+  profundidad, ni el lateral, ni la casilla cambian el valor: los 26 códigos que
+  aparecen en las 100 variantes dan siempre el mismo número, sin una sola
+  lectura distinta en los 1100 puestos.
+- **No** sigue a la casilla: la 10 sale siempre Bajo y las 1..3 siempre Alto,
+  pero las 4..7 alternan Alto/Normal y las 8..9 Normal/Bajo según qué puesto
+  ocupe cada variante.
+- **Excepciones: ninguna.** En el JSON, `reglaActitud.excepciones` queda vacío.
+
+Por línea: portero Normal; defensas (CT, DI, DD, CCD) Alto; medios y carrileros
+(DLI, DLD, CC, CIZ, CDR, MP) Normal; delanteros y extremos (EI, ED, DC) Bajo.
+
+Sin dato: `SD` (códigos 31..35) y `LIB` (4 y 5) no aparecen en ninguna de las
+100 variantes, así que no hay lectura. Por vecindad, SD debería salir Bajo como
+DC, pero no está comprobado (`varact.sinDato`).
+
+Flechas: las 100 variantes dejan `rec+147..234` a 0. Como el recorrido es de
+solo lectura no se pudieron dejar flechas puestas antes de cada variante, así
+que aquí se comprueba que **quedan vacías**; que el juego las borre lo verificó
+el coordinador aplicando una variante sobre flechas ya marcadas. Es coherente
+con la fila «Alineación → Cambio» de [Lo que reescribe cada
+menú](#lo-que-reescribe-cada-menú), que le atribuye el reinicio de `147..242`.
+
+Arquero: `rec+243` vale 1 (Normal) en las 100 lecturas. Esa misma fila dice que
+la variante escribe `244..253` (casillas 1..10), así que lo probable es que el
+portero conserve su actitud y que ese 1 venga de antes; estas lecturas no
+distinguen si la variante también lo escribe.
+
+En el JSON, cada puesto lleva `actitud` y cada variante `flechas: "vacias"`; en
+la raíz, `reglaActitud` (sigla → actitud, más `excepciones`) y `varact`
+(procedencia, `variantesLeidas`, `variantesConFlechas`, `actitudPorCodigo` y
+`sinDato`). El modo `--varact` del script repite el recorrido y `--varact-merge`
+vuelca las lecturas en el JSON.
+
