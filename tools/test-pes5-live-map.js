@@ -60,6 +60,9 @@ function etiquetaSegura(codigos, valor) {
 function casilla(v) {
   return Number.isInteger(v) && v >= 0 && v <= 10;
 }
+function indicePlantel(v) {
+  return Number.isInteger(v) && v >= 0 && v <= 31;
+}
 
 // ---------- lectura y validacion del mapa ----------
 let mapa;
@@ -80,7 +83,12 @@ exigir(Array.isArray(campos) && campos.length > 0, 'campos vacio');
 exigir(cod.posicion && Object.keys(cod.posicion).length === 41, 'codificaciones.posicion debe tener 41 codigos');
 
 const BLOQUES = ['cabecera', 'principal', 'A', 'B', 'orden', 'ids'];
-const unidades = ['u8', 'u16le', 'bits8'];
+// Unidades físicas (u16le, bits8) y la unidad semántica de los seis campos de
+// cabecera que guardan un índice de plantel y no una casilla (VIVO3).
+const UNIDAD_INDICE = 'índice de plantel (0–31) de un titular';
+const unidades = ['u8', 'u16le', 'bits8', UNIDAD_INDICE];
+const CAMPOS_INDICE = ['capitan', 'cornerIzquierdo', 'cornerDerecho', 'tiroLibreLargo',
+  'tiroLibreCorto', 'penal'];
 const nombres = new Set();
 
 for (const f of campos) {
@@ -106,6 +114,20 @@ for (const f of campos) {
   const clave = (f && f.bloque) + '/' + (f && f.nombre);
   exigir(!nombres.has(clave), id + ': nombre repetido en el bloque ' + (f && f.bloque));
   if (f) nombres.add(clave);
+}
+
+// Los seis campos de cabecera (capitán y lanzadores) guardan un índice de
+// plantel, no una casilla (VIVO3).
+for (const nombre of CAMPOS_INDICE) {
+  const f = campos.find((c) => c.bloque === 'cabecera' && c.nombre === nombre);
+  exigir(!!f, 'falta el campo de cabecera ' + nombre);
+  if (!f) continue;
+  exigir(f.unidad === UNIDAD_INDICE,
+    'cabecera.' + nombre + ': unidad debe ser «' + UNIDAD_INDICE + '» (es ' + f.unidad + ')');
+  exigir(/índice de plantel/i.test(f.descripcion || ''),
+    'cabecera.' + nombre + ': la descripción debe decir índice de plantel');
+  exigir(!/casilla 0\.\.10/i.test(f.descripcion || ''),
+    'cabecera.' + nombre + ': la descripción no puede decir casilla 0..10');
 }
 
 // Sin solapamientos: los campos son hojas y no comparten bytes.
@@ -219,9 +241,9 @@ function decodificar(rec, bloque) {
 }
 
 function comprobarRegistro(origen, crudo, bloque) {
-  exigir(casilla(crudo.capitan), origen + ': capitan ' + crudo.capitan + ' no es casilla 0..10');
-  for (const nombre of ['cornerDerecho', 'cornerIzquierdo', 'tiroLibreLargo', 'tiroLibreCorto', 'penal']) {
-    exigir(casilla(crudo[nombre]), origen + ': ' + nombre + ' ' + crudo[nombre] + ' no es casilla 0..10');
+  for (const nombre of CAMPOS_INDICE) {
+    exigir(indicePlantel(crudo[nombre]),
+      origen + ': ' + nombre + ' ' + crudo[nombre] + ' no es índice de plantel 0..31');
   }
   if (crudo.modoEstrategia != null) {
     exigir([0, 1].includes(crudo.modoEstrategia), origen + ': modoEstrategia ' + crudo.modoEstrategia + ' fuera de 0..1');
@@ -234,6 +256,18 @@ function comprobarRegistro(origen, crudo, bloque) {
     const vistos = new Set(o);
     exigir(o.length === 32 && vistos.size === 32 && o.every((v) => v >= 0 && v <= 31),
       origen + ': el orden no es una permutacion de 0..31');
+    // Capitán y lanzadores son índices: tienen que estar en el orden y en una
+    // casilla de titular (0..10). El juego pasa el índice del que entra cuando
+    // el capitán o un lanzador sale por cambio.
+    for (const nombre of CAMPOS_INDICE) {
+      const v = crudo[nombre];
+      if (!indicePlantel(v)) continue;
+      const slot = o.indexOf(v);
+      exigir(slot >= 0, origen + ': ' + nombre + ' = índice ' + v + ', que no está en el orden');
+      if (slot >= 0) {
+        exigir(slot <= 10, origen + ': ' + nombre + ' = índice ' + v + ', que está en la casilla ' + slot + ' (no es titular)');
+      }
+    }
   }
   if (crudo.idsPlantel) {
     exigir(crudo.idsPlantel.length === 32, origen + ': idsPlantel no tiene 32 ids');
@@ -275,11 +309,25 @@ function comprobarRegistro(origen, crudo, bloque) {
   }
 }
 
+function casillaDeIndice(crudo, indice) {
+  const o = crudo.orden;
+  if (!o) return '?';
+  const slot = o.indexOf(indice);
+  return slot >= 0 ? String(slot) : '?';
+}
+
+function lanzador(crudo, v) {
+  return v + ' (casilla ' + casillaDeIndice(crudo, v) + ')';
+}
+
 function imprimir(origen, crudo, conBloques) {
   console.log('--- ' + origen);
-  console.log('  capitan: casilla ' + crudo.capitan);
-  console.log('  lanzadores: SE D=' + crudo.cornerDerecho + ', SE I=' + crudo.cornerIzquierdo +
-    ', TL L=' + crudo.tiroLibreLargo + ', TL C=' + crudo.tiroLibreCorto + ', PK=' + crudo.penal);
+  console.log('  capitan: índice ' + lanzador(crudo, crudo.capitan));
+  console.log('  lanzadores: SE D=' + lanzador(crudo, crudo.cornerDerecho) +
+    ', SE I=' + lanzador(crudo, crudo.cornerIzquierdo) +
+    ', TL L=' + lanzador(crudo, crudo.tiroLibreLargo) +
+    ', TL C=' + lanzador(crudo, crudo.tiroLibreCorto) +
+    ', PK=' + lanzador(crudo, crudo.penal));
   const botones = ['□', '△', '○', '✕'].map((b, i) =>
     b + '=' + etiquetaSegura(cod.estrategia, crudo.estrategiaBoton[i]));
   console.log('  estrategia: ' + botones.join(', ') + ' | modo ' +

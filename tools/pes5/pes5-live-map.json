@@ -224,7 +224,12 @@
       "menu": "Lanzador/Capit > Selecc. lanzador (SE I)",
       "seEscribe": "instante",
       "bloque": "cabecera",
-      "descripcion": "Casilla 0..10 del lanzador del córner izquierdo (marca I de la columna SE). k_l4 mueve este byte 8->6 y k_l4.png muestra I en Freier (casilla 6); la desc de la captura dice 'derecha' porque describe el recorrido del cursor, no la columna editada."
+      "descripcion": "Índice de plantel (0–31) del lanzador del córner izquierdo (marca I de la columna SE); la pantalla lo muestra en la casilla donde esté ese índice en el orden. k_l4 mueve este byte 8->6 y k_l4.png muestra I en Freier (índice 6); la desc de la captura dice 'derecha' porque describe el recorrido del cursor, no la columna editada.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
     },
     {
       "offset": 107,
@@ -236,7 +241,12 @@
       "menu": "Lanzador/Capit > Selecc. lanzador (SE D)",
       "seEscribe": "instante",
       "bloque": "cabecera",
-      "descripcion": "Casilla 0..10 del lanzador del córner derecho (marca D de la columna SE). En k_l4 vale 8 (Schneider), la D de la imagen."
+      "descripcion": "Índice de plantel (0–31) del lanzador del córner derecho (marca D de la columna SE); la pantalla lo muestra en la casilla donde esté ese índice en el orden. En k_l4 vale 8 (Schneider), la D de la imagen.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
     },
     {
       "offset": 108,
@@ -248,7 +258,12 @@
       "menu": "Lanzador/Capit > Selecc. lanzador (TL L)",
       "seEscribe": "instante",
       "bloque": "cabecera",
-      "descripcion": "Casilla 0..10 del lanzador del tiro libre largo."
+      "descripcion": "Índice de plantel (0–31) del lanzador del tiro libre largo; la pantalla lo muestra en la casilla donde esté ese índice en el orden.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
     },
     {
       "offset": 109,
@@ -260,7 +275,12 @@
       "menu": "Lanzador/Capit > Selecc. lanzador (TL C)",
       "seEscribe": "instante",
       "bloque": "cabecera",
-      "descripcion": "Casilla 0..10 del lanzador del tiro libre corto."
+      "descripcion": "Índice de plantel (0–31) del lanzador del tiro libre corto; la pantalla lo muestra en la casilla donde esté ese índice en el orden.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
     },
     {
       "offset": 110,
@@ -272,7 +292,12 @@
       "menu": "Lanzador/Capit > Selecc. lanzador (PK)",
       "seEscribe": "instante",
       "bloque": "cabecera",
-      "descripcion": "Casilla 0..10 del lanzador de penales."
+      "descripcion": "Índice de plantel (0–31) del lanzador de penales; la pantalla lo muestra en la casilla donde esté ese índice en el orden.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
     },
     {
       "offset": 111,
@@ -284,7 +309,12 @@
       "menu": "Lanzador/Capit > Elegir capitán",
       "seEscribe": "instante",
       "bloque": "cabecera",
-      "descripcion": "Casilla 0..10 del capitán. La pantalla lee además una copia en rec+645."
+      "descripcion": "Índice de plantel (0–31) del capitán; la pantalla lo muestra en la casilla donde esté ese índice en el orden. rec+644/645 son fila y casilla del cursor de esa pantalla, no una copia del capitán.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
     },
     {
       "offset": 112,

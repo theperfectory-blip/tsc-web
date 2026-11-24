@@ -167,12 +167,18 @@ Se escribe igual para las tres alineaciones (editar la A o la B no la toca).
 | +103 | Estrategia del botón ✕ (equis) | idem |
 | +104 | Desconocido | 0 en el save, **1 en memoria** en las 125 capturas |
 | +105 | Modo estrategia | 0 Manual, 1 Semi-automático |
-| +106 | Lanzador de córner izquierdo (marca **I** de la columna SE) | casilla |
-| +107 | Lanzador de córner derecho (marca **D** de la columna SE) | casilla |
-| +108 | Tiro libre largo (TL L) | casilla |
-| +109 | Tiro libre corto (TL C) | casilla |
-| +110 | Penal (PK) | casilla |
-| +111 | Capitán | casilla |
+| +106 | Lanzador de córner izquierdo (marca **I** de la columna SE) | **índice de plantel** 0..31 |
+| +107 | Lanzador de córner derecho (marca **D** de la columna SE) | **índice de plantel** 0..31 |
+| +108 | Tiro libre largo (TL L) | **índice de plantel** 0..31 |
+| +109 | Tiro libre corto (TL C) | **índice de plantel** 0..31 |
+| +110 | Penal (PK) | **índice de plantel** 0..31 |
+| +111 | Capitán | **índice de plantel** 0..31 |
+
+Capitán y lanzadores **no** guardan la casilla sino el índice de plantel (0–31)
+del jugador; la pantalla lo muestra en la casilla donde ese índice esté en el
+orden `rec+4..35` (VIVO3, ver [la prueba](#capitán-y-lanzadores-son-índices-de-plantel)).
+En cambio `libero` (`+165`, `rec+277`) y `rivalMarcado` (`+153..163`) sí son
+casillas.
 
 Códigos de estrategia de los botones (`rec+100..103`): 0 Sin estrategia, 1
 Normal, 2 Ataque centro, 3 Ataque derecha, 4 Ataque izquierda, 5 Ataque al lado
@@ -188,6 +194,32 @@ mismos cuatro bytes son L2, AUTO1, AUTO2 y AUTO3.
 > derecha; X en Schneider (D), mover a Freier») describe el recorrido del
 > cursor, no la columna que se estaba editando, y por eso la primera lectura
 > (PESMAP2) invirtió las dos filas.
+
+### Capitán y lanzadores son índices de plantel
+
+Las seis filas `rec+106..111` (córner I, córner D, TL largo, TL corto, penal y
+capitán) guardan el **índice de plantel (0–31)** del jugador, no la casilla
+donde está. La pantalla lo enseña en la casilla que ese índice ocupa en el
+orden `rec+4..35`. Prueba en el juego (VIVO3, partido empezado, Köln):
+
+- **Sustitución.** Entró Bade (índice 11) por Madsen (índice 9, que era capitán
+  y lanzador de penales). El juego dejó `rec+110` (PK) y `rec+111` (capitán) en
+  **11**, y la pantalla muestra a **Bade** (casilla 9, la de Madsen) como capitán
+  y lanzador de penales. 11 es el índice de Bade, no una casilla.
+- **Intercambio de casillas.** Se intercambiaron las casillas 7 (Feulner,
+  índice 7) y 8 (Streit, índice 8): las marcas de córner y tiro libre siguieron
+  a **Feulner** a la casilla 8, mientras los bytes `rec+106..109` se quedaron
+  en **7**, su índice.
+- En la serie `k_l*` el índice y la casilla coincidían (Freier = índice 6 en la
+  casilla 6), por eso las primeras lecturas parecían leer casillas.
+- Cuando el capitán o un lanzador sale por cambio, **el juego pasa el índice del
+  que entra** a esos bytes: no hay que copiarlo a mano.
+- `0x39564DA` (pantalla de alineación) puede valer `2` dentro de algunos
+  submenús (el selector de líbero). La condición de «abierta» es `!= 0`, no
+  `== 1`.
+
+El `libero` (`rec+277`) sigue siendo **casilla** (vale 2 y el líbero es Matip,
+índice 1 en la casilla 2) y `rivalMarcado` también es casilla del rival.
 
 ### Configuraciones A y B
 
@@ -417,6 +449,12 @@ elegir un jugador de la banca (casillas 11..22); las reservas 23..31 no entran
 en el partido. Antes del partido, en cambio, «Cambios» intercambia directamente
 las casillas del orden `rec+4..35` (y sus copias).
 
+Cuando el que sale era **capitán o lanzador**, al aplicar el cambio el juego
+escribe el **índice de plantel del que entra** en `rec+106..111` (VIVO3). Es
+decir, esos bytes siguen al jugador que ocupa el puesto, no a la casilla: en el
+caso real, Madsen (índice 9) salió por Bade (índice 11) y penal y capitán
+pasaron a 11.
+
 ## Lo que reescribe cada menú
 
 | Acción | Bytes del registro que cambia | Notas |
@@ -429,7 +467,7 @@ las casillas del orden `rec+4..35` (y sus copias).
 | Config. individual (marcaje) | `254+c` y `265+c` | una captura por detrás |
 | Editar posición | `112+c` (profundidad) y `122+c` (lateral) | al confirmar |
 | Selec. posición | `133+c` y el espejo `945+c` | al instante |
-| Lanzador / capitán | `106` (córner izq.), `107` (córner der.), `108`..`110` / `111`; el cursor de la lista vive en `644`/`645` | al instante (el cursor no es copia del capitán) |
+| Lanzador / capitán | `106` (córner izq.), `107` (córner der.), `108`..`110` / `111`; el cursor de la lista vive en `644`/`645` | al instante (índice de plantel; el cursor no es copia del capitán) |
 | Estrat. equipo (línea, presión, fuera, contraataque) | `279..282` (desde los búferes `0x395886d..0x3958870`) | al confirmar: `t002` escribe solo `279` y `v000 → v001` escribe `280..282` de una vez |
 | Alineación A/B y Copiar a A/B | bloque `283..453` (A) o `454..624` (B), 171 bytes; selector en `4138` (`c3+38`) | Elegir A/B cambia el bloque que editan los menús; copiar vuelca el principal sin diálogo |
 
@@ -560,12 +598,12 @@ comprueba byte a byte cada fila. Resultado con la serie entregada (125 capturas:
 | Editar posición `rec+112/122+c` | **VERIFICADO** | 2→3 (profundidad) y 63→61 (lateral) al confirmar |
 | Config. marcaje `rec+254/265+c` | VERIFICADO CON RESERVA | 0..3 (Marcaje / zonas / hombre normal / agresivo) y rival 10; en `m02` el tipo es 3 y en `m04`, 2. El rival se conserva al volver a zonas |
 | Selec. posición `rec+133+c` | **VERIFICADO** | 7→9 en el bloque y en el espejo (rec+947) |
-| Capitán `rec+111` | **VERIFICADO** | 5→4 en `rec+111`; `rec+645` también vale 4, pero es la casilla del cursor de Lanzador/Capit, no una copia |
-| Córner izquierdo `rec+106` | **VERIFICADO** | `k_l3 → k_l4`: `rec+106` 8→6; en `k_l4.png` la columna SE muestra **I** en Freier (casilla 6) y **D** en Schneider (casilla 8), y `rec+107` = 8 |
-| Córner derecho `rec+107` | **VERIFICADO** | `rec+107` vale 8 en todas las capturas de lanzadores (`k_l0..k_l5`, nunca se movió) y en `k_l4.png` la **D** (Schneider, casilla 8) coincide con ese 8; la **I** de la casilla 6 es el valor de `rec+106` |
-| TL largo `rec+108` | **VERIFICADO** | 8→9 |
-| TL corto `rec+109` | **VERIFICADO** | 8→7 |
-| Penal `rec+110` | **VERIFICADO** | 10→9 |
+| Capitán `rec+111` | **VERIFICADO (índice)** | VIVO3: con la sustitución de Madsen (índice 9) por Bade (índice 11) el juego dejó `rec+111` = 11 y la pantalla muestra a Bade en la casilla 9; `rec+645` es la casilla del cursor de Lanzador/Capit, no una copia |
+| Córner izquierdo `rec+106` | **VERIFICADO (índice)** | `k_l3 → k_l4`: `rec+106` 8→6; en `k_l4.png` la columna SE muestra **I** en Freier (índice 6) y **D** en Schneider (índice 8), y `rec+107` = 8. Con las casillas 7/8 intercambiadas el byte siguió en 7 (índice de Feulner) |
+| Córner derecho `rec+107` | **VERIFICADO (índice)** | `rec+107` vale 8 en todas las capturas de lanzadores (`k_l0..k_l5`, nunca se movió) y en `k_l4.png` la **D** (Schneider, índice 8) coincide con ese 8; la **I** de Freier (índice 6) es el valor de `rec+106` |
+| TL largo `rec+108` | **VERIFICADO (índice)** | 8→9 |
+| TL corto `rec+109` | **VERIFICADO (índice)** | 8→7 |
+| Penal `rec+110` | **VERIFICADO (índice)** | 10→9; con Bade por Madsen quedó en 11 y la pantalla lo muestra como lanzador de penales |
 | `rec+104 = 1` | **VERIFICADO** | 1 en las 125 capturas, 0 en el save |
 | Config. rápida | **VERIFICADO** | solo escribe `113..122`, `147..242`, `243..253`, `278..282` y `145` |
 | Alineación auto. | **VERIFICADO** | solo el orden |
@@ -640,7 +678,8 @@ python tools/pes5/live-lineup-read.py --equipo FKC --clubes FKC=42
 - JSON: `origen` (proceso/pid o archivo), y por equipo `rec`, `orden`
   (casilla → índice de plantel e id), `cabecera` (botones, modo, lanzadores
   `corner_izquierda_106`, `corner_derecha_107`, `tiro_libre_largo_108`,
-  `tiro_libre_corto_109` y `penal_110`, y capitán), y
+  `tiro_libre_corto_109` y `penal_110`, y capitán; cada uno con
+  `indice_plantel`, `id` y la `casilla` donde está ese índice), y
   `formaciones.principal/A/B` con los 11 slots (profundidad, lateral, código y
   sigla de posición, flechas de ataque, actitud defensiva, marcaje y rival) y
   los ajustes del bloque.
@@ -662,3 +701,5 @@ terminar en `PES5 LIVE MAP: OK`). `verify-live-map.js` lee `index.json` y los `.
 byte o rango que cada nota atribuye a un ajuste y, aparte, descifra el option
 file en memoria (`tools/pes5/pes5-crypt.js`) para comparar el registro byte a
 byte con el save. No escribe nada.
+
+Control en vivo (estado, lectura y escritura segura): [CONTROL_VIVO.md](CONTROL_VIVO.md).

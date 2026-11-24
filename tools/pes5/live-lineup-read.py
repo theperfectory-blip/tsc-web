@@ -10,7 +10,7 @@ la codificacion documentada en docs/pes5/MAPA_ALINEACION_VIVO.md:
   - formacion de cada bloque (profundidad, lateral, codigo de posicion y sigla)
   - estrategia (los cuatro botones y el modo manual/semi-automatico)
   - lanzadores (corner izquierdo 106, corner derecho 107, TL largo 108,
-    TL corto 109, penal 110) y capitan
+    TL corto 109, penal 110) y capitan: indice de plantel (0..31), no casilla
   - ajustes de equipo (nivel, sistema, libero, linea, presion, fuera de juego,
     contraataque)
   - por casilla: flechas de ataque, actitud defensiva y configuracion de marcaje
@@ -318,11 +318,13 @@ def decodificar_registro(buf):
     orden = list(buf[REL_ORDEN:REL_ORDEN + 32])
     ids = [u16(buf, REL_IDS + 2 * k) for k in range(32)]
 
-    def jugador(casilla):
-        if casilla is None or casilla < 0 or casilla >= len(orden):
-            return None, None
-        indice = orden[casilla]
-        return indice, (ids[indice] if 0 <= indice < len(ids) else None)
+    def jugador_por_indice(indice):
+        """Capitán y lanzadores guardan el índice de plantel; la casilla es derivada."""
+        return {
+            "casilla": orden.index(indice) if indice in orden else None,
+            "indice_plantel": indice,
+            "id": ids[indice] if 0 <= indice < len(ids) else None,
+        }
 
     botones = []
     for i, boton in enumerate(BOTONES):
@@ -333,11 +335,8 @@ def decodificar_registro(buf):
     for clave_python, desplazamiento in (("corner_izquierda_106", 106), ("corner_derecha_107", 107),
                                          ("tiro_libre_largo_108", 108), ("tiro_libre_corto_109", 109),
                                          ("penal_110", 110)):
-        casilla = buf[desplazamiento]
-        indice, ident = jugador(casilla)
-        lanzadores[clave_python] = {"casilla": casilla, "indice_plantel": indice, "id": ident}
-    capitan_casilla = buf[111]
-    capitan_indice, capitan_id = jugador(capitan_casilla)
+        lanzadores[clave_python] = jugador_por_indice(buf[desplazamiento])
+    capitan = jugador_por_indice(buf[111])
 
     return {
         "orden": [{"casilla": c, "indice_plantel": orden[c],
@@ -347,7 +346,7 @@ def decodificar_registro(buf):
             "modo": {"codigo": modo, "nombre": "Manual" if modo == 0 else
                      ("Semi-automatico" if modo == 1 else "?(%d)" % modo)},
             "lanzadores": lanzadores,
-            "capitan": {"casilla": capitan_casilla, "indice_plantel": capitan_indice, "id": capitan_id},
+            "capitan": capitan,
             "rec_extra_104": buf[104],
         },
         "formaciones": {clave: leer_bloque(buf, offset, orden, ids) for clave, offset in REL_BLOQUES.items()},
