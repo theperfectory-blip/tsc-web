@@ -10,7 +10,7 @@
    ============================================================ */
 // window.PES5_ADMIN (no const): nav.js lo llama como window.PES5_ADMIN?.entrar()
 window.PES5_ADMIN = (() => {
-  const CSS = ['css/pes5-tool.css', 'css/mejoras-editor.css', 'css/mejoras-cambio.css', 'css/pes5-yunacoins.css'];
+  const CSS = ['css/pes5-tool.css', 'css/mejoras-editor.css', 'css/mejoras-cambio.css', 'css/formacion-vivo.css', 'css/pes5-yunacoins.css'];
   const JS = [
     'js/pes5-crypt.js',
     'js/pes5-editor.js',
@@ -21,6 +21,7 @@ window.PES5_ADMIN = (() => {
     'js/pes5-yunacoins.js',   // pestana YunaCoins (slice 2.0-4), antes de pes5-tool.js
     'js/mejoras-cambio.js',   // INTEG: panel «comparar antes de cambiar», antes de mejoras-page.js
     'js/mejoras-page.js',   // editor de mejoras (MEJORAS_EDITOR), se monta en el modal del jugador
+    'js/formacion-vivo.js',   // FV2: pestaña «En vivo» (usa MEJORAS_EDITOR.vivo), antes de pes5-tool.js
     'js/pes5-clubes.js',      // club PES5 repetido (2.0-4): logica pura, antes de pes5-tool.js
     'js/save-publicado.js',   // SAVE-1: subir/bajar el save publicado (Storage + pes5_config/save), antes de pes5-tool.js
     'js/pes5-tool.js',

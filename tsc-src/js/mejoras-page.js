@@ -51,6 +51,7 @@ const MEJ_MARKUP = `
 
       <div class="ep-access">
         <button class="ep-acc formation" data-onclick="openFormationModal()"><span class="ep-acc-t">Formación</span><span class="ep-acc-s" id="ep-form-sub">Gratis</span></button>
+        <button class="ep-acc live" data-onclick="abrirFormacionVivo()"><span class="ep-acc-t">En vivo</span><span class="ep-acc-s" id="ep-vivo-sub">Conectado al juego</span></button>
         <button class="ep-acc" data-onclick="openAuditModal()"><span class="ep-acc-t">Pedidos</span><span class="ep-acc-s" id="ep-pedidos-sub">Sin pendientes</span><span class="badge" id="ep-hist-badge">0</span></button>
       </div>
 
@@ -483,34 +484,75 @@ function pitchLatFrac(y){ return clamp01((y-1)/(PITCH_ROWS-1)); }
 /* Porcentaje dentro del campo en pantalla (left = X, top = Y) de la celda (x, y).
    Horizontal: x (profundidad) de izquierda a derecha, y (lateral) de arriba abajo.
    Vertical: y (lateral) de izquierda a derecha, x sube desde el arco propio (x = 2 abajo). */
-function pitchPctX(x, y){
-  return PITCH_VERTICAL
+/* Version con la orientacion explicita: la usa la Formacion en vivo (FV2), que
+   dibuja su propia cancha sin tocar PITCH_VERTICAL. Las de abajo son el atajo
+   del editor y se comportan igual que antes. */
+function pitchPctXEn(x, y, vertical){
+  return vertical
     ? PITCH_PAD_Y + pitchLatFrac(y)*(100-2*PITCH_PAD_Y)
     : PITCH_PAD_X + pitchFrac(x)*(100-2*PITCH_PAD_X);
 }
-function pitchPctY(x, y){
-  return PITCH_VERTICAL
+function pitchPctYEn(x, y, vertical){
+  return vertical
     ? PITCH_PAD_X + (1-pitchFrac(x))*(100-2*PITCH_PAD_X)
     : PITCH_PAD_Y + pitchLatFrac(y)*(100-2*PITCH_PAD_Y);
 }
+function pitchPctX(x, y){ return pitchPctXEn(x, y, PITCH_VERTICAL); }
+function pitchPctY(x, y){ return pitchPctYEn(x, y, PITCH_VERTICAL); }
 /* Rectangulo en % que cubre las celdas x en [xa, xb] e y en [ya, yb] (franjas, zona de posicion). */
-function pitchRectGrilla(xa, xb, ya, yb){
-  const xs = [pitchPctX(xa,ya), pitchPctX(xb,ya), pitchPctX(xa,yb), pitchPctX(xb,yb)];
-  const ys = [pitchPctY(xa,ya), pitchPctY(xb,ya), pitchPctY(xa,yb), pitchPctY(xb,yb)];
+function pitchRectGrillaEn(xa, xb, ya, yb, vertical){
+  const xs = [pitchPctXEn(xa,ya,vertical), pitchPctXEn(xb,ya,vertical), pitchPctXEn(xa,yb,vertical), pitchPctXEn(xb,yb,vertical)];
+  const ys = [pitchPctYEn(xa,ya,vertical), pitchPctYEn(xb,ya,vertical), pitchPctYEn(xa,yb,vertical), pitchPctYEn(xb,yb,vertical)];
   const left = Math.min(...xs), top = Math.min(...ys);
   return { left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top };
+}
+function pitchRectGrilla(xa, xb, ya, yb){ return pitchRectGrillaEn(xa, xb, ya, yb, PITCH_VERTICAL); }
+/* Contenedor de la cancha del editor. El campo lo arma pitchFieldHTML() (el
+   mismo de la Formación en vivo), así que se busca dentro de #ep-pitch-wrap. */
+function _canchaEditor(sel){ return document.querySelector('#ep-pitch-wrap ' + sel); }
+/* La inversa del guardado: fila 1..47 de la grilla -> lateral 6..99 del save. */
+function pitchLatDeFila(fila){
+  const f = Math.max(1, Math.min(47, Math.round(Number(fila) || 24)));
+  return Math.max(6, Math.min(99, Math.round(6 + (f - 1) * 93 / 46)));
+}
+/* Cancha vacia (franjas, lineas, areas): el mismo HTML para el editor y para la
+   Formacion en vivo (FV2). opts: {vertical, pref, alto, pos, dots, capas, prev,
+   coords, clase}. `pref` decide los ids (ep-* en el editor, fv-* en vivo). */
+function pitchFieldHTML(opts){
+  const o = opts || {};
+  const v = !!o.vertical, pref = o.pref || 'ep';
+  const franjas = PITCH_ZONES.map(z => {
+    const e = pitchRectGrillaEn(z.from, z.to, 1, PITCH_ROWS, v);
+    return `<div class="ep-pitch-zone" style="left:${e.left}%;width:${e.width}%;top:${e.top}%;height:${e.height}%;background:${z.color};"></div>`;
+  }).join('');
+  const alto = o.alto ? ` style="--campo-h:${Math.round(o.alto)}px"` : '';
+  return `<div class="ep-pitch-field${v ? ' vertical' : ''}${o.clase ? ' ' + o.clase : ''}" id="${pref}-pitch-field"${alto}>
+            ${franjas}
+            <div class="ep-pitch-halfline"></div>
+            <div class="ep-pitch-circle"></div>
+            <div class="ep-pitch-box left"></div>
+            <div class="ep-pitch-box right"></div>
+            <div class="ep-pitch-arc left"></div>
+            <div class="ep-pitch-arc right"></div>
+            <div class="ep-pitch-goal left"></div>
+            <div class="ep-pitch-goal right"></div>
+            ${o.pos ? `<div id="${pref}-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>` : ''}
+            ${o.dots ? `<div id="${pref}-pitch-dots" style="position:absolute;inset:0;z-index:3;">${o.dots}</div>` : ''}
+            ${o.capas || ''}
+            ${o.prev || ''}
+            ${o.coords ? `<div id="${pref}-form-coords" class="ep-pitch-coords" hidden></div>` : ''}
+          </div>`;
 }
 /* Inversa de la grilla: punto de la pantalla -> celda (x, y) mas cercana. Usa
    el area util del campo (sin el borde de 3 px, clientLeft/clientTop) y las
    mismas constantes que pitchPctX / pitchPctY: la celda que devuelve es la
    que se dibuja en ese punto. null si no hay campo en pantalla. */
-function pitchCeldaDesdePunto(clientX, clientY){
-  const campo = document.getElementById('ep-pitch-field');
+function celdaDesdeCampo(campo, clientX, clientY, vertical){
   if (!campo || !campo.clientWidth || !campo.clientHeight) return null;
   const r = campo.getBoundingClientRect();
   const xPct = (clientX - r.left - campo.clientLeft) / campo.clientWidth * 100;
   const yPct = (clientY - r.top - campo.clientTop) / campo.clientHeight * 100;
-  if (PITCH_VERTICAL){
+  if (vertical){
     // vertical: X de pantalla = lateral (y); Y de pantalla = profundidad (x), arriba = mas adelante
     const fy = clamp01((xPct - PITCH_PAD_Y) / (100 - 2*PITCH_PAD_Y));
     const fx = clamp01(1 - (yPct - PITCH_PAD_X) / (100 - 2*PITCH_PAD_X));
@@ -525,6 +567,9 @@ function pitchCeldaDesdePunto(clientX, clientY){
     x: Math.round(2 + fx * (PITCH_COLS - 2)),
     y: Math.round(1 + fy * (PITCH_ROWS - 1)),
   };
+}
+function pitchCeldaDesdePunto(clientX, clientY){
+  return celdaDesdeCampo(_canchaEditor('#ep-pitch-field'), clientX, clientY, PITCH_VERTICAL);
 }
 /* Franjas: cada una cubre sus columnas (pitchRectGrilla). Entre la 15 y la 16 (y
    entre la 34 y la 35) queda un hueco sin pintar de un paso, que separa las zonas
@@ -3198,6 +3243,17 @@ function closeFormacionNoDisponible(){
   if (wrap) wrap.innerHTML = '';
 }
 
+/* FV2: pestaña «En vivo». El panel lo dibuja js/formacion-vivo.js (se carga
+   después de este archivo); acá solo se abre. No necesita formación publicada:
+   los datos salen del puente local (PES5), no del save. */
+function abrirFormacionVivo(){
+  if (!window.FORMACION_VIVO || typeof window.FORMACION_VIVO.abrir !== 'function'){
+    showMiniToast('La Formación en vivo todavía no está disponible en esta página.');
+    return;
+  }
+  window.FORMACION_VIVO.abrir();
+}
+
 function openFormationModal(){
   if (_bloqueadoPorPausa()) return;
   // FORMFIX: sin formacion publicada no se abre el editor: no hay base real
@@ -3232,13 +3288,9 @@ function _montarModalCancha(){
   const wrap = document.getElementById('ep-pitch-wrap');
   FORM_CMP_HTML = ''; // el contenedor de la ficha se rehace con el modal: se vuelve a pintar
   _formCmpVisto = false;
-  // Las franjas no llegan a los bordes y dejan un hueco sin pintar entre
-  // zonas (centro de la columna 15 al centro de la 16, y 34 a 35).
-  const franjas = PITCH_ZONES.map(z => {
-    const e = pitchRectGrilla(z.from, z.to, 1, PITCH_ROWS);
-    return `<div class="ep-pitch-zone" style="left:${e.left}%;width:${e.width}%;top:${e.top}%;height:${e.height}%;background:${z.color};"></div>`;
-  }).join('');
-  // Las zonas ya no llevan linea blanca: las separa el hueco sin pintar.
+  // La cancha (franjas, lineas y areas) la arma pitchFieldHTML, la misma que usa
+  // la Formacion en vivo. Las zonas ya no llevan linea blanca: las separa el
+  // hueco sin pintar entre el centro de la columna 15 y el de la 16, y 34 a 35.
   wrap.innerHTML = `
   <div class="ep-overlay" data-onclick="closeIfBackdrop(event,closeFormationModal)">
     <div class="ep-modal wide${PITCH_VERTICAL ? ' ep-form-vert' : ''}">
@@ -3258,20 +3310,7 @@ function _montarModalCancha(){
               </span>
             </button>
           </div>
-          <div class="ep-pitch-field${PITCH_VERTICAL ? ' vertical' : ''}" id="ep-pitch-field">
-            ${franjas}
-            <div class="ep-pitch-halfline"></div>
-            <div class="ep-pitch-circle"></div>
-            <div class="ep-pitch-box left"></div>
-            <div class="ep-pitch-box right"></div>
-            <div class="ep-pitch-arc left"></div>
-            <div class="ep-pitch-arc right"></div>
-            <div class="ep-pitch-goal left"></div>
-            <div class="ep-pitch-goal right"></div>
-            <div id="ep-pitch-pos" style="position:absolute;inset:0;z-index:2;pointer-events:none;"></div>
-            <div id="ep-pitch-dots" style="position:absolute;inset:0;z-index:3;"></div>
-            <div id="ep-form-coords" class="ep-pitch-coords" hidden></div>
-          </div>
+          ${pitchFieldHTML({ vertical: PITCH_VERTICAL, pos: true, dots: true, coords: true })}
         </div>
         <div class="ep-form-lista" id="ep-form-lista">
           <div class="ep-pitch-info">
@@ -3726,7 +3765,7 @@ function _formPointerFin(e){
   if (e.type === 'pointerup' && d.motivo) showMiniToast(d.motivo);
 }
 function _engancharArrastreCampo(){
-  const campo = document.getElementById('ep-pitch-field');
+  const campo = _canchaEditor('#ep-pitch-field');
   if (!campo) return;
   campo.addEventListener('pointerdown', _formPointerDown);
   campo.addEventListener('pointermove', _formPointerMove);
@@ -3749,7 +3788,8 @@ function renderFormationModal(){
       ${isSel?`<span class="ep-pitch-tag">${label}</span>`:''}
     </div>`;
   }).join('');
-  document.getElementById('ep-pitch-dots').innerHTML = dots;
+  const contPuntos = _canchaEditor('#ep-pitch-dots');
+  if (contPuntos) contPuntos.innerHTML = dots;
 
   _formRenderBancaYPanel();
 
@@ -3780,7 +3820,7 @@ function renderFormationModal(){
   const selSlot = FORM.draft[FORM.sel];
   const selCode = selSlot.pos || pitchLabelFor(selSlot.x, selSlot.y, selSlot.id);
   const zonaPos = PITCH_POS_ZONAS[selCode];
-  const posCont = document.getElementById('ep-pitch-pos');
+  const posCont = _canchaEditor('#ep-pitch-pos');
   if (posCont){
     if (zonaPos){
       const zr = pitchRectGrilla(zonaPos.d[0], zonaPos.d[1], zonaPos.l[0], zonaPos.l[1]);
@@ -3852,7 +3892,7 @@ function _formDejarDeObservar(){ if (FORM_RO){ FORM_RO.disconnect(); FORM_RO = n
 function _formAjustarAlto(){
   const wrap = document.getElementById('ep-pitch-wrap');
   const body = wrap && wrap.querySelector('.ep-modal-body');
-  const campo = document.getElementById('ep-pitch-field');
+  const campo = _canchaEditor('#ep-pitch-field');
   if (!body || !campo) return;
   if (!PITCH_VERTICAL){ campo.style.removeProperty('--campo-h'); return; }
   campo.style.removeProperty('--campo-h');
@@ -3875,18 +3915,28 @@ function _formAjustarAlto(){
 }
 
 function opcionesPosicion(slot){
-  if (isKeeperSlot(slot) || FORM.draft.indexOf(slot) === 0) return [{ pos:'PT', disponible:true }];
+  return opcionesPosicionEn(FORM.draft, FORM.draft.indexOf(slot), isKeeperSlot(slot));
+}
+/* Version con la lista de casillas explicita (la Formacion en vivo usa la suya). */
+function opcionesPosicionEn(draft, i, esPortero){
+  const slot = draft[i];
+  if (esPortero || i === 0) return [{ pos:'PT', disponible:true }];
+  if (!slot) return [];
   const base = posicionesEnBloque(slot.x, slot.y);
-  const out = base.map(p => ({ pos: p, disponible: puedeAsignar(p, slot) }));
+  const out = base.map(p => ({ pos: p, disponible: puedeAsignarEn(draft, p, slot) }));
   // la posicion actual se mantiene aunque haya quedado fuera de zona
   if (slot.pos && !base.includes(slot.pos)) out.unshift({ pos: slot.pos, disponible: true });
   return out;
 }
 /* ¿Se puede asignar esta posicion a este jugador sin romper las reglas? */
 function puedeAsignar(pos, slot){
+  return puedeAsignarEn(FORM.draft, pos, slot);
+}
+/* Igual que puedeAsignar, sobre una lista de casillas cualquiera. */
+function puedeAsignarEn(draft, pos, slot){
   const linea = PITCH_POS_LINEA[pos];
   if (!linea) return false;
-  const otros = FORM.draft.filter(s => s !== slot);
+  const otros = (draft || []).filter(s => s !== slot);
   if (otros.filter(s => s.pos && PITCH_POS_LINEA[s.pos] === linea).length >= PITCH_LINEA_MAX[linea]) return false;
   const maxPos = PITCH_POS_MAX[pos];
   if (maxPos && otros.filter(s => s.pos === pos).length >= maxPos) return false;
@@ -3977,7 +4027,7 @@ function _formPararCoords(){
   FORM_COORDS_HASTA = 0;
 }
 function _formPintarCoords(slot){
-  const el = document.getElementById('ep-form-coords');
+  const el = _canchaEditor('#ep-form-coords');
   if (!el) return;
   const ver = !!slot && _formCoordsVisibles();
   el.hidden = !ver;
@@ -5151,6 +5201,7 @@ window.closeApplyConfirm = closeApplyConfirm;
 window.closeAuditModal = closeAuditModal;
 window.closeFormationModal = closeFormationModal;
 window.closeFormacionNoDisponible = closeFormacionNoDisponible;
+window.abrirFormacionVivo = abrirFormacionVivo;
 window.closeFormationHelp = closeFormationHelp;
 window.closeIfBackdrop = closeIfBackdrop;
 window.commitChanges = commitChanges;
@@ -5198,5 +5249,32 @@ window.mejToggleCuenta = mejToggleCuenta;
 
 iniciarPagina();
 
-return { montar: montar, desmontar: desmontar, borrador: borrador };
+/* ================= FV2 · utilidades compartidas con la Formación en vivo =================
+   js/formacion-vivo.js dibuja su propia cancha y aplica las reglas de posición
+   del juego, pero todo eso ya existe acá: en vez de copiarlo, se expone tal cual
+   (con la orientación explícita donde hacía falta). Solo se lee; nada de esto
+   toca el estado del editor. */
+const VIVO_UTIL = {
+  COLS: PITCH_COLS, ROWS: PITCH_ROWS,
+  ZONAS: PITCH_ZONES,
+  pctX: pitchPctXEn, pctY: pitchPctYEn, rect: pitchRectGrillaEn,
+  celdaDesdeCampo: celdaDesdeCampo,
+  filaLateral: _filaLateral, latDeFila: pitchLatDeFila,
+  cancha: pitchFieldHTML,
+  posicionEn: posicionEn,
+  tercer: pitchThird, lado: pitchLado, bloque: posicionesEnBloque,
+  LINEA: PITCH_POS_LINEA, LINEA_MAX: PITCH_LINEA_MAX, LINEA_MIN: PITCH_LINEA_MIN,
+  POS_MAX: PITCH_POS_MAX, BANDA: PITCH_POS_BANDA, LUGAR: PITCH_LUGAR_NOMBRE,
+  puedeAsignar: puedeAsignarEn,
+  opcionesPosicion: opcionesPosicionEn,
+  contarLineas: contarLineas,
+  lineaBajoMinimo: lineaBajoMinimo,
+  validar: validarFormacion,
+  nombreLinea: PITCH_LINEA_NOMBRE,
+  jugadores: function(){ return PLAYERS.slice(); },
+  equipo: function(){ return EQUIPO_TSC; },
+  listo: function(){ return PLAYERS.length > 0; },
+};
+
+return { montar: montar, desmontar: desmontar, borrador: borrador, vivo: VIVO_UTIL };
 })();

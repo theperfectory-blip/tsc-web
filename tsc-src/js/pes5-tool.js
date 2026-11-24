@@ -492,6 +492,7 @@ function salir(){
   document.getElementById('pt-rech-ov')?.remove();
   RECHAZO_ID = null;
   cerrarRetro();
+  if (window.FORMACION_VIVO) window.FORMACION_VIVO.desmontar();
   window.removeEventListener('tsc:auth', _alCambiarAuth);
   if (OBSERVAR_STOP){ try { OBSERVAR_STOP(); } catch (e) {} OBSERVAR_STOP = null; }
   if (window.MEJORAS_EDITOR) MEJORAS_EDITOR.desmontar();
@@ -796,6 +797,7 @@ function iniciarObservador(){
 const TABS = [
   { id: 'equipos', label: 'Equipos', icon: ICN.users },
   { id: 'plantilla', label: 'Plantilla', icon: ICN.shirt },
+  { id: 'vivo', label: 'En vivo', icon: ICN.clock },
   { id: 'pedidos', label: 'Pedidos', icon: ICN.inbox },
   { id: 'yunacoins', label: 'YunaCoins', icon: ICN.refresh },
   { id: 'reglas', label: 'Reglas', icon: ICN.wallet },
@@ -809,13 +811,29 @@ function switchTab(id){
   // una pestaña que no existe en este modo cae en la primera disponible
   const visibles = tabsDelModo();
   if (!visibles.some(t => t.id === id)) id = visibles[0].id;
+  // FV2: al salir de «En vivo» se corta el sondeo del puente (y al entrar a
+  // otra pestaña no queda un intervalo corriendo de fondo).
+  if (id !== 'vivo' && window.FORMACION_VIVO) window.FORMACION_VIVO.desmontar();
   TAB = id;
   renderTabs();
   if (id === 'equipos') renderEquiposTab();
   else if (id === 'plantilla') renderPlantillaTab();
+  else if (id === 'vivo') renderVivoTab();
   else if (id === 'pedidos') renderPedidosTab();
   else if (id === 'yunacoins') renderYunacoinsTab();
   else if (id === 'reglas') renderReglasTab();
+}
+
+/* FV2 · pestaña «En vivo»: la Formación conectada al juego por el puente local.
+   El panel vive en js/formacion-vivo.js (se carga con la Tool, después del
+   editor de mejoras, del que toma la cancha y las reglas de posición). */
+function renderVivoTab(){
+  const cont = document.getElementById('pt-tabcontent');
+  if (!window.FORMACION_VIVO){
+    cont.innerHTML = '<div class="pt-status-item">No se pudo cargar la Formación en vivo (falta js/formacion-vivo.js).</div>';
+    return;
+  }
+  window.FORMACION_VIVO.montar(cont);
 }
 
 /* ============================================================

@@ -35,6 +35,9 @@ export const CSP_DIRECTIVES = {
     'https://firebasestorage.googleapis.com',
     // La APK baja del hosting las temporadas archivadas que no trae (MS-5.15).
     'https://teamsubscup.web.app',
+    // Puente local de la Formación en vivo (FV2, tools/pes5/live-bridge.py).
+    // Solo loopback: el puente escucha en 127.0.0.1 y no escribe el save.
+    'http://127.0.0.1:8765',
   ],
   'worker-src': ["'self'", 'blob:'],
   'frame-src': ['https://tsc-web-yuna.firebaseapp.com'],
