@@ -31,6 +31,8 @@ window.FORMACION_VIVO = (function(){
 const URL_POR_DEFECTO = 'http://127.0.0.1:8765';
 const CLAVE_URL = 'tsc_fv_url';
 const MS_SONDEO = 1500;
+const MS_RECONEXION = 3000;
+const FALLOS_PARA_REINTENTAR = 3;
 
 const TEXTO_COND = ['Excelente', 'Buena', 'Normal', 'Baja', 'Muy baja', 'Lesionado'];
 const SVG_COND = [
@@ -158,6 +160,12 @@ const ICONO = {
   prev: '<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>',
   next: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
   shield: '<svg class="icn" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 9 4.6-.3 8-4 8-9V5l-8-3Z"/></svg>',
+  engranaje: '<svg class="icn" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
+  sinConexion: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h.01"/><path d="M8.5 16.43a5 5 0 0 1 7 0"/><path d="M5 12.86a10 10 0 0 1 5.17-2.69"/><path d="M19 12.86a10 10 0 0 0-2.01-1.52"/><path d="M2 8.82a15 15 0 0 1 4.18-2.64"/><path d="M22 8.82a15 15 0 0 0-11.29-3.76"/><path d="m2 2 20 20"/></svg>',
+  cerrado: '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.98 3.59c-.01.05-.01.1-.02.15C2.6 9.42 2 14.46 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.41-1.41A2 2 0 0 1 9.83 16h4.34a2 2 0 0 1 1.41.59L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.55-.6-6.58-.69-7.26a4 4 0 0 0-3.99-3.74Z"/></svg>',
+  sinPartido: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
+  cargando: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>',
+  alerta: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
 };
 
 /* ---------- estado del panel ---------- */
@@ -166,8 +174,11 @@ const D = {
   inline: false,
   host: null,
   url: URL_POR_DEFECTO,
-  conexion: 'iniciando',   // iniciando | ok | juego-cerrado | sin-conexion
+  conexion: 'iniciando',   // iniciando | ok | juego-cerrado | sin-partido | sin-conexion
   error: null,
+  fallos: 0,               // intentos fallidos seguidos contra el puente
+  probado: false,          // el admin ya tocó «Probar» en el panel Conexión
+  panelConexion: false,    // panel de URL del puente (solo admin)
   st: null,                // estado que informa el puente
   firma: null,             // JSON del estado, para releer solo cuando cambia algo
   equipos: {},             // {local: modelo, visitante: modelo}
@@ -203,6 +214,27 @@ function num(v){ if (v === '' || v == null) return null; const n = Number(v); re
 function reg(v){ const n = Number(String(v == null ? '' : v).replace(/^r/i, '')); return Number.isFinite(n) ? n : null; }
 function baseUrl(){ return String(D.url || URL_POR_DEFECTO).replace(/\/+$/, ''); }
 function enPartido(){ return !!(D.st && D.st.partidoEmpezado); }
+/* Con partido cargado se dibuja la cancha, la lista y el pedido. En los demás
+   estados (sin puente, juego cerrado o juego abierto sin partido) no hay
+   alineación real: el panel muestra solo la tarjeta del estado. */
+function hayPartido(){
+  return !!(D.conexion === 'ok' && D.st && D.st.partidoCargado !== false && D.mio);
+}
+/* «AUTH» es un `let` de nivel superior de js/auth.js: no es propiedad de
+   window (igual que en el resto de la app, se consulta con typeof). */
+function esAdmin(){
+  return typeof AUTH !== 'undefined' && !!AUTH && AUTH.role === 'admin';
+}
+/* El panel de conexión (URL del puente) es solo para admin. */
+function puedeConfigurarConexion(){
+  return esAdmin();
+}
+function olvidarEquipos(){
+  D.equipos = {}; D.mio = null; D.rival = null;
+  D.sel = null; D.banca = null; D.ver = null; D.cmp = null; D.menu = null;
+  D.esqSel = null; D.varSel = null; D.indSlot = null;
+  D.nombrePropio = '';
+}
 function puedeEscribir(){
   const st = D.st || {};
   if (typeof st.puedeEscribir === 'boolean') return st.puedeEscribir;
@@ -413,7 +445,7 @@ async function cargarNombres(){
   // El admin puede leer todas las plantillas publicadas: así el rival también
   // sale con nombres. El presidente solo tiene la de su equipo (las reglas no
   // dejan leer las demás) y el rival queda con su número.
-  if (window.AUTH && window.AUTH.role === 'admin' && window.firebase && firebase.firestore){
+  if (esAdmin() && window.firebase && firebase.firestore){
     try {
       const snap = await firebase.firestore().collection('pes5_plantillas').get();
       snap.docs.forEach(function(d){
@@ -1012,17 +1044,84 @@ function swapbarHTML(){
 }
 
 /* ---------- panel ---------- */
+function estadoVacioDatos(){
+  if (D.conexion === 'sin-conexion'){
+    return { tono: 'off', icono: 'sinConexion', gira: false,
+      titulo: 'No hay conexión con el juego',
+      txt: 'En el PC del juego tiene que estar corriendo el puente.' };
+  }
+  if (D.conexion === 'juego-cerrado'){
+    return { tono: 'warn', icono: 'cerrado', gira: false,
+      titulo: 'PES5 está cerrado',
+      txt: 'Abre PES5 y entra a la pantalla de alineación para ver la alineación del juego.' };
+  }
+  if (D.conexion === 'sin-partido'){
+    return { tono: 'warn', icono: 'sinPartido', gira: false,
+      titulo: 'PES5 está abierto, pero no hay un partido cargado',
+      txt: 'Elige los equipos y entra a la pantalla de alineación.' };
+  }
+  if (D.conexion === 'iniciando'){
+    return { tono: 'info', icono: 'cargando', gira: true,
+      titulo: 'Conectando con el juego',
+      txt: 'Buscando el puente local en este PC.' };
+  }
+  return { tono: 'warn', icono: 'alerta', gira: false,
+    titulo: 'No se pudo leer la alineación',
+    txt: 'El puente respondió, pero no devolvió la alineación del juego.' };
+}
+function estadoVacioHTML(){
+  const d = estadoVacioDatos();
+  const admin = puedeConfigurarConexion();
+  let h = '<section class="fv-card fv-vacio-estado fv-tono-' + d.tono + '">'
+    + '<div class="fv-vacio-ic' + (d.gira ? ' gira' : '') + '">' + ICONO[d.icono] + '</div>'
+    + '<h3>' + esc(d.titulo) + '</h3>'
+    + '<p class="fv-txt">' + esc(d.txt) + '</p>';
+  if (D.conexion === 'sin-conexion'){
+    h += '<div class="fv-vacio-pie"><span class="fv-reconectando">' + ICONO.cargando + 'Reconectando…</span>'
+      + (D.fallos >= FALLOS_PARA_REINTENTAR
+        ? '<button type="button" class="ep-btn fv-btn-mini" data-onclick="fvReintentar()">Reintentar ahora</button>'
+        : '')
+      + '</div>';
+  }
+  if (D.conexion === 'juego-cerrado' || D.conexion === 'sin-partido'){
+    h += '<span class="fv-vacio-nota">Se conecta solo en cuanto el juego lo permita.</span>';
+  }
+  if (admin){
+    if (D.error) h += '<span class="fv-error">' + esc(D.error) + '</span>';
+    h += '<p class="fv-hint">La dirección del puente está en «Conexión» (el engranaje).</p>';
+  }
+  h += '<p class="fv-nota">Solo lee y escribe la alineación del juego: nunca el save.</p>'
+    + '</section>';
+  return h;
+}
+function resultadoPruebaHTML(){
+  if (D.conexion === 'ok') return '<span class="fv-msg">Responde: hay un partido cargado.</span>';
+  if (D.conexion === 'sin-partido') return '<span class="fv-msg wait">Responde: PES5 está abierto, pero no hay un partido cargado.</span>';
+  if (D.conexion === 'juego-cerrado') return '<span class="fv-msg wait">Responde: PES5 está cerrado.</span>';
+  if (D.conexion === 'sin-conexion'){
+    return '<span class="fv-error">No responde' + (D.error ? ': ' + esc(D.error) : '.') + '</span>';
+  }
+  return '<span class="fv-msg wait">Conectando…</span>';
+}
+function conexionPanelHTML(){
+  return '<section class="fv-card fv-panel-conexion" aria-label="Conexión con el juego">'
+    + '<h3><span class="fv-h3-t">' + ICONO.engranaje + 'Conexión</span><span class="fv-sum">Admin</span></h3>'
+    + '<label class="fv-url-lbl">URL del puente <input class="fv-url" type="url" value="' + escA(D.url) + '" data-onchange="fvUrl(this.value)" aria-label="URL del puente local" spellcheck="false" autocomplete="off"></label>'
+    + '<p class="fv-hint">El puente corre en el PC del juego (<code>python tools/pes5/live-bridge.py</code>) y solo escucha en 127.0.0.1.</p>'
+    + (D.probado ? resultadoPruebaHTML() : '')
+    + '<div class="fv-acts">'
+    + '<button type="button" class="ep-btn" data-onclick="fvProbar()">Probar</button>'
+    + '<button type="button" class="fv-x" data-onclick="fvCerrarConexion()">Cerrar</button>'
+    + '</div></section>';
+}
 function conexionHTML(){
-  const txt = D.conexion === 'ok' ? 'Conectado'
-    : D.conexion === 'juego-cerrado' ? 'Juego cerrado'
-      : D.conexion === 'sin-conexion' ? 'Sin conexión al juego'
-        : 'Conectando…';
   const clase = D.conexion === 'ok' ? 'ok' : (D.conexion === 'sin-conexion' ? 'off' : 'warn');
-  const detalle = D.error ? '<span class="fv-error">' + esc(D.error) + '</span>' : '';
+  const txt = D.conexion === 'ok' ? 'Conectado al juego'
+    : D.conexion === 'sin-conexion' ? 'Reconectando…' : 'Conectando…';
+  const detalle = (D.conexion === 'sin-conexion' && D.error)
+    ? '<span class="fv-error">' + esc(D.error) + '</span>' : '';
   return '<div class="fv-conexion">'
-    + '<span class="fv-dot ' + clase + '" aria-hidden="true"></span><b>' + txt + '</b>'
-    + '<label class="fv-url-lbl">Puente <input class="fv-url" type="url" value="' + escA(D.url) + '" data-onchange="fvUrl(this.value)" aria-label="URL del puente local" spellcheck="false"></label>'
-    + '<button type="button" class="ep-btn fv-btn-mini" data-onclick="fvReintentar()">Reintentar</button>'
+    + '<span class="fv-dot ' + clase + '" aria-hidden="true"></span><b>' + esc(txt) + '</b>'
     + detalle
     + '<span class="fv-nota">Solo lee y escribe la alineación del juego: nunca el save.</span>'
     + '</div>';
@@ -1048,7 +1147,7 @@ function estadoHTML(){
 }
 function canchaCardHTML(){
   const m = D.mio;
-  if (!m) return '<section class="fv-card"><p class="fv-hint">Todavía no hay datos del juego. Abre PES5 en la pantalla de alineación y toca «Reintentar».</p></section>';
+  if (!m) return '<section class="fv-card"><p class="fv-hint">Todavía no hay una alineación del juego.</p></section>';
   const vertical = esVertical();
   return '<section class="fv-card fv-card-cancha">'
     + '<div class="fv-crest">' + ICONO.shield + '<span>' + esc(nombreDeEquipo(m)) + ' · Alineación</span>'
@@ -1129,33 +1228,46 @@ function asignarLados(){
 }
 function panelHTML(){
   const m = D.mio;
+  const conPartido = hayPartido();
+  const chip = puedeEscribir() ? 'ok' : 'wait';
   const cabecera = '<div class="fv-hd">'
-    + '<div class="fv-hd-t">' + ICONO.shield + '<h2>Formación en vivo' + (m ? ' · ' + esc(nombreDeEquipo(m)) : '') + '</h2></div>'
-    + '<div class="fv-hd-chips"><span class="fv-chip live">En vivo</span>'
-    + '<span class="fv-chip ' + (puedeEscribir() ? 'ok' : 'wait') + '">' + (puedeEscribir() ? 'Se aplica ya' : 'En espera') + '</span>'
-    + (enPartido() ? '<span class="fv-chip">Supl. Res. ' + (m && m.cambiosRestantes != null ? m.cambiosRestantes : '—') + '</span>' : '')
-    + (D.inline ? '<label class="fv-lado">Edito <select class="fv-sel" data-onchange="fvLado(this.value)">'
+    + '<div class="fv-hd-t">' + ICONO.shield + '<h2>Formación en vivo' + (conPartido && m ? ' · ' + esc(nombreDeEquipo(m)) : '') + '</h2></div>'
+    + '<div class="fv-hd-chips">'
+    + (conPartido ? '<span class="fv-chip live">En vivo</span>' : '')
+    + (conPartido ? '<span class="fv-chip ' + chip + '">' + (puedeEscribir() ? 'Se aplica ya' : 'En espera') + '</span>' : '')
+    + (conPartido && enPartido() ? '<span class="fv-chip">Supl. Res. ' + (m && m.cambiosRestantes != null ? m.cambiosRestantes : '—') + '</span>' : '')
+    + (conPartido && D.inline ? '<label class="fv-lado">Edito <select class="fv-sel" data-onchange="fvLado(this.value)">'
       + '<option value="local"' + (D.lado === 'local' ? ' selected' : '') + '>Local</option>'
       + '<option value="visitante"' + (D.lado === 'visitante' ? ' selected' : '') + '>Visitante</option></select></label>' : '')
+    + (puedeConfigurarConexion() ? '<button type="button" class="fv-gear" data-onclick="fvConexionPanel()" aria-label="Conexión" title="Conexión" aria-expanded="' + (!!D.panelConexion) + '">' + ICONO.engranaje + '<span>Conexión</span></button>' : '')
     + '</div>'
     + '<button type="button" class="fv-cerrar" data-onclick="fvCerrar()" aria-label="Cerrar">' + ICONO.cerrar + '</button>'
     + '</div>';
-  const cuerpo = '<div class="fv-body">'
-    + conexionHTML()
-    + estadoHTML()
-    + '<div class="fv-grid">'
-      + '<div class="fv-col">' + canchaCardHTML() + swapbarHTML() + listaCardHTML() + '</div>'
-      + '<div class="fv-col"><section class="fv-card"><h3>Menú del juego</h3>' + menuHTML() + '</section>' + pedidoHTML() + rivalCardHTML() + '</div>'
-    + '</div></div>';
-  const pie = '<div class="fv-foot">'
-    + '<button type="button" class="ep-btn fv-soon-btn" data-onclick="fvAuto()" aria-disabled="true" title="El puente todavía no tiene esta operación">Alineación auto. <small>Próximamente</small></button>'
-    + '<button type="button" class="ep-btn" data-onclick="fvEsquema()" aria-expanded="' + (D.menu === 'esquema') + '">Esquema</button>'
-    + '<span class="fv-foot-sp"></span>'
-    + '<button type="button" class="ep-btn" data-onclick="fvCancelar()"' + ((D.sel != null || D.banca != null || D.cmp) ? '' : ' disabled') + '>Cancelar</button>'
-    + '<button type="button" class="ep-btn" data-onclick="fvRestablecer()"' + (D.order.length ? '' : ' disabled') + '>Restablecer</button>'
-    + '<button type="button" class="ep-btn primary" data-onclick="fvEnviar()"' + ((D.order.length && !D.aplicando) ? '' : ' disabled') + '>' + ICONO.check + (D.aplicando ? 'Enviando…' : 'Enviar al juego') + '</button>'
-    + '</div>';
-  const hoja = D.menu === 'esquema' ? hojaEsquemaHTML() : '';
+  const panel = (D.panelConexion && puedeConfigurarConexion()) ? conexionPanelHTML() : '';
+  let cuerpo, pie = '';
+  if (conPartido){
+    cuerpo = '<div class="fv-body">'
+      + panel
+      + conexionHTML()
+      + estadoHTML()
+      + '<div class="fv-grid">'
+        + '<div class="fv-col">' + canchaCardHTML() + swapbarHTML() + listaCardHTML() + '</div>'
+        + '<div class="fv-col"><section class="fv-card"><h3>Menú del juego</h3>' + menuHTML() + '</section>' + pedidoHTML() + rivalCardHTML() + '</div>'
+      + '</div></div>';
+    pie = '<div class="fv-foot">'
+      + '<button type="button" class="ep-btn fv-soon-btn" data-onclick="fvAuto()" aria-disabled="true" title="El puente todavía no tiene esta operación">Alineación auto. <small>Próximamente</small></button>'
+      + '<button type="button" class="ep-btn" data-onclick="fvEsquema()" aria-expanded="' + (D.menu === 'esquema') + '">Esquema</button>'
+      + '<span class="fv-foot-sp"></span>'
+      + '<button type="button" class="ep-btn" data-onclick="fvCancelar()"' + ((D.sel != null || D.banca != null || D.cmp) ? '' : ' disabled') + '>Cancelar</button>'
+      + '<button type="button" class="ep-btn" data-onclick="fvRestablecer()"' + (D.order.length ? '' : ' disabled') + '>Restablecer</button>'
+      + '<button type="button" class="ep-btn primary" data-onclick="fvEnviar()"' + ((D.order.length && !D.aplicando) ? '' : ' disabled') + '>' + ICONO.check + (D.aplicando ? 'Enviando…' : 'Enviar al juego') + '</button>'
+      + '</div>';
+  } else {
+    // Sin partido cargado no se dibuja cancha, lista, menú ni pedido: solo el
+    // estado claro (y el panel de conexión, si el admin lo abrió).
+    cuerpo = '<div class="fv-body fv-body-vacio">' + panel + estadoVacioHTML() + '</div>';
+  }
+  const hoja = (conPartido && D.menu === 'esquema') ? hojaEsquemaHTML() : '';
   const contenido = '<div class="fv-modal' + (D.inline ? ' fv-modal-inline' : '') + '" role="dialog" aria-label="Formación en vivo">'
     + cabecera + cuerpo + pie + hoja + '</div>';
   if (D.inline) return '<div class="ep-root fv-root fv-inline">' + contenido + '</div>';
@@ -1214,6 +1326,11 @@ function opsDe(items){
 }
 async function enviar(){
   if (D.aplicando || !D.order.length) return;
+  if (!hayPartido()){
+    msg('No hay un partido cargado en el juego.', true);
+    pintar();
+    return;
+  }
   const items = D.order.slice();
   const ops = opsDe(items);
   if (!ops.length){ msg('Esos cambios todavía no se pueden escribir en el juego.', true); pintar(); return; }
@@ -1261,86 +1378,133 @@ async function aplicar(items){
 }
 
 /* ---------- conexión ---------- */
-function claveEstado(){ return D.conexion + '|' + (D.error || '') + '|' + (D.firma || ''); }
+function claveEstado(){ return D.conexion + '|' + D.fallos + '|' + (D.error || '') + '|' + (D.firma || ''); }
 async function consultar(forzar){
   if (_consultando) return;
   _consultando = true;
   const antes = claveEstado();
   let releer = !!forzar;
   let releyo = false;
+  let respuesta = false;
   try {
     const r = await pedirJson('/estado');
     if (r.ok === false){
       D.conexion = 'sin-conexion';
       D.error = (r.errores || []).join(' · ') || 'el puente devolvió un error';
       D.st = null;
+      D.firma = null;
+      olvidarEquipos();
+      releer = false;
     } else if (r.juego === false){
       D.conexion = 'juego-cerrado';
       D.error = null;
       D.st = null;
       D.firma = null;
+      olvidarEquipos();
+      releer = false;
       if (!D.sent.length) D.autoPausa = false;
+      respuesta = true;
     } else {
-      D.conexion = 'ok';
-      D.error = null;
+      respuesta = true;
       const estado = r.estado || {};
       const firma = JSON.stringify(estado);
       const abiertaAntes = !!(D.st && D.st.alineacionAbierta);
+      const teniaEquipos = !!D.mio;
       D.st = estado;
-      if (firma !== D.firma) releer = true;
-      if (!abiertaAntes && !!estado.alineacionAbierta){
-        releer = true;
-        D.autoPausa = false;   // se abrió la alineación: vale reintentar lo enviado
+      if (estado.partidoCargado === false){
+        D.conexion = 'sin-partido';
+        D.error = null;
+        D.firma = firma;
+        if (teniaEquipos) olvidarEquipos();
+        D.releerPendiente = false;
+        releer = false;
+      } else {
+        D.conexion = 'ok';
+        D.error = null;
+        if (firma !== D.firma) releer = true;
+        if (!teniaEquipos) releer = true;   // falta la alineación: se reintenta solo
+        if (!abiertaAntes && !!estado.alineacionAbierta){
+          releer = true;
+          D.autoPausa = false;   // se abrió la alineación: vale reintentar lo enviado
+        }
+        D.firma = firma;
       }
-      D.firma = firma;
     }
   } catch(e){
     D.conexion = 'sin-conexion';
     D.error = (e && e.message) || 'no se pudo conectar con el puente';
     D.st = null;
     D.firma = null;
+    olvidarEquipos();
+    releer = false;
   } finally {
     _consultando = false;
   }
-  if (releer && !D.order.length && !D.sent.length){
-    try { await leer(); releyo = true; } catch(e){ D.error = (e && e.message) || D.error; }
-  } else if (releer){
-    D.releerPendiente = true;
+  D.fallos = respuesta ? 0 : D.fallos + 1;
+  if (D.conexion === 'ok' && releer){
+    if (!D.order.length && !D.sent.length){
+      try { await leer(); releyo = true; } catch(e){ D.error = (e && e.message) || D.error; }
+    } else {
+      D.releerPendiente = true;
+    }
   }
   // No se repinta si el sondeo no trajo nada nuevo: así no se pierde el foco ni
-  // lo que se está escribiendo en la URL del puente.
-  if (releyo || claveEstado() !== antes) pintar();
-  if (D.abierto && D.sent.length && puedeEscribir() && !D.aplicando && !D.autoPausa) await aplicar(D.sent.slice());
+  // lo que se está escribiendo en la URL del puente (panel de admin).
+  const escribiendo = D.panelConexion && focoEnCampo();
+  if ((releyo || claveEstado() !== antes) && !escribiendo) pintar();
+  if (D.abierto && hayPartido() && D.sent.length && puedeEscribir() && !D.aplicando && !D.autoPausa) await aplicar(D.sent.slice());
 }
 async function leer(forzar){
   if (!forzar && (D.order.length || D.sent.length)){ D.releerPendiente = true; return; }
   const r = await pedirJson('/leer?lado=ambos');
   if (r.ok === false) throw new Error((r.errores || []).join(' · ') || 'el puente no devolvió la alineación');
+  if (r.estado) D.st = r.estado;
+  if (r.estado && r.estado.partidoCargado === false){
+    // El juego quedó en el menú (o cambiando de equipos): no hay alineación.
+    D.conexion = 'sin-partido';
+    D.error = null;
+    olvidarEquipos();
+    D.releerPendiente = false;
+    return;
+  }
   const equipos = Array.isArray(r.equipos) ? r.equipos : [];
   const mapa = {};
   equipos.forEach(function(eq){
     const m = modeloDe(eq, eq && eq.lado);
     if (m) mapa[m.lado] = m;
   });
-  if (!Object.keys(mapa).length) throw new Error('el puente no devolvió equipos');
+  if (!Object.keys(mapa).length){
+    olvidarEquipos();
+    throw new Error('el puente no devolvió equipos');
+  }
   D.equipos = mapa;
-  if (r.estado) D.st = r.estado;
   asignarLados();
   D.releerPendiente = false;
   if (D.sel != null && D.mio && D.sel > 10) D.sel = null;
 }
+function intervalo(){
+  return D.conexion === 'sin-conexion' ? MS_RECONEXION : MS_SONDEO;
+}
+function programar(){
+  pararSondeo();
+  if (!D.abierto) return;
+  _timer = setTimeout(function(){
+    if (!D.abierto) return;
+    consultar(false).then(programar, programar);
+  }, intervalo());
+}
 function arrancarSondeo(){
   pararSondeo();
-  _timer = setInterval(function(){ consultar(false); }, MS_SONDEO);
-  consultar(true);
+  consultar(true).then(programar, programar);
 }
 function pararSondeo(){
-  if (_timer){ clearInterval(_timer); _timer = 0; }
+  if (_timer){ clearTimeout(_timer); _timer = 0; }
 }
 
 /* ---------- ciclo de vida ---------- */
 function reiniciar(){
   D.conexion = 'iniciando'; D.error = null; D.st = null; D.firma = null;
+  D.fallos = 0; D.probado = false; D.panelConexion = false;
   D.equipos = {}; D.mio = null; D.rival = null; D.lado = 'local'; D.ladoMio = 'local'; D.eleccionManual = false;
   D.capa = 'estado'; D.sel = null; D.banca = null; D.ver = null; D.cmp = null;
   D.menu = null; D.indSlot = null; D.esqSel = null; D.varSel = null;
@@ -1406,6 +1570,7 @@ function enganchar(){
   document.addEventListener('keydown', function(e){
     if (!D.abierto) return;
     if (e.key === 'Escape'){
+      if (D.panelConexion){ D.panelConexion = false; pintar(); e.preventDefault(); return; }
       if (D.menu){ D.menu = null; D.esqSel = null; D.varSel = null; pintar(); e.preventDefault(); return; }
       if (!D.inline){ cerrar(); e.preventDefault(); }
       return;
@@ -1484,7 +1649,23 @@ function fvFondoHoja(e){
   }
 }
 function fvCerrar(){ cerrar(); }
-function fvReintentar(){ D.error = null; D.firma = null; consultar(true); }
+function fvReintentar(){
+  D.error = null; D.firma = null; D.fallos = 0;
+  consultar(true).then(programar, programar);
+}
+function fvConexionPanel(){
+  if (!puedeConfigurarConexion()) return;
+  D.panelConexion = !D.panelConexion;
+  D.probado = false;
+  pintar();
+}
+function fvCerrarConexion(){ D.panelConexion = false; pintar(); }
+async function fvProbar(){
+  D.probado = true;
+  await consultar(true);
+  programar();
+  pintar();
+}
 function fvUrl(valor){
   const v = String(valor || '').trim().replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(v)){
@@ -1495,7 +1676,8 @@ function fvUrl(valor){
   D.url = v;
   try { localStorage.setItem(CLAVE_URL, v); } catch(e){}
   D.error = null; D.firma = null;
-  consultar(true);
+  D.probado = false;
+  consultar(true).then(programar, programar);
 }
 function fvPunto(el){
   if (!el || !el.dataset || D.cmp || D.arrastrado) return;
@@ -1774,6 +1956,9 @@ window.fvFondo = fvFondo;
 window.fvFondoHoja = fvFondoHoja;
 window.fvCerrar = fvCerrar;
 window.fvReintentar = fvReintentar;
+window.fvConexionPanel = fvConexionPanel;
+window.fvCerrarConexion = fvCerrarConexion;
+window.fvProbar = fvProbar;
 window.fvUrl = fvUrl;
 window.fvPunto = fvPunto;
 window.fvFila = fvFila;

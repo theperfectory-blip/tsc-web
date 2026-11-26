@@ -53,12 +53,23 @@ class TestPuente(base.Base):
         self.url = "http://127.0.0.1:%d" % self.servidor.server_address[1]
 
     def setUp(self):
-        self.arrancar(self.memoria(alineacion=1, partido=0))
+        mem = self.memoria(alineacion=1, partido=0)
+        # El partido cargado tiene los dos lados con plantel: el registro del
+        # visitante también se siembra (si no, parecería que no hay partido).
+        self.sembrar_equipo(mem, "visitante")
+        self.arrancar(mem)
 
     def tearDown(self):
         self.servidor.shutdown()
         self.servidor.server_close()
         self.hilo.join(2)
+
+    def reiniciar(self, mem, origenes=None):
+        """Cambia la memoria del puente (levanta el servidor de nuevo)."""
+        self.servidor.shutdown()
+        self.servidor.server_close()
+        self.hilo.join(2)
+        self.arrancar(mem, origenes=origenes)
 
     # -- utilidades HTTP
 
@@ -109,6 +120,52 @@ class TestPuente(base.Base):
         self.assertTrue(datos["juego"])
         self.assertEqual(datos["estado"]["momento"], "previa")
         self.assertTrue(datos["estado"]["puedeEscribir"])
+        self.assertTrue(datos["estado"]["partidoCargado"])
+
+    def test_registro_en_ceros_no_es_partido_cargado(self):
+        mem = vivo.MemoriaFalsa()
+        self.assertFalse(vivo.registro_cargado(mem, "local"))
+        self.assertFalse(vivo.registro_cargado(mem, "visitante"))
+        self.assertFalse(vivo.partido_cargado(mem))
+        self.assertFalse(vivo.estado(mem)["partidoCargado"])
+
+    def test_registro_valido_es_partido_cargado(self):
+        mem = self.memoria(alineacion=1)
+        self.assertTrue(vivo.registro_cargado(mem, "local"))
+        self.assertTrue(vivo.estado(mem)["partidoCargado"])
+
+    def test_orden_incompleto_no_es_partido_cargado(self):
+        # Orden con un índice repetido: no es una permutación de 0..31.
+        orden = list(range(32))
+        orden[5] = 4
+        mem = self.memoria(orden=orden)
+        self.assertFalse(vivo.registro_cargado(mem, "local"))
+
+    def test_sin_partido_estado_y_leer(self):
+        self.reiniciar(vivo.MemoriaFalsa())
+        estado, _cabeceras, datos = self.pedir("/estado")
+        self.assertEqual(estado, 200)
+        self.assertTrue(datos["juego"])
+        self.assertFalse(datos["estado"]["partidoCargado"])
+        self.assertFalse(datos["estado"]["puedeEscribir"])
+        estado, _cabeceras, datos = self.pedir("/leer?lado=ambos")
+        self.assertEqual(estado, 200)
+        self.assertTrue(datos["juego"])
+        self.assertFalse(datos["estado"]["partidoCargado"])
+        self.assertEqual(datos["equipos"], [])
+
+    def test_sin_partido_aplicar_no_escribe(self):
+        mem = vivo.MemoriaFalsa()
+        self.reiniciar(mem)
+        cuerpo = {"lado": "local",
+                  "ops": [{"op": "mover", "casilla": 3, "prof": 15,
+                           "lat": 40, "pos": "MP"}]}
+        estado, _cabeceras, datos = self.pedir("/aplicar", metodo="POST", cuerpo=cuerpo)
+        self.assertEqual(estado, 200)
+        self.assertFalse(datos["ok"])
+        self.assertIn("No hay un partido cargado en el juego", datos["errores"])
+        self.assertEqual(datos["escrito"], [])
+        self.assertEqual(mem.escrituras, [])
 
     def test_estado_sin_juego(self):
         self.servidor.shutdown()

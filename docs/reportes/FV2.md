@@ -180,3 +180,68 @@ la PC). No hay nada que configurar en el cliente.
   una pasada a mano en el teléfono.
 - El puente todavía no expone los bloques A/B (Config. rápida) ni una op de
   «Alineación auto.».
+
+## FV3 · «En vivo» sin partido cargado — 2026-11-26
+
+Estado: **LISTO** en la rama `feat/formacion-vivo`. Sin commits ni deploy.
+
+### Qué se hizo
+
+- **Puente** (`tools/pes5/pes5_vivo.py`, `tools/pes5/live-bridge.py`):
+  - `registro_cargado(mem, lado)` valida que el orden sea una permutación de
+    0..31 y que el plantel tenga al menos 11 ids distintos de 0;
+    `partido_cargado(mem)` devuelve verdadero si cualquiera de los dos lados
+    tiene un partido cargado.
+  - `estado()` agrega `partidoCargado` (también lo devuelven `/estado` y
+    `/leer`).
+  - Con `partidoCargado: false`, `/leer` devuelve `equipos: []` y
+    `POST /aplicar` responde `ok: false` con «No hay un partido cargado en el
+    juego» **sin escribir ningún byte**.
+  - Pruebas: registro en ceros → `false`; registro válido → `true`; orden con
+    un índice repetido → `false`; `/estado` y `/leer` sin partido; `/aplicar`
+    sin partido no escribe. `test_live_bridge.py` pasa de 13 a 18 pruebas.
+- **Página** (`tsc-src/js/formacion-vivo.js`, `tsc-src/css/formacion-vivo.css`):
+  - Cuatro estados vacíos con ícono Lucide, sin cancha, lista, menú, pedido ni
+    chip «En vivo»: sin conexión («No hay conexión con el juego · En el PC del
+    juego tiene que estar corriendo el puente»), PES5 cerrado, PES5 abierto sin
+    partido («Elige los equipos y entra a la pantalla de alineación») y
+    conectando/leyendo.
+  - La URL del puente ya no está en la vista normal. Un botón de engranaje
+    **Conexión** (solo rol admin) abre un panel con la URL y **Probar**, que
+    muestra si el puente responde, si PES5 está cerrado o si no hay partido.
+  - Reconexión automática: si el puente no responde, el sondeo pasa a cada 3 s
+    con el aviso discreto «Reconectando…»; **Reintentar ahora** aparece recién
+    después de 3 fallos seguidos y se resetea al volver la conexión.
+  - Al perder el partido (menú, cierre del juego, corte del puente) se olvidan
+    equipos y selección, y el panel vuelve solo al estado vacío. Al volver el
+    partido se relee la alineación sin intervención.
+
+### Comprobaciones FV3
+
+- `python -I tools/pes5/test_pes5_vivo.py`: **97 OK**.
+- `python -I tools/pes5/test_live_bridge.py`: **18 OK**.
+- `node --check tsc-src/js/formacion-vivo.js`: **OK**.
+- `node scripts/audit-wiring.mjs`: **rotos 0** (0 no definidas, 0 sin window).
+- `node scripts/build-web.mjs` + `node scripts/smoke-parity.mjs`:
+  **PARIDAD: OK**.
+- `node scripts/csp.mjs --check`: **OK** (sin cambios de CSP).
+- **Lecturas contra el juego real** (PES5 abierto, pantalla de alineación en
+  previa, solo `GET`): `/estado` → `partidoCargado: true`; `/leer?lado=ambos` →
+  2 equipos, 11 slots y 32 ids por lado. No se hizo ninguna escritura.
+- Arnés temporal fuera del repo (`DOM` simulado y respuestas falsas del
+  puente), 7 escenarios en verde: sin conexión (URL oculta y sin engranaje para
+  el presidente), juego cerrado, juego abierto sin partido, con partido (chip,
+  cancha, lista, menú y pedido), admin (engranaje y panel con URL y «Probar»),
+  tres fallos («Reintentar ahora») y reconexión sola a los 3 s.
+
+### Pendientes
+
+- `docs/reportes/MS-2.3-cableado.md` se regeneró al correr el auditor (fecha y
+  números de línea; ya venía desactualizado desde FV2).
+- Un puente que ya estaba corriendo antes de FV3 sigue con el código viejo (no
+  devuelve `partidoCargado`): hay que reiniciarlo para que la web muestre los
+  estados nuevos.
+- Si PES5 está abierto, solo se probaron lecturas (`GET /estado`, `GET /leer`)
+  contra el juego real; el resto se validó con `MemoriaFalsa`.
+- El panel de conexión repinta con el sondeo salvo mientras el foco está en el
+  campo de la URL, para no perder lo que se escribe.

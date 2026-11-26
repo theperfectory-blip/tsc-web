@@ -81,6 +81,11 @@ IND_PARTIDO = 0xD8CCEA       # 1 = desde el saque inicial
 IND_PAUSA = 0xD8CD16         # 1 = menú de pausa / alineación dentro de la pausa
 IND_BALON = 0x100541C        # 1 = balón en juego
 
+# Un partido cargado tiene el plantel con sus ids (al menos 11 distintos de 0,
+# el mínimo para una alineación); por debajo, el registro todavía no es una
+# alineación real (menú principal, selección de equipos a medio cargar).
+MINIMO_IDS_CARGADOS = 11
+
 # Estado (flecha de condición) por índice de plantel: 32 bytes relativos a rec.
 # 0 roja, 1 naranja, 2 verde, 3 azul, 4 gris. La copia de rec+1302 la mantiene
 # el juego; para leer se usa la principal (rec-1678).
@@ -356,6 +361,29 @@ def campo_de(nombre, bloque="principal"):
 # ------------------------------------------------------------------ estado
 
 
+def registro_cargado(mem, lado):
+    """True si el registro del lado parece un partido cargado.
+
+    Con PES5 en el menú principal (sin partido) el registro está en ceros: el
+    orden no es una permutación de 0..31 y los ids del plantel son todos 0. Un
+    partido cargado deja el orden completo (cada índice de plantel en una sola
+    casilla) y el plantel con sus ids.
+    """
+    rec = rec_de(lado)
+    # 32 bytes de orden (rec+4) + 32 u16 de ids (rec+36): 96 en total.
+    buf = mem.leer(rec + REL_ORDEN, 96)
+    orden = list(buf[0:32])
+    if sorted(orden) != list(range(32)):
+        return False
+    ids = [u16(buf, 32 + 2 * k) for k in range(32)]
+    return len({ident for ident in ids if ident}) >= MINIMO_IDS_CARGADOS
+
+
+def partido_cargado(mem):
+    """True si al menos un lado tiene un partido cargado."""
+    return any(registro_cargado(mem, lado) for lado in ("local", "visitante"))
+
+
 def estado(mem):
     """Devuelve en qué momento está el juego.
 
@@ -366,6 +394,10 @@ def estado(mem):
       - ``jugando``: partido empezado, balón en juego y sin pantalla de alineación.
       - ``menu``: cualquier otro caso (menú principal, menú de pausa sin la
         pantalla de alineación, entretiempo con la pantalla cerrada...).
+
+    ``partidoCargado`` es falso mientras el juego no tenga un partido cargado
+    (menú principal, selección de equipos): en ese momento el registro no
+    tiene una alineación real y ``/leer`` no devuelve equipos.
     """
     alineacion = _byte(mem, IND_ALINEACION)
     partido = _byte(mem, IND_PARTIDO)
@@ -392,6 +424,7 @@ def estado(mem):
         "balonEnJuego": balon,
         "momento": momento,
         "puedeEscribir": abierta,
+        "partidoCargado": partido_cargado(mem),
     }
 
 

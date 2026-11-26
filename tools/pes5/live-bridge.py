@@ -4,10 +4,11 @@
 
 Expone tres endpoints en ``http://127.0.0.1:<puerto>`` (8765 por defecto):
 
-- ``GET /estado``: en qué momento está el juego.
+- ``GET /estado``: en qué momento está el juego (y si hay un partido cargado).
 - ``GET /leer?lado=local|visitante|ambos``: alineación decodificada, condición
-  y resistencia de cada jugador.
-- ``POST /aplicar``: valida y aplica operaciones (todo o nada).
+  y resistencia de cada jugador. Sin partido cargado devuelve ``equipos: []``.
+- ``POST /aplicar``: valida y aplica operaciones (todo o nada). Sin partido
+  cargado responde error sin escribir nada.
 
 El contrato completo está en ``tareas/API_PUENTE.md``. El puente solo escucha
 en 127.0.0.1, exige que el origen esté en ``--origenes`` y nunca escribe
@@ -176,8 +177,10 @@ class Puente(object):
                     st = vivo.estado(mem)
                     self._sincronizar_resistencia(st["partidoEmpezado"])
                     lados = ("local", "visitante") if lado == "ambos" else (lado,)
-                    equipos = [equipo_contrato(vivo.leer_equipo(mem, nombre, self._maximos))
-                               for nombre in lados]
+                    equipos = []
+                    if st["partidoCargado"]:
+                        equipos = [equipo_contrato(vivo.leer_equipo(mem, nombre, self._maximos))
+                                   for nombre in lados if vivo.registro_cargado(mem, nombre)]
                     return {"ok": True, "juego": True, "estado": st, "equipos": equipos}
             except (LookupError, RuntimeError):
                 return {"ok": True, "juego": False}
@@ -186,6 +189,12 @@ class Puente(object):
         with self._cerrojo:
             try:
                 with self._abrir() as mem:
+                    if not vivo.partido_cargado(mem):
+                        # Sin partido cargado no hay alineación que escribir: se
+                        # responde error y no se toca ni un byte.
+                        return {"ok": False, "juego": True, "cerrada": False,
+                                "errores": ["No hay un partido cargado en el juego"],
+                                "estado": vivo.estado(mem), "escrito": [], "salieron": []}
                     return vivo.aplicar(mem, lado, ops, salieron=salieron)
             except (LookupError, RuntimeError):
                 return {"ok": False, "juego": False, "cerrada": True, "escrito": [],

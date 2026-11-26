@@ -9,7 +9,7 @@ agente (sin Firestore): los pedidos de los presidentes llegarán después.
 - CLI: `tools/pes5/live-agent.py`.
 - Puente HTTP local: `tools/pes5/live-bridge.py` (ver [Puente local](#puente-local)).
 - Pruebas: `tools/pes5/test_pes5_vivo.py` (97) y `tools/pes5/test_live_bridge.py`
-  (13), sin juego.
+  (18), sin juego.
 - Mapa de referencia: [MAPA_ALINEACION_VIVO.md](MAPA_ALINEACION_VIVO.md).
 - Hallazgos del coordinador: `HALLAZGOS.md` (scratchpad de la sesión).
 
@@ -33,6 +33,11 @@ empezado y en pausa con la pantalla de alineación abierta):
 | `intercambiar` las casillas 7 y 8 (Feulner y Streit) | Las marcas de córner y tiro libre siguieron a Feulner a la casilla 8, pero `rec+106..109` se quedaron en **7**: el byte es el índice de Feulner, no la casilla |
 | `intercambiar` válido con capitán y penal ya en 11 | VIVO2 lo rechazaba por compararlos con casillas 0–10; desde VIVO3 un lote que no los escribe no los valida |
 
+FV3 (2026-11-26, solo lecturas): con PES5 abierto en la previa y la pantalla de
+alineación abierta, `GET /estado` devolvió `partidoCargado: true` y
+`GET /leer?lado=ambos` los dos equipos con 11 slots y 32 ids por lado. No se
+escribió nada.
+
 **Fallo detectado:** escribir `sistemaDefensivo = 1` (Líbero) solo, con el
 líbero (`rec+277`) en 0, dejó al **arquero** (casilla 0) como líbero. Desde el
 menú del juego, al elegir Líbero solo se puede elegir un titular con posición
@@ -55,7 +60,7 @@ Cuatro bytes fijos (direcciones absolutas, estables entre reinicios):
 segundo queda en 1 al terminar un partido).
 
 `estado(mem)` devuelve `{alineacionAbierta, partidoEmpezado, pausa,
-balonEnJuego, momento, puedeEscribir}`:
+balonEnJuego, momento, puedeEscribir, partidoCargado}`:
 
 | `momento` | Condición |
 |---|---|
@@ -68,6 +73,22 @@ balonEnJuego, momento, puedeEscribir}`:
 `puedeEscribir` es exactamente `alineacionAbierta`. Los valores de los
 indicadores se devuelven tal cual se leen (0/1 normalmente); el agente decide
 con «distinto de 0».
+
+### ¿Hay un partido cargado?
+
+Con PES5 abierto pero sin partido (menú principal, selección de equipos) el
+registro está en ceros y no hay una alineación real. `partido_cargado(mem)` (y
+`registro_cargado(mem, lado)`) mira, sin escribir nada:
+
+- el **orden** del registro (`rec+4`, 32 bytes) tiene que ser una permutación
+  exacta de `0..31` (cada índice de plantel en una sola casilla);
+- el **plantel** (`rec+36`, 32 u16) tiene que tener al menos
+  `MINIMO_IDS_CARGADOS` (11) ids distintos de 0.
+
+`estado(mem)` devuelve el resultado en `partidoCargado` (verdadero si
+cualquiera de los dos lados tiene un partido cargado). El puente lo usa para
+devolver `equipos: []` en `/leer` y para rechazar `/aplicar` sin escribir un
+solo byte.
 
 ## Regla de escritura: solo con la alineación abierta
 
@@ -409,9 +430,9 @@ lecturas, no para escribir. `--help` lista todo.
 
 | Método y ruta | Respuesta |
 |---|---|
-| `GET /estado` | `{ok, juego, estado}`. Si PES5 no está abierto: `{ok: true, juego: false}`. `estado` es `{alineacionAbierta, partidoEmpezado, pausa, balonEnJuego, momento, puedeEscribir}`. |
-| `GET /leer?lado=local\|visitante\|ambos` | `{ok, juego, estado, equipos: [EQUIPO]}`. Sin `lado` usa `ambos`. |
-| `POST /aplicar` | `{ok, cerrada, errores, escrito, …}` (lo que devuelve `pes5_vivo.aplicar`). |
+| `GET /estado` | `{ok, juego, estado}`. Si PES5 no está abierto: `{ok: true, juego: false}`. `estado` es `{alineacionAbierta, partidoEmpezado, pausa, balonEnJuego, momento, puedeEscribir, partidoCargado}`. |
+| `GET /leer?lado=local\|visitante\|ambos` | `{ok, juego, estado, equipos: [EQUIPO]}`. Sin `lado` usa `ambos`. Con `partidoCargado: false` devuelve `equipos: []`. |
+| `POST /aplicar` | `{ok, cerrada, errores, escrito, …}` (lo que devuelve `pes5_vivo.aplicar`). Sin partido cargado: error «No hay un partido cargado en el juego» y no escribe nada. |
 
 `EQUIPO` (contrato completo en `tareas/API_PUENTE.md`):
 
@@ -585,6 +606,13 @@ python -m unittest tools/pes5/test_pes5_vivo.py -v
     lista exacta: un `Origin` no permitido recibe 403; sin `Origin` (curl) se
     acepta. `POST /aplicar` devuelve 200 si el JSON es válido aunque la
     validación falle, y 400 si el cuerpo no es JSON o no trae `lado`/`ops`.
+19. **Sin partido cargado no hay alineación (FV3).** Un registro con el orden
+    en ceros o el plantel vacío es el menú principal, no una alineación: el
+    orden tiene que ser una permutación de 0..31 y el plantel tener al menos 11
+    ids distintos de 0. `/leer` devuelve `equipos: []` y `/aplicar` responde
+    error sin escribir. La web usa `partidoCargado` para mostrar los estados
+    «PES5 está cerrado» / «PES5 está abierto, pero no hay un partido cargado»
+    sin dibujar una cancha inventada.
 
 ## Pendiente de verificar en el juego
 
