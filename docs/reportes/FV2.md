@@ -338,3 +338,49 @@ reporte; no se tocó el puente ni las flechas de ataque (quedan para FV6).
   archivos fuera de la tarea.
 - El arnés no simula gestos de puntero: el arrastre en solo lectura y en
   edición conviene verlo a mano en el teléfono.
+
+## FV6 · Flechas de ataque: rotar la cruz del juego a la cancha — 2026-11-26
+
+Estado: **LISTO** en la rama `feat/formacion-vivo`. Sin commits ni deploy. Solo
+`tsc-src/js/formacion-vivo.js` y este reporte; no hizo falta CSS.
+
+### Qué se hizo
+
+- **Conversión única cruz → cancha**. La tabla `VECTOR`, que se leía como
+  direcciones de la pantalla, pasó a `CRUZ`: el vector de cada flecha en la
+  cruz del juego, relativa al jugador y con la misma orientación del selector
+  de Config. individual (`arriba` = 0,−1 = avanzar; `dcha` = 1,0).
+  `vectorCancha(px, py, v)` la lleva a la cancha: horizontal (ataque a la
+  derecha, banda izquierda arriba) `dx = −py, dy = px`; vertical (teléfono,
+  ataque hacia arriba) sin cambio. La capa Ataque (`capaHTML`) la usa para los
+  11 slots, arquero incluido.
+- **Selector igual que el juego**. La brújula de Config. individual no cambió;
+  debajo va el texto chico «↑ = hacia el arco rival. La cancha gira la cruz a
+  su vista: en horizontal, la banda izquierda queda arriba.». La vista previa
+  (capa Ataque de la cancha) usa la conversión.
+- **Defensa sin cambios**. La flecha de actitud sigue apuntando al arco propio
+  (izquierda en horizontal, abajo en vertical) con `rotar(−1, 0, v)`, que ahora
+  queda documentado como giro de vectores ya expresados en la cancha.
+
+### Comprobaciones FV6
+
+- `node --check tsc-src/js/formacion-vivo.js`: **OK**.
+- `node scripts/audit-wiring.mjs`: **rotos 0**.
+- `node scripts/build-web.mjs` + `node scripts/smoke-parity.mjs`:
+  **PARIDAD: OK**.
+- **Arnés temporal** (fuera del repo, borrado al terminar) que extrae del
+  archivo real `CRUZ`, `vectorCancha`, `rotar` y `flechaHTML`: **23
+  comprobaciones en verde**. Casos: DI con `arriba` + `abajo` en horizontal →
+  → ← (0° y 180°); CT con `izq` en horizontal → hacia arriba (−90°); `dcha` →
+  abajo; diagonales; vertical sin cambio (arriba, abajo, izq y dcha); defensa
+  horizontal izquierda y vertical abajo; el SVG sale con el ángulo convertido;
+  `capaHTML` usa `CRUZ` + `vectorCancha`, no queda `VECTOR[]`, Defensa conserva
+  `rotar(−1, 0, v)` y el texto del selector está en el archivo.
+
+### Pendientes FV6
+
+- Verlo a ojo en la Tool con el juego abierto (capa Ataque, escritorio y
+  teléfono). El arnés no dibuja el DOM real.
+- El auditor regenera `docs/reportes/MS-2.3-cableado.md` (fecha y números de
+  línea). Ya venía modificado en la rama y quedó regenerado con el estado
+  actual; no se editó a mano.

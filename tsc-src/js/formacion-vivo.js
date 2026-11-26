@@ -56,8 +56,11 @@ const BRUJULA = [
   ['izq', 'M19 12H5M12 19l-7-7 7-7'], null, ['dcha', 'M5 12h14M12 5l7 7-7 7'],
   ['abajo-izq', 'M17 7 7 17M16 17H7V8'], ['abajo', 'M12 5v14M19 12l-7 7-7-7'], ['abajo-dcha', 'M7 7l10 10M17 8v9H8'],
 ];
-/* Vector de cada dirección en la cancha horizontal (x = profundidad). */
-const VECTOR = {
+/* Vector de cada flecha en la CRUZ del juego: es relativa al jugador, como el
+   selector de Config. individual. «arriba» = avanzar hacia el arco rival,
+   «abajo» = retroceder, «izq»/«dcha» = hacia su banda izquierda/derecha.
+   La cancha no usa estos vectores directamente: pasan por vectorCancha(). */
+const CRUZ = {
   'izq': [-1, 0], 'arriba-izq': [-1, -1], 'arriba': [0, -1], 'arriba-dcha': [1, -1],
   'dcha': [1, 0], 'abajo-dcha': [1, 1], 'abajo': [0, 1], 'abajo-izq': [-1, 1],
 };
@@ -699,6 +702,14 @@ function canchaHTML(m, opciones){
     clase: o.mini ? 'fv-mini' : '', alto: o.alto,
   });
 }
+/* Flecha de la cruz del juego -> vector de la cancha. Vertical (teléfono,
+   ataque hacia arriba): la cruz coincide. Horizontal (ataque a la derecha,
+   banda izquierda arriba): la cruz gira 90°, dx = -py, dy = px. Así «arriba»
+   (avanzar) sale a la derecha, «abajo» a la izquierda e «izq»/«dcha» hacia
+   arriba/abajo. */
+function vectorCancha(px, py, v){ return v ? [px, py] : [-py, px]; }
+/* Vector expresado ya en la cancha horizontal -> cancha vertical (giro de
+   90°). Solo para vectores de la cancha, como la flecha defensiva. */
 function rotar(dx, dy, v){ return v ? [dy, -dx] : [dx, dy]; }
 function flechaHTML(dx, dy, color, len, largo){
   const ang = Math.atan2(dy, dx) * 180 / Math.PI;
@@ -718,12 +729,13 @@ function capaHTML(m, v){
     const x = u.pctX(s.x, s.y, v), y = u.pctY(s.x, s.y, v);
     const pos = 'left:' + x + '%;top:' + y + '%';
     if (c === 'ataque') (s.flechas || []).forEach(function(f){
-      const d = VECTOR[f]; if (!d) return;
-      const r = rotar(d[0], d[1], v);
+      const d = CRUZ[f]; if (!d) return;
+      const r = vectorCancha(d[0], d[1], v);
       h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], '#FFFFFF', 13) + '</span>';
     });
     if (c === 'defensa'){
       // FV5: también el arquero tiene su flecha defensiva (Normal = celeste).
+      // FV6: apunta al arco propio: izquierda en horizontal, abajo en vertical.
       const act = Math.max(0, Math.min(2, num(s.act) == null ? 1 : num(s.act)));
       const r = rotar(-1, 0, v);
       h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[act], 0, Math.round(ACT_LARGO[act] * (v ? 0.6 : 1))) + '</span>';
@@ -1033,7 +1045,8 @@ function individualHTML(){
       const on = (s.flechas || []).indexOf(d[0]) >= 0;
       return '<button type="button" class="' + (on ? 'on' : '') + '" data-onclick="fvFlecha(this)" data-dir="' + d[0] + '" aria-pressed="' + on + '" aria-label="Flecha ' + escA(FLECHA_TXT[d[0]] || d[0]) + '"><svg viewBox="0 0 24 24"><path d="' + d[1] + '"/></svg></button>';
     }).join('');
-    h += '<div class="ep-form-grp">Flechas de ataque (hasta 2)</div><div class="fv-compass">' + compas + '</div>';
+    h += '<div class="ep-form-grp">Flechas de ataque (hasta 2)</div><div class="fv-compass">' + compas + '</div>'
+      + '<p class="fv-hint">↑ = hacia el arco rival. La cancha gira la cruz a su vista: en horizontal, la banda izquierda queda arriba.</p>';
     h += cicloHTML('Actitud defensiva', ACTITUD, s.act || 0, 'ind', 'act');
     h += cicloHTML('Marcaje', MARCAJE, s.mark || 0, 'ind', 'mark');
     if ((s.mark || 0) >= 2){
