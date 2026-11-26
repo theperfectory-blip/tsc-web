@@ -56,6 +56,38 @@ function _coinsAmount(raw){
 }
 const _COINS_AMOUNT_MSG = `La cantidad debe ser un número entero entre 1 y ${COINS_MAX.toLocaleString('es-CL')}`;
 
+/* ----------------------------------------------------------
+   YCORDEN · orden de los equipos en YuNaCoins
+   ----------------------------------------------------------
+   Arriba los activos, alfabético por nombre (localeCompare en español, sin
+   distinguir mayúsculas ni tildes); abajo los inactivos, por ID. Un equipo
+   sin `status` cuenta como activo (mismo criterio que teams.js y bracket.js).
+   Devuelve los dos grupos ya ordenados para que cada lista decida cómo
+   pintarlos: quien se ordena a propósito por otra columna (el ranking de
+   saldos) re-ordena cada grupo, pero los inactivos siguen al final.
+   ---------------------------------------------------------- */
+function _coinsEquipoActivo(t){
+  return ((t && t.status) || 'ACTIVO') === 'ACTIVO';
+}
+function _coinsEquipoNombre(t){
+  return String((t && t.name) || '');
+}
+function _coinsEquipoId(t){
+  return Number(t && t.id) || 0;
+}
+function ordenarEquiposActivosPrimero(teams){
+  const activos = [];
+  const inactivos = [];
+  (Array.isArray(teams) ? teams : []).forEach(t=>{
+    if(!t) return;
+    (_coinsEquipoActivo(t) ? activos : inactivos).push(t);
+  });
+  activos.sort((a,b)=>_coinsEquipoNombre(a).localeCompare(_coinsEquipoNombre(b),'es',{sensitivity:'base',numeric:true})
+    || _coinsEquipoId(a)-_coinsEquipoId(b));
+  inactivos.sort((a,b)=>_coinsEquipoId(a)-_coinsEquipoId(b));
+  return { activos, inactivos, todos: activos.concat(inactivos) };
+}
+
 async function renderAdmCoins(){
   const el = document.getElementById('adm-coins-content');
   const teams = await dbGetAll('teams');
@@ -97,8 +129,13 @@ async function renderAdmCoins(){
 function renderCoinsTable(teams, maxCoins){
   const tbody = document.getElementById('coins-tbody');
   if(!tbody) return;
-  const sorted = [...teams].sort((a,b)=>(b.yunacoin||0)-(a.yunacoin||0));
-  tbody.innerHTML = sorted.map(t=>{
+  // YCORDEN: activos primero y, dentro de cada grupo, el ranking por saldo.
+  // Los inactivos van al final, después de la fila separadora.
+  const { activos, inactivos } = ordenarEquiposActivosPrimero(teams);
+  const porSaldo = (a,b)=>(b.yunacoin||0)-(a.yunacoin||0);
+  activos.sort(porSaldo);
+  inactivos.sort(porSaldo);
+  const filaHTML = t=>{
     const coins = t.yunacoin||0;
     const pct   = maxCoins>0 ? Math.round((coins/maxCoins)*100) : 0;
     return `<tr>
@@ -120,7 +157,15 @@ function renderCoinsTable(teams, maxCoins){
         <button class="btn btn-xs" data-onclick="openCoinsHistory(${t.id})"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></button>
       </div></td>
     </tr>`;
-  }).join('');
+  };
+  const sepInactivos = `<tr><td colspan="6" style="padding:9px 10px;background:var(--card2);border-top:1px solid var(--brd2);border-bottom:1px solid var(--brd);font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt3);">Inactivos</td></tr>`;
+  if(!activos.length && !inactivos.length){
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--txt3);">No hay equipos.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML =
+    activos.map(filaHTML).join('') +
+    (inactivos.length ? sepInactivos + inactivos.map(filaHTML).join('') : '');
 }
 
 async function filterCoinsTable(){
