@@ -245,3 +245,96 @@ Estado: **LISTO** en la rama `feat/formacion-vivo`. Sin commits ni deploy.
   contra el juego real; el resto se validó con `MemoriaFalsa`.
 - El panel de conexión repinta con el sondeo salvo mientras el foco está en el
   campo de la URL, para no perder lo que se escribe.
+
+## FV5 · Dibujar siempre a los 11, nombres de cualquier TSC, flecha del arquero y pedido sin repetidos — 2026-11-26
+
+Estado: **LISTO** en la rama `feat/formacion-vivo`. Sin commits ni deploy. Solo
+`tsc-src/js/formacion-vivo.js`, `tsc-src/css/formacion-vivo.css` y este
+reporte; no se tocó el puente ni las flechas de ataque (quedan para FV6).
+
+### Qué se hizo
+
+- **Los 11 siempre en la cancha y en la lista**. `modeloDe` arma las 11
+  casillas con `slots` del contrato o, si falta alguna, con `titulares` o los
+  campos sueltos del registro; ninguna casilla se descarta por no tener nombre
+  ni por no ser del plantel del presidente. El id del slot se completa desde
+  `ids` por el índice de plantel si el puente no lo manda. `act` y `mark` se
+  acotan a sus rangos (0..2 y 0..3). El esquema sigue saliendo de las siglas de
+  los 11 slots (`esquemaTexto`).
+- **Nombres de cualquier TSC**. `cargarNombres()` reúne, por registro (u16), los
+  jugadores de: (1) el plantel que ya tiene el editor (`MEJORAS_EDITOR.vivo`,
+  equipo del presidente en `mejoras.html` y equipo abierto en la Tool), (2) el
+  documento `pes5_plantillas/{teamId}` del usuario y (3) **toda** la colección
+  `pes5_plantillas` (la misma fuente que usa la Tool). Se busca al jugador del
+  juego en ese mapa; si no aparece, la lista y la cancha muestran
+  «Jugador #id». Con jugador encontrado se usan sus stats para la comparación
+  SALE/ENTRA; con el fallback (sin stats) la comparación se oculta y el cambio
+  sigue funcionando.
+- **Edición según rol**. `puedeEditar()` deja editar al admin siempre y al
+  presidente solo cuando el lado que se ve es el suyo: al menos 5 de los 11
+  titulares del lado están en su plantel publicado (así tolera un plantel
+  desactualizado sin confundir el equipo). Si no es su equipo (o no hay sesión
+  de presidente), el panel queda en solo lectura: aviso «Este partido no es de
+  tu equipo», puntos sin botón ni arrastre, lista sin tocar, sin menú, sin
+  pedido y sin pie de edición; el chip de estado pasa a «Solo lectura». El admin
+  conserva el selector Local/Visitante de la Tool y edita los dos lados. Todos
+  los handlers de edición (`fvPunto`, `fvFila`, `fvCiclo`, `fvFlecha`,
+  `fvEnviar`, etc.) comprueban el rol además de la UI.
+- **Flecha defensiva del arquero**: la capa Defensa dibuja también la casilla 0,
+  con la regla Alto azul larga / Normal celeste mediana / Bajo blanca corta.
+  Las flechas de ataque no se tocaron.
+- **Pedido sin repetidos**. Cada línea lleva una clave: `mover:casilla`,
+  `flechas:casilla`, `ind:casilla:campo`, `rival:casilla`, `ajuste:campo`,
+  `libero`, `modo`, `estrategia:k`, `lanzador:rol` o `esquema`. Si la clave se
+  repite, la línea se reemplaza **en su mismo lugar** con el último valor y
+  conserva el «Deshacer» de antes del primer cambio; si el último valor vuelve
+  al original, la línea desaparece y se restaura ese estado. Intercambios y
+  cambios de jugador no llevan clave y se listan uno a uno. Aplicar una
+  variante descarta las líneas individuales de posición/flechas/actitud que esa
+  variante ya reescribió. El `POST /aplicar` manda una sola op por dato (la
+  última; las 8 flechas de un jugador son 8 datos distintos y viajan las 8), y
+  al aplicar se limpian también las líneas viejas «en espera» de la misma
+  clave.
+- **CSS**: chip `ro`, tarjeta del aviso de solo lectura y puntos de cancha de
+  solo lectura (sin cursor ni eventos). Todo con las variables del proyecto.
+
+### Comprobaciones FV5
+
+- `node --check tsc-src/js/formacion-vivo.js`: **OK**.
+- `node scripts/audit-wiring.mjs`: **rotos 0** (no definidas 0 · sin window 0).
+- `node scripts/build-web.mjs` + `node scripts/smoke-parity.mjs`:
+  **PARIDAD: OK**.
+- `node scripts/csp.mjs --check`: **firebase.json OK**.
+- **Arnés temporal** (fuera del repo, `_cmp/`, borrado al terminar) con DOM,
+  plantillas y puente falsos: **24 comprobaciones en verde**. Cubre: aviso y
+  solo lectura cuando el partido no es del equipo; 11 puntos; esquema 4-4-2;
+  nombres de otro TSC por id; «Jugador #id» cuando no hay plantel; 11 flechas
+  defensivas (arquero celeste mediana); edición con el partido propio; nombres
+  propios; Normal → Bajo → Normal → Bajo deja **una** línea con el último
+  valor; al volver al original la línea desaparece; «Deshacer» devuelve al
+  estado previo al primer cambio; dos campos distintos conviven y el mismo
+  campo se reemplaza en su lugar; el `POST /aplicar` lleva una sola op de la
+  actitud y una sola del nivel (la última).
+- **Puente real, solo lectura** (PES5 abierto, previa, Junior vs otro equipo):
+  `GET /estado` → `partidoCargado: true`; `GET /leer?lado=ambos` → 2 equipos,
+  11 slots con `pos`/`prof`/`lat` (local empieza en el id 300). La página
+  cargada contra `http://127.0.0.1:8765` dibujó **11 puntos**, esquema
+  **4-3-3**, 32 filas y «Jugador #300» (sin plantel legible en esa prueba), con
+  el aviso de solo lectura y sin pedido ni pie. No se hizo ningún `POST`.
+
+### Pendientes / a revisar por el coordinador
+
+- **Planteles ajenos y reglas de Firestore**: `firebase/firestore.rules` deja
+  que un presidente lea **solo** `pes5_plantillas/{suTeamId}`; un `get()` de la
+  colección completa se rechaza (y se verificó que las reglas publicadas son
+  iguales al repo con `rules-drift`). Por eso el código pide siempre la
+  colección completa, pero en una sesión de presidente el nombre de otros
+  equipos TSC sigue cayendo en «Jugador #id» (el admin sí ve todos desde la
+  Tool). Para que el presidente vea esos nombres hace falta ampliar esa regla
+  (o publicar una copia pública de las plantillas), que queda fuera de los
+  archivos de esta tarea.
+- El auditor regenera `docs/reportes/MS-2.3-cableado.md` al correrlo (fecha y
+  números de línea); esta vez se dejó como estaba en `HEAD` para no tocar
+  archivos fuera de la tarea.
+- El arnés no simula gestos de puntero: el arrastre en solo lectura y en
+  edición conviene verlo a mano en el teléfono.

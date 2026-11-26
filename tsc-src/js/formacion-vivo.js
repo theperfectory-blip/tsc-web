@@ -225,6 +225,41 @@ function hayPartido(){
 function esAdmin(){
   return typeof AUTH !== 'undefined' && !!AUTH && AUTH.role === 'admin';
 }
+function esPresidente(){
+  return typeof AUTH !== 'undefined' && !!AUTH && AUTH.role === 'president';
+}
+function esLogueado(){
+  return typeof AUTH !== 'undefined' && !!AUTH && !!AUTH.user;
+}
+/* Jugadores del lado que están en el plantel publicado del usuario. Se mira
+   sobre los 11 titulares: con 5 o más el lado es el suyo (el plantel del
+   presidente puede estar desactualizado y faltar algún titular, pero no la
+   mitad del equipo). */
+function idDeCasilla(m, casilla){
+  const s = m && m.slots ? m.slots[casilla] : null;
+  if (s && s.id != null) return num(s.id);
+  const idx = (m && m.orden) ? m.orden[casilla] : null;
+  return (m && m.ids && idx != null && m.ids[idx] != null) ? num(m.ids[idx]) : null;
+}
+function jugadoresPropiosDe(m){
+  if (!m || !D.registrosPropios || !D.registrosPropios.size) return 0;
+  let n = 0;
+  for (let i = 0; i < 11; i++){
+    const id = idDeCasilla(m, i);
+    if (id != null && D.registrosPropios.has(id)) n++;
+  }
+  return n;
+}
+function esMiEquipo(m){
+  return jugadoresPropiosDe(m) >= 5;
+}
+/* El admin edita los dos lados. El presidente, solo el lado que coincide con
+   su plantel publicado; cualquier otro caso queda en solo lectura. */
+function puedeEditar(){
+  if (!hayPartido()) return false;
+  if (esAdmin()) return true;
+  return esPresidente() && esMiEquipo(D.mio);
+}
 /* El panel de conexión (URL del puente) es solo para admin. */
 function puedeConfigurarConexion(){
   return esAdmin();
@@ -309,9 +344,16 @@ function modeloDe(eq, lado){
   if (Array.isArray(eq.orden) && eq.orden.length >= 32){
     for (let i = 0; i < 32; i++) orden.push(num(eq.orden[i]) || 0);
   }
-  const crudos = Array.isArray(eq.slots) && eq.slots.length
-    ? eq.slots.slice(0, 11)
-    : (Array.isArray(eq.titulares) ? eq.titulares.slice(0, 11) : []);
+  /* FV5: las 11 casillas siempre salen del puente. Se acepta `slots` (forma
+     del contrato) o `titulares` (forma cruda) y, si falta alguna, se completa
+     con la otra lista o con los campos sueltos del registro: nunca se descarta
+     una casilla por no tener nombre ni por no ser del plantel del presidente. */
+  const crudos = [];
+  for (let i = 0; i < 11; i++){
+    const deSlot = Array.isArray(eq.slots) ? eq.slots[i] : null;
+    const deTitular = Array.isArray(eq.titulares) ? eq.titulares[i] : null;
+    crudos.push(deSlot || deTitular || {});
+  }
   if (!orden.length){
     // sin orden utilizable: cada casilla es su propio índice
     for (let i = 0; i < 32; i++) orden.push(i);
@@ -342,17 +384,22 @@ function modeloDe(eq, lado){
     if (rival === 255) rival = null;
     if (prof == null) prof = i === 0 ? 1 : 8;
     const profFinal = Math.max(2, Math.min(47, Math.round(prof) || (i === 0 ? 1 : 2)));
+    const indice = orden[i] == null ? i : orden[i];
+    // El id del slot manda; si el puente no lo trae en `slots`, sale del
+    // registro (`ids`) por el índice de plantel de la casilla.
+    let id = num(c.id);
+    if (id == null && ids[indice] != null) id = num(ids[indice]);
     const s = {
       casilla: i,
-      indice: orden[i],
-      id: num(c.id),
+      indice: indice,
+      id: id,
       prof: profFinal,
       lat: lat == null ? null : Math.max(6, Math.min(99, Math.round(lat))),
       pos: sigla || (i === 0 ? 'PT' : 'CC'),
       codigo: codigo,
       flechas: flechas.slice(0, 2),
-      act: act == null ? 1 : act,
-      mark: mark == null ? 0 : mark,
+      act: act == null ? 1 : Math.max(0, Math.min(2, act)),
+      mark: mark == null ? 0 : Math.max(0, Math.min(3, mark)),
       rival: rival,
     };
     s.x = s.prof;
@@ -421,53 +468,88 @@ function flechasDeBytes(bytes){
   return out;
 }
 
-/* ---------- nombres ---------- */
+/* ---------- nombres ----------
+   Los jugadores del juego se reconocen por su registro (u16) en cualquiera de
+   los planteles publicados de la web (`pes5_plantillas/${teamId}`), la misma
+   fuente que usa el editor de mejoras para el equipo del presidente y la Tool
+   para todos. El plantel propio se carga siempre (el editor ya lo tiene en
+   memoria); la colección completa se pide además cuando las reglas dejan
+   (admin) para que el rival y cualquier otro equipo TSC salgan con nombre.
+   Si un id no aparece en ningún plantel, se muestra «Jugador #id». */
 function jugadorPublicado(raw){
   if (!raw) return null;
   return {
     id: raw.id, name: raw.name, dorsal: raw.dorsal, tag: raw.tag, primaryPos: raw.primaryPos,
-    stats: raw.stats || {}, sec: raw.sec || {}, abilities: raw.abilities || {}, positions: raw.positions || {},
+    stats: raw.stats || null, sec: raw.sec || {}, abilities: raw.abilities || {}, positions: raw.positions || {},
     height: raw.height, age: raw.age, foot: raw.foot, side: raw.side,
   };
+}
+function equipoDeAjustes(){
+  const u = util();
+  return (u && u.equipo) ? u.equipo() : null;
 }
 async function cargarNombres(){
   const u = util();
   const mapa = new Map();
   const propios = new Set();
+  const agregar = function(raw, esPropio){
+    const r = reg(raw && raw.id);
+    if (r == null) return;
+    if (esPropio) propios.add(r);
+    const nuevo = jugadorPublicado(raw);
+    const prev = mapa.get(r);
+    if (!prev || esPropio || (!prev.stats && nuevo && nuevo.stats)) mapa.set(r, nuevo);
+  };
+  // 1) El plantel que ya tiene cargado el editor (equipo del presidente en
+  //    mejoras.html; en la Tool, el que se está editando).
   if (u && u.jugadores){
-    u.jugadores().forEach(function(j){
-      const r = reg(j.id);
-      if (r == null) return;
-      propios.add(r);
-      mapa.set(r, j);
-    });
+    u.jugadores().forEach(function(j){ agregar(j, true); });
   }
-  // El admin puede leer todas las plantillas publicadas: así el rival también
-  // sale con nombres. El presidente solo tiene la de su equipo (las reglas no
-  // dejan leer las demás) y el rival queda con su número.
-  if (esAdmin() && window.firebase && firebase.firestore){
-    try {
-      const snap = await firebase.firestore().collection('pes5_plantillas').get();
+  let fs = null;
+  try {
+    fs = (window.firebase && typeof firebase.firestore === 'function') ? firebase.firestore() : null;
+  } catch(e){ fs = null; }   // SDK cargado pero app sin inicializar: se sigue con el editor
+  const auth = (typeof AUTH !== 'undefined' && AUTH) ? AUTH : null;
+  const teamId = (auth && auth.teamId != null) ? String(auth.teamId) : null;
+  if (fs){
+    const pedidos = [];
+    // 2) El documento del equipo propio: las reglas lo dejan leer siempre, y
+    //    así el nombre del equipo sale aunque el editor no esté montado.
+    if (teamId){
+      pedidos.push(fs.collection('pes5_plantillas').doc(teamId).get().then(function(snap){
+        if (!snap.exists) return;
+        (snap.data().jugadores || []).forEach(function(raw){ agregar(raw, true); });
+      }).catch(function(){ /* sin permiso o sin documento: se sigue con el editor */ }));
+    }
+    // 3) Todos los planteles publicados (admin; cualquier rol si las reglas
+    //    llegan a permitirlo). Si Firestore lo niega, se usa solo el propio.
+    pedidos.push(fs.collection('pes5_plantillas').get().then(function(snap){
       snap.docs.forEach(function(d){
         const data = d.data() || {};
-        (data.jugadores || []).forEach(function(raw){
-          const r = reg(raw.id);
-          if (r != null && !mapa.has(r)) mapa.set(r, jugadorPublicado(raw));
-        });
+        const propio = teamId != null && String(data.teamId) === teamId;
+        (data.jugadores || []).forEach(function(raw){ agregar(raw, propio); });
       });
-    } catch(e){ /* sin permiso: se sigue con el plantel propio */ }
+    }).catch(function(){ /* reglas: el presidente solo lee el suyo */ }));
+    await Promise.all(pedidos.map(function(p){ return p.catch(function(){}); }));
   }
   D.nombres = mapa;
   D.registrosPropios = propios;
-  const propio = u && u.equipo ? u.equipo() : null;
+  const propio = equipoDeAjustes();
   D.equipoPropio = propio && propio.name ? String(propio.name) : '';
+  // Si la alineación llegó antes que los nombres, reasignar el lado propio.
+  if (Object.keys(D.equipos || {}).length) asignarLados();
 }
 function jugadorDe(m, indice){
   if (!m || indice == null || indice < 0) return null;
-  const r = m.ids[indice];
+  let r = (m.ids && indice < m.ids.length) ? m.ids[indice] : null;
+  if (r == null){
+    // El puente puede no traer `ids` completos: el slot guarda el id del juego.
+    const casilla = m.orden.indexOf(indice);
+    if (casilla >= 0 && m.slots[casilla]) r = m.slots[casilla].id;
+  }
   const j = r != null ? D.nombres.get(Number(r)) : null;
   if (j) return j;
-  const nombre = r != null ? ('#' + r) : ('Jugador ' + (indice + 1));
+  const nombre = r != null ? ('Jugador #' + r) : ('Jugador ' + (indice + 1));
   const casilla = m.orden.indexOf(indice);
   const sigla = (casilla >= 0 && casilla <= 10) ? m.slots[casilla].pos : 'CC';
   return { id: 'r' + r, name: nombre, primaryPos: SIGLA_PPRINCIPAL_REV[sigla] || 'CMF', stats: null, sec: null, positions: {} };
@@ -489,11 +571,43 @@ function esPortero(m, indice){
 }
 function casillaDe(m, indice){ return m ? m.orden.indexOf(indice) : -1; }
 
-/* ---------- pedido ---------- */
-function pedir(txt, undo, ops){
-  D.order.push({ txt: txt, undo: undo, ops: ops || [] });
+/* ---------- pedido ----------
+   FV5: cada cambio lleva una clave (jugador/casilla + campo, el campo para los
+   ajustes, el rol para lanzadores, la casilla para mover y «esquema» para las
+   variantes). Si la clave se repite, la línea se REEMPLAZA en su mismo lugar
+   con el último valor y conserva el «Deshacer» de ANTES del primer cambio. Si
+   el último valor vuelve al original, la línea desaparece y se restaura ese
+   estado. Intercambios y cambios de jugador no llevan clave: se listan uno a
+   uno. */
+function mismoValor(a, b){
+  if (a === b) return true;
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch(e){ return false; }
+}
+function pedir(txt, undo, ops, clave, valor, original){
   D.msg = null;
   D.autoPausa = false;
+  const it = { txt: txt, undo: undo, ops: ops || [], clave: clave || null, valor: valor };
+  if (!clave){ D.order.push(it); return; }
+  let k = -1;
+  for (let i = 0; i < D.order.length; i++){
+    if (D.order[i].clave === clave){ k = i; break; }
+  }
+  if (k >= 0){
+    const prev = D.order[k];
+    const origen = prev.valorOriginal !== undefined ? prev.valorOriginal : original;
+    it.undo = prev.undo;          // deshacer hasta ANTES del primer cambio
+    it.valorOriginal = origen;
+    if (mismoValor(valor, origen)){
+      if (typeof prev.undo === 'function') prev.undo();
+      D.order.splice(k, 1);
+      return;
+    }
+    D.order[k] = it;
+    return;
+  }
+  if (original !== undefined && mismoValor(valor, original)) return;
+  it.valorOriginal = original;
+  D.order.push(it);
 }
 function deshacer(k){
   const it = D.order[k];
@@ -504,7 +618,7 @@ function deshacer(k){
   pintar();
   if (!D.order.length && !D.sent.length && D.releerPendiente) consultar(true);
 }
-/* Movimientos seguidos del mismo jugador = un solo renglón (se deshacen juntos). */
+/* Movimientos del mismo jugador = un solo renglón (se deshacen juntos). */
 function registrarMovimiento(casilla, antes){
   const m = D.mio;
   if (!m) return;
@@ -513,10 +627,13 @@ function registrarMovimiento(casilla, antes){
   const nombre = nombreDe(m, m.orden[casilla]);
   const txt = 'Posición: ' + nombre + ' ' + antes.pos + ' → ' + s.pos + ' (col ' + s.prof + ', fila ' + s.y + ')';
   const ops = [{ op: 'mover', casilla: casilla, prof: s.prof, lat: s.lat, pos: s.pos }];
-  const ult = D.order[D.order.length - 1];
-  if (ult && ult.mov === casilla){ ult.txt = txt; ult.ops = ops; D.msg = null; return; }
-  D.order.push({ mov: casilla, txt: txt, ops: ops, undo: function(){ Object.assign(s, antes); } });
-  D.msg = null;
+  const ahora = { prof: s.prof, lat: s.lat, pos: s.pos, x: s.x, y: s.y };
+  pedir(txt, function(){ Object.assign(s, antes); }, ops, 'mover:' + casilla, ahora, antes);
+}
+function instantaneaSlots(m){
+  return m.slots.map(function(s){
+    return { prof: s.prof, lat: s.lat, pos: s.pos, x: s.x, y: s.y, flechas: (s.flechas || []).slice(), act: s.act };
+  });
 }
 
 /* ---------- cancha ---------- */
@@ -565,9 +682,14 @@ function canchaHTML(m, opciones){
       const yo = D.sel === i;
       const nombre = nombreDe(m, idx);
       const etiqueta = nombre + ', ' + s.pos;
+      const cond = D.capa === 'estado' ? condMini(m.cond ? m.cond[idx] : null, 'left:' + x + '%;top:' + y + '%') : '';
+      // FV5: en solo lectura el punto se dibuja igual, pero sin botón que
+      // elija ni arrastre. Todas las casillas se pintan siempre.
+      if (o.soloLectura){
+        return '<span class="ep-pitch-dot ro' + (i === 0 ? ' gk' : '') + '" style="left:' + x + '%;top:' + y + '%;" title="' + escA(etiqueta) + '"></span>' + cond;
+      }
       const clase = ['ep-pitch-dot', yo ? 'me' : '', i === 0 ? 'gk' : ''].filter(Boolean).join(' ');
       const tag = yo ? '<span class="ep-pitch-tag">' + esc(s.pos) + '</span>' : '';
-      const cond = D.capa === 'estado' ? condMini(m.cond ? m.cond[idx] : null, 'left:' + x + '%;top:' + y + '%') : '';
       return '<button type="button" class="' + clase + '" style="left:' + x + '%;top:' + y + '%;padding:0" data-onclick="fvPunto(this)" data-slot="' + i + '" aria-label="' + escA(etiqueta) + '" title="' + escA(etiqueta) + '">' + tag + '</button>' + cond;
     }).join('');
   }
@@ -600,9 +722,11 @@ function capaHTML(m, v){
       const r = rotar(d[0], d[1], v);
       h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], '#FFFFFF', 13) + '</span>';
     });
-    if (c === 'defensa' && i > 0){
+    if (c === 'defensa'){
+      // FV5: también el arquero tiene su flecha defensiva (Normal = celeste).
+      const act = Math.max(0, Math.min(2, num(s.act) == null ? 1 : num(s.act)));
       const r = rotar(-1, 0, v);
-      h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[s.act] || ACT_COLOR[1], 0, Math.round(ACT_LARGO[s.act] * (v ? 0.6 : 1))) + '</span>';
+      h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[act], 0, Math.round(ACT_LARGO[act] * (v ? 0.6 : 1))) + '</span>';
     }
     if (c === 'pos'){
       const linea = SIGLA_LINEA[s.pos] || 'mid';
@@ -794,9 +918,7 @@ function aplicarVariante(){
   const cur = varianteSel();
   const m = D.mio;
   if (!cur || !m) return;
-  const antes = m.slots.map(function(s){
-    return { prof: s.prof, lat: s.lat, pos: s.pos, x: s.x, y: s.y, flechas: (s.flechas || []).slice(), act: s.act };
-  });
+  const antes = instantaneaSlots(m);
   const regla = (D.variantes && D.variantes.reglaActitud) || {};
   cur.variante.puestos.forEach(function(p, i){
     const s = m.slots[i];
@@ -814,9 +936,15 @@ function aplicarVariante(){
   });
   D.menu = null; D.esqSel = null; D.varSel = null;
   D.sel = null; D.banca = null; D.ver = null; D.cmp = null;
+  // La variante reescribe posiciones, flechas y actitud de los 11: las líneas
+  // individuales de esos datos ya no representan la alineación que se ve.
+  D.order = D.order.filter(function(it){
+    return !/^(mover:|flechas:|ind:|rival:)/.test(String(it.clave || ''));
+  });
   pedir('Esquema: ' + cur.esquema.nombre + ' ' + cur.variante.nombre,
     function(){ m.slots.forEach(function(s, i){ Object.assign(s, antes[i]); }); },
-    [{ op: 'variante', esquema: cur.esquema.nombre, variante: cur.variante.nombre }]);
+    [{ op: 'variante', esquema: cur.esquema.nombre, variante: cur.variante.nombre }],
+    'esquema', instantaneaSlots(m), antes);
 }
 function miniPitch(prev){
   const u = util();
@@ -1129,7 +1257,9 @@ function conexionHTML(){
 function estadoHTML(){
   const mom = momentoActual();
   const t = TEXTO_MOMENTO[mom] || null;
-  const chip = puedeEscribir() ? 'ok' : 'wait';
+  const editable = puedeEditar();
+  const chip = !editable ? 'ro' : (puedeEscribir() ? 'ok' : 'wait');
+  const chipTxt = !editable ? 'Solo lectura' : (puedeEscribir() ? 'Se aplica ya' : 'En espera');
   let detalle = 'Sin datos del juego.';
   if (D.st){
     const partes = [];
@@ -1140,30 +1270,47 @@ function estadoHTML(){
     detalle = partes.length ? partes.join(' · ') : 'sin indicadores activos';
   }
   return '<section class="fv-card fv-estado">'
-    + '<h3>Estado del partido <span class="fv-chip ' + chip + '">' + (puedeEscribir() ? 'Se aplica ya' : 'En espera') + '</span></h3>'
+    + '<h3>Estado del partido <span class="fv-chip ' + chip + '">' + chipTxt + '</span></h3>'
     + '<div class="fv-momento"><b>' + esc(t ? t.reloj : '—') + '</b><span>' + esc(detalle) + '</span></div>'
     + '<p class="fv-txt">' + esc(t ? t.txt : 'Conéctate al puente para ver el estado.') + '</p>'
     + '</section>';
 }
-function canchaCardHTML(){
+/* FV5: aviso de solo lectura cuando el partido no es del equipo del
+   presidente (o no hay sesión). No se dibuja el pedido ni los botones de
+   edición, y la cancha y la lista quedan de lectura. */
+function avisoEquipoHTML(){
+  const presidente = esPresidente();
+  const titulo = presidente ? 'Este partido no es de tu equipo' : 'Solo lectura';
+  const txt = presidente
+    ? 'Puedes mirar la alineación que está cargada en el juego, pero no editarla: los cambios los hace el equipo dueño de este lado o el admin.'
+    : (esLogueado()
+      ? 'Esta cuenta no edita la alineación en vivo: solo la ven los presidentes en el partido de su equipo y el admin.'
+      : 'Inicia sesión con una cuenta de presidente para editar la alineación de tu equipo.');
+  return '<section class="fv-card fv-aviso-equipo">'
+    + '<div class="fv-aviso-ic" aria-hidden="true">' + ICONO.shield + '</div>'
+    + '<div class="fv-aviso-t"><h3>' + esc(titulo) + '</h3><p class="fv-txt">' + esc(txt) + '</p></div>'
+    + '</section>';
+}
+function canchaCardHTML(editable){
   const m = D.mio;
   if (!m) return '<section class="fv-card"><p class="fv-hint">Todavía no hay una alineación del juego.</p></section>';
   const vertical = esVertical();
+  const ed = editable !== false;
   return '<section class="fv-card fv-card-cancha">'
     + '<div class="fv-crest">' + ICONO.shield + '<span>' + esc(nombreDeEquipo(m)) + ' · Alineación</span>'
     + '<span class="fv-lineup">' + esc(esquemaTexto(m)) + '</span>'
     + '<span class="fv-sum">Supl. Res. <b>' + (enPartido() ? (m.cambiosRestantes == null ? '—' : m.cambiosRestantes) : '—') + '</b></span></div>'
     + capasHTML()
     + '<div class="fv-cancha' + (vertical ? ' vert' : '') + '">'
-    + canchaHTML(m, { vertical: vertical, alto: vertical ? Math.min(360, Math.round((window.innerHeight || 640) * 0.42)) : null })
+    + canchaHTML(m, { vertical: vertical, soloLectura: !ed, alto: vertical ? Math.min(360, Math.round((window.innerHeight || 640) * 0.42)) : null })
     + '</div>'
-    + posInfoHTML()
+    + (ed ? posInfoHTML() : '')
     + '</section>';
 }
-function listaCardHTML(){
+function listaCardHTML(editable){
   const m = D.mio;
   if (!m) return '';
-  return '<section class="fv-card fv-card-lista">' + listaHTML(m, false) + fichaHTML() + '</section>';
+  return '<section class="fv-card fv-card-lista">' + listaHTML(m, editable === false) + fichaHTML() + '</section>';
 }
 function pedidoHTML(){
   const items = D.order.length
@@ -1201,40 +1348,45 @@ function rivalCardHTML(){
 }
 function nombreDeEquipo(m){
   if (!m) return 'Equipo';
-  if (D.mio === m && D.nombrePropio) return D.nombrePropio;
+  if (D.mio === m && esMiEquipo(m) && D.nombrePropio) return D.nombrePropio;
   return m.lado === 'local' ? 'Equipo local' : 'Equipo visitante';
 }
-/* El plantel propio reconoce su lado aunque el partido sea local o visitante. */
+/* El plantel propio reconoce su lado aunque el partido sea local o visitante.
+   Para el presidente, si ninguno de los dos lados coincide con su plantel, se
+   queda en el lado con más jugadores suyos (normalmente el local) y el panel
+   queda en solo lectura con el aviso «Este partido no es de tu equipo». */
 function asignarLados(){
   const lados = Object.keys(D.equipos || {});
-  if (!lados.length){ D.mio = null; D.rival = null; return; }
+  if (!lados.length){ D.mio = null; D.rival = null; D.nombrePropio = ''; return; }
   let lado = D.lado;
   if (!D.eleccionManual){
-    let mejor = lados[0], puntaje = -1;
+    let mejor = lados[0], puntaje = -1, propio = null;
     lados.forEach(function(l){
       const m = D.equipos[l];
       const n = (m.ids || []).filter(function(id){ return id != null && D.registrosPropios.has(Number(id)); }).length;
       if (n > puntaje){ puntaje = n; mejor = l; }
+      if (!propio && esMiEquipo(m)) propio = l;
     });
-    lado = mejor;
+    lado = propio || mejor;
   }
   if (!D.equipos[lado]) lado = lados[0];
   D.lado = lado; D.ladoMio = lado;
   D.mio = D.equipos[lado];
   D.rival = D.equipos[lado === 'local' ? 'visitante' : 'local'] || null;
-  const propio = (D.mio.ids || []).some(function(id){ return id != null && D.registrosPropios.has(Number(id)); });
-  const nombre = D.mio.lado === 'local' ? 'Equipo local' : 'Equipo visitante';
-  D.nombrePropio = propio && D.equipoPropio ? D.equipoPropio : nombre;
+  D.nombrePropio = esMiEquipo(D.mio) && D.equipoPropio ? D.equipoPropio : '';
 }
 function panelHTML(){
   const m = D.mio;
   const conPartido = hayPartido();
+  const editable = conPartido && puedeEditar();
   const chip = puedeEscribir() ? 'ok' : 'wait';
   const cabecera = '<div class="fv-hd">'
     + '<div class="fv-hd-t">' + ICONO.shield + '<h2>Formación en vivo' + (conPartido && m ? ' · ' + esc(nombreDeEquipo(m)) : '') + '</h2></div>'
     + '<div class="fv-hd-chips">'
     + (conPartido ? '<span class="fv-chip live">En vivo</span>' : '')
-    + (conPartido ? '<span class="fv-chip ' + chip + '">' + (puedeEscribir() ? 'Se aplica ya' : 'En espera') + '</span>' : '')
+    + (conPartido ? (editable
+      ? '<span class="fv-chip ' + chip + '">' + (puedeEscribir() ? 'Se aplica ya' : 'En espera') + '</span>'
+      : '<span class="fv-chip ro">Solo lectura</span>') : '')
     + (conPartido && enPartido() ? '<span class="fv-chip">Supl. Res. ' + (m && m.cambiosRestantes != null ? m.cambiosRestantes : '—') + '</span>' : '')
     + (conPartido && D.inline ? '<label class="fv-lado">Edito <select class="fv-sel" data-onchange="fvLado(this.value)">'
       + '<option value="local"' + (D.lado === 'local' ? ' selected' : '') + '>Local</option>'
@@ -1246,28 +1398,31 @@ function panelHTML(){
   const panel = (D.panelConexion && puedeConfigurarConexion()) ? conexionPanelHTML() : '';
   let cuerpo, pie = '';
   if (conPartido){
+    // FV5: si el partido no es del equipo del presidente, solo lectura: cancha
+    // y lista sin selección, sin menú y sin pedido.
     cuerpo = '<div class="fv-body">'
       + panel
       + conexionHTML()
+      + (editable ? '' : avisoEquipoHTML())
       + estadoHTML()
       + '<div class="fv-grid">'
-        + '<div class="fv-col">' + canchaCardHTML() + swapbarHTML() + listaCardHTML() + '</div>'
-        + '<div class="fv-col"><section class="fv-card"><h3>Menú del juego</h3>' + menuHTML() + '</section>' + pedidoHTML() + rivalCardHTML() + '</div>'
+        + '<div class="fv-col">' + canchaCardHTML(editable) + (editable ? swapbarHTML() : '') + listaCardHTML(editable) + '</div>'
+        + '<div class="fv-col">' + (editable ? '<section class="fv-card"><h3>Menú del juego</h3>' + menuHTML() + '</section>' + pedidoHTML() : '') + rivalCardHTML() + '</div>'
       + '</div></div>';
-    pie = '<div class="fv-foot">'
+    pie = editable ? '<div class="fv-foot">'
       + '<button type="button" class="ep-btn fv-soon-btn" data-onclick="fvAuto()" aria-disabled="true" title="El puente todavía no tiene esta operación">Alineación auto. <small>Próximamente</small></button>'
       + '<button type="button" class="ep-btn" data-onclick="fvEsquema()" aria-expanded="' + (D.menu === 'esquema') + '">Esquema</button>'
       + '<span class="fv-foot-sp"></span>'
       + '<button type="button" class="ep-btn" data-onclick="fvCancelar()"' + ((D.sel != null || D.banca != null || D.cmp) ? '' : ' disabled') + '>Cancelar</button>'
       + '<button type="button" class="ep-btn" data-onclick="fvRestablecer()"' + (D.order.length ? '' : ' disabled') + '>Restablecer</button>'
       + '<button type="button" class="ep-btn primary" data-onclick="fvEnviar()"' + ((D.order.length && !D.aplicando) ? '' : ' disabled') + '>' + ICONO.check + (D.aplicando ? 'Enviando…' : 'Enviar al juego') + '</button>'
-      + '</div>';
+      + '</div>' : '';
   } else {
     // Sin partido cargado no se dibuja cancha, lista, menú ni pedido: solo el
     // estado claro (y el panel de conexión, si el admin lo abrió).
     cuerpo = '<div class="fv-body fv-body-vacio">' + panel + estadoVacioHTML() + '</div>';
   }
-  const hoja = (conPartido && D.menu === 'esquema') ? hojaEsquemaHTML() : '';
+  const hoja = (editable && D.menu === 'esquema') ? hojaEsquemaHTML() : '';
   const contenido = '<div class="fv-modal' + (D.inline ? ' fv-modal-inline' : '') + '" role="dialog" aria-label="Formación en vivo">'
     + cabecera + cuerpo + pie + hoja + '</div>';
   if (D.inline) return '<div class="ep-root fv-root fv-inline">' + contenido + '</div>';
@@ -1319,10 +1474,60 @@ function pintar(){
 }
 
 /* ---------- envío ---------- */
+/* Clave de una op para el POST: lo que escribe el mismo dato se pisa. Los
+   intercambios y cambios de jugador no llevan clave (cada uno cuenta). */
+function claveOp(o){
+  if (!o || !o.op) return null;
+  if (o.op === 'campo'){
+    return 'campo:' + (o.bloque || 'principal') + ':' + o.nombre
+      + ':' + (o.casilla == null ? '' : o.casilla)
+      + ':' + (o.indice == null ? '' : o.indice);
+  }
+  if (o.op === 'mover') return 'mover:' + o.casilla;
+  if (o.op === 'variante') return 'variante';
+  return null;
+}
+/* Última línea de cada clave, en su mismo lugar (intercambios y cambios se
+   conservan todos). */
+function itemsUnicos(items){
+  const out = [];
+  const pos = new Map();
+  (items || []).forEach(function(it){
+    if (!it.clave){ out.push(it); return; }
+    if (pos.has(it.clave)) out[pos.get(it.clave)] = it;
+    else { pos.set(it.clave, out.length); out.push(it); }
+  });
+  return out;
+}
+/* FV5: el POST manda una sola op por dato (la última). Las 8 flechas de
+   ataque de un jugador son 8 datos distintos y viajan las 8. */
 function opsDe(items){
-  const ops = [];
-  (items || []).forEach(function(it){ (it.ops || []).forEach(function(o){ ops.push(o); }); });
-  return ops;
+  const pares = [];
+  (items || []).forEach(function(it){
+    (it.ops || []).forEach(function(o){ pares.push({ o: o, k: claveOp(o) }); });
+  });
+  const ultima = new Map();
+  pares.forEach(function(p, i){ if (p.k) ultima.set(p.k, i); });
+  return pares.filter(function(p, i){ return !p.k || ultima.get(p.k) === i; }).map(function(p){ return p.o; });
+}
+/* Quita de una lista las líneas enviadas y las que comparten clave con ellas
+   (la última es la que se aplicó): así no queda una línea vieja «en espera». */
+function quitarItems(lista, items){
+  const claves = new Set();
+  (items || []).forEach(function(it){ if (it.clave) claves.add(it.clave); });
+  return (lista || []).filter(function(x){
+    if ((items || []).indexOf(x) >= 0) return false;
+    if (x.clave && claves.has(x.clave)) return false;
+    return true;
+  });
+}
+function guardarEnEspera(items){
+  items.forEach(function(it){
+    if (!it.clave){ D.sent.push(it); return; }
+    const k = D.sent.findIndex(function(x){ return x.clave === it.clave; });
+    if (k >= 0) D.sent[k] = it; else D.sent.push(it);
+  });
+  D.order = quitarItems(D.order, items);
 }
 async function enviar(){
   if (D.aplicando || !D.order.length) return;
@@ -1331,13 +1536,17 @@ async function enviar(){
     pintar();
     return;
   }
-  const items = D.order.slice();
+  if (!puedeEditar()){
+    msg('Solo lectura: este partido no es de tu equipo.', true);
+    pintar();
+    return;
+  }
+  const items = itemsUnicos(D.order.slice());
   const ops = opsDe(items);
   if (!ops.length){ msg('Esos cambios todavía no se pueden escribir en el juego.', true); pintar(); return; }
   if (!D.mio){ msg('No hay datos del juego: reconecta con «Reintentar».', true); pintar(); return; }
   if (!puedeEscribir()){
-    D.sent = D.sent.concat(items);
-    D.order = D.order.filter(function(x){ return items.indexOf(x) < 0; });
+    guardarEnEspera(items);
     msg('En espera: se envía solo cuando se abra la pantalla de alineación del juego. Lo puedes cancelar mientras tanto.', true);
     pintar();
     return;
@@ -1346,15 +1555,16 @@ async function enviar(){
 }
 async function aplicar(items){
   if (D.aplicando || !items.length) return;
-  const ops = opsDe(items);
+  if (!puedeEditar()) return;
+  const ops = opsDe(itemsUnicos(items));
   if (!ops.length) return;
   D.aplicando = true;
   pintar();
   try {
     const r = await pedirJson('/aplicar', { method: 'POST', body: { lado: D.ladoMio, ops: ops, salieron: D.salidos } });
     if (r && r.ok){
-      D.order = D.order.filter(function(x){ return items.indexOf(x) < 0; });
-      D.sent = D.sent.filter(function(x){ return items.indexOf(x) < 0; });
+      D.order = quitarItems(D.order, items);
+      D.sent = quitarItems(D.sent, items);
       if (Array.isArray(r.salieron)) D.salidos = r.salieron.map(function(v){ return num(v); }).filter(function(v){ return v != null; });
       msg('Aplicado en el juego. Luis ve los cambios en su pantalla.');
       D.aplicando = false;
@@ -1364,8 +1574,7 @@ async function aplicar(items){
     const errores = (r && Array.isArray(r.errores)) ? r.errores : [];
     msg(errores.length ? errores.join(' · ') : 'El puente no aplicó los cambios.', true);
     if (r && r.cerrada){
-      D.sent = D.sent.concat(items.filter(function(x){ return D.order.indexOf(x) >= 0; }));
-      D.order = D.order.filter(function(x){ return items.indexOf(x) < 0; });
+      guardarEnEspera(D.order.filter(function(x){ return items.indexOf(x) >= 0; }));
     } else {
       D.autoPausa = true;   // no reintentar lo mismo cada 1,5 s
     }
@@ -1452,7 +1661,7 @@ async function consultar(forzar){
   // lo que se está escribiendo en la URL del puente (panel de admin).
   const escribiendo = D.panelConexion && focoEnCampo();
   if ((releyo || claveEstado() !== antes) && !escribiendo) pintar();
-  if (D.abierto && hayPartido() && D.sent.length && puedeEscribir() && !D.aplicando && !D.autoPausa) await aplicar(D.sent.slice());
+  if (D.abierto && hayPartido() && puedeEditar() && D.sent.length && puedeEscribir() && !D.aplicando && !D.autoPausa) await aplicar(D.sent.slice());
 }
 async function leer(forzar){
   if (!forzar && (D.order.length || D.sent.length)){ D.releerPendiente = true; return; }
@@ -1480,7 +1689,10 @@ async function leer(forzar){
   D.equipos = mapa;
   asignarLados();
   D.releerPendiente = false;
-  if (D.sel != null && D.mio && D.sel > 10) D.sel = null;
+  if (!puedeEditar()){
+    D.sel = null; D.banca = null; D.ver = null; D.cmp = null;
+    D.menu = null; D.esqSel = null; D.varSel = null; D.indSlot = null;
+  } else if (D.sel != null && D.mio && D.sel > 10) D.sel = null;
 }
 function intervalo(){
   return D.conexion === 'sin-conexion' ? MS_RECONEXION : MS_SONDEO;
@@ -1680,12 +1892,12 @@ function fvUrl(valor){
   consultar(true).then(programar, programar);
 }
 function fvPunto(el){
-  if (!el || !el.dataset || D.cmp || D.arrastrado) return;
+  if (!puedeEditar() || !el || !el.dataset || D.cmp || D.arrastrado) return;
   tocarTitular(Number(el.dataset.slot));
   pintar();
 }
 function fvFila(el){
-  if (!el || !el.dataset || D.cmp || !D.mio) return;
+  if (!puedeEditar() || !el || !el.dataset || D.cmp || !D.mio) return;
   const indice = Number(el.dataset.idx);
   const casilla = casillaDe(D.mio, indice);
   if (casilla >= 0 && casilla <= 10) tocarTitular(casilla);
@@ -1694,7 +1906,7 @@ function fvFila(el){
 }
 function fvSelPos(valor){
   const m = D.mio;
-  if (!m || D.sel == null || D.sel === 0 || !valor) return;
+  if (!puedeEditar() || !m || D.sel == null || D.sel === 0 || !valor) return;
   const s = m.slots[D.sel];
   if (s.pos === valor) return;
   const u = util();
@@ -1713,7 +1925,7 @@ function fvCancelar(){
   pintar();
 }
 function fvCmpVolver(){ D.cmp = null; pintar(); }
-function fvCmpConfirmar(){ confirmarCmp(); }
+function fvCmpConfirmar(){ if (puedeEditar()) confirmarCmp(); }
 function fvCapa(el){
   const cual = el && el.dataset ? el.dataset.c : null;
   if (!cual) return;
@@ -1721,6 +1933,7 @@ function fvCapa(el){
   pintar();
 }
 function fvMenu(el){
+  if (!puedeEditar()) return;
   const clave = el && el.dataset ? el.dataset.m : null;
   if (!clave) return;
   D.menu = D.menu === clave ? null : clave;
@@ -1741,6 +1954,7 @@ function fvCancelarEnviado(el){
   if (!D.order.length && !D.sent.length && D.releerPendiente) consultar(true);
 }
 function fvRestablecer(){
+  if (!puedeEditar()) return;
   for (let k = D.order.length - 1; k >= 0; k--){
     const it = D.order[k];
     if (it && typeof it.undo === 'function') it.undo();
@@ -1751,7 +1965,7 @@ function fvRestablecer(){
   pintar();
   consultar(true);
 }
-async function fvEsquema(){ await alternarEsquema(); }
+async function fvEsquema(){ if (puedeEditar()) await alternarEsquema(); }
 function fvEsqEsquema(el){
   if (!el || !el.dataset) return;
   D.esqSel = Number(el.dataset.i); D.varSel = null;
@@ -1762,7 +1976,7 @@ function fvEsqVariante(el){
   D.varSel = Number(el.dataset.i);
   pintar();
 }
-function fvEsqAplicar(){ aplicarVariante(); pintar(); }
+function fvEsqAplicar(){ if (puedeEditar()) aplicarVariante(); pintar(); }
 function fvEsqCancelar(){ D.menu = null; D.esqSel = null; D.varSel = null; pintar(); }
 function fvAuto(){
   msg('Alineación auto.: próximamente. El puente todavía no tiene esa operación.', true);
@@ -1779,11 +1993,12 @@ function fvCiclo(el){
 }
 function fvAjuste(clave, delta){
   const m = D.mio;
-  if (!m) return;
+  if (!puedeEditar() || !m) return;
   const def = AJUSTES.find(function(a){ return a[0] === clave; });
   if (!def) return;
   const lista = def[3];
   const antes = m.aj[def[0]] || 0;
+  const liberoAntes = m.aj.libero;
   const nuevo = (antes + (Number(delta) >= 0 ? 1 : -1) + lista.length) % lista.length;
   m.aj[def[0]] = nuevo;
   const ops = [{ op: 'campo', nombre: def[1], valor: nuevo }];
@@ -1800,35 +2015,37 @@ function fvAjuste(clave, delta){
       }
     }
   }
-  pedir(def[2] + ': ' + lista[nuevo] + extra, function(){ m.aj[def[0]] = antes; }, ops);
+  pedir(def[2] + ': ' + lista[nuevo] + extra,
+    function(){ m.aj[def[0]] = antes; m.aj.libero = liberoAntes; },
+    ops, 'ajuste:' + def[0], nuevo, antes);
   pintar();
 }
 function fvLibero(valor){
   const m = D.mio;
-  if (!m) return;
+  if (!puedeEditar() || !m) return;
   const casilla = Number(valor);
   if (!(casilla >= 1 && casilla <= 10)) return;
   const antes = m.aj.libero;
   m.aj.libero = casilla;
   pedir('Líbero: ' + nombreDe(m, m.orden[casilla]),
     function(){ m.aj.libero = antes; },
-    [{ op: 'campo', nombre: 'libero', valor: casilla }]);
+    [{ op: 'campo', nombre: 'libero', valor: casilla }], 'libero', casilla, antes);
   pintar();
 }
 function fvModo(delta){
   const m = D.mio;
-  if (!m) return;
+  if (!puedeEditar() || !m) return;
   const antes = m.aj.modo || 0;
   const nuevo = (antes + (Number(delta) >= 0 ? 1 : -1) + MODO.length) % MODO.length;
   m.aj.modo = nuevo;
   pedir('Modo de estrategia: ' + MODO[nuevo],
     function(){ m.aj.modo = antes; },
-    [{ op: 'campo', nombre: 'modoEstrategia', valor: nuevo, bloque: 'cabecera' }]);
+    [{ op: 'campo', nombre: 'modoEstrategia', valor: nuevo, bloque: 'cabecera' }], 'modo', nuevo, antes);
   pintar();
 }
 function fvEstrategia(el){
   const m = D.mio;
-  if (!m || !el || !el.dataset) return;
+  if (!puedeEditar() || !m || !el || !el.dataset) return;
   const k = Number(el.dataset.i);
   if (!(k >= 0 && k <= 3)) return;
   const codigo = Number(el.value);
@@ -1836,16 +2053,18 @@ function fvEstrategia(el){
   m.cab.botones[k] = codigo;
   pedir('Estrategia del botón ' + (k + 1) + ': ' + ESTRATEGIAS[codigo],
     function(){ m.cab.botones[k] = antes; },
-    [{ op: 'campo', nombre: 'estrategiaBoton', valor: codigo, indice: k, bloque: 'cabecera' }]);
+    [{ op: 'campo', nombre: 'estrategiaBoton', valor: codigo, indice: k, bloque: 'cabecera' }],
+    'estrategia:' + k, codigo, antes);
   pintar();
 }
 function fvIndSlot(valor){
+  if (!puedeEditar()) return;
   D.indSlot = (valor === '' || valor == null) ? null : Number(valor);
   pintar();
 }
 function fvFlecha(el){
   const m = D.mio;
-  if (!m || D.indSlot == null || !el || !el.dataset) return;
+  if (!puedeEditar() || !m || D.indSlot == null || !el || !el.dataset) return;
   const dir = el.dataset.dir;
   if (!dir) return;
   const s = m.slots[D.indSlot];
@@ -1862,16 +2081,18 @@ function fvFlecha(el){
   });
   const nombres = s.flechas.map(function(f){ return FLECHA_TXT[f] || f; }).join(', ') || 'ninguna';
   pedir(nombreDe(m, m.orden[D.indSlot]) + ': flechas ' + nombres,
-    function(){ s.flechas = antes.slice(); }, ops);
+    function(){ s.flechas = antes.slice(); }, ops,
+    'flechas:' + D.indSlot, s.flechas.slice().sort(), antes.slice().sort());
   pintar();
 }
 function fvIndAjuste(clave, delta){
   const m = D.mio;
-  if (!m || D.indSlot == null) return;
+  if (!puedeEditar() || !m || D.indSlot == null) return;
   if (clave !== 'act' && clave !== 'mark') return;
   const s = m.slots[D.indSlot];
   const lista = clave === 'act' ? ACTITUD : MARCAJE;
   const antes = s[clave] || 0;
+  const rivalAntes = s.rival;
   const nuevo = (antes + (Number(delta) >= 0 ? 1 : -1) + lista.length) % lista.length;
   s[clave] = nuevo;
   const ops = [{ op: 'campo', nombre: clave === 'act' ? 'actitudDefensiva' : 'marcaje', casilla: D.indSlot, valor: nuevo }];
@@ -1882,32 +2103,34 @@ function fvIndAjuste(clave, delta){
   D.capa = clave === 'act' ? 'defensa' : 'marcaje';
   const etiqueta = clave === 'act' ? 'Actitud defensiva' : 'Marcaje';
   pedir(nombreDe(m, m.orden[D.indSlot]) + ': ' + etiqueta + ' ' + lista[nuevo],
-    function(){ s[clave] = antes; }, ops);
+    function(){ s[clave] = antes; s.rival = rivalAntes; }, ops,
+    'ind:' + D.indSlot + ':' + clave, nuevo, antes);
   pintar();
 }
 function fvRival(valor){
   const m = D.mio;
-  if (!m || D.indSlot == null) return;
+  if (!puedeEditar() || !m || D.indSlot == null) return;
   const s = m.slots[D.indSlot];
   const antes = s.rival;
+  const clave = 'rival:' + D.indSlot;
   if (valor === ''){
     s.rival = null;
     pedir(nombreDe(m, m.orden[D.indSlot]) + ': sin marca fija',
       function(){ s.rival = antes; },
-      [{ op: 'campo', nombre: 'rivalMarcado', casilla: D.indSlot, valor: 255 }]);
+      [{ op: 'campo', nombre: 'rivalMarcado', casilla: D.indSlot, valor: 255 }], clave, null, antes);
   } else {
     const casilla = Number(valor);
     s.rival = casilla;
     pedir(nombreDe(m, m.orden[D.indSlot]) + ': marca a ' + (D.rival ? nombreDe(D.rival, D.rival.orden[casilla]) : ('rival ' + (casilla + 1))),
       function(){ s.rival = antes; },
-      [{ op: 'campo', nombre: 'rivalMarcado', casilla: D.indSlot, valor: casilla }]);
+      [{ op: 'campo', nombre: 'rivalMarcado', casilla: D.indSlot, valor: casilla }], clave, casilla, antes);
   }
   D.capa = 'marcaje';
   pintar();
 }
 function fvLanzador(el){
   const m = D.mio;
-  if (!m || !el || !el.dataset) return;
+  if (!puedeEditar() || !m || !el || !el.dataset) return;
   const clave = el.dataset.k;
   const def = LANZADORES.find(function(l){ return l[0] === clave; });
   if (!def) return;
@@ -1918,30 +2141,31 @@ function fvLanzador(el){
   if (clave === 'cap') m.cab.capitan = indice;
   pedir(def[2] + ': ' + nombreDe(m, indice),
     function(){ m.cab.lanzadores[clave] = antes; if (clave === 'cap') m.cab.capitan = capAntes; },
-    [{ op: 'campo', nombre: def[1], valor: indice, bloque: 'cabecera' }]);
+    [{ op: 'campo', nombre: def[1], valor: indice, bloque: 'cabecera' }],
+    'lanzador:' + clave, indice, antes);
   pintar();
 }
 function fvPreset(el){
   const m = D.mio;
   const nombre = el && el.dataset ? el.dataset.p : null;
   const p = PRESETS.find(function(x){ return x[0] === nombre; });
-  if (!m || !p) return;
+  if (!puedeEditar() || !m || !p) return;
   const valores = p[2];
-  const antes = {};
-  const ops = [];
   AJUSTES.forEach(function(a){
     const clave = a[0];
     if (valores[clave] == null) return;
-    antes[clave] = m.aj[clave];
-    m.aj[clave] = valores[clave];
-    ops.push({ op: 'campo', nombre: a[1], valor: valores[clave] });
+    const antes = m.aj[clave] || 0;
+    const nuevo = valores[clave];
+    if (antes === nuevo) return;
+    m.aj[clave] = nuevo;
+    pedir('Config. rápida (' + p[1] + ') · ' + a[2] + ': ' + a[3][nuevo],
+      function(){ m.aj[clave] = antes; },
+      [{ op: 'campo', nombre: a[1], valor: nuevo }], 'ajuste:' + clave, nuevo, antes);
   });
-  if (!ops.length) return;
-  pedir('Config. rápida: ' + p[1] + ' (' + presetTexto(valores) + ')',
-    function(){ Object.keys(antes).forEach(function(k){ m.aj[k] = antes[k]; }); }, ops);
   pintar();
 }
 function fvLado(valor){
+  if (!esAdmin()) return;
   D.eleccionManual = true;
   D.lado = valor === 'visitante' ? 'visitante' : 'local';
   D.sel = null; D.banca = null; D.ver = null; D.cmp = null;
