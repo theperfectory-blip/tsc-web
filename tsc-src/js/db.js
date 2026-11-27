@@ -182,6 +182,11 @@ async function dbPurgeArchivedSeason(number, check){
     rows.slice(i, i+DB_BATCH_MAX).forEach(({store,row})=>batch.delete(db.collection(store).doc(String(row.id))));
     await batch.commit();
   }
+  // El resumen de partidos de la temporada ya no hace falta: sus partidos se
+  // leen del archivo (y el cliente ignora los resúmenes archivados). Se borra
+  // ANTES de anotar la temporada en archive/seasons, porque las reglas ya no
+  // admiten escrituras sobre una temporada archivada.
+  try { await db.collection(SUMMARY_STORE).doc(_SUMMARY_MATCH_PREFIX + number).delete(); } catch(_){}
   const ref = db.collection('archive').doc('seasons');
   const cur = (await ref.get()).data() || { numbers:[], compIds:[] };
   const numbers = [...new Set([...(cur.numbers||[]), number])].sort((a,b)=>a-b);
@@ -224,8 +229,10 @@ function initDB(){
   // Abre YA, en paralelo, los espejos de las colecciones que lee cualquier
   // visita pública (panel/palmarés/equipos/calendario). Sin esto el arranque
   // las pedía una tras otra: un viaje completo al servidor por cada una.
+  // `matches` ya no: sus partidos salen del resumen por temporada (LECT,
+  // SUMMARY_STORE), un documento por temporada en vez de la colección entera.
   if (_fsMirrorEnabled()) {
-    ['seasons','settings','teams','competitions','phases','matches','palmares','palmares-comps']
+    ['seasons','settings','teams','competitions','phases',SUMMARY_STORE,'palmares','palmares-comps']
       .forEach(store => { try { _fsMirror(store); } catch(_){} });
   }
   return _archLoad();
@@ -412,13 +419,204 @@ function dbGetAllLive(store, filter){
   });
 }
 
+/* ------------------------------------------------------------
+   RESUMEN DE PARTIDOS POR TEMPORADA (LECT)
+   ------------------------------------------------------------
+   `resumenes/matches_<temporada>` = {
+     season, count, updatedAt,
+     items:     { "<id de partido>": {...partido...} },   // mapa, nunca lista
+     historial: { "<id de partido>": {id, createdAt} },   // registro de matchHistory
+   }
+   Lo mantiene la Cloud Function `onMatchWritten`
+   (functions/lib/matchSummary.js): editar, agregar o borrar un partido solo
+   toca su entrada. El cliente lee UN documento por temporada no archivada en
+   vez de la colección `matches` entera, y devuelve exactamente los mismos
+   objetos que antes (el mapa se aplana en una lista con el mismo orden que
+   Firestore: id como texto).
+   `historial` guarda el id del registro de historial de cada partido para que
+   el Historial (js/history.js) siga saliendo idéntico —mismos ids y mismo
+   orden— sin leer `matchHistory` entera.
+   Si el resumen no existe o falla, `dbGetAll('matches')` cae a la lectura
+   actual de la colección: nunca devuelve datos vacíos por un resumen ausente. */
+const SUMMARY_STORE = 'resumenes';
+const _SUMMARY_MATCH_PREFIX = 'matches_';
+const _SUMMARY_OVERLAY_TTL_MS = 15 * 60 * 1000;
+/* Escrituras de partidos hechas por este cliente que el resumen todavía no
+   refleja (la Function tarda uno o dos segundos). Sin esto, una lectura
+   inmediata después de guardar un resultado (propagación de bracket, tabla de
+   posiciones, re-render del panel) vería el valor viejo. Cada entrada se
+   descarta sola cuando el resumen ya trae el mismo contenido, o al vencer el
+   TTL si la Function no llegó a correr. */
+const _SUMMARY_MATCH_WRITES = new Map(); // "id" -> { data:{...}|null, at }
+
+/* Anota una escritura (o un borrado, data=null) de `matches` de este cliente. */
+function _summaryNoteMatchWrite(id, data){
+  if(id == null) return;
+  _SUMMARY_MATCH_WRITES.set(String(id), { data: data ? {...data} : null, at: Date.now() });
+}
+
+/* Snapshot fresco del espejo del resumen, o null si hay que caer a la
+   lectura de la colección (sin confirmación del servidor, sin conexión…). */
+function _summarySnap(){
+  const m = _fsMirror(SUMMARY_STORE);
+  return m.ready.then(()=>_fsMirrorFresh(m), ()=>_fsMirrorFresh(m));
+}
+
+/* Aplana los documentos del resumen en la lista de partidos, salteando las
+   temporadas archivadas (esas filas las suma dbGetAll desde el archivo). */
+function _summaryMatchRows(snap){
+  const rows = [];
+  const byId = new Map();
+  for(const doc of snap.docs){
+    const s = doc.data() || {};
+    const season = Number(s.season);
+    if(Number.isFinite(season) && season > 0 && _ARCH.numbers.has(season)) continue;
+    const items = s.items;
+    if(!items || typeof items !== 'object') continue;
+    for(const k of Object.keys(items)){
+      const m = items[k];
+      if(!m || typeof m !== 'object') continue;
+      const copy = { ...m };
+      rows.push(copy);
+      byId.set(String(copy.id != null ? copy.id : k), copy);
+    }
+  }
+  // Overlay: primero descartar lo que el resumen ya refleja, después aplicar
+  // lo que falta (ver _SUMMARY_MATCH_WRITES).
+  const now = Date.now();
+  for(const [id, o] of _SUMMARY_MATCH_WRITES){
+    if(now - o.at > _SUMMARY_OVERLAY_TTL_MS){ _SUMMARY_MATCH_WRITES.delete(id); continue; }
+    const cur = byId.get(id);
+    if(o.data == null){ if(!cur) _SUMMARY_MATCH_WRITES.delete(id); continue; }
+    if(cur && _archCanon(cur) === _archCanon(o.data)) _SUMMARY_MATCH_WRITES.delete(id);
+  }
+  let out = rows;
+  for(const [id, o] of _SUMMARY_MATCH_WRITES){
+    const has = out.some(r=>String(r.id) === id);
+    if(o.data == null){ if(has) out = out.filter(r=>String(r.id) !== id); continue; }
+    out = has ? out.map(r=>String(r.id) === id ? {...o.data} : r) : [...out, {...o.data}];
+  }
+  // Mismo orden que el Firestore de siempre (id como texto; hay pantallas que
+  // muestran en el orden recibido).
+  out.sort((a,b)=>{ const x=String(a.id), y=String(b.id); return x<y?-1:x>y?1:0; });
+  return out;
+}
+
+async function _matchesGetAll(filter){
+  let rows = null;
+  if(_fsMirrorEnabled()){
+    const snap = await _summarySnap();
+    if(snap && snap.size > 0) rows = _summaryMatchRows(snap);
+  }
+  if(rows == null){
+    // Sin resumen: la lectura de siempre (con su espejo) y el overlay encima.
+    rows = await dbGetAllLive('matches');
+    if(_SUMMARY_MATCH_WRITES.size){
+      const byId = new Map(rows.map(r=>[String(r.id), r]));
+      const now = Date.now();
+      for(const [id, o] of _SUMMARY_MATCH_WRITES){
+        if(now - o.at > _SUMMARY_OVERLAY_TTL_MS) continue;
+        if(o.data == null){ if(byId.has(id)) byId.delete(id); }
+        else byId.set(id, {...o.data});
+      }
+      rows = [...byId.values()];
+    }
+  }
+  const all = _archMergeRows('matches', rows);
+  return filter ? all.filter(filter) : all;
+}
+
+/* Suscripción en tiempo real a `matches` sobre el espejo del resumen: un
+   listener sobre esos documentos (1 lectura por temporada) en vez de la
+   colección entera. Si el resumen no existe todavía, se comparte el espejo de
+   la colección (el mismo que usa dbGetAll, así se lee UNA vez) y se cambia al
+   resumen en cuanto aparece. */
+function _matchesSubscribe(filter, cb){
+  let prevJSON = null;
+  const deliver = rows => {
+    let result = _archMergeRows('matches', rows);
+    if(filter) result = result.filter(filter);
+    const json = JSON.stringify(result);
+    if(json === prevJSON) return;
+    prevJSON = json;
+    cb(result);
+  };
+  const onCollection = snap => deliver(snap.docs.map(d=>d.data()));
+  if(!_fsMirrorEnabled()){
+    return db.collection('matches').onSnapshot(onCollection,
+      err => console.warn('[db] onSnapshot matches:', err.code||err.message));
+  }
+  const m = _fsMirror(SUMMARY_STORE);
+  let colMirror = null;
+  const stopCol = ()=>{
+    if(!colMirror) return;
+    colMirror.subs.delete(onCollection);
+    colMirror = null;
+  };
+  const startCol = ()=>{
+    if(colMirror) return;
+    // Espejo compartido de la colección: el mismo que abre dbGetAll('matches')
+    // cuando no hay resumen, para no leerla dos veces.
+    colMirror = _fsMirror('matches');
+    colMirror.subs.add(onCollection);
+    if(colMirror.snap) Promise.resolve().then(()=>{ if(colMirror && colMirror.subs.has(onCollection)) onCollection(colMirror.snap); });
+  };
+  const onSummary = snap => {
+    if(!snap || !snap.size){ startCol(); return; }   // sin resumen: lectura de siempre
+    stopCol();
+    deliver(_summaryMatchRows(snap));
+  };
+  m.subs.add(onSummary);
+  if(m.snap) Promise.resolve().then(()=>{ if(m.subs.has(onSummary)) onSummary(m.snap); });
+  // Si el listener del resumen no se puede abrir (p. ej. reglas todavía sin
+  // desplegar), se sigue con el de la colección: la vista en vivo no se queda
+  // muda mientras el resumen no esté disponible.
+  if(m.dead) startCol();
+  else m.ready.catch(()=>{ if(m.subs.has(onSummary)) startCol(); });
+  return ()=>{ m.subs.delete(onSummary); m.lastUse = Date.now(); stopCol(); };
+}
+
+/* { "<id de partido>": {id, createdAt} } con los ids de los registros de
+   historial, tomados del resumen. null si el resumen no está disponible: en
+   ese caso el Historial usa la lectura de siempre de `matchHistory` (LECT §3). */
+async function dbMatchHistoryMeta(){
+  if(!_fsMirrorEnabled()) return null;
+  const snap = await _summarySnap();
+  if(!snap || !snap.size) return null;
+  const out = {};
+  for(const doc of snap.docs){
+    const s = doc.data() || {};
+    const season = Number(s.season);
+    if(Number.isFinite(season) && season > 0 && _ARCH.numbers.has(season)) continue;
+    const hist = s.historial;
+    if(!hist || typeof hist !== 'object') continue;
+    for(const k of Object.keys(hist)){
+      const v = hist[k];
+      if(v && typeof v === 'object' && v.id != null) out[k] = { id: Number(v.id), createdAt: v.createdAt ?? null };
+    }
+  }
+  return out;
+}
+
+/* Filas de una colección que vienen del archivo de temporadas archivadas,
+   sin tocar Firestore. Para pantallas que ya no leen la colección entera y
+   solo necesitan lo archivado (Historial, LECT §3). */
+function dbArchivedRows(store){
+  return (_ARCH.rows[store] || []).map(r=>({ ...r }));
+}
+
 function dbGetAll(store, filter){
+  // Partidos: del resumen por temporada (1 lectura por temporada), no de la
+  // colección entera. Si el resumen no existe o falla, cae a la lectura de
+  // siempre (nunca a datos vacíos). LECT §2.
+  if (store === 'matches') return _matchesGetAll(filter);
   if(!_ARCH.rows[store]) return dbGetAllLive(store, filter);
   return dbGetAllLive(store).then(rows=>{
     const all = _archMergeRows(store, rows);
     return filter ? all.filter(filter) : all;
   });
 }
+
 
 function dbGet(store, id){
   if(_ARCH.keys.has(store+'/'+id)){
@@ -444,6 +642,7 @@ async function dbAdd(store, data){
   _archGuard('dbAdd', store, data);
   const id = await _fsNextId(store);
   await db.collection(store).doc(String(id)).set({ ...data, id });
+  if(store === 'matches') _summaryNoteMatchWrite(id, { ...data, id });
   return id;
 }
 
@@ -472,6 +671,7 @@ async function dbAddMany(store, items){
     chunk.forEach((data,j)=>{
       const id = ids[i+j];
       batch.set(db.collection(store).doc(String(id)), {...data, id});
+      if(store === 'matches') _summaryNoteMatchWrite(id, {...data, id});
     });
     await batch.commit();
   }
@@ -488,6 +688,7 @@ async function dbDeleteMany(store, ids){
     ids.slice(i, i+450).forEach(id=>batch.delete(db.collection(store).doc(String(id))));
     await batch.commit();
   }
+  if(store === 'matches') ids.forEach(id=>_summaryNoteMatchWrite(id, null));
 }
 
 /* Varias escrituras, de una o más colecciones, como UNA operación atómica:
@@ -522,7 +723,11 @@ async function dbWriteBatch(ops){
   const batch = db.batch();
   const newIds = [];
   for(const o of ops){
-    if(o.type==='delete'){ batch.delete(db.collection(o.store).doc(String(o.id))); continue; }
+    if(o.type==='delete'){
+      batch.delete(db.collection(o.store).doc(String(o.id)));
+      if(o.store === 'matches') _summaryNoteMatchWrite(o.id, null);
+      continue;
+    }
     let id;
     if(o.type==='add') { id = reserved[o.store].shift(); newIds.push(id); }
     else if(o.type==='set') {
@@ -530,6 +735,7 @@ async function dbWriteBatch(ops){
       if(id == null) throw new Error(`dbWriteBatch: set en ${o.store} sin id`);
     } else throw new Error(`dbWriteBatch: tipo desconocido ${o.type}`);
     batch.set(db.collection(o.store).doc(String(id)), { ...o.data, id });
+    if(o.store === 'matches') _summaryNoteMatchWrite(id, { ...o.data, id });
   }
   await batch.commit();
   return newIds;
@@ -541,19 +747,23 @@ async function dbPut(store, data){
   let id = data.id;
   if (id == null) id = await _fsNextId(store); // por si llaman put sin id
   await db.collection(store).doc(String(id)).set({ ...data, id });
+  if(store === 'matches') _summaryNoteMatchWrite(id, { ...data, id });
   return id;
 }
 
 function dbDelete(store, id){
   _assertWritable('dbDelete', store);
   _archGuard('dbDelete', store, null, id);
-  return db.collection(store).doc(String(id)).delete();
+  return db.collection(store).doc(String(id)).delete().then(()=>{
+    if(store === 'matches') _summaryNoteMatchWrite(id, null);
+  });
 }
 
 /* Suscripción en tiempo real (Fase 6A).
    Usa onSnapshot → llama cb(result) ante cada cambio. SIEMPRE devuelve
    una función para cancelar la suscripción (unsubscribe). */
 function dbSubscribe(store, filter, cb){
+  if(store === 'matches') return _matchesSubscribe(filter, cb);
   // Dedupe por snapshot: si el canal "Listen" está bloqueado/inestable (p.ej.
   // un bloqueador de contenido devolviendo net::ERR_BLOCKED_BY_CLIENT), el SDK
   // reintenta la conexión en segundo plano y cada reintento puede entregar un

@@ -26,8 +26,47 @@ async function renderAdmData(){
     </div>
   </div>
   <div class="section-lbl">Información de la base de datos</div>
-  <div class="card" style="padding:14px;" id="db-info"></div>`;
+  <div class="card" style="padding:14px;" id="db-info"></div>
+  <div class="section-lbl">Resumen de partidos</div>
+  <div class="card" style="padding:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;">
+    <p style="font-size:14px;color:var(--txt2);line-height:1.5;max-width:620px;margin:0;">Las visitas leen los partidos de un resumen por temporada (un documento) en vez de la colección entera. Se mantiene solo con cada cambio; este botón lo vuelve a armar desde cero desde los partidos.</p>
+    <button class="btn" data-onclick="rebuildMatchSummaryClick()"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.5-7.1"/><polyline points="21 3 21 9 15 9"/></svg> Rehacer resumen de partidos</button>
+  </div>`;
   await renderDBInfo();
+}
+
+/* ==========================================================
+   RESUMEN DE PARTIDOS (LECT §2)
+   Un documento por temporada en `resumenes/matches_<n>`, mantenido por la
+   Cloud Function `onMatchWritten`. «Rehacer resumen» lo arma de cero desde
+   `matches`: es el primer paso después de desplegar Functions y también el
+   botón para re-sincronizar después de un import.
+   ========================================================== */
+function _matchSummaryCallable(){
+  const fns = firebase.app().functions('southamerica-east1');
+  // Sandbox (MS-2.1): al emulador de Functions (:5001), nunca a producción.
+  if (window.__TSC_EMULATOR__ && !fns.__tscEmu){
+    fns.useEmulator('localhost', 5001);
+    fns.__tscEmu = true;
+  }
+  return fns.httpsCallable('rebuildMatchSummary');
+}
+
+async function rebuildMatchSummaryClick(){
+  showConfirm('¿Rehacer el resumen de partidos?',
+    'Se vuelve a armar desde cero el resumen de partidos de las temporadas no archivadas. No cambia ningún partido ni resultado: solo el documento que hace que una visita lea uno o dos documentos en vez de la colección entera. Tarda unos segundos.',
+    async()=>{
+      try{
+        const res = await _matchSummaryCallable()({});
+        const d = res.data || {};
+        const nums = (d.seasons || []).map(s=>s.season).join(', ');
+        showToast(`Resumen rehecho: ${d.matches || 0} partidos${nums ? ` (temporada${(d.seasons||[]).length===1?'':'s'} ${nums})` : ''}`);
+      }catch(e){
+        console.error('[Resumen] rehacer:', e);
+        const code = String(e?.code || '');
+        showToast(/permission-denied/.test(code) ? 'Solo un administrador puede rehacer el resumen' : (e?.message || 'No se pudo rehacer el resumen'),'error');
+      }
+    });
 }
 
 async function renderDBInfo(){
@@ -310,6 +349,13 @@ async function importDB(mode){
     _dataBusy=true;
     try{
       const r=await _dataApplyImport(mode,validatedStores);
+      // El import escribe los partidos documento por documento: la Function
+      // los va reflejando, pero rehacer el resumen lo deja exacto de una vez
+      // (LECT §2). Si falla, no se rompe el import: los triggers lo alcanzan.
+      if(typeof _matchSummaryCallable==='function'){
+        try{ await _matchSummaryCallable()({}); }
+        catch(e){ console.warn('[Resumen] no se pudo rehacer tras el import:', e); }
+      }
       await loadSeasons();
       showToast(`Datos importados: ${r.writes} escritura${r.writes===1?'':'s'}${r.batches>1?` en ${r.batches} lotes`:' en un solo lote'}`);
     }catch(err){

@@ -65,6 +65,11 @@ service cloud.firestore {
     match /competitions/{id}   { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /phases/{id}         { allow read: if true; allow write: if isAdmin() && notArchived('compId', archivedComps()); }
     match /matches/{id}        { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
+    // Resumen de partidos por temporada (LECT): lo mantiene una Cloud Function
+    // con el SDK de admin; el cliente solo lo lee. Lectura pública como
+    // `matches`; escritura del cliente, solo admin (y nunca de una temporada
+    // archivada).
+    match /resumenes/{id}      { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /coins/{id}          { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /history/{id}        { allow read: if true; allow write: if isAdmin(); }
     match /settings/{id}       { allow read: if true; allow write: if isAdmin(); }

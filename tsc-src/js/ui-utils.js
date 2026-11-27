@@ -683,8 +683,34 @@ async function seedInitialData(){
 
 /* ----------------------------------------------------------
    MIGRACIÓN: Convertir nombres de equipos a IDs
-   ---------------------------------------------------------- */
+   ----------------------------------------------------------
+   Corre una sola vez y deja la bandera `teamNamesMigratedToIds` en `settings`
+   (mismo patrón que syncTeamPreviousNames / migrateTeamsV3MergeDiablos). Sin
+   la bandera, cada arranque leía `matches` entera (cientos de documentos) en
+   todos los roles y en todas las páginas (LECT §1).
+   - La bandera se escribe SOLO si la migración termina bien.
+   - Solo la corre un admin: es la única que puede escribir en `matches` y
+     `phases`, y la que puede dejar la bandera. Un visitante anónimo o un
+     presidente no lee nada (antes leía `matches` y encima fallaba al escribir).
+   - Si algo falla, el arranque sigue (la llama _bootStep) y se reintenta en la
+     próxima visita. */
 async function migrateTeamNamesToIds(){
+  const flag = await dbGetAll('settings', s=>s.key==='teamNamesMigratedToIds');
+  if(flag.length>0) return;
+  // ¿Hay sesión? Sin sesión no hay permiso de escritura: no se intenta.
+  let user = null;
+  try{
+    const auth = firebase.auth();
+    if(typeof auth.authStateReady === 'function') await auth.authStateReady();
+    user = auth.currentUser || null;
+  }catch(_){ user = null; }
+  if(!user) return;
+  // Solo el admin puede escribir partidos y la bandera.
+  let role = null;
+  try{ const me = await db.collection('users').doc(user.uid).get(); role = me.exists ? me.data().role : null; }
+  catch(_){ return; }
+  if(role !== 'admin') return;
+
   const teams = await dbGetAll('teams');
   const nameToId = {};
   teams.forEach(t=>nameToId[t.name]=t.id);
@@ -727,6 +753,7 @@ async function migrateTeamNamesToIds(){
     }
     if(needsUpdate) await dbPut('matches', updated);
   }
+  await dbAdd('settings', {key:'teamNamesMigratedToIds', value:true, at:new Date().toISOString()});
 }
 
 /* ----------------------------------------------------------
