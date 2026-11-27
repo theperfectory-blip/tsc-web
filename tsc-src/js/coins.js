@@ -59,27 +59,30 @@ const _COINS_AMOUNT_MSG = `La cantidad debe ser un número entero entre 1 y ${CO
 /* ----------------------------------------------------------
    YCORDEN · orden de los equipos en YuNaCoins
    ----------------------------------------------------------
-   La función que ordena (activos alfabético por nombre, inactivos al final
-   por ID) vive en ui-utils.js —compartida con la sección Equipos
-   (EQORDEN)—: `ordenarEquiposActivosPrimero(teams)`.
+   La función que separa activos e inactivos vive en ui-utils.js —compartida
+   con la sección Equipos (EQORDEN)—: `ordenarEquiposActivosPrimero(teams)`.
+   YCACTIVOS usa solo `.activos`: en YuNaCoins los inactivos no se listan.
    ---------------------------------------------------------- */
 
 async function renderAdmCoins(){
   const el = document.getElementById('adm-coins-content');
   const teams = await dbGetAll('teams');
+  // YCACTIVOS: YuNaCoins solo muestra y cuenta equipos activos, con el mismo
+  // criterio que Equipos (`status === 'ACTIVO'` o sin `status`).
+  const activos = ordenarEquiposActivosPrimero(teams).activos;
   // Mapa teamId → presidente vinculado (cuenta users.teamId).
   window._presByTeam = (typeof buildPresidentByTeam==='function')
     ? await buildPresidentByTeam()
     : {};
-  const total   = teams.reduce((s,t)=>s+(t.yunacoin||0),0);
-  const promedio = teams.length ? Math.round(total/teams.length) : 0;
-  const maxCoins = Math.max(...teams.map(t=>t.yunacoin||0),1);
+  const total   = activos.reduce((s,t)=>s+(t.yunacoin||0),0);
+  const promedio = activos.length ? Math.round(total/activos.length) : 0;
+  const maxCoins = Math.max(...activos.map(t=>t.yunacoin||0),1);
   el.innerHTML = `
   <div class="grid-4" style="margin-bottom:20px;">
     <div class="stat-card"><div class="stat-num">${total.toLocaleString('es-CL')}</div><div class="stat-lbl">Total circulación</div></div>
     <div class="stat-card"><div class="stat-num">${promedio.toLocaleString('es-CL')}</div><div class="stat-lbl">Promedio por equipo</div></div>
-    <div class="stat-card"><div class="stat-num">${teams.length}</div><div class="stat-lbl">Equipos</div></div>
-    <div class="stat-card"><div class="stat-num">${Math.max(0,...teams.map(t=>t.yunacoin||0)).toLocaleString('es-CL')}</div><div class="stat-lbl">Mayor saldo</div></div>
+    <div class="stat-card"><div class="stat-num">${activos.length}</div><div class="stat-lbl">Equipos</div></div>
+    <div class="stat-card"><div class="stat-num">${Math.max(0,...activos.map(t=>t.yunacoin||0)).toLocaleString('es-CL')}</div><div class="stat-lbl">Mayor saldo</div></div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
     <div class="section-lbl" style="margin:0;">Saldos por equipo</div>
@@ -99,18 +102,16 @@ async function renderAdmCoins(){
   </div>
   <div id="coins-modal-wrap"></div>
   <div id="coins-history-wrap"></div>`;
-  renderCoinsTable(teams, maxCoins);
+  renderCoinsTable(activos, maxCoins);
 }
 
 function renderCoinsTable(teams, maxCoins){
   const tbody = document.getElementById('coins-tbody');
   if(!tbody) return;
-  // YCORDEN: activos primero y, dentro de cada grupo, el ranking por saldo.
-  // Los inactivos van al final, después de la fila separadora.
-  const { activos, inactivos } = ordenarEquiposActivosPrimero(teams);
-  const porSaldo = (a,b)=>(b.yunacoin||0)-(a.yunacoin||0);
-  activos.sort(porSaldo);
-  inactivos.sort(porSaldo);
+  // YCACTIVOS: la tabla solo lista equipos activos (mismos criterio y helper
+  // que Equipos) y, dentro de ellos, el ranking por saldo de mayor a menor.
+  const activos = ordenarEquiposActivosPrimero(teams).activos;
+  activos.sort((a,b)=>(b.yunacoin||0)-(a.yunacoin||0));
   const filaHTML = t=>{
     const coins = t.yunacoin||0;
     const pct   = maxCoins>0 ? Math.round((coins/maxCoins)*100) : 0;
@@ -134,19 +135,19 @@ function renderCoinsTable(teams, maxCoins){
       </div></td>
     </tr>`;
   };
-  const sepInactivos = `<tr><td colspan="6" style="padding:9px 10px;background:var(--card2);border-top:1px solid var(--brd2);border-bottom:1px solid var(--brd);font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt3);">Inactivos</td></tr>`;
-  if(!activos.length && !inactivos.length){
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--txt3);">No hay equipos.</td></tr>`;
+  if(!activos.length){
+    const busca = (document.getElementById('coins-search')?.value || '').trim();
+    const msg = busca ? 'Ningún equipo activo coincide con la búsqueda.' : 'No hay equipos activos.';
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--txt3);">${msg}</td></tr>`;
     return;
   }
-  tbody.innerHTML =
-    activos.map(filaHTML).join('') +
-    (inactivos.length ? sepInactivos + inactivos.map(filaHTML).join('') : '');
+  tbody.innerHTML = activos.map(filaHTML).join('');
 }
 
 async function filterCoinsTable(){
   const search = (document.getElementById('coins-search')?.value||'').toLowerCase();
-  let teams = await dbGetAll('teams');
+  // YCACTIVOS: la búsqueda nunca devuelve equipos inactivos.
+  let teams = ordenarEquiposActivosPrimero(await dbGetAll('teams')).activos;
   if(search) teams = teams.filter(t=>String(t.name||'').toLowerCase().includes(search)||String(t.pres||'').toLowerCase().includes(search));
   const maxCoins = Math.max(...teams.map(t=>t.yunacoin||0),1);
   renderCoinsTable(teams, maxCoins);
@@ -350,6 +351,8 @@ function coinsReembolsoEditado(){
 async function openCoinsModal(teamId, mode){
   const team = await dbGet('teams', teamId);
   if(!team){ showToast('El equipo ya no existe','error'); renderAdmCoins(); return; }
+  // YCACTIVOS: un equipo inactivo no tiene carga individual ni historial.
+  if(!_equipoOrdenActivo(team)){ showToast('Ese equipo está inactivo: no aparece en YuNaCoins','error'); renderAdmCoins(); return; }
   const cobro = await _coinsTemporadaInfo();
   const isAdd = mode==='add';
   // COINS1: el bloque del tope solo tiene sentido al AGREGAR coins.
@@ -589,6 +592,8 @@ function _coinsHistTemporadaHTML(t, nombres){
 async function openCoinsHistory(teamId){
   const team = await dbGet('teams', teamId);
   if(!team){ showToast('El equipo ya no existe', 'error'); renderAdmCoins(); return; }
+  // YCACTIVOS: el historial de un inactivo sigue en la base, pero no se lista acá.
+  if(!_equipoOrdenActivo(team)){ showToast('Ese equipo está inactivo: no aparece en YuNaCoins', 'error'); renderAdmCoins(); return; }
   const [cobro, history, seasons] = await Promise.all([
     _coinsTemporadaInfo(),
     dbGetAll('coins', c => String(c.teamId) === String(teamId)),
@@ -627,7 +632,8 @@ async function openCoinsHistory(teamId){
 }
 
 async function openBulkCoinsModal(){
-  const teams = await dbGetAll('teams', t=>t.status==='ACTIVO');
+  // YCACTIVOS: misma definición de activo que la tabla (helper compartido).
+  const teams = ordenarEquiposActivosPrimero(await dbGetAll('teams')).activos;
   const cobro = await _coinsTemporadaInfo();
   document.getElementById('coins-modal-wrap').innerHTML = `
   <div class="modal-overlay open">
@@ -674,7 +680,7 @@ function saveBulkCoins(){
     if(isNaN(amount)){ showToast(_COINS_AMOUNT_MSG,'error'); return; }
     const cob = await _coinsTemporadaCobro();
     if(!cob) return;
-    const teams = await dbGetAll('teams',t=>t.status==='ACTIVO');
+    const teams = ordenarEquiposActivosPrimero(await dbGetAll('teams')).activos;
     // Restar nunca deja saldo negativo: a cada equipo se le resta lo que tiene,
     // hasta la cantidad pedida, y el movimiento registra lo restado de verdad.
     const plan = teams.map(team=>{
