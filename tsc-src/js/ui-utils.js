@@ -564,6 +564,40 @@ function saveSettings(){
 }
 
 /* ----------------------------------------------------------
+   ORDEN DE EQUIPOS (compartido por YuNaCoins y Equipos)
+   ----------------------------------------------------------
+   Arriba los activos, alfabético por nombre (localeCompare en español, sin
+   distinguir mayúsculas ni tildes); abajo los inactivos, por ID. Un equipo
+   sin `status` cuenta como activo (mismo criterio que teams.js y bracket.js).
+   Devuelve los dos grupos ya ordenados para que cada lista decida cómo
+   pintarlos: quien se ordena a propósito por otra columna (el ranking de
+   saldos) re-ordena cada grupo, pero los inactivos siguen al final.
+   Vive acá (YCORDEN la tenía en coins.js) porque teams.js se carga después y
+   en otro bundle: ui-utils.js entra antes que los dos.
+   ---------------------------------------------------------- */
+function _equipoOrdenActivo(t){
+  return ((t && t.status) || 'ACTIVO') === 'ACTIVO';
+}
+function _equipoOrdenNombre(t){
+  return String((t && t.name) || '');
+}
+function _equipoOrdenId(t){
+  return Number(t && t.id) || 0;
+}
+function ordenarEquiposActivosPrimero(teams){
+  const activos = [];
+  const inactivos = [];
+  (Array.isArray(teams) ? teams : []).forEach(t=>{
+    if(!t) return;
+    (_equipoOrdenActivo(t) ? activos : inactivos).push(t);
+  });
+  activos.sort((a,b)=>_equipoOrdenNombre(a).localeCompare(_equipoOrdenNombre(b),'es',{sensitivity:'base',numeric:true})
+    || _equipoOrdenId(a)-_equipoOrdenId(b));
+  inactivos.sort((a,b)=>_equipoOrdenId(a)-_equipoOrdenId(b));
+  return { activos, inactivos, todos: activos.concat(inactivos) };
+}
+
+/* ----------------------------------------------------------
    DATOS INICIALES
    ---------------------------------------------------------- */
 const EQUIPOS_INICIALES = [
