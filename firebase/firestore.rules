@@ -65,6 +65,11 @@ service cloud.firestore {
     match /competitions/{id}   { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /phases/{id}         { allow read: if true; allow write: if isAdmin() && notArchived('compId', archivedComps()); }
     match /matches/{id}        { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
+    // Resumen de partidos por temporada (LECT): lo mantiene una Cloud Function
+    // con el SDK de admin; el cliente solo lo lee. Lectura pública como
+    // `matches`; escritura del cliente, solo admin (y nunca de una temporada
+    // archivada).
+    match /resumenes/{id}      { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /coins/{id}          { allow read: if true; allow write: if isAdmin() && seasonOpen('season'); }
     match /history/{id}        { allow read: if true; allow write: if isAdmin(); }
     match /settings/{id}       { allow read: if true; allow write: if isAdmin(); }
@@ -358,9 +363,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // --- Plantillas PES5 publicadas por el admin --- las escribe solo el admin; cada presidente lee solo la de su equipo.
+    // --- Plantillas PES5 publicadas por el admin --- las escribe solo el admin. La lectura la hace
+    // cualquier usuario con sesión y documento en users: es información pública del torneo (el save
+    // se comparte y la Formación en vivo necesita los jugadores de cualquier equipo TSC).
     match /pes5_plantillas/{teamId} {
-      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null && string(me().teamId) == teamId);
+      allow read: if isAdmin() || (signedIn() && meExists());
       allow write: if isAdmin();
     }
 

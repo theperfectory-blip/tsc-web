@@ -1,0 +1,1088 @@
+{
+  "formato": "pes5-live-map/1",
+  "descripcion": "Mapa del registro de formación y ajustes de equipo de PES5 en memoria (628 bytes), válido también para el registro del option file. Todos los offsets son relativos a rec (0x3956f5e para FKC y 0x395bbb2 para GAF). La Alineación A (rec+283) y la Alineación B (rec+454) son el bloque principal (rec+112) desplazado +171 y +342. Solo incluye campos con evidencia en NOTAS.md o en las capturas.",
+  "registro": {
+    "largo": 628,
+    "baseCaptura": "0x3940000",
+    "recs": {
+      "FKC": "0x3956f5e",
+      "GAF": "0x395bbb2"
+    },
+    "bloques": {
+      "cabecera": 100,
+      "principal": 112,
+      "A": 283,
+      "B": 454,
+      "desplazamiento": 171
+    },
+    "save": {
+      "base": 716932,
+      "stride": 628,
+      "clubes": {
+        "FKC": 42,
+        "GAF": 5
+      }
+    }
+  },
+  "codificaciones": {
+    "posicion": {
+      "0": "PT",
+      "1": "CT",
+      "2": "CT",
+      "3": "CT",
+      "4": "LIB",
+      "5": "LIB",
+      "6": "CT",
+      "7": "CT",
+      "8": "DI",
+      "9": "DD",
+      "10": "CCD",
+      "11": "CCD",
+      "12": "CCD",
+      "13": "CCD",
+      "14": "CCD",
+      "15": "DLI",
+      "16": "DLD",
+      "17": "CC",
+      "18": "CC",
+      "19": "CC",
+      "20": "CC",
+      "21": "CC",
+      "22": "CIZ",
+      "23": "CDR",
+      "24": "MP",
+      "25": "MP",
+      "26": "MP",
+      "27": "MP",
+      "28": "MP",
+      "29": "EI",
+      "30": "ED",
+      "31": "SD",
+      "32": "SD",
+      "33": "SD",
+      "34": "SD",
+      "35": "SD",
+      "36": "DC",
+      "37": "DC",
+      "38": "DC",
+      "39": "DC",
+      "40": "DC"
+    },
+    "estrategia": {
+      "0": "Sin estrategia",
+      "1": "Normal",
+      "2": "Ataque centro",
+      "3": "Ataque drcha",
+      "4": "Ataque izqda",
+      "5": "Atq. lado opuesto",
+      "6": "Cambio banda",
+      "7": "Desborde DC",
+      "8": "Zona presión",
+      "9": "Contraataque",
+      "10": "Fuera de juego",
+      "11": "Alineación A",
+      "12": "Alineación B"
+    },
+    "nivel": {
+      "0": "Manual",
+      "1": "Auto defensa",
+      "2": "Normal",
+      "3": "Auto ataque"
+    },
+    "sistema": {
+      "0": "Normal",
+      "1": "Líbero",
+      "2": "Defensa en línea"
+    },
+    "abc": {
+      "0": "A",
+      "1": "B",
+      "2": "C"
+    },
+    "actitud": {
+      "0": "Alto",
+      "1": "Normal",
+      "2": "Bajo"
+    },
+    "marcaje": {
+      "0": "Marcaje",
+      "1": "Marcar zonas",
+      "2": "Marcar hombre Normal",
+      "3": "Marcar hombre Agresivo"
+    },
+    "modoEstrategia": {
+      "0": "Manual",
+      "1": "Semi-automático"
+    },
+    "flechas": [
+      "←",
+      "↖",
+      "↑",
+      "↗",
+      "→",
+      "↘",
+      "↓",
+      "↙"
+    ],
+    "flechaValor": {
+      "0": "apagada",
+      "1": "encendida"
+    },
+    "rivalNinguno": 255
+  },
+  "campos": [
+    {
+      "offset": 4,
+      "len": 32,
+      "nombre": "orden",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Cambios / Alineación auto.",
+      "seEscribe": "instante",
+      "bloque": "orden",
+      "descripcion": "Permutación casilla→índice del plantel: 0–10 titulares, 11–22 banca, 23–31 reservas. Antes del partido el cambio es directo; en pausa va a la cola de rec-20."
+    },
+    {
+      "offset": 36,
+      "len": 64,
+      "nombre": "idsPlantel",
+      "porCasilla": true,
+      "stride": 2,
+      "valores": null,
+      "menu": null,
+      "seEscribe": "instante",
+      "bloque": "ids",
+      "descripcion": "32 ids u16 del plantel. El option file guarda ceros en el registro y el plantel aparte (bloque 5).",
+      "unidad": "u16le"
+    },
+    {
+      "offset": 100,
+      "len": 4,
+      "nombre": "estrategiaBoton",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Sin estrategia",
+        "1": "Normal",
+        "2": "Ataque centro",
+        "3": "Ataque drcha",
+        "4": "Ataque izqda",
+        "5": "Atq. lado opuesto",
+        "6": "Cambio banda",
+        "7": "Desborde DC",
+        "8": "Zona presión",
+        "9": "Contraataque",
+        "10": "Fuera de juego",
+        "11": "Alineación A",
+        "12": "Alineación B"
+      },
+      "menu": "Ajustes estrategia > Manual (□ △ ○ ✕)",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Un código de estrategia por botón: □, △, ○ y ✕. En semi-automático son L2, AUTO1, AUTO2 y AUTO3.",
+      "etiquetas": [
+        "□",
+        "△",
+        "○",
+        "✕"
+      ]
+    },
+    {
+      "offset": 104,
+      "len": 1,
+      "nombre": "desconocido104",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": null,
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Vale 1 en partida y 0 en el save; significado sin identificar."
+    },
+    {
+      "offset": 105,
+      "len": 1,
+      "nombre": "modoEstrategia",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Manual",
+        "1": "Semi-automático"
+      },
+      "menu": "Ajustes estrategia > Manual / Semi-automático",
+      "seEscribe": "instante",
+      "bloque": "cabecera"
+    },
+    {
+      "offset": 106,
+      "len": 1,
+      "nombre": "cornerIzquierdo",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Lanzador/Capit > Selecc. lanzador (SE I)",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Índice de plantel (0–31) del lanzador del córner izquierdo (marca I de la columna SE); la pantalla lo muestra en la casilla donde esté ese índice en el orden. k_l4 mueve este byte 8->6 y k_l4.png muestra I en Freier (índice 6); la desc de la captura dice 'derecha' porque describe el recorrido del cursor, no la columna editada.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
+    },
+    {
+      "offset": 107,
+      "len": 1,
+      "nombre": "cornerDerecho",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Lanzador/Capit > Selecc. lanzador (SE D)",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Índice de plantel (0–31) del lanzador del córner derecho (marca D de la columna SE); la pantalla lo muestra en la casilla donde esté ese índice en el orden. En k_l4 vale 8 (Schneider), la D de la imagen.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
+    },
+    {
+      "offset": 108,
+      "len": 1,
+      "nombre": "tiroLibreLargo",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Lanzador/Capit > Selecc. lanzador (TL L)",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Índice de plantel (0–31) del lanzador del tiro libre largo; la pantalla lo muestra en la casilla donde esté ese índice en el orden.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
+    },
+    {
+      "offset": 109,
+      "len": 1,
+      "nombre": "tiroLibreCorto",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Lanzador/Capit > Selecc. lanzador (TL C)",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Índice de plantel (0–31) del lanzador del tiro libre corto; la pantalla lo muestra en la casilla donde esté ese índice en el orden.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
+    },
+    {
+      "offset": 110,
+      "len": 1,
+      "nombre": "penal",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Lanzador/Capit > Selecc. lanzador (PK)",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Índice de plantel (0–31) del lanzador de penales; la pantalla lo muestra en la casilla donde esté ese índice en el orden.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
+    },
+    {
+      "offset": 111,
+      "len": 1,
+      "nombre": "capitan",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Lanzador/Capit > Elegir capitán",
+      "seEscribe": "instante",
+      "bloque": "cabecera",
+      "descripcion": "Índice de plantel (0–31) del capitán; la pantalla lo muestra en la casilla donde esté ese índice en el orden. rec+644/645 son fila y casilla del cursor de esa pantalla, no una copia del capitán.",
+      "unidad": "índice de plantel (0–31) de un titular",
+      "rango": [
+        0,
+        31
+      ]
+    },
+    {
+      "offset": 112,
+      "len": 11,
+      "nombre": "profundidad",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Editar posición / Cambio / Config. rápida",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Profundidad de las casillas 0..10 (1..47). Editar posición la escribe al confirmar; Config. rápida y la variante de Cambio la aplican al elegir.",
+      "rango": [
+        1,
+        47
+      ]
+    },
+    {
+      "offset": 123,
+      "len": 10,
+      "nombre": "lateral",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Editar posición / Cambio",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Lateral de las casillas 1..10 (6..99); la casilla 0 (portero) no tiene lateral. Editar posición lo escribe al confirmar; Config. rápida no lo toca y la variante de Cambio lo aplica al elegir.",
+      "casillaInicial": 1,
+      "rango": [
+        6,
+        99
+      ]
+    },
+    {
+      "offset": 133,
+      "len": 11,
+      "nombre": "posicion",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "PT",
+        "1": "CT",
+        "2": "CT",
+        "3": "CT",
+        "4": "LIB",
+        "5": "LIB",
+        "6": "CT",
+        "7": "CT",
+        "8": "DI",
+        "9": "DD",
+        "10": "CCD",
+        "11": "CCD",
+        "12": "CCD",
+        "13": "CCD",
+        "14": "CCD",
+        "15": "DLI",
+        "16": "DLD",
+        "17": "CC",
+        "18": "CC",
+        "19": "CC",
+        "20": "CC",
+        "21": "CC",
+        "22": "CIZ",
+        "23": "CDR",
+        "24": "MP",
+        "25": "MP",
+        "26": "MP",
+        "27": "MP",
+        "28": "MP",
+        "29": "EI",
+        "30": "ED",
+        "31": "SD",
+        "32": "SD",
+        "33": "SD",
+        "34": "SD",
+        "35": "SD",
+        "36": "DC",
+        "37": "DC",
+        "38": "DC",
+        "39": "DC",
+        "40": "DC"
+      },
+      "menu": "Alineación > Selec. posición",
+      "seEscribe": "instante",
+      "bloque": "principal",
+      "descripcion": "Código de posición de cada casilla 0..10; el juego lo recalcula al cambiar líbero o sistema."
+    },
+    {
+      "offset": 147,
+      "len": 88,
+      "nombre": "flechasAtaque",
+      "porCasilla": true,
+      "stride": 8,
+      "valores": {
+        "0": "apagada",
+        "1": "encendida"
+      },
+      "menu": "Config. individual > Actitud atacante",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "8 bytes por casilla, en el orden ← ↖ ↑ ↗ → ↘ ↓ ↙ (0/1). Cada dirección se marca con X; no hace falta el OK del submenú (una captura de la serie puede quedar un paso por detrás).",
+      "unidad": "bits8"
+    },
+    {
+      "offset": 243,
+      "len": 11,
+      "nombre": "actitudDefensiva",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "Alto",
+        "1": "Normal",
+        "2": "Bajo"
+      },
+      "menu": "Config. individual > Actitud defens.",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Actitud defensiva de cada casilla 0..10. Dibuja las flechas azules de la cancha."
+    },
+    {
+      "offset": 254,
+      "len": 11,
+      "nombre": "marcaje",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "Marcaje",
+        "1": "Marcar zonas",
+        "2": "Marcar hombre Normal",
+        "3": "Marcar hombre Agresivo"
+      },
+      "menu": "Config. individual > Config. marcaje",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Tipo de marcaje de cada casilla 0..10. Si se sale del menú antes de elegir el tipo al hombre, no se guarda."
+    },
+    {
+      "offset": 265,
+      "len": 11,
+      "nombre": "rivalMarcado",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Config. individual > Config. marcaje > Juga. A marcar",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Casilla del rival que marca cada casilla 0..10; 255 = ninguno. Se conserva al volver a marcar zonas."
+    },
+    {
+      "offset": 276,
+      "len": 1,
+      "nombre": "sistemaDefensivo",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Normal",
+        "1": "Líbero",
+        "2": "Defensa en línea"
+      },
+      "menu": "Ajustes equipo > Sist. defensivo",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Líbero además cambia la posición de un CT a LIB. Las capturas p006-p014 pueden leer el valor anterior: se escribe al confirmar la opción."
+    },
+    {
+      "offset": 277,
+      "len": 1,
+      "nombre": "libero",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Ajustes equipo > Lista de ajustes > Líbero",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Casilla 0..10 del jugador que hace de líbero. Se escribe al confirmar la Lista de ajustes."
+    },
+    {
+      "offset": 278,
+      "len": 1,
+      "nombre": "nivelAtaqueDefensa",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Manual",
+        "1": "Auto defensa",
+        "2": "Normal",
+        "3": "Auto ataque"
+      },
+      "menu": "Ajustes equipo > Nivel Ataq./Def.",
+      "seEscribe": "instante",
+      "bloque": "principal"
+    },
+    {
+      "offset": 279,
+      "len": 1,
+      "nombre": "lineaDefensiva",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Línea defensiva",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Se escribe al confirmar (t001->t002); el búfer de pantalla vive en 0x395886d."
+    },
+    {
+      "offset": 280,
+      "len": 1,
+      "nombre": "zonaPresion",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Zona de presión",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Offset deducido del búfer 0x395886e: las capturas e010-e013 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 281,
+      "len": 1,
+      "nombre": "fueraDeJuego",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Fuera de juego",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Offset deducido del búfer 0x395886f: las capturas e020-e023 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 282,
+      "len": 1,
+      "nombre": "contraataque",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Contraataque",
+      "seEscribe": "confirmar",
+      "bloque": "principal",
+      "descripcion": "Offset deducido del búfer 0x3958870: las capturas e030-e033 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 283,
+      "len": 11,
+      "nombre": "profundidad",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Editar posición / Cambio / Config. rápida",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Profundidad de las casillas 0..10 (1..47). Editar posición la escribe al confirmar; Config. rápida y la variante de Cambio la aplican al elegir.",
+      "rango": [
+        1,
+        47
+      ]
+    },
+    {
+      "offset": 294,
+      "len": 10,
+      "nombre": "lateral",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Editar posición / Cambio",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Lateral de las casillas 1..10 (6..99); la casilla 0 (portero) no tiene lateral. Editar posición lo escribe al confirmar; Config. rápida no lo toca y la variante de Cambio lo aplica al elegir.",
+      "casillaInicial": 1,
+      "rango": [
+        6,
+        99
+      ]
+    },
+    {
+      "offset": 304,
+      "len": 11,
+      "nombre": "posicion",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "PT",
+        "1": "CT",
+        "2": "CT",
+        "3": "CT",
+        "4": "LIB",
+        "5": "LIB",
+        "6": "CT",
+        "7": "CT",
+        "8": "DI",
+        "9": "DD",
+        "10": "CCD",
+        "11": "CCD",
+        "12": "CCD",
+        "13": "CCD",
+        "14": "CCD",
+        "15": "DLI",
+        "16": "DLD",
+        "17": "CC",
+        "18": "CC",
+        "19": "CC",
+        "20": "CC",
+        "21": "CC",
+        "22": "CIZ",
+        "23": "CDR",
+        "24": "MP",
+        "25": "MP",
+        "26": "MP",
+        "27": "MP",
+        "28": "MP",
+        "29": "EI",
+        "30": "ED",
+        "31": "SD",
+        "32": "SD",
+        "33": "SD",
+        "34": "SD",
+        "35": "SD",
+        "36": "DC",
+        "37": "DC",
+        "38": "DC",
+        "39": "DC",
+        "40": "DC"
+      },
+      "menu": "Alineación > Selec. posición",
+      "seEscribe": "instante",
+      "bloque": "A",
+      "descripcion": "Código de posición de cada casilla 0..10; el juego lo recalcula al cambiar líbero o sistema."
+    },
+    {
+      "offset": 318,
+      "len": 88,
+      "nombre": "flechasAtaque",
+      "porCasilla": true,
+      "stride": 8,
+      "valores": {
+        "0": "apagada",
+        "1": "encendida"
+      },
+      "menu": "Config. individual > Actitud atacante",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "8 bytes por casilla, en el orden ← ↖ ↑ ↗ → ↘ ↓ ↙ (0/1). Cada dirección se marca con X; no hace falta el OK del submenú (una captura de la serie puede quedar un paso por detrás).",
+      "unidad": "bits8"
+    },
+    {
+      "offset": 414,
+      "len": 11,
+      "nombre": "actitudDefensiva",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "Alto",
+        "1": "Normal",
+        "2": "Bajo"
+      },
+      "menu": "Config. individual > Actitud defens.",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Actitud defensiva de cada casilla 0..10. Dibuja las flechas azules de la cancha."
+    },
+    {
+      "offset": 425,
+      "len": 11,
+      "nombre": "marcaje",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "Marcaje",
+        "1": "Marcar zonas",
+        "2": "Marcar hombre Normal",
+        "3": "Marcar hombre Agresivo"
+      },
+      "menu": "Config. individual > Config. marcaje",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Tipo de marcaje de cada casilla 0..10. Si se sale del menú antes de elegir el tipo al hombre, no se guarda."
+    },
+    {
+      "offset": 436,
+      "len": 11,
+      "nombre": "rivalMarcado",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Config. individual > Config. marcaje > Juga. A marcar",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Casilla del rival que marca cada casilla 0..10; 255 = ninguno. Se conserva al volver a marcar zonas."
+    },
+    {
+      "offset": 447,
+      "len": 1,
+      "nombre": "sistemaDefensivo",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Normal",
+        "1": "Líbero",
+        "2": "Defensa en línea"
+      },
+      "menu": "Ajustes equipo > Sist. defensivo",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Líbero además cambia la posición de un CT a LIB. Las capturas p006-p014 pueden leer el valor anterior: se escribe al confirmar la opción."
+    },
+    {
+      "offset": 448,
+      "len": 1,
+      "nombre": "libero",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Ajustes equipo > Lista de ajustes > Líbero",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Casilla 0..10 del jugador que hace de líbero. Se escribe al confirmar la Lista de ajustes."
+    },
+    {
+      "offset": 449,
+      "len": 1,
+      "nombre": "nivelAtaqueDefensa",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Manual",
+        "1": "Auto defensa",
+        "2": "Normal",
+        "3": "Auto ataque"
+      },
+      "menu": "Ajustes equipo > Nivel Ataq./Def.",
+      "seEscribe": "instante",
+      "bloque": "A"
+    },
+    {
+      "offset": 450,
+      "len": 1,
+      "nombre": "lineaDefensiva",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Línea defensiva",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Se escribe al confirmar (t001->t002); el búfer de pantalla vive en 0x395886d."
+    },
+    {
+      "offset": 451,
+      "len": 1,
+      "nombre": "zonaPresion",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Zona de presión",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Offset deducido del búfer 0x395886e: las capturas e010-e013 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 452,
+      "len": 1,
+      "nombre": "fueraDeJuego",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Fuera de juego",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Offset deducido del búfer 0x395886f: las capturas e020-e023 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 453,
+      "len": 1,
+      "nombre": "contraataque",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Contraataque",
+      "seEscribe": "confirmar",
+      "bloque": "A",
+      "descripcion": "Offset deducido del búfer 0x3958870: las capturas e030-e033 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 454,
+      "len": 11,
+      "nombre": "profundidad",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Editar posición / Cambio / Config. rápida",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Profundidad de las casillas 0..10 (1..47). Editar posición la escribe al confirmar; Config. rápida y la variante de Cambio la aplican al elegir.",
+      "rango": [
+        1,
+        47
+      ]
+    },
+    {
+      "offset": 465,
+      "len": 10,
+      "nombre": "lateral",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Alineación > Editar posición / Cambio",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Lateral de las casillas 1..10 (6..99); la casilla 0 (portero) no tiene lateral. Editar posición lo escribe al confirmar; Config. rápida no lo toca y la variante de Cambio lo aplica al elegir.",
+      "casillaInicial": 1,
+      "rango": [
+        6,
+        99
+      ]
+    },
+    {
+      "offset": 475,
+      "len": 11,
+      "nombre": "posicion",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "PT",
+        "1": "CT",
+        "2": "CT",
+        "3": "CT",
+        "4": "LIB",
+        "5": "LIB",
+        "6": "CT",
+        "7": "CT",
+        "8": "DI",
+        "9": "DD",
+        "10": "CCD",
+        "11": "CCD",
+        "12": "CCD",
+        "13": "CCD",
+        "14": "CCD",
+        "15": "DLI",
+        "16": "DLD",
+        "17": "CC",
+        "18": "CC",
+        "19": "CC",
+        "20": "CC",
+        "21": "CC",
+        "22": "CIZ",
+        "23": "CDR",
+        "24": "MP",
+        "25": "MP",
+        "26": "MP",
+        "27": "MP",
+        "28": "MP",
+        "29": "EI",
+        "30": "ED",
+        "31": "SD",
+        "32": "SD",
+        "33": "SD",
+        "34": "SD",
+        "35": "SD",
+        "36": "DC",
+        "37": "DC",
+        "38": "DC",
+        "39": "DC",
+        "40": "DC"
+      },
+      "menu": "Alineación > Selec. posición",
+      "seEscribe": "instante",
+      "bloque": "B",
+      "descripcion": "Código de posición de cada casilla 0..10; el juego lo recalcula al cambiar líbero o sistema."
+    },
+    {
+      "offset": 489,
+      "len": 88,
+      "nombre": "flechasAtaque",
+      "porCasilla": true,
+      "stride": 8,
+      "valores": {
+        "0": "apagada",
+        "1": "encendida"
+      },
+      "menu": "Config. individual > Actitud atacante",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "8 bytes por casilla, en el orden ← ↖ ↑ ↗ → ↘ ↓ ↙ (0/1). Cada dirección se marca con X; no hace falta el OK del submenú (una captura de la serie puede quedar un paso por detrás).",
+      "unidad": "bits8"
+    },
+    {
+      "offset": 585,
+      "len": 11,
+      "nombre": "actitudDefensiva",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "Alto",
+        "1": "Normal",
+        "2": "Bajo"
+      },
+      "menu": "Config. individual > Actitud defens.",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Actitud defensiva de cada casilla 0..10. Dibuja las flechas azules de la cancha."
+    },
+    {
+      "offset": 596,
+      "len": 11,
+      "nombre": "marcaje",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": {
+        "0": "Marcaje",
+        "1": "Marcar zonas",
+        "2": "Marcar hombre Normal",
+        "3": "Marcar hombre Agresivo"
+      },
+      "menu": "Config. individual > Config. marcaje",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Tipo de marcaje de cada casilla 0..10. Si se sale del menú antes de elegir el tipo al hombre, no se guarda."
+    },
+    {
+      "offset": 607,
+      "len": 11,
+      "nombre": "rivalMarcado",
+      "porCasilla": true,
+      "stride": 1,
+      "valores": null,
+      "menu": "Config. individual > Config. marcaje > Juga. A marcar",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Casilla del rival que marca cada casilla 0..10; 255 = ninguno. Se conserva al volver a marcar zonas."
+    },
+    {
+      "offset": 618,
+      "len": 1,
+      "nombre": "sistemaDefensivo",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Normal",
+        "1": "Líbero",
+        "2": "Defensa en línea"
+      },
+      "menu": "Ajustes equipo > Sist. defensivo",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Líbero además cambia la posición de un CT a LIB. Las capturas p006-p014 pueden leer el valor anterior: se escribe al confirmar la opción."
+    },
+    {
+      "offset": 619,
+      "len": 1,
+      "nombre": "libero",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": null,
+      "menu": "Ajustes equipo > Lista de ajustes > Líbero",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Casilla 0..10 del jugador que hace de líbero. Se escribe al confirmar la Lista de ajustes."
+    },
+    {
+      "offset": 620,
+      "len": 1,
+      "nombre": "nivelAtaqueDefensa",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "Manual",
+        "1": "Auto defensa",
+        "2": "Normal",
+        "3": "Auto ataque"
+      },
+      "menu": "Ajustes equipo > Nivel Ataq./Def.",
+      "seEscribe": "instante",
+      "bloque": "B"
+    },
+    {
+      "offset": 621,
+      "len": 1,
+      "nombre": "lineaDefensiva",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Línea defensiva",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Se escribe al confirmar (t001->t002); el búfer de pantalla vive en 0x395886d."
+    },
+    {
+      "offset": 622,
+      "len": 1,
+      "nombre": "zonaPresion",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Zona de presión",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Offset deducido del búfer 0x395886e: las capturas e010-e013 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 623,
+      "len": 1,
+      "nombre": "fueraDeJuego",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Fuera de juego",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Offset deducido del búfer 0x395886f: las capturas e020-e023 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    },
+    {
+      "offset": 624,
+      "len": 1,
+      "nombre": "contraataque",
+      "porCasilla": false,
+      "stride": 1,
+      "valores": {
+        "0": "A",
+        "1": "B",
+        "2": "C"
+      },
+      "menu": "Ajustes equipo > Estrat. equipo > Contraataque",
+      "seEscribe": "confirmar",
+      "bloque": "B",
+      "descripcion": "Offset deducido del búfer 0x3958870: las capturas e030-e033 mueven el búfer y el valor se copia al confirmar (no hay captura del confirmar de esta fila)."
+    }
+  ]
+}

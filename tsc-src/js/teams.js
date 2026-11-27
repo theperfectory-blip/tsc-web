@@ -6,6 +6,16 @@
 /* ----------------------------------------------------------
    RENDER ADMIN — EQUIPOS
    ---------------------------------------------------------- */
+/* EQORDEN · filtro de estado de la tabla, por defecto «Activos»: al entrar
+   no se ven los inactivos. Se conserva entre repintados para que activar o
+   desactivar un equipo lo deje en su sitio sin perder el filtro elegido. */
+let _teamsStatusFilter = 'ACTIVO';
+
+function _teamsStatusValue(){
+  const sel = document.getElementById('team-status-filter');
+  return sel ? (sel.value || '') : _teamsStatusFilter;
+}
+
 async function renderAdmTeams(){
   const el = document.getElementById('adm-teams-content');
   const teams = await dbGetAll('teams');
@@ -27,9 +37,9 @@ async function renderAdmTeams(){
         style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;width:180px;">
       <select id="team-status-filter" data-onchange="filterTeamsTable()"
         style="padding:7px 10px;background:var(--card2);border:1px solid var(--brd);border-radius:var(--r);color:var(--txt);font-size:14px;">
-        <option value="">Todos</option>
-        <option value="ACTIVO">Activos</option>
-        <option value="INACTIVO">Inactivos</option>
+        <option value="" ${_teamsStatusFilter===''?'selected':''}>Todos</option>
+        <option value="ACTIVO" ${_teamsStatusFilter!==''&&_teamsStatusFilter!=='INACTIVO'?'selected':''}>Activos</option>
+        <option value="INACTIVO" ${_teamsStatusFilter==='INACTIVO'?'selected':''}>Inactivos</option>
       </select>
     </div>
     <button class="btn btn-primary" data-onclick="openTeamModal()">+ Nuevo equipo</button>
@@ -59,20 +69,42 @@ async function renderAdmTeams(){
   renderTeamsTable(teams);
 }
 
+/* EQORDEN · pinta la tabla con el filtro y la búsqueda vigentes: los activos
+   en orden alfabético (localeCompare en español, sin mayúsculas ni tildes) y,
+   con «Todos», los inactivos al final (por ID) tras una fila separadora. */
 function renderTeamsTable(teams){
   const tbody = document.getElementById('teams-tbody');
   if(!tbody) return;
-  if(!teams.length){
-    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--txt3);">No hay equipos.</td></tr>`;
+  const all = Array.isArray(teams) ? teams : [];
+  const search = (document.getElementById('team-search')?.value || '').trim().toLowerCase();
+  const status = _teamsStatusValue();
+  const match = t => !search
+    || String(t.name||'').toLowerCase().includes(search)
+    || String(t.ini||'').toLowerCase().includes(search);
+
+  const { activos, inactivos } = ordenarEquiposActivosPrimero(all);
+  const act = activos.filter(match);
+  const ina = inactivos.filter(match);
+
+  // Sin filas visibles según el filtro (los inactivos no cuentan al ver solo activos).
+  const visibles = status==='INACTIVO' ? ina.length : status==='ACTIVO' ? act.length : act.length + ina.length;
+  if(!visibles){
+    const msg = status==='INACTIVO'
+      ? (search ? 'Ningún equipo inactivo coincide con la búsqueda.' : 'No hay equipos inactivos.')
+      : status==='ACTIVO'
+        ? (search ? 'Ningún equipo activo coincide con la búsqueda.' : 'No hay equipos activos.')
+        : (search ? 'Ningún equipo coincide con la búsqueda.' : 'No hay equipos.');
+    tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--txt3);">${msg}</td></tr>`;
     return;
   }
+
   const tcMap = window._teamCompMap;
   const compsOf = (tid)=>{
     if(!tcMap) return [];
     return (tcMap instanceof Map) ? (tcMap.get(tid)||[]) : (tcMap[tid]||[]);
   };
 
-  tbody.innerHTML = teams.map((t,i)=>{
+  const rowHtml = (t, n)=>{
     const comps = compsOf(t.id);
     const chips = comps.length
       ? `<div style="display:flex;gap:3px;flex-wrap:wrap;">` + comps.map(c=>{
@@ -83,7 +115,7 @@ function renderTeamsTable(teams){
       : `<span style="font-size:11px;color:var(--txt3);">—</span>`;
     return `
     <tr id="team-row-${t.id}">
-      <td style="color:var(--txt3);">${i+1}</td>
+      <td style="color:var(--txt3);">${n}</td>
       <td>
         <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:${safeCssColor(t.color,'#333')};flex-shrink:0;">
           ${safeImgUrl(t.logo)
@@ -109,15 +141,21 @@ function renderTeamsTable(teams){
         </div>
       </td>
     </tr>`;
-  }).join('');
+  };
+
+  let n = 0;
+  const rows = [];
+  if(status !== 'INACTIVO') act.forEach(t=>rows.push(rowHtml(t, ++n)));
+  if(status === '' && ina.length){
+    rows.push(`<tr><td colspan="9" style="padding:9px 10px;background:var(--card2);border-top:1px solid var(--brd2);border-bottom:1px solid var(--brd);font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt3);">Inactivos</td></tr>`);
+  }
+  if(status !== 'ACTIVO') ina.forEach(t=>rows.push(rowHtml(t, ++n)));
+  tbody.innerHTML = rows.join('');
 }
 
 async function filterTeamsTable(){
-  const search = document.getElementById('team-search')?.value.toLowerCase()||'';
-  const status = document.getElementById('team-status-filter')?.value||'';
-  let teams = await dbGetAll('teams');
-  if(search) teams = teams.filter(t=>t.name.toLowerCase().includes(search)||t.ini?.toLowerCase().includes(search));
-  if(status) teams = teams.filter(t=>t.status===status);
+  _teamsStatusFilter = _teamsStatusValue();
+  const teams = await dbGetAll('teams');
   renderTeamsTable(teams);
 }
 

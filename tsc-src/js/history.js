@@ -198,6 +198,57 @@ async function _histLoadCtx(){
   };
 }
 
+/* Filas "live" del historial SIN leer `matchHistory` entera (LECT §3):
+   - temporadas archivadas: sus filas congeladas del archivo (0 lecturas);
+   - temporadas no archivadas: una fila por partido con resultado, armada con
+     el partido que ya está en el resumen de partidos. El id de su registro de
+     `matchHistory` (y su createdAt) viene en el resumen (`historial`), así el
+     Historial sale con los MISMOS ids y en el mismo orden que antes. Si para
+     un partido falta ese dato (Function atrasada), se usa un id sintético
+     estable hasta que el resumen lo traiga.
+   Si el resumen no está disponible (recién desplegado, sin conexión), se cae
+   a la lectura de siempre: mejor pagar lecturas que mostrar otro historial. */
+const _HIST_SYNTH_BASE = 1000000;
+
+async function _histLiveRecords(){
+  const meta = await dbMatchHistoryMeta();
+  if(meta == null) return dbGetAll('matchHistory', h=>h.source==='live');   // resumen ausente
+  const out = dbArchivedRows('matchHistory').filter(h=>h.source==='live');
+  const matches = await dbGetAll('matches');
+  let seasonByPhase = null;
+  for(const m of matches){
+    if(m.live) continue;                          // en vivo: todavía no hay registro de historial
+    if(m.goalsA == null || m.goalsB == null) continue;
+    let season = m.season;
+    if(season == null){
+      if(!seasonByPhase){
+        const [phases, comps] = await Promise.all([dbGetAll('phases'), dbGetAll('competitions')]);
+        const compById = new Map(comps.map(c=>[String(c.id), c]));
+        seasonByPhase = new Map(phases.map(p=>[String(p.id), compById.get(String(p.compId))?.season ?? null]));
+      }
+      season = seasonByPhase.get(String(m.phaseId)) ?? STATE.season;
+    }
+    // Archivada: sus partidos y su historial ya vienen del archivo.
+    if(typeof dbIsArchivedSeason==='function' && dbIsArchivedSeason(season)) continue;
+    const h = meta[String(m.id)];
+    out.push({
+      id: h ? h.id : _HIST_SYNTH_BASE + Number(m.id || 0),
+      createdAt: h ? (h.createdAt ?? null) : (m.playedAt || m.date || null),
+      source: 'live',
+      matchRef: m.id,
+      seasonRef: season,
+      golesA: m.goalsA,
+      golesB: m.goalsB,
+      penA: m.penA ?? null,
+      penB: m.penB ?? null,
+      // No se congela un registro armado desde el partido: su id puede ser
+      // sintético y escribiría una fila nueva en matchHistory (ver más abajo).
+      _derived: true,
+    });
+  }
+  return out;
+}
+
 async function resolveHistoryRecord(h, ctx){
   // Estáticos: salen del JSON ya formateados
   if(h.source==='imported'){
@@ -298,8 +349,10 @@ async function resolveHistoryRecord(h, ctx){
     // Congelar los campos solo lo hace el admin: la regla rechaza la escritura
     // de un visitante y ese rechazo tumbaba el historial entero ("No pudimos
     // cargar el historial") al ver una temporada pasada sin campos congelados
-    // (MS-4.8, H-41). El resultado se devuelve igual, sin persistir.
-    if(typeof AUTH !== 'undefined' && AUTH.role === 'admin'){
+    // (MS-4.8, H-41). El resultado se devuelve igual, sin persistir. Tampoco
+    // se congela una fila armada desde el partido (LECT §3): su id puede ser
+    // sintético y la escritura crearía un registro duplicado en matchHistory.
+    if(!h._derived && typeof AUTH !== 'undefined' && AUTH.role === 'admin'){
       try{ await dbPut('matchHistory', {...h, ...out}); }
       catch(e){ console.warn('[Historial] no se pudo congelar el registro', h.id, e); }
     }
@@ -441,7 +494,7 @@ function _injectHistHeader(activeIdx){
 async function _getResolvedRecords(){
   const [staticRows, idbLive, ctx] = await Promise.all([
     loadStaticHistory(),
-    dbGetAll('matchHistory', h=>h.source==='live'),
+    _histLiveRecords(),
     _histLoadCtx(),
   ]);
   const allTeams = ctx.teams;
@@ -1288,7 +1341,7 @@ function _classifyOutcomeFIFA(r){
 async function _computeHistoricalStandings(){
   const [staticRows, idbLive, ctx] = await Promise.all([
     loadStaticHistory(),
-    dbGetAll('matchHistory', h=>h.source==='live'),
+    _histLiveRecords(),
     _histLoadCtx(),
   ]);
   const allTeams = ctx.teams;
