@@ -12,7 +12,7 @@
    ============================================================ */
 
 .fv-root.fv-inline{display:block;}
-.fv-root.fv-inline .fv-modal-inline{max-width:none;max-height:none;border:none;border-radius:0;background:transparent;}
+.fv-root.fv-inline .fv-modal-inline{max-width:none;max-height:none;border:none;border-radius:0;background:transparent;overflow:visible;}
 .fv-root.fv-inline .fv-body{overflow:visible;padding:12px 0 calc(12px + env(safe-area-inset-bottom));}
 
 /* ---------- botón «En vivo» del editor de mejoras ----------
@@ -157,7 +157,13 @@
 .fv-root .fv-lineup{display:inline-block;padding:0 8px;border-radius:4px;background:var(--card3);border:1px solid var(--gold-b);
   font-family:'Bebas Neue',Impact,sans-serif;font-size:15px;letter-spacing:.05em;color:var(--gold-ink);}
 .fv-root .fv-crest .fv-sum{margin-left:auto;}
-.fv-root .fv-cancha{padding:6px 2px 0;min-width:0;}
+/* FV9: margen interno para que la flecha salga de la cancha sin tocar el borde
+   de la pantalla (y sin scroll horizontal en móvil). Las flechas se miden en
+   diámetros del punto, así que el lugar que necesitan es un % del ancho: 6 %
+   a los lados (la flecha defensiva del arquero) y 5 % arriba (la flecha de la
+   banda, en la cancha horizontal). */
+.fv-root .fv-cancha{padding:5% 6% 2%;min-width:0;}
+.fv-root .fv-cancha.vert{padding:6px 6% 0;}
 .fv-root .fv-capas{display:flex;flex-wrap:wrap;gap:4px;}
 .fv-root .fv-capas button{min-height:34px;padding:4px 12px;border-radius:999px;border:1px solid var(--brd);background:var(--card3);
   color:var(--txt2);cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11.5px;
@@ -173,15 +179,23 @@
    (el pseudo-elemento es parte del botón, así que también recibe el toque). */
 .fv-root #fv-pitch-dots .ep-pitch-dot::before{content:'';position:absolute;inset:-9px;border-radius:50%;}
 
-/* capas dibujadas sobre la cancha, como las muestra el juego */
-.fv-root .fv-capa{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;}
+/* capas dibujadas sobre la cancha, como las muestra el juego.
+   FV9: sin `overflow:hidden`. Todo lo que se dibuja sobre los jugadores
+   (flechas, línea de marcaje, siglas, condiciones) puede salir de la cancha y
+   se sigue viendo por fuera, como en el minimapa del juego. El margen interno
+   que deja lugar a las flechas está en `.fv-cancha`. */
+.fv-root .fv-capa{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:visible;--fv-diam:12px;}
 .fv-root .fv-ov{position:absolute;width:0;height:0;}
-.fv-root .fv-arr{position:absolute;left:0;top:0;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:3;
-  stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 1.5px rgba(0,0,0,.9));transform-origin:50% 50%;
-  transform:translate(-50%,-50%) rotate(var(--fv-ang,0deg)) translateX(var(--fv-len,13px));}
-/* FV7: si la flecha se saldría de la cancha, se dibuja dentro del círculo del
-   jugador: misma dirección y color, más chica y pegada al centro. */
-.fv-root .fv-ov.dentro .fv-arr{transform:translate(-50%,-50%) rotate(var(--fv-ang,0deg)) translateX(1px) scale(var(--fv-in,.6));}
+/* Flecha de FV9: largo en diámetros del punto (`--fv-d`, lo escribe flechaHTML)
+   y diámetro real del punto en `--fv-diam` (lo mide ajustarFlechas). El viewBox
+   de la flecha usa 100 de alto = 1,15 diámetros: punta más alta que el punto y
+   asta de 0,41, como el juego. Arranca pegada al borde del punto y el borde
+   oscuro va en el mismo trazo. */
+.fv-root .fv-arr{position:absolute;left:0;top:0;width:calc(var(--fv-diam) * var(--fv-d,1.45));height:calc(var(--fv-diam) * 1.15);
+  fill:currentColor;stroke:rgba(0,0,0,.62);stroke-width:16;stroke-linejoin:round;transform-origin:50% 50%;
+  transform:translate(-50%,-50%) rotate(var(--fv-ang,0deg))
+    translateX(calc(var(--fv-diam) * (0.5 + var(--fv-d,1.45) * 0.5)));
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.45));}
 .fv-root .fv-sig{transform:translate(-50%,-135%);width:auto;height:auto;font-family:'Bebas Neue',Impact,sans-serif;
   font-size:15px;letter-spacing:.5px;line-height:1;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap;}
 .fv-root .fv-sig.m0{color:#FFD45A;} .fv-root .fv-sig.m1{color:#7FD3F7;}
@@ -195,7 +209,8 @@
 .fv-root .ep-pitch-tag.l-mid{color:var(--linea-mid);}
 .fv-root .ep-pitch-tag.l-att{color:var(--linea-att);}
 .fv-root .fv-mkline{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
-.fv-root .fv-mkline line{stroke:var(--fv-line);stroke-width:3;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+/* FV9: la línea de marcaje también es proporcional al punto del jugador. */
+.fv-root .fv-mkline line{stroke:var(--fv-line);stroke-width:calc(var(--fv-diam) * .34);stroke-linecap:round;vector-effect:non-scaling-stroke;}
 .fv-root .fv-rdot{position:absolute;width:2.6%;aspect-ratio:1/1;border-radius:50%;transform:translate(-50%,-50%);
   background:#2B3442;border:2px solid #E05A55;box-shadow:0 1px 2px rgba(0,0,0,.5);}
 .fv-root .ep-pitch-field.vertical .fv-rdot{width:4.2%;}
@@ -351,6 +366,9 @@
 @media (max-width: 859.98px){
   .fv-root .fv-velo{padding:0;align-items:stretch;}
   .fv-root .fv-modal{max-width:none;max-height:none;height:100vh;border:none;border-radius:0;}
+  /* FV9: en línea (pestaña del Tool) el alto lo pone el contenido y el pie va
+     debajo; con 100vh el pie tapaba la cancha. */
+  .fv-root.fv-inline .fv-modal{height:auto;min-height:0;}
   @supports (height: 100dvh){
     .fv-root .fv-modal{height:100dvh;}
   }

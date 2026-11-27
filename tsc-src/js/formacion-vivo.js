@@ -65,7 +65,9 @@ const CRUZ = {
   'dcha': [1, 0], 'abajo-dcha': [1, 1], 'abajo': [0, 1], 'abajo-izq': [-1, 1],
 };
 const ACT_COLOR = ['#2F7DE1', '#7FD3F7', '#FFFFFF'];   // Alto azul, Normal celeste, Bajo blanca
-const ACT_LARGO = [30, 21, 13];                         // larga, mediana, corta
+/* FV9: largo de la flecha defensiva en diámetros del punto del jugador (el
+   mismo criterio que la flecha de ataque). Alto larga, Normal mediana, Bajo corta. */
+const ACT_LARGO = [1.9, 1.45, 1.05];
 const SIGLA_MARCAJE = ['MR', 'ZN', 'HN', 'HA'];
 
 const ESTRATEGIAS = ['Sin estrategia', 'Normal', 'Ataque centro', 'Ataque drcha', 'Ataque izqda', 'Atq. lado opuesto',
@@ -726,51 +728,44 @@ function vectorCancha(px, py, v){ return v ? [px, py] : [-py, px]; }
 /* Vector expresado ya en la cancha horizontal -> cancha vertical (giro de
    90°). Solo para vectores de la cancha, como la flecha defensiva. */
 function rotar(dx, dy, v){ return v ? [dy, -dx] : [dx, dy]; }
-/* FV7: la dirección y el largo viajan en variables CSS para que la clase
-   «dentro» pueda achicar la flecha sin cambiar el ángulo ni el color. */
-function flechaHTML(dx, dy, color, len, largo){
+/* FV9: flecha del minimapa del juego, proporcional al punto del jugador.
+   `diametros` es el largo total en diámetros del punto (el ataque usa 1,45;
+   la actitud defensiva, ACT_LARGO). El trazo oscuro del borde va en el mismo
+   path (stroke), así se ve nítido en tema claro y oscuro. El tamaño real lo
+   pone el CSS con `--fv-diam` (lo mide `ajustarFlechas`) y `--fv-d`, que
+   viaja acá. */
+function flechaHTML(dx, dy, color, diametros){
   const ang = Math.atan2(dy, dx) * 180 / Math.PI;
-  const vars = 'color:' + color + ';--fv-ang:' + ang + 'deg;';
-  if (largo){
-    const w = largo + 8;
-    return '<svg class="fv-arr" viewBox="0 0 ' + w + ' 16" style="width:' + w + 'px;height:16px;' + vars + '--fv-len:' + (w / 2 + 6) + 'px;--fv-in:.38"><path d="M2 8h' + (w - 4) + 'M' + (w - 9) + ' 3l6 5-6 5"/></svg>';
-  }
-  return '<svg class="fv-arr" viewBox="0 0 24 24" style="' + vars + '--fv-len:' + len + 'px;--fv-in:.6"><path d="M4 12h14M13 6l6 6-6 6"/></svg>';
+  /* El viewBox mide 100 de alto = 1,15 diámetros del punto (el alto de la
+     punta, como el juego): así la punta es más alta que el punto y el asta
+     queda en 0,41. El ancho del viewBox sale del largo en diámetros. */
+  const ALTO = 1.15;
+  const d = Math.max(0.9, Number(diametros) || 1.45);
+  const ancho = Math.round(d / ALTO * 100);          // largo total en unidades
+  const cabeza = Math.min(48, Math.round(ancho * 0.55));
+  const codo = ancho - cabeza;
+  const cuerpo = 'M2 32H' + codo + 'V0L' + (ancho - 1) + ' 50L' + codo + ' 100V68H2Z';
+  return '<svg class="fv-arr" viewBox="0 0 ' + ancho + ' 100" aria-hidden="true" focusable="false"'
+    + ' style="color:' + color + ';--fv-ang:' + ang + 'deg;--fv-d:' + d + '"><path d="' + cuerpo + '"/></svg>';
 }
-/* Si la flecha se sale del rectángulo de la cancha se dibuja dentro del
-   círculo del jugador (encima, más chica, misma dirección y color). Se mide
-   después de montar el HTML, así vale para cancha horizontal/vertical y para
-   cualquier ancho de pantalla. */
+/* FV9: la flecha se mide en diámetros del punto, así que cada capa recibe el
+   diámetro real del punto de su cancha (3,4 % del ancho del campo, el mismo
+   que `.ep-pitch-dot`). Escala con la cancha en escritorio grande, escritorio
+   chico y teléfono, horizontal y vertical. Se recalcula en cada pintar()
+   (incluido el resize/girar la pantalla) y durante el arrastre. */
 function ajustarFlechas(raiz){
   const host = raiz || D.host;
   if (!host || !host.querySelectorAll) return;
-  host.querySelectorAll('.fv-capa .fv-ov').forEach(function(ov){
-    const svg = ov.querySelector('.fv-arr');
-    const campo = ov.closest ? ov.closest('.ep-pitch-field') : null;
-    if (!svg || !campo) return;
-    const f = campo.getBoundingClientRect();
-    const w = campo.clientWidth, h = campo.clientHeight;
-    if (!w || !h) return;
-    // Rectángulo útil del campo: los márgenes de la grilla (1,7 % / 3,8 %)
-    // cambian de eje según la orientación, igual que pctX/pctY.
-    const v = campo.classList.contains('vertical');
-    const padX = (v ? 3.8 : 1.7) / 100 * w;
-    const padY = (v ? 1.7 : 3.8) / 100 * h;
-    const izq = f.left + campo.clientLeft + padX;
-    const der = f.left + campo.clientLeft + w - padX;
-    const arr = f.top + campo.clientTop + padY;
-    const aba = f.top + campo.clientTop + h - padY;
-    // Se mide siempre la flecha "de fuera"; si ya estaba dentro, se quita la
-    // clase un momento para que getBoundingClientRect devuelva su tamaño real.
-    ov.classList.remove('dentro');
-    const r = svg.getBoundingClientRect();
-    const fuera = r.left < izq - 0.5 || r.right > der + 0.5
-      || r.top < arr - 0.5 || r.bottom > aba + 0.5;
-    ov.classList.toggle('dentro', fuera);
+  host.querySelectorAll('.fv-capa').forEach(function(capa){
+    const campo = capa.closest ? capa.closest('.ep-pitch-field') : null;
+    if (!campo) return;
+    const ancho = campo.clientWidth;
+    if (ancho) capa.style.setProperty('--fv-diam', (ancho * 0.034).toFixed(2) + 'px');
   });
 }
 /* Durante el arrastre no se repinta (se perdería el punto): se mueve también
-   la capa del jugador y se recalcula si la flecha entra o sale de la cancha. */
+   la capa del jugador. FV9: la flecha ya no se achica al llegar al borde; se
+   sigue dibujando por fuera de la cancha, como en el juego. */
 function moverOverlay(casilla, x, y){
   const host = D.host;
   if (!host || !host.querySelectorAll) return;
@@ -792,14 +787,16 @@ function capaHTML(m, v){
     if (c === 'ataque') (s.flechas || []).forEach(function(f){
       const d = CRUZ[f]; if (!d) return;
       const r = vectorCancha(d[0], d[1], v);
-      h += '<span class="fv-ov" data-slot="' + i + '" style="' + pos + '">' + flechaHTML(r[0], r[1], '#FFFFFF', 13) + '</span>';
+      h += '<span class="fv-ov" data-slot="' + i + '" style="' + pos + '">' + flechaHTML(r[0], r[1], '#FFFFFF', 1.45) + '</span>';
     });
     if (c === 'defensa'){
       // FV5: también el arquero tiene su flecha defensiva (Normal = celeste).
       // FV6: apunta al arco propio: izquierda en horizontal, abajo en vertical.
+      // FV9: el largo (Alto/Normal/Bajo) va en diámetros del punto, igual que
+      // la flecha de ataque; ya no se acorta en la cancha vertical.
       const act = Math.max(0, Math.min(2, num(s.act) == null ? 1 : num(s.act)));
       const r = rotar(-1, 0, v);
-      h += '<span class="fv-ov" data-slot="' + i + '" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[act], 0, Math.round(ACT_LARGO[act] * (v ? 0.6 : 1))) + '</span>';
+      h += '<span class="fv-ov" data-slot="' + i + '" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[act], ACT_LARGO[act]) + '</span>';
     }
     if (c === 'pos'){
       const linea = SIGLA_LINEA[s.pos] || 'mid';

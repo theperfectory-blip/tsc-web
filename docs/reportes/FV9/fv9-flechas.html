@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FV9 — flechas proporcionales al punto</title>
+<link rel="stylesheet" href="../../../tsc-src/css/variables.css">
+<link rel="stylesheet" href="../../../tsc-src/css/components.css">
+<link rel="stylesheet" href="../../../tsc-src/css/mejoras-editor.css">
+<link rel="stylesheet" href="../../../tsc-src/css/mejoras-cambio.css">
+<link rel="stylesheet" href="../../../tsc-src/css/formacion-vivo.css">
+<style>
+  html,body{margin:0;background:var(--bg);color:var(--txt)}
+  /* Reproduce el marco de la página real (pes5-tool.css #page-pes5-admin .pt-shell). */
+  .pt-shell{max-width:1280px;margin:0 auto;padding:20px 16px 90px;}
+  #log{white-space:pre-wrap;font:12px monospace;padding:10px}
+</style>
+</head>
+<body>
+<div class="pt-shell"><div id="fv-host"></div></div>
+<div id="log">ejecutando…</div>
+<script>
+/* Test: fuerza la cancha vertical (?v=1) o la horizontal (?h=1) sin cambiar el
+   ancho de la ventana. */
+(function(){
+  const orig = window.matchMedia.bind(window);
+  const fuerzaV = /[?&]v=1/.test(location.search);
+  const fuerzaH = /[?&]h=1/.test(location.search);
+  window.matchMedia = function(q){
+    if ((fuerzaV || fuerzaH) && /max-width:\s*859\.98px/.test(String(q))){
+      return { matches:fuerzaV && !fuerzaH ? true : false, media:q, onchange:null,
+        addListener:function(){}, removeListener:function(){},
+        addEventListener:function(){}, removeEventListener:function(){},
+        dispatchEvent:function(){ return false; } };
+    }
+    return orig(q);
+  };
+})();
+</script>
+<script src="../../../tsc-src/js/sanitize.js"></script>
+<script src="../../../tsc-src/js/yunacoins-rules.js"></script>
+<script src="../../../tsc-src/js/pes5-plantilla.js"></script>
+<script src="../../../tsc-src/js/mejoras-cambio.js"></script>
+<script src="../../../tsc-src/js/mejoras-page.js"></script>
+<script src="../../../tsc-src/js/formacion-vivo.js"></script>
+<script>
+(function(){
+'use strict';
+const F = [], O = [];
+window.__FV9__ = { fallas:F, ok:O };
+const check = (n, c, e) => c ? O.push('OK  ' + n) : F.push('FALLA ' + n + (e !== undefined ? ' :: ' + JSON.stringify(e) : ''));
+window.addEventListener('unhandledrejection', e => F.push('RECHAZO ' + (e.reason && e.reason.stack || e.reason)));
+window.addEventListener('error', e => F.push('ERROR ' + e.message));
+
+function jug(i){
+  const st = {}, sec = {};
+  ['atk','def','equ','res','vm','ace','rsp','agi','pcd','vcd','ppc','vpc','ppl','vpl','pre','pot','ted','psf','efe','cab','sal','tec','agr']
+    .forEach((k, n) => { st[k] = 60 + ((i * 3 + n) % 30); });
+  sec.ment = 70; sec.cons = 4; sec.gk = 50; sec.teq = 70; sec.cond = 5; sec.wff = 4; sec.wfa = 5; sec.inj = 'B';
+  return { id:'r' + (1000 + i), name:'J' + (i + 1), dorsal:String(i + 1), tag:'', primaryPos: i === 0 ? 'GK' : 'CMF',
+    stats: st, sec: sec, abilities:{}, positions:{}, height:180, age:25, foot:'Der.', side:'A' };
+}
+const P1 = { jugadores: [] }, P2 = { jugadores: [] };
+for (let i = 0; i < 32; i++){ P1.jugadores.push(jug(i)); const j = jug(i); j.id = 'r' + (1500 + i); j.name = 'R' + (i + 1); P2.jugadores.push(j); }
+
+/* Local 4-4-2. Casillas marcadas:
+   - 0 PT pegado a su arco (x 1) y actitud Alta (azul): la flecha defensiva
+     apunta al arco propio y sale por la izquierda de la cancha.
+   - 5 DLD y 6 DLI pegados a la banda (y 6 / y 42): la flecha de ataque «izq»
+     sale de la cancha por arriba/abajo.
+   - 8 y 9 (ED/EI) en la banda con flecha lateral.
+   - 10 DC con flecha hacia el arco rival. */
+const LOC = [
+  { c:0,  pos:'PT',  cod:0,  x:1,  y:24, act:0 },
+  { c:1,  pos:'CT',  cod:7,  x:9,  y:10, act:0 },
+  { c:2,  pos:'CT',  cod:3,  x:9,  y:38, act:1 },
+  { c:3,  pos:'DI',  cod:8,  x:11, y:1,  act:1 },
+  { c:4,  pos:'DD',  cod:9,  x:11, y:47, act:1 },
+  { c:5,  pos:'DLD', cod:16, x:24, y:47, act:1, flechas:['izq','arriba'] },
+  { c:6,  pos:'DLI', cod:15, x:24, y:1,  act:1, flechas:['izq','arriba'] },
+  { c:7,  pos:'CC',  cod:21, x:22, y:24, act:1, flechas:['arriba'] },
+  { c:8,  pos:'ED',  cod:30, x:41, y:47, act:2, flechas:['izq','arriba'] },
+  { c:9,  pos:'EI',  cod:29, x:41, y:1,  act:2, flechas:['izq','arriba'] },
+  { c:10, pos:'DC',  cod:38, x:45, y:24, act:2, flechas:['arriba'] },
+];
+const VIS = LOC.map((d, i) => Object.assign({}, d, { c:i, cod:d.cod, x:Math.max(1, 48 - d.x), y:49 - d.y }));
+const latDeFila = fila => Math.round(6 + (fila - 1) * 93 / 46);
+function equipo(defs, lado, ids){
+  const slots = defs.map(d => ({
+    casilla:d.c, indice:d.c, id:ids[0] + d.c, prof:d.x,
+    lat: d.c === 0 ? null : latDeFila(d.y),
+    pos:d.pos, codigo:d.cod, x:d.x, y:d.y,
+    flechas: d.flechas || [], act: d.act == null ? 1 : d.act, mark: d.c === 0 ? 1 : (d.pos === 'CT' ? 3 : 1),
+    rival: d.c === 1 ? 9 : (d.c === 2 ? 10 : 255),
+  }));
+  return { lado:lado, ids:ids, orden:slots.map(s => s.indice), cambiosRestantes:3, cola:[], slots:slots,
+    cabecera:{ botones:[0,8,9,2], modo:1, lanzadores:{ckl:9,ckr:9,tll:9,tlc:9,pk:9}, capitan:9 },
+    ajustes:{ nivel:2, sistema:0, libero:0, linea:1, presion:0, offside:1, contra:0 },
+    bandas:{ izq:'dl', der:'dl' },
+    estadoJugador:new Array(32).fill(2), resistencia:new Array(32).fill(null) };
+}
+const IDS1 = []; for (let i = 0; i < 32; i++) IDS1.push(1000 + i);
+const IDS2 = []; for (let i = 0; i < 32; i++) IDS2.push(1500 + i);
+const EQ = equipo(LOC, 'local', IDS1);
+const EQ2 = equipo(VIS, 'visitante', IDS2);
+
+const EST = { alineacionAbierta:true, partidoEmpezado:true, pausa:false, balonEnJuego:true, momento:'jugando', puedeEscribir:true, partidoCargado:true };
+const P = { estado: Object.assign({}, EST), posts:[] };
+const real = window.fetch.bind(window);
+window.fetch = async function(u, o){
+  u = String(u);
+  if (u.indexOf('pes5-variantes.json') >= 0) return real(new URL('../../../tsc-src/js/pes5/pes5-variantes.json', location.href).href, o);
+  const r = obj => new Response(JSON.stringify(obj), { status:200, headers:{'Content-Type':'application/json'} });
+  if (u.slice(-7) === '/estado') return r({ ok:true, juego:true, estado:P.estado });
+  if (u.indexOf('/leer') >= 0) return r({ ok:true, estado:P.estado, equipos:[EQ, EQ2] });
+  P.posts.push(JSON.parse(o.body));
+  return r({ ok:true, cerrada:false, errores:[], escrito:[], salieron:[] });
+};
+
+(async function(){
+  const FV = window.FORMACION_VIVO;
+  window.AUTH = { role:'admin', user:{ uid:'t' }, teamId:1, displayName:'T' };
+  window.firebase = { firestore: () => ({ collection: () => ({
+    doc: () => ({ get: async () => ({ exists:false }) }),
+    get: async () => ({ docs:[ { data: () => P1 }, { data: () => P2 } ] }),
+  }) }) };
+
+  await FV.montar(document.getElementById('fv-host'));
+  await new Promise(r => setTimeout(r, 150));
+  await FV.consultar();
+  await new Promise(r => setTimeout(r, 120));
+
+  const params = new URLSearchParams(location.search);
+  const capa = params.get('capa') || 'ataque';
+  const tema = params.get('tema') || 'dark';
+  document.documentElement.setAttribute('data-theme', tema);
+  window.fvCapa({ dataset:{ c: capa } });
+  await new Promise(r => setTimeout(r, 120));
+
+  const r2 = n => Math.round(n * 100) / 100;
+  const campo = document.querySelector('.fv-card-cancha .ep-pitch-field');
+  const punto = document.querySelector('.fv-card-cancha .ep-pitch-dot');
+  const capaEl = document.querySelector('.fv-card-cancha .fv-capa');
+  const dotR = punto.getBoundingClientRect();
+  const campoR = campo.getBoundingClientRect();
+  check('hay cancha', !!campo, !!campo);
+  check('hay flechas en la capa ' + capa, document.querySelectorAll('.fv-card-cancha .fv-arr').length > 0 || capa === 'marcaje',
+    document.querySelectorAll('.fv-card-cancha .fv-arr').length);
+  check('ninguna flecha con .dentro (FV7 revertido)', document.querySelectorAll('.dentro').length === 0, document.querySelectorAll('.dentro').length);
+  check('la capa no recorta', capaEl && getComputedStyle(capaEl).overflow === 'visible', capaEl && getComputedStyle(capaEl).overflow);
+  check('el campo no recorta', getComputedStyle(campo).overflow === 'visible', getComputedStyle(campo).overflow);
+
+  const medir = () => {
+    const out = [];
+    document.querySelectorAll('.fv-card-cancha .fv-ov').forEach(ov => {
+      const svg = ov.querySelector('.fv-arr');
+      if (!svg) return;
+      const r = svg.getBoundingClientRect();
+      const cs = getComputedStyle(svg);
+      out.push({
+        slot: ov.dataset.slot,
+        color: svg.style.color,
+        d: Number(svg.style.getPropertyValue('--fv-d')),
+        largo: r2(parseFloat(cs.width)), grosor: r2(parseFloat(cs.height)),
+        ancho: r2(r.width), alto: r2(r.height),
+        izq: r2(r.left - campoR.left), der: r2(r.right - campoR.left),
+        arr: r2(r.top - campoR.top), aba: r2(r.bottom - campoR.top),
+        fueraIzq: r.left < campoR.left - 0.5, fueraDer: r.right > campoR.right + 0.5,
+        fueraArr: r.top < campoR.top - 0.5, fueraAba: r.bottom > campoR.bottom + 0.5,
+      });
+    });
+    return out;
+  };
+  const flechas = medir();
+  const puntos = Array.from(document.querySelectorAll('.fv-card-cancha .ep-pitch-dot')).map((d, i) => {
+    const r = d.getBoundingClientRect();
+    return { slot:String(i), x: r2(r.left + r.width / 2 + scrollX), y: r2(r.top + r.height / 2 + scrollY), diam: r2(r.width) };
+  });
+  window.__FV9__.medida = {
+    tema: tema, capa: capa, vertical: campo.classList.contains('vertical'),
+    puntoDiam: r2(dotR.width), campoAncho: r2(campoR.width), campoAlto: r2(campoR.height),
+    campo: { x: r2(campoR.left + scrollX), y: r2(campoR.top + scrollY), width: r2(campoR.width), height: r2(campoR.height) },
+    puntos: puntos,
+    scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth,
+    overflowX: document.documentElement.scrollWidth > window.innerWidth,
+    flechas: flechas,
+  };
+  check('el punto mide más de 6 px', dotR.width > 6, r2(dotR.width));
+  flechas.forEach(f => {
+    check('slot ' + f.slot + ': largo = ' + f.d + ' diámetros del punto',
+      Math.abs(f.d * dotR.width - f.largo) < 0.6, { esperado: r2(f.d * dotR.width), real: f.largo });
+    check('slot ' + f.slot + ': grosor = 1,15 diámetros del punto',
+      Math.abs(dotR.width * 1.15 - f.grosor) < 1, { esperado: r2(dotR.width * 1.15), real: f.grosor });
+  });
+  const sale = flechas.filter(f => f.fueraIzq || f.fueraDer || f.fueraArr || f.fueraAba);
+  check('hay flechas que salen de la cancha y se siguen dibujando', sale.length > 0 || capa === 'marcaje', sale.length);
+  check('sin scroll horizontal', !window.__FV9__.medida.overflowX, window.__FV9__.medida);
+  if (capa === 'marcaje'){
+    const linea = document.querySelector('.fv-card-cancha .fv-mkline line');
+    const grosor = linea ? parseFloat(getComputedStyle(linea).strokeWidth) : 0;
+    window.__FV9__.medida.marcaje = { lineas: document.querySelectorAll('.fv-card-cancha .fv-mkline line').length, grosor: r2(grosor) };
+    check('la línea de marcaje existe', !!linea, !!linea);
+    check('la línea de marcaje es proporcional al punto (0,34 diámetros)',
+      Math.abs(dotR.width * 0.34 - grosor) < 0.8, { esperado: r2(dotR.width * 0.34), real: r2(grosor) });
+  }
+
+  document.getElementById('log').textContent = [].concat(O, F).join('\n');
+  document.title = 'FV9 — ' + capa + ' — ' + tema + ' — ' + (campo.classList.contains('vertical') ? 'vertical' : 'horizontal');
+})().catch(e => {
+  document.getElementById('log').textContent = 'EXCEPCIÓN ' + (e && e.stack || e);
+  document.title = 'FV9 — EXCEPCIÓN';
+});
+})();
+</script>
+</body>
+</html>
