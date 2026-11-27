@@ -233,6 +233,24 @@ class TestPuente(base.Base):
         slot = datos["equipos"][0]["slots"][3]
         self.assertEqual(slot["flechas"], ["arriba"])
 
+    def test_leer_informa_la_familia_de_medio_por_banda(self):
+        # FV8: la familia (dl/ci) sale de los códigos de posición del bloque.
+        rec = vivo.REC["local"]
+        base = rec + 133
+        self.mem.escribir(base, bytes([0, 7, 7, 7, 12, 15, 16, 26, 30, 29, 38]))
+        _estado, _cabeceras, datos = self.pedir("/leer?lado=local")
+        self.assertEqual(datos["equipos"][0]["bandas"], {"izq": "dl", "der": "dl"})
+        self.mem.escribir(base, bytes([0, 7, 7, 7, 12, 22, 23, 26, 30, 29, 38]))
+        _estado, _cabeceras, datos = self.pedir("/leer?lado=local")
+        self.assertEqual(datos["equipos"][0]["bandas"], {"izq": "ci", "der": "ci"})
+        # Banda sin medio de banda declarado (o con las dos): vale CIZ/CDR.
+        self.mem.escribir(base, bytes([0, 7, 7, 7, 12, 21, 17, 26, 30, 29, 38]))
+        _estado, _cabeceras, datos = self.pedir("/leer?lado=local")
+        self.assertEqual(datos["equipos"][0]["bandas"], {"izq": "ci", "der": "ci"})
+        self.mem.escribir(base, bytes([0, 7, 7, 7, 12, 15, 22, 26, 30, 29, 38]))
+        _estado, _cabeceras, datos = self.pedir("/leer?lado=local")
+        self.assertEqual(datos["equipos"][0]["bandas"], {"izq": "ci", "der": "ci"})
+
     def test_leer_ambos_y_lado_invalido(self):
         _estado, _cabeceras, datos = self.pedir("/leer")
         self.assertEqual(len(datos["equipos"]), 2)

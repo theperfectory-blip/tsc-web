@@ -137,6 +137,26 @@ RESERVAS = range(23, 32)     # casillas 23..31
 CAMPOS_PROHIBIDOS = ("orden", "idsPlantel")
 BLOQUES_ESCRIBIBLES = ("principal", "A", "B")
 
+# Medio por banda (FV8). DLI/DLD (códigos 15/16) y CIZ/CDR (22/23) son
+# mediocampo por banda y en una banda el juego usa UNA familia: la de la
+# formación de la que se parte. El juego lo deja escrito en el código de
+# posición de esos jugadores (lo que escribe `variante`), así que el modo se
+# lee de `rec+133..143` y no se adivina: mover nunca cambia la sigla. Una banda
+# sin medio de banda declarado vale CIZ/CDR: DLI/DLD solo si la formación de
+# partida los traía.
+CODIGOS_DLI = 15
+CODIGOS_DLD = 16
+CODIGOS_CIZ = 22
+CODIGOS_CDR = 23
+SIGLA_BANDA = {"DI": "izq", "DLI": "izq", "CIZ": "izq", "EI": "izq",
+               "DD": "der", "DLD": "der", "CDR": "der", "ED": "der"}
+FAMILIA_DE_SIGLA = {"DLI": "dl", "DLD": "dl", "CIZ": "ci", "CDR": "ci"}
+CODIGO_BANDA_FAMILIA = {
+    CODIGOS_DLI: ("izq", "dl"), CODIGOS_DLD: ("der", "dl"),
+    CODIGOS_CIZ: ("izq", "ci"), CODIGOS_CDR: ("der", "ci"),
+}
+NOMBRE_FAMILIA = {"dl": "DLI/DLD", "ci": "CIZ/CDR"}
+
 # Coherencia del estado final del lote (ver ``_comprobar_coherencia``).
 SISTEMA_LIBERO = 1
 CASILLAS_LIBERO = range(1, 11)          # 1..10: la 0 es el portero
@@ -614,6 +634,8 @@ def leer_equipo(mem, lado, maximos=None):
         "estadoJugador": list(mem.leer(rec + REL_ESTADO_JUGADOR, LARGO_ESTADO)),
         "resistencia": leer_resistencia(mem, ids, maximos,
                                         bool(estado(mem)["partidoEmpezado"])),
+        # FV8: familia de medio por banda que usa la formación ("dl", "ci" o None).
+        "bandas": modo_bandas(mem, rec),
     }
 
 
@@ -863,6 +885,13 @@ def _campo(vista, rec, op, campos_escritos=None):
             direccion = rec + campo["offset"]
 
     _validar_valor(campo, op["valor"])
+    # FV8: el código de posición de banda (15/16 DLI/DLD, 22/23 CIZ/CDR) solo
+    # se escribe si la formación usa esa familia en esa banda.
+    if nombre == "posicion":
+        dato = CODIGO_BANDA_FAMILIA.get(int(op["valor"]))
+        if dato:
+            _comprobar_familia_banda(vista, rec, bloque, dato[1], dato[0],
+                                     "el código %d" % int(op["valor"]))
     vista.escribir(direccion, bytes([op["valor"]]))
     # FV7: las flechas de ataque del bloque principal se escriben también en
     # la copia de pantalla (c2, la que dibuja el minimapa) y, si el juego está
@@ -914,6 +943,58 @@ def _campo_principal(nombre):
     return campo
 
 
+def familias_banda(mem, rec, bloque="principal"):
+    """Familias de medio por banda declaradas en el bloque: ``{izq, der}`` de sets.
+
+    Cada familia es ``"dl"`` (DLI/DLD) o ``"ci"`` (CIZ/CDR). Se leen de los
+    códigos de posición (``rec+133+c`` para el principal), que es lo que deja
+    escrito la variante; no hay un byte aparte con la «familia base» (FV8).
+    """
+    salida = {"izq": set(), "der": set()}
+    campo = campo_de("posicion", bloque)
+    if campo is None:  # pragma: no cover - el mapa siempre los trae
+        return salida
+    for casilla in range(1, 11):
+        codigo = mem.leer(rec + campo["offset"] + casilla, 1)[0]
+        dato = CODIGO_BANDA_FAMILIA.get(codigo)
+        if not dato:
+            continue
+        banda, familia = dato
+        salida[banda].add(familia)
+    return salida
+
+
+def modo_bandas(mem, rec, bloque="principal"):
+    """Familia de medio por banda que usa la formación: ``{izq, der}``.
+
+    Cada valor es ``"dl"`` (DLI/DLD) o ``"ci"`` (CIZ/CDR). Una banda sin medio
+    de banda declarado —o con las dos, que el juego no crea desde la
+    variante— vale ``"ci"``: DLI/DLD solo existen si la formación de partida
+    los traía (regla de Jimbo, FV8). Se lee de los códigos de posición del
+    bloque, lo que deja escrito la variante.
+    """
+    salida = {"izq": "ci", "der": "ci"}
+    for banda, familias in familias_banda(mem, rec, bloque).items():
+        if len(familias) == 1:
+            salida[banda] = next(iter(familias))
+    return salida
+
+
+def _comprobar_familia_banda(mem, rec, bloque, familia, banda, etiqueta):
+    """Rechaza escribir CIZ/DLI de la familia que la formación no usa.
+
+    El juego mantiene una familia por banda (CIZ/CDR o DLI/DLD): la que trajo
+    la formación de partida. Escribir la otra a mano deja una alineación que
+    el juego no permitiría. Si la banda no declara un medio de banda vale
+    ``"ci"``: DLI/DLD no se pueden escribir (solo los pone ``variante``).
+    """
+    modo = modo_bandas(mem, rec, bloque)[banda]
+    if modo != familia:
+        raise ErrorOperacion(
+            "la formación usa %s en la banda %s: %s solo lo pone la variante "
+            "(no se puede escribir a mano)" % (NOMBRE_FAMILIA[modo], banda, etiqueta))
+
+
 def _mover(vista, rec, op):
     """Escribe profundidad, lateral y código de posición de una casilla 1..10."""
     casilla = _entero(op, "casilla", 1, 10)
@@ -929,6 +1010,11 @@ def _mover(vista, rec, op):
     campo_pos = _campo_principal("posicion")
     actual = vista.leer(rec + campo_pos["offset"] + casilla, 1)[0]
     codigo = _codigo_para_sigla(sigla, actual)
+    # FV8: DLI/DLD (y CIZ/CDR) solo si la formación usa esa familia en la banda.
+    # Mover no cambia la sigla: el código actual se conserva cuando coincide.
+    if CODIGO_BANDA_FAMILIA.get(codigo):
+        familia = FAMILIA_DE_SIGLA[sigla]
+        _comprobar_familia_banda(vista, rec, "principal", familia, SIGLA_BANDA[sigla], sigla)
 
     inicial = campo_lat.get("casillaInicial", 0)
     vista.escribir(rec + campo_prof["offset"] + casilla, bytes([prof]))

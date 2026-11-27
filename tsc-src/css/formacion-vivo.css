@@ -186,6 +186,14 @@
   font-size:15px;letter-spacing:.5px;line-height:1;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap;}
 .fv-root .fv-sig.m0{color:#FFD45A;} .fv-root .fv-sig.m1{color:#7FD3F7;}
 .fv-root .fv-sig.m2{color:#5FCB8B;} .fv-root .fv-sig.m3{color:#FF8B6B;}
+/* FV8: la sigla de la capa «Posición» y la etiqueta del jugador llevan el color
+   de su línea (mediocampo verde también para DLI/DLD). */
+.fv-root .fv-sig.l-def{color:var(--linea-def);}
+.fv-root .fv-sig.l-mid{color:var(--linea-mid);}
+.fv-root .fv-sig.l-att{color:var(--linea-att);}
+.fv-root .ep-pitch-tag.l-def{color:var(--linea-def);}
+.fv-root .ep-pitch-tag.l-mid{color:var(--linea-mid);}
+.fv-root .ep-pitch-tag.l-att{color:var(--linea-att);}
 .fv-root .fv-mkline{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
 .fv-root .fv-mkline line{stroke:var(--fv-line);stroke-width:3;stroke-linecap:round;vector-effect:non-scaling-stroke;}
 .fv-root .fv-rdot{position:absolute;width:2.6%;aspect-ratio:1/1;border-radius:50%;transform:translate(-50%,-50%);

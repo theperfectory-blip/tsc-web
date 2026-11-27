@@ -105,11 +105,12 @@ const CODIGO_SIGLA = {
   28: 'MP', 29: 'EI', 30: 'ED', 31: 'SD', 32: 'SD', 33: 'SD', 34: 'SD', 35: 'SD', 36: 'DC',
   37: 'DC', 38: 'DC', 39: 'DC', 40: 'DC',
 };
-/* Línea de cada sigla, para los colores de la lista (incluye LIB, DLI y DLD,
-   que la Formación no usa). */
+/* Línea de cada sigla, para los colores de la lista y de la cancha. FV8:
+   DLI/DLD son MEDIOCAMPO (carrileros), no defensa. */
 const SIGLA_LINEA = {
-  PT: 'gk', CT: 'def', LIB: 'def', DI: 'def', DD: 'def', DLI: 'def', DLD: 'def',
-  CCD: 'mid', CC: 'mid', CIZ: 'mid', CDR: 'mid', MP: 'mid', EI: 'att', ED: 'att', SD: 'att', DC: 'att',
+  PT: 'gk', CT: 'def', LIB: 'def', DI: 'def', DD: 'def',
+  DLI: 'mid', DLD: 'mid', CCD: 'mid', CC: 'mid', CIZ: 'mid', CDR: 'mid', MP: 'mid',
+  EI: 'att', ED: 'att', SD: 'att', DC: 'att',
 };
 /* Posición natural publicada -> sigla de la cancha (las mismas siglas del
    editor para un jugador que no está entre los 11). */
@@ -409,6 +410,18 @@ function modeloDe(eq, lado){
     s.y = (i === 0 || s.lat == null) ? 24 : filaLateral(s.lat);
     slots.push(s);
   }
+  /* FV8: familia de medio por banda de la formación de partida. Se lee del
+     puente (`eq.bandas`) o de las posiciones, y una banda sin medio declarado
+     vale `ci`: DLI/DLD solo si la formación de partida los traía. Queda fijada
+     en la lista de casillas para que el selector no la cambie al pasar un
+     medio a otra posición (solo la recalcula otra variante o esta lectura). */
+  const bandasEq = (eq.bandas && typeof eq.bandas === 'object') ? eq.bandas : null;
+  const u = util();
+  const bandasVivas = (u && u.modoBandas) ? u.modoBandas(slots) : null;
+  slots.bandasBase = {
+    izq: (bandasEq ? bandasEq.izq : (bandasVivas && bandasVivas.izq)) === 'dl' ? 'dl' : 'ci',
+    der: (bandasEq ? bandasEq.der : (bandasVivas && bandasVivas.der)) === 'dl' ? 'dl' : 'ci',
+  };
   const cab = eq.cabecera || {};
   const lanz = cab.lanzadores || {};
   const aj = eq.ajustes || {};
@@ -694,7 +707,7 @@ function canchaHTML(m, opciones){
         return '<span class="ep-pitch-dot ro' + (i === 0 ? ' gk' : '') + '" style="left:' + x + '%;top:' + y + '%;" title="' + escA(etiqueta) + '"></span>' + cond;
       }
       const clase = ['ep-pitch-dot', yo ? 'me' : '', i === 0 ? 'gk' : ''].filter(Boolean).join(' ');
-      const tag = yo ? '<span class="ep-pitch-tag">' + esc(s.pos) + '</span>' : '';
+      const tag = yo ? '<span class="ep-pitch-tag l-' + (SIGLA_LINEA[s.pos] || 'mid') + '">' + esc(s.pos) + '</span>' : '';
       return '<button type="button" class="' + clase + '" style="left:' + x + '%;top:' + y + '%;padding:0" data-onclick="fvPunto(this)" data-slot="' + i + '" aria-label="' + escA(etiqueta) + '" title="' + escA(etiqueta) + '">' + tag + '</button>' + cond;
     }).join('');
   }
@@ -836,7 +849,7 @@ function posInfoHTML(){
   const u = util();
   if (!m) return '';
   if (D.sel == null || D.cmp){
-    return '<p class="fv-hint">Toca un punto para elegirlo. Arrástralo (mouse o dedo) o usa las flechas del teclado para moverlo; al cruzar a otra franja cambia de posición. Toca otro titular para intercambiarlos.</p>';
+    return '<p class="fv-hint">Toca un punto para elegirlo. Arrástralo (mouse o dedo) o usa las flechas del teclado para moverlo: dentro del mediocampo los carrileros (DLI/DLD) conservan su sigla, al cruzar a otra franja cambia de posición. Toca otro titular para intercambiarlos.</p>';
   }
   const i = D.sel, s = m.slots[i];
   const zona = i === 0 ? 'Arquero (posición fija)' : (u ? ({ def: 'Defensa', mid: 'Mediocampo', att: 'Ataque' }[u.tercer(s.x)] || '') : '');
@@ -845,7 +858,8 @@ function posInfoHTML(){
     ? '<span class="ep-pitch-possel fv-possel-fijo">PT</span>'
     : '<select class="ep-pitch-possel" data-onchange="fvSelPos(this.value)" aria-label="Posición">'
       + opciones.map(function(o){
-        return '<option value="' + escA(o.pos) + '"' + (o.pos === s.pos ? ' selected' : '') + (o.disponible ? '' : ' disabled') + '>' + esc(o.pos) + (o.disponible ? '' : ' (ocupada)') + '</option>';
+        var motivo = o.motivo === 'formacion' ? ' (no en esta formación)' : ' (ocupada)';
+        return '<option value="' + escA(o.pos) + '"' + (o.pos === s.pos ? ' selected' : '') + (o.disponible ? '' : ' disabled') + '>' + esc(o.pos) + (o.disponible ? '' : motivo) + '</option>';
       }).join('') + '</select>';
   return '<div class="ep-pitch-info">'
     + '<div class="ep-pitch-info-name">' + esc(nombreDe(m, m.orden[i])) + ' <span class="fv-badge">' + esc(s.pos) + '</span></div>'
@@ -859,14 +873,20 @@ function moverACasilla(casilla, x, y){
   const s = m.slots[casilla];
   const nx = Math.max(2, Math.min(47, Math.round(x)));
   const ny = Math.max(1, Math.min(47, Math.round(y)));
-  let pos = u.posicionEn(nx, ny) || s.pos;
-  if (!u.puedeAsignar(m.slots, pos, s)){
-    const alternativas = u.bloque(nx, ny) || [];
+  // FV8: el arrastre conserva la sigla dentro de la franja (un DLI sigue
+  // siendo DLI al cruzar la mitad, como en el juego) y la familia de medio por
+  // banda la decide la formación, no la geometría.
+  const pos = (u.posicionAlMover ? u.posicionAlMover(m.slots, s, nx, ny) : (u.posicionEn(nx, ny) || s.pos));
+  let elegida = pos;
+  if (!u.puedeAsignar(m.slots, elegida, s)){
+    const alternativas = (u.opcionesPosicion ? u.opcionesPosicion(m.slots, casilla, false) : [])
+      .filter(function(o){ return o.disponible; })
+      .map(function(o){ return o.pos; });
     const libre = alternativas.find(function(p){ return u.puedeAsignar(m.slots, p, s); });
     if (!libre) return false;
-    pos = libre;
+    elegida = libre;
   }
-  s.x = nx; s.y = ny; s.prof = nx; s.lat = latDeFila(ny); s.pos = pos;
+  s.x = nx; s.y = ny; s.prof = nx; s.lat = latDeFila(ny); s.pos = elegida;
   return true;
 }
 function tocarTitular(casilla){
@@ -977,8 +997,10 @@ function lineasDeVariante(v){
 function aplicarVariante(){
   const cur = varianteSel();
   const m = D.mio;
+  const u = util();
   if (!cur || !m) return;
   const antes = instantaneaSlots(m);
+  const antesBase = Object.assign({}, m.slots.bandasBase || {});
   const regla = (D.variantes && D.variantes.reglaActitud) || {};
   cur.variante.puestos.forEach(function(p, i){
     const s = m.slots[i];
@@ -994,6 +1016,8 @@ function aplicarVariante(){
       s.act = num(regla[s.pos]) == null ? 1 : num(regla[s.pos]);
     }
   });
+  // FV8: la variante es la que fija la familia de medio por banda de partida.
+  if (u && u.fijarBandasBase) u.fijarBandasBase(m.slots);
   D.menu = null; D.esqSel = null; D.varSel = null;
   D.sel = null; D.banca = null; D.ver = null; D.cmp = null;
   // La variante reescribe posiciones, flechas y actitud de los 11: las líneas
@@ -1002,7 +1026,10 @@ function aplicarVariante(){
     return !/^(mover:|flechas:|ind:|rival:)/.test(String(it.clave || ''));
   });
   pedir('Esquema: ' + cur.esquema.nombre + ' ' + cur.variante.nombre,
-    function(){ m.slots.forEach(function(s, i){ Object.assign(s, antes[i]); }); },
+    function(){
+      m.slots.forEach(function(s, i){ Object.assign(s, antes[i]); });
+      m.slots.bandasBase = Object.assign({}, antesBase);
+    },
     [{ op: 'variante', esquema: cur.esquema.nombre, variante: cur.variante.nombre }],
     'esquema', instantaneaSlots(m), antes);
 }
@@ -1977,7 +2004,16 @@ function fvSelPos(valor){
   if (s.pos === valor) return;
   const u = util();
   if (u && !u.puedeAsignar(m.slots, valor, s)){
-    msg('Esa posición no se puede usar: la línea ya está completa.', true);
+    // FV8: la otra familia de medio por banda sale gris en el juego y tampoco
+    // se puede elegir acá.
+    const familia = u.FAMILIA_BANDA ? u.FAMILIA_BANDA[valor] : null;
+    const banda = u.SIGLA_BANDA ? u.SIGLA_BANDA[valor] : null;
+    const modo = (u.bandasBaseDe && banda) ? u.bandasBaseDe(m.slots)[banda] : null;
+    if (familia && modo && modo !== familia){
+      msg('Esta formación usa ' + (modo === 'dl' ? 'DLI/DLD' : 'CIZ/CDR') + ' en esa banda: ' + valor + ' no se puede elegir.', true);
+    } else {
+      msg('Esa posición no se puede usar: la línea ya está completa.', true);
+    }
     pintar();
     return;
   }

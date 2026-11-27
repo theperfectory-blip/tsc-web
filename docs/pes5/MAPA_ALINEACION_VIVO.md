@@ -20,6 +20,7 @@ nada de esto se escribió en el juego ni en el save.
 - [Direcciones](#direcciones)
 - [Estructura del registro (628 bytes)](#estructura-del-registro-628-bytes)
 - [Tabla de códigos de posición](#tabla-de-códigos-de-posición)
+- [Familia de medio por banda (FV8)](#familia-de-medio-por-banda-fv8)
 - [Banca, reservas y momentos de edición](#banca-reservas-y-momentos-de-edición)
 - [Copias en memoria](#copias-en-memoria)
 - [Copias c2 y c3, tablas float y laterales](#copias-c2-y-c3-tablas-float-y-laterales)
@@ -275,6 +276,46 @@ códigos al cambiar el sistema defensivo o el líbero: en `l002 → l003`
 `36→38` y además `7→6`, `7→1`, `7→2` en la línea. La tabla coincide con la hoja
 `labels/sheet.png` (0..40 con sigla, 41..50 vacíos).
 
+**DLI (15) y DLD (16) son mediocampo, no defensa**: son los carrileros
+izquierdo y derecho. El juego los pinta con el color del medio y, para los
+topes y mínimos, cuentan como medios. Ver
+[Familia de medio por banda](#familia-de-medio-por-banda-fv8).
+
+### Familia de medio por banda (FV8)
+
+En una banda el juego usa **una de dos familias**, y la elige la formación de
+la que se parte (la variante que se aplicó, o la alineación que trajo la
+partida):
+
+| Familia | Siglas | Profundidad en las 100 variantes del catálogo |
+|---|---|---|
+| Interiores | CIZ (22), CDR (23) | **29–31**: de la mitad de la cancha hacia adelante |
+| Carrileros | DLI (15), DLD (16) | **24**: sobre la línea del medio (la grilla tiene 47 columnas) |
+
+- **No hay un byte de «familia base».** La familia se lee de los **códigos de
+  posición** (`rec+133..143` del bloque): es lo que escribe la variante, y
+  `leer_equipo()` lo resume en `bandas` (`{izq, der}` → `"dl"` o `"ci"`; una
+  banda sin medio declarado —o con las dos— vale `"ci"`, porque DLI/DLD solo
+  existen si la formación de partida los traía).
+- **Mover no cambia el código.** «Editar posición» escribe `prof` (`+112+c`) y
+  `lat` (`+122+c`), nunca `pos` (`+133+c`). Prueba en el juego (27-11, previa):
+  un DLI en prof 24 / lateral 24 pasó a prof 30 / lateral 42 y **siguió con el
+  código 15**; el DLD siguió en **16**. Lecturas en
+  [`docs/reportes/FV8/lecturas.json`](../../docs/reportes/FV8/lecturas.json).
+- **«Selec. posición» sí cambia el código.** En la misma sesión, el DLI pasó a
+  **CC** (19) y volvió a **DLI** (15) sin moverse de la cancha.
+- **El selector del juego marca la banda, no la familia.** En las capturas
+  (`selector_dli_ci.png`, `selector_dld_cdr.png`) salen en gris las siglas de
+  la **banda contraria** (DLD y CDR para un jugador de la izquierda; DLI y CIZ
+  para uno de la derecha) y en negrita aparecen **las dos familias de la banda
+  propia**. La web aplica la regla de Jimbo —una sola familia por banda, la de
+  la formación base— leyendo los códigos: es más estricta que el selector del
+  juego.
+- `mover`/`campo` del agente solo escriben la familia que la formación
+  declara; sin medio de banda declarado vale CIZ/CDR (DLI/DLD solo los pone
+  `variante`). Detalle en
+  [`CONTROL_VIVO.md`](CONTROL_VIVO.md#medio-por-banda-cizcdr-y-dlidld-fv8).
+
 ## Banca, reservas y momentos de edición
 
 El orden (`rec+4..35`) es una permutación de los 32 índices del plantel. La
@@ -500,8 +541,8 @@ El núcleo lo expone en `leer_equipo()["estadoJugador"]` y
 | Config. individual (actitud atacante) | 8 bytes de la casilla en `147+8c` | al marcar la dirección con X; la diagonal (↗, índice 3) es su propio bit, no la suma de ↑ y → |
 | Config. individual (actitud defensiva) | `243+c` | al elegir |
 | Config. individual (marcaje) | `254+c` y `265+c` | una captura por detrás |
-| Editar posición | `112+c` (profundidad) y `122+c` (lateral) | al confirmar |
-| Selec. posición | `133+c` y el espejo `945+c` | al instante |
+| Editar posición | `112+c` (profundidad) y `122+c` (lateral); **nunca** el código `133+c` | al confirmar; por eso mover no cambia la sigla (FV8) |
+| Selec. posición | `133+c` y el espejo `945+c` | al instante; es el único menú, junto con la variante, que cambia la sigla |
 | Lanzador / capitán | `106` (córner izq.), `107` (córner der.), `108`..`110` / `111`; el cursor de la lista vive en `644`/`645` | al instante (índice de plantel; el cursor no es copia del capitán) |
 | Estrat. equipo (línea, presión, fuera, contraataque) | `279..282` (desde los búferes `0x395886d..0x3958870`) | al confirmar: `t002` escribe solo `279` y `v000 → v001` escribe `280..282` de una vez |
 | Alineación A/B y Copiar a A/B | bloque `283..453` (A) o `454..624` (B), 171 bytes; selector en `4138` (`c3+38`) | Elegir A/B cambia el bloque que editan los menús; copiar vuelca el principal sin diálogo |

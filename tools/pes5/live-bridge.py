@@ -122,6 +122,10 @@ def equipo_contrato(equipo):
         },
         "estadoJugador": equipo["estadoJugador"],
         "resistencia": equipo["resistencia"],
+        # FV8: familia de medio por banda que usa la formación ("dl", "ci" o
+        # None si esa banda no tiene medio declarado). Se lee de los códigos de
+        # posición del bloque principal, los que deja la variante.
+        "bandas": equipo.get("bandas") or {"izq": None, "der": None},
     }
 
 

@@ -1214,6 +1214,116 @@ class TestMover(Base):
         self.assertEqual(mem.escrituras, [])
 
 
+class TestMedioPorBanda(Base):
+    """FV8: DLI/DLD son mediocampo por banda; la familia la decide la formación.
+
+    El juego deja escrito en los códigos de posición qué familia usa cada banda
+    y `mover` no la cambia: solo se puede escribir la que la formación ya usa.
+    """
+
+    DL = [0, 7, 7, 7, 12, 15, 16, 26, 30, 29, 38]
+    CI = [0, 7, 7, 7, 12, 22, 23, 26, 30, 29, 38]
+
+    def test_bandas_se_leen_de_los_codigos(self):
+        mem = self.memoria(campos={"posicion": self.DL})
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
+                         {"izq": "dl", "der": "dl"})
+        mem = self.memoria(campos={"posicion": self.CI})
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
+                         {"izq": "ci", "der": "ci"})
+
+    def test_banda_sin_medio_declarado_vale_ci(self):
+        # Regla de Jimbo (FV8): si la formación de partida no traía DLI/DLD,
+        # esa banda vale CIZ/CDR; DLI/DLD no se pueden seleccionar.
+        mem = self.memoria()
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
+                         {"izq": "ci", "der": "ci"})
+
+    def test_banda_con_las_dos_familias_vale_ci(self):
+        # Una alineación tocada a mano en el juego puede tener DLI y CIZ en la
+        # misma banda: no hay una familia clara, así que vale CIZ/CDR.
+        ambas = [0, 7, 7, 7, 12, 15, 22, 26, 30, 29, 38]
+        mem = self.memoria(campos={"posicion": ambas})
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
+                         {"izq": "ci", "der": "ci"})
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "CIZ"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 6), 22)
+
+    def test_mover_conserva_dli_al_cruzar_la_mitad(self):
+        # El código no cambia al mover: un DLI sigue siendo DLI aunque el
+        # lateral quede en el centro y la profundidad pase de la mitad.
+        mem = self.memoria(campos={"posicion": self.DL})
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 5, "prof": 30, "lat": 42, "pos": "DLI"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 5), 15)
+        self.assertEqual(self.byte(mem, 112 + 5), 30)
+        self.assertEqual(self.byte(mem, 123 + 4), 42)
+
+    def test_mover_dli_rechazado_si_la_formacion_usa_ciz(self):
+        mem = self.memoria(campos={"posicion": self.CI})
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 7, "prof": 24, "lat": 24, "pos": "DLI"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_ciz_rechazado_si_la_formacion_usa_dli(self):
+        mem = self.memoria(campos={"posicion": self.DL})
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 7, "prof": 29, "lat": 24, "pos": "CIZ"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_dli_rechazado_si_la_banda_no_tiene_medio(self):
+        # Sin familia declarada vale CIZ/CDR: DLI solo lo pone la variante.
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 26, "pos": "DLI"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_ciz_permitido_si_la_banda_no_tiene_medio(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "CIZ"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 6), 22)
+
+    def test_campo_posicion_dli_rechazado_si_la_banda_no_tiene_medio(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "posicion", "casilla": 5, "valor": 15}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_campo_posicion_dli_rechazado_si_la_formacion_usa_ciz(self):
+        mem = self.memoria(campos={"posicion": self.CI})
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "posicion", "casilla": 5, "valor": 15}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_variante_recalcula_las_bandas(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "variante", "esquema": "3-4-3", "variante": "A-1"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
+                         {"izq": "dl", "der": "dl"})
+        resultado = self.aplicar(mem, [
+            {"op": "variante", "esquema": "4-4-2", "variante": "A-1"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
+                         {"izq": "ci", "der": "ci"})
+
+
 # ------------------------------------------------------------------ variante
 
 class TestVariante(Base):

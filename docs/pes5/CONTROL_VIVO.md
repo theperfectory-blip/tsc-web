@@ -8,8 +8,8 @@ agente (sin Firestore): los pedidos de los presidentes llegarán después.
   `ctypes`).
 - CLI: `tools/pes5/live-agent.py`.
 - Puente HTTP local: `tools/pes5/live-bridge.py` (ver [Puente local](#puente-local)).
-- Pruebas: `tools/pes5/test_pes5_vivo.py` (97) y `tools/pes5/test_live_bridge.py`
-  (18), sin juego.
+- Pruebas: `tools/pes5/test_pes5_vivo.py` (107) y `tools/pes5/test_live_bridge.py`
+  (20), sin juego.
 - Mapa de referencia: [MAPA_ALINEACION_VIVO.md](MAPA_ALINEACION_VIVO.md).
 - Hallazgos del coordinador: `HALLAZGOS.md` (scratchpad de la sesión).
 
@@ -266,6 +266,10 @@ partido empezado los cambios van por la cola».
   minimapa) y en `c3` (`rec+4240`) cuando el bloque mostrado es el principal
   (`rec+4138 == 0`). Así la web y el minimapa no quedan desincronizados. Ver
   [Flechas de ataque: la copia que dibuja el minimapa](#flechas-de-ataque-la-copia-que-dibuja-el-minimapa-fv7).
+- **Medio por banda (FV8):** `campo` con `posicion` de una sigla de banda
+  (`15` DLI, `16` DLD, `22` CIZ, `23` CDR) se rechaza si el bloque ya declara
+  la otra familia en esa banda. Ver
+  [Medio por banda](#medio-por-banda-cizcdr-y-dlidld-fv8).
 
 ### `mover`
 
@@ -283,6 +287,11 @@ Mueve a un jugador en la cancha: escribe `profundidad` (`rec+112+c`),
   `codificaciones.posicion`: se usa el **primer** código de esa sigla, salvo
   que la casilla ya tenga un código de la misma sigla, que se conserva (por
   ejemplo, un DC en 38 sigue en 38).
+- **DLI/DLD y CIZ/CDR (FV8)**: `mover` nunca cambia la familia de la banda,
+  igual que «Editar posición» en el juego (que no escribe el código). Se puede
+  conservar el código que la casilla ya tiene; pedir la familia que la
+  formación **no** usa se rechaza. Ver
+  [Medio por banda](#medio-por-banda-cizcdr-y-dlidld-fv8).
 - Como el resto de operaciones, valida todo antes de escribir: si otra
   operación del lote falla, `mover` tampoco escribe.
 
@@ -307,6 +316,51 @@ como lo hace el juego:
 - El esquema y la variante tienen que existir en el catálogo; si no, se
   rechaza el lote entero. No se escribe ninguna otra cosa (ni orden, ni
   cabecera, ni ajustes).
+- Es la **única** operación que cambia la familia de medio por banda: la
+  variante que trae DLI/DLD los escribe en los códigos de posición y desde
+  ahí la lee todo lo demás (`bandas`, `mover`, `campo`). Ver
+  [Medio por banda](#medio-por-banda-cizcdr-y-dlidld-fv8).
+
+### Medio por banda: CIZ/CDR y DLI/DLD (FV8)
+
+DLI y DLD (códigos **15** y **16**) son **mediocampo por banda**: carrileros
+izquierdo y derecho. No son defensa; el juego los dibuja con el color del
+mediocampo y para los topes y mínimos cuentan como medios.
+
+- **La familia la decide la formación de la que se parte.** En una misma banda
+  el juego usa **CIZ/CDR** (interiores, de la mitad de la cancha hacia
+  adelante) o **DLI/DLD** (carrileros, sobre la línea del medio), no las dos.
+- **No hay un byte aparte de «familia base».** Se lee de los **códigos de
+  posición** de las 11 casillas del bloque (`rec+133..143` en el principal),
+  que es lo que escribe la variante y lo que queda al elegir en «Selec.
+  posición». En el catálogo `pes5-variantes.json`, las 100 variantes ponen
+  CIZ/CDR en profundidad **29–31** y DLI/DLD en **24** (la línea del medio).
+- **Mover no cambia la sigla.** «Editar posición» escribe profundidad y
+  lateral, nunca el código: un DLI movido de prof 24 a prof 30 (cruzando la
+  mitad) sigue siendo DLI. Comprobado en el juego (reporte
+  [`docs/reportes/FV8.md`](../../docs/reportes/FV8.md)).
+- **Lectura:** `leer_equipo()` (y `GET /leer`) devuelve
+  `bandas: {"izq": "dl"|"ci", "der": ...}`. Si la banda no declara un medio de
+  banda —o declara las dos, que el juego no crea con una variante— vale
+  `"ci"` (CIZ/CDR): DLI/DLD solo existen si la formación de partida los traía.
+  El valor sale de `familias_banda()` y `modo_bandas()`.
+- **Escritura:** `mover` y `campo` sobre `posicion` **rechazan** el código de
+  la familia que la formación no usa (`la formación usa CIZ/CDR en la banda
+  izq: DLI solo lo pone la variante`); sin familia declarada solo pasan
+  CIZ/CDR. `variante` sí las escribe.
+- **La web recuerda la familia de partida.** Al leer del juego o al aplicar una
+  variante guarda `bandasBase` por banda (o `ci` si no hay ninguna). El
+  selector no la cambia al pasar un medio a otra posición: un DLI pasado a CC
+  puede volver a DLI, y CIZ sigue en gris. Solo se recalcula con otra variante
+  o con una lectura nueva del juego.
+
+> En el **selector del juego** las posiciones de la banda contraria salen en
+> gris y las de la banda propia en negrita; dentro de la banda propia el juego
+> deja elegir las dos familias (ver
+> [`MAPA_ALINEACION_VIVO.md`](MAPA_ALINEACION_VIVO.md#familia-de-medio-por-banda-fv8)).
+> La web aplica la regla de Jimbo —una sola familia por banda, la de la
+> formación base—: es más estricta que el juego y deja la alineación siempre
+> dentro de la formación de partida.
 
 ### Ejemplo completo
 
@@ -480,7 +534,8 @@ lecturas, no para escribir. `--help` lista todo.
   "ajustes": {"nivel": 2, "sistema": 0, "libero": 0, "linea": 1,
               "presion": 0, "offside": 2, "contra": 1},
   "estadoJugador": [2],
-  "resistencia": [{"actual": 80, "maxSaque": 90}]
+  "resistencia": [{"actual": 80, "maxSaque": 90}],
+  "bandas": {"izq": "dl", "der": "dl"}
 }
 ```
 
@@ -495,6 +550,11 @@ lecturas, no para escribir. `--help` lista todo.
   saque o si el id no está en la tabla).
 - `cabecera.botones` son los 4 códigos de estrategia; `lanzadores` y
   `capitan` son **índices de plantel**.
+- `bandas` (FV8) dice qué familia de medio por banda usa la formación:
+  `"dl"` (DLI/DLD) o `"ci"` (CIZ/CDR). Una banda sin medio de banda declarado
+  (o con las dos) vale `"ci"`: DLI/DLD solo si la formación de partida los
+  traía. Sale de los códigos de posición del bloque principal; ver
+  [Medio por banda](#medio-por-banda-cizcdr-y-dlidld-fv8).
 - El puente guarda el **máximo de resistencia** de cada id durante el partido
   (`maxSaque`) y lo reinicia cuando `partidoEmpezado` vuelve a 0.
 
@@ -636,7 +696,13 @@ python -m unittest tools/pes5/test_pes5_vivo.py -v
     lista exacta: un `Origin` no permitido recibe 403; sin `Origin` (curl) se
     acepta. `POST /aplicar` devuelve 200 si el JSON es válido aunque la
     validación falle, y 400 si el cuerpo no es JSON o no trae `lado`/`ops`.
-19. **Sin partido cargado no hay alineación (FV3).** Un registro con el orden
+19. **DLI/DLD son medio por banda y la familia la fija la formación (FV8).**
+    No hay un byte de «familia base»: se lee de los códigos de posición
+    (`rec+133..143`), que es lo que escribe `variante`. Una banda sin medio de
+    banda declarado vale CIZ/CDR: DLI/DLD solo si la formación de partida los
+    traía. `mover` y `campo` rechazan la familia que la banda no usa; solo
+    `variante` la cambia. Mover nunca cambia el código, como en el juego.
+20. **Sin partido cargado no hay alineación (FV3).** Un registro con el orden
     en ceros o el plantel vacío es el menú principal, no una alineación: el
     orden tiene que ser una permutación de 0..31 y el plantel tener al menos 11
     ids distintos de 0. `/leer` devuelve `equipos: []` y `/aplicar` responde
@@ -678,3 +744,13 @@ solo porque escribir en el juego no es parte de esta tarea):
   escribir en ese hueco.
 - El comportamiento de `--esperar` cruzando el entretiempo (la pantalla se abre
   y se cierra sola entre tiempos).
+- **Escribir DLI/DLD por el puente (FV8).** La lectura de `bandas` y la
+  conservación del código al mover están comprobadas leyendo el juego; la
+  escritura de `mover`/`campo` con DLI/DLD solo se probó con `MemoriaFalsa`
+  (el juego estaba cerrado al retomar). Falta ver que el juego la acepte y
+  dibuje el carrilero al reanudar.
+- **Selector del juego y familia por banda (FV8).** En las capturas el gris
+  marca la banda contraria y la banda propia ofrece las dos familias (CIZ y
+  DLI). Queda confirmar con Jimbo si su regla —una sola familia por banda— es
+  de la formación base o también del selector; la web aplica la regla estricta
+  y el puente rechaza la otra familia.

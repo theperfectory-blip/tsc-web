@@ -254,12 +254,12 @@ const PES5_EDITOR = (() => {
   // se aceptan variantes al leer.
   const FORM_REL_POS = 33;
   const POS_CODIGO = {
-    PT: 0, CT: 7, DI: 8, DD: 9, CCD: 12, CC: 19, CIZ: 22, CDR: 23,
+    PT: 0, CT: 7, DI: 8, DD: 9, CCD: 12, DLI: 15, DLD: 16, CC: 19, CIZ: 22, CDR: 23,
     MP: 26, EI: 29, ED: 30, SD: 35, DC: 36,
   };
   const POS_POR_CODIGO = {
     0: 'PT', 1: 'CT', 7: 'CT', 8: 'DI', 9: 'DD',
-    12: 'CCD', 14: 'CCD', 19: 'CC', 22: 'CIZ', 23: 'CDR',
+    12: 'CCD', 14: 'CCD', 15: 'DLI', 16: 'DLD', 19: 'CC', 22: 'CIZ', 23: 'CDR',
     26: 'MP', 29: 'EI', 30: 'ED', 35: 'SD', 36: 'DC', 40: 'DC',
   };
   function nomPosicion(codigo) { return POS_POR_CODIGO[codigo] || null; }

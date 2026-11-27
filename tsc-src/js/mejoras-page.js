@@ -403,6 +403,12 @@ const PITCH_POS_ZONAS = {
   // verde · mediocampo (columnas 16..34)
   CIZ: { d:[16,34], l:[1,16]  },   // 15, izquierda
   CDR: { d:[16,34], l:[32,47] },   // 15, derecha
+  /* FV8: DLI/DLD (carrilero izquierdo/derecho) son mediocampo por banda, la
+     MISMA franja que CIZ/CDR. No se asignan por geometría: el juego las deja
+     solo si la formación las trae (ver SIGLA_FAMILIA_BANDA). Se declaran acá
+     para pintar la zona del jugador cuando la tiene puesta. */
+  DLI: { d:[16,34], l:[1,16]  },
+  DLD: { d:[16,34], l:[32,47] },
   CCD: { d:[16,28], l:[12,35] },   // 12 de profundidad, atras
   CC:  { d:[19,31], l:[6,41]  },   // 12 de profundidad, 35 laterales
   MP:  { d:[22,34], l:[12,35] },   // 12 de profundidad, dentro del verde
@@ -420,14 +426,15 @@ const PITCH_POS_POR_BLOQUE = {
   mid:{ izq:['CIZ','CC','CCD','MP'], centro:['CCD','CC','MP'], der:['CDR','CC','CCD','MP'] },
   att:{ izq:['EI','SD','DC'],       centro:['SD','DC'],       der:['ED','SD','DC'] },
 };
-// posiciones de banda: solo puede haber una de cada una en la formacion
-const PITCH_POS_BANDA = new Set(['DI','DD','CIZ','CDR','EI','ED']);
+// posiciones de banda: solo puede haber una de cada una en la formacion.
+// FV8: DLI/DLD también son de banda (una de cada lado).
+const PITCH_POS_BANDA = new Set(['DI','DD','CIZ','CDR','DLI','DLD','EI','ED']);
 /* Reglas del juego: no se puede amontonar gente en una linea.
    5 defensas (CT+DI+DD), 6 medios, 5 delanteros; y como maximo 5 de un
-   mismo puesto central. */
+   mismo puesto central. FV8: DLI/DLD son de MEDIOCAMPO (no defensa). */
 const PITCH_POS_LINEA = {
   CT:'def', DI:'def', DD:'def',
-  CIZ:'mid', CDR:'mid', CCD:'mid', CC:'mid', MP:'mid',
+  CIZ:'mid', CDR:'mid', DLI:'mid', DLD:'mid', CCD:'mid', CC:'mid', MP:'mid',
   EI:'att', ED:'att', SD:'att', DC:'att',
 };
 const PITCH_LINEA_MAX = { def:5, mid:6, att:5 };
@@ -440,11 +447,68 @@ function posicionesEnBloque(x,y){
   return (PITCH_POS_POR_BLOQUE[zona] || PITCH_POS_POR_BLOQUE.mid)[pitchLado(y)];
 }
 const PITCH_POS_COLOR = { def:'rgba(111,179,209,0.55)', mid:'rgba(127,196,138,0.55)', att:'rgba(201,138,94,0.60)' };
+/* FV8: siglas de mediocampo por banda. En una banda el juego usa UNA familia:
+   CIZ/CDR (interiores) o DLI/DLD (carrileros), según la formación de la que se
+   parte. `SIGLA_BANDA` dice de qué banda es cada sigla y `SIGLA_FAMILIA_BANDA`
+   a qué familia pertenece. La familia que usa cada banda se lee de las
+   posiciones declaradas de los 11 (lo que el juego deja escrito al aplicar la
+   variante): no hay que adivinarla. */
+const SIGLA_BANDA = {
+  DI:'izq', DLI:'izq', CIZ:'izq', EI:'izq',
+  DD:'der', DLD:'der', CDR:'der', ED:'der',
+};
+const SIGLA_FAMILIA_BANDA = { CIZ:'ci', CDR:'ci', DLI:'dl', DLD:'dl' };
+const FAMILIA_SIGLA_BANDA = { ci:{ izq:'CIZ', der:'CDR' }, dl:{ izq:'DLI', der:'DLD' } };
+const FAMILIA_NOMBRE = { ci:'CIZ/CDR', dl:'DLI/DLD' };
+/* FV8: DLI/DLD no se ponen por geometría (no las elige el dibujo de la cancha);
+   las pone la formación o el selector. */
+const PITCH_POS_SOLO_FORMACION = new Set(['DLI','DLD']);
+/* Familia de medio por banda que declaran las posiciones (lo que el juego
+   escribe con la variante). Si una banda no tiene medio de banda declarado —o
+   tiene de las dos, que el juego no crea con una variante— vale `ci`
+   (CIZ/CDR): DLI/DLD solo existen si la formación de partida los traía. Debe
+   dar lo mismo que `modo_bandas` del puente. */
+function modoBandas(draft){
+  const vistas = { izq:{}, der:{} };
+  for (const s of draft || []){
+    if (!s || !s.pos) continue;
+    const familia = SIGLA_FAMILIA_BANDA[s.pos];
+    const banda = SIGLA_BANDA[s.pos];
+    if (!familia || !banda) continue;
+    vistas[banda][familia] = true;
+  }
+  const out = { izq:'ci', der:'ci' };
+  for (const banda of ['izq', 'der']){
+    const familias = Object.keys(vistas[banda]);
+    if (familias.length === 1) out[banda] = familias[0];
+  }
+  return out;
+}
+/* Familia de partida por banda. Se fija al leer del juego o al aplicar una
+   variante (`bandasBase` en la lista de casillas) y NO cambia porque un medio
+   pase a otra posición de medio con el selector: la formación de partida sigue
+   siendo la misma. Solo se recalcula al aplicar otra variante o al recargar la
+   alineación del juego. Sin valor fijado se deriva de las posiciones. */
+function bandasBaseDe(draft){
+  const guardada = draft && draft.bandasBase;
+  const viva = modoBandas(draft);
+  if (!guardada) return viva;
+  return {
+    izq: (guardada.izq === 'dl' || guardada.izq === 'ci') ? guardada.izq : viva.izq,
+    der: (guardada.der === 'dl' || guardada.der === 'ci') ? guardada.der : viva.der,
+  };
+}
+/* Fija la familia de partida a partir de las posiciones actuales. */
+function fijarBandasBase(draft){
+  if (draft) draft.bandasBase = modoBandas(draft);
+  return draft;
+}
 /* Devuelve la posicion del jugador segun el rectangulo que lo contiene; si
    cae en varios (las zonas se solapan), gana el de centro mas cercano. */
 function posicionEn(x,y){
   let mejor = null, mejorDist = Infinity;
   for (const code of Object.keys(PITCH_POS_ZONAS)){
+    if (PITCH_POS_SOLO_FORMACION.has(code)) continue;
     const z = PITCH_POS_ZONAS[code];
     if (x < z.d[0] || x > z.d[1] || y < z.l[0] || y > z.l[1]) continue;
     const dx = x - (z.d[0]+z.d[1])/2, dy = y - (z.l[0]+z.l[1])/2;
@@ -3269,6 +3333,8 @@ function openFormationModal(){
   // Si la formacion publicada es vieja y no trae posiciones, se completan
   // con la primera opcion valida de cada bloque (asi las reglas tienen datos).
   completarPosiciones();
+  // FV8: la familia de medio por banda de la formación de partida.
+  fijarBandasBase(FORM.draft);
   FORM_BASE = JSON.parse(JSON.stringify(FORM.draft)); FORM_ABIERTO = true;
   FORM.sel = 0;
   FORM.motivo = null;
@@ -3850,7 +3916,7 @@ function renderFormationModal(){
   if (sel){
     const opciones = opcionesPosicion(slot);
     sel.innerHTML = opciones.map(o =>
-      `<option value="${escHtml(o.pos)}"${o.pos === label ? ' selected' : ''}${o.disponible ? '' : ' disabled'}>${escHtml(o.pos)}${o.disponible ? '' : ' (ocupada)'}</option>`
+      `<option value="${escHtml(o.pos)}"${o.pos === label ? ' selected' : ''}${o.disponible ? '' : ' disabled'}>${escHtml(o.pos)}${o.disponible ? '' : (o.motivo === 'formacion' ? ' (no en esta formación)' : ' (ocupada)')}</option>`
     ).join('');
     sel.disabled = keeper;
   }
@@ -3917,15 +3983,39 @@ function _formAjustarAlto(){
 function opcionesPosicion(slot){
   return opcionesPosicionEn(FORM.draft, FORM.draft.indexOf(slot), isKeeperSlot(slot));
 }
-/* Version con la lista de casillas explicita (la Formacion en vivo usa la suya). */
+/* Version con la lista de casillas explicita (la Formacion en vivo usa la suya).
+   FV8: en el mediocampo se ofrecen las dos siglas de banda del lado (CIZ/DLI a
+   la izquierda, CDR/DLD a la derecha); la que no corresponde a la formación
+   sale deshabilitada con `motivo:'formacion'` y la otra con `motivo:'ocupada'`
+   si no hay cupo. */
 function opcionesPosicionEn(draft, i, esPortero){
   const slot = draft[i];
   if (esPortero || i === 0) return [{ pos:'PT', disponible:true }];
   if (!slot) return [];
   const base = posicionesEnBloque(slot.x, slot.y);
-  const out = base.map(p => ({ pos: p, disponible: puedeAsignarEn(draft, p, slot) }));
+  let out = [];
+  if (pitchThird(slot.x) === 'mid'){
+    const lado = pitchLado(slot.y);
+    const banda = SIGLA_BANDA[slot.pos] || (lado === 'centro' ? null : lado);
+    if (banda){
+      const modo = bandasBaseDe(draft)[banda];
+      ['ci', 'dl'].forEach(familia => {
+        const sigla = FAMILIA_SIGLA_BANDA[familia][banda];
+        if (!PITCH_POS_LINEA[sigla]) return;
+        const permitida = modo === familia;
+        const disponible = permitida && puedeAsignarEn(draft, sigla, slot);
+        out.push({ pos: sigla, disponible: disponible, motivo: permitida ? 'ocupada' : 'formacion' });
+      });
+    }
+    base.forEach(p => {
+      if (SIGLA_FAMILIA_BANDA[p]) return;   // la familia de banda ya se agregó arriba
+      out.push({ pos: p, disponible: puedeAsignarEn(draft, p, slot) });
+    });
+  } else {
+    out = base.map(p => ({ pos: p, disponible: puedeAsignarEn(draft, p, slot) }));
+  }
   // la posicion actual se mantiene aunque haya quedado fuera de zona
-  if (slot.pos && !base.includes(slot.pos)) out.unshift({ pos: slot.pos, disponible: true });
+  if (slot.pos && !out.some(o => o.pos === slot.pos)) out.unshift({ pos: slot.pos, disponible: true });
   return out;
 }
 /* ¿Se puede asignar esta posicion a este jugador sin romper las reglas? */
@@ -3936,12 +4026,34 @@ function puedeAsignar(pos, slot){
 function puedeAsignarEn(draft, pos, slot){
   const linea = PITCH_POS_LINEA[pos];
   if (!linea) return false;
+  // FV8: la familia de banda tiene que ser la que usa la formación en ese lado.
+  const familia = SIGLA_FAMILIA_BANDA[pos];
+  if (familia){
+    const modo = bandasBaseDe(draft)[SIGLA_BANDA[pos]];
+    if (modo !== familia) return false;
+  }
   const otros = (draft || []).filter(s => s !== slot);
   if (otros.filter(s => s.pos && PITCH_POS_LINEA[s.pos] === linea).length >= PITCH_LINEA_MAX[linea]) return false;
   const maxPos = PITCH_POS_MAX[pos];
   if (maxPos && otros.filter(s => s.pos === pos).length >= maxPos) return false;
   if (PITCH_POS_BANDA.has(pos) && otros.some(s => s.pos === pos)) return false;
   return true;
+}
+/* FV8: posición que le corresponde a un jugador al moverlo. El juego NO cambia
+   la posición al mover: un medio por banda conserva su sigla dentro del
+   mediocampo (nunca pasa de CIZ a DLI ni al revés). Al cruzar a otra franja
+   manda la geometría, igual que antes, pero la familia de banda sale de la
+   formación. */
+function posicionAlMover(draft, slot, x, y){
+  if (!slot) return null;
+  if (SIGLA_FAMILIA_BANDA[slot.pos] && pitchThird(x) === 'mid') return slot.pos;
+  const geo = posicionEn(x, y) || slot.pos;
+  const familia = SIGLA_FAMILIA_BANDA[geo];
+  if (!familia) return geo;
+  const banda = SIGLA_BANDA[geo];
+  const modo = bandasBaseDe(draft)[banda];
+  if (FAMILIA_SIGLA_BANDA[modo] && FAMILIA_SIGLA_BANDA[modo][banda]) return FAMILIA_SIGLA_BANDA[modo][banda];
+  return geo;
 }
 /* Cuenta cuantos jugadores hay en cada linea segun su posicion declarada. */
 function contarLineas(draft){
@@ -3972,6 +4084,13 @@ function validarFormacion(draft){
   for (const [pos, max] of Object.entries(PITCH_POS_MAX)) if ((cuenta[pos] || 0) > max) return `máximo ${max} ${pos}`;
   for (const [l, max] of Object.entries(PITCH_LINEA_MAX)) if (porLinea[l] > max) return `máximo ${max} ${PITCH_LINEA_NOMBRE[l]}`;
   for (const [l, min] of Object.entries(PITCH_LINEA_MIN)) if (porLinea[l] < min) return `mínimo ${min} ${PITCH_LINEA_NOMBRE[l]}`;
+  // FV8: en una banda no conviven las dos familias de medio (CIZ/CDR y DLI/DLD).
+  for (const banda of ['izq', 'der']){
+    if ((cuenta[FAMILIA_SIGLA_BANDA.ci[banda]] || 0) && (cuenta[FAMILIA_SIGLA_BANDA.dl[banda]] || 0)){
+      return `en la banda ${banda === 'izq' ? 'izquierda' : 'derecha'} no pueden convivir `
+        + `${FAMILIA_SIGLA_BANDA.ci[banda]} y ${FAMILIA_SIGLA_BANDA.dl[banda]}`;
+    }
+  }
   return null;
 }
 /* Completa las posiciones que falten (formaciones publicadas viejas) con la
@@ -3986,12 +4105,16 @@ function completarPosiciones(){
 }
 /* Al mover, si la posicion actual ya no pertenece al bloque nuevo (o no se
    puede por los topes), se pasa sola a la primera opcion valida. Dentro del
-   bloque se mantiene, como en el juego. */
+   bloque se mantiene, como en el juego. FV8: posicionAlMover deja la sigla de
+   banda como estaba (nunca cambia CIZ↔DLI al cruzar la mitad) y, al entrar al
+   mediocampo desde otra franja, pone la familia que usa la formación. */
 function ajustarPosicionAlMover(slot){
   if (!slot || isKeeperSlot(slot) || slot.pos === 'PT') return true;
-  const opciones = posicionesEnBloque(slot.x, slot.y);
-  if (slot.pos && opciones.includes(slot.pos) && puedeAsignar(slot.pos, slot)) return true;
-  const libre = opciones.find(p => puedeAsignar(p, slot));
+  const pos = posicionAlMover(FORM.draft, slot, slot.x, slot.y);
+  if (pos && puedeAsignar(pos, slot)){ slot.pos = pos; return true; }
+  const libre = opcionesPosicionEn(FORM.draft, FORM.draft.indexOf(slot), false)
+    .filter(o => o.disponible).map(o => o.pos)
+    .find(p => puedeAsignar(p, slot));
   if (libre){ slot.pos = libre; return true; }
   return false; // la linea de destino ya esta llena
 }
@@ -3999,6 +4122,18 @@ function setFormationPos(valor){
   if (_bloqueadoPorPausa()) return;
   const slot = FORM.draft[FORM.sel];
   if (!slot || !valor) return;
+  // FV8: la familia de banda la pone la formación; el selector la deshabilita,
+  // y acá se vuelve a comprobar por si el valor llega por otro camino.
+  const familia = SIGLA_FAMILIA_BANDA[valor];
+  if (familia){
+    const banda = SIGLA_BANDA[valor];
+    const modo = bandasBaseDe(FORM.draft)[banda];
+    if (modo !== familia){
+      showMiniToast(`Esta formación usa ${FAMILIA_NOMBRE[modo]} en esa banda: ${valor} no se puede elegir.`);
+      renderFormationModal();
+      return;
+    }
+  }
   const antes = contarLineas(FORM.draft);
   const anterior = slot.pos;
   slot.pos = valor;
@@ -4172,6 +4307,7 @@ function resetFormationDraft(){
   FORM.bancaOrden = _rosterVigente().slice(11); FORM.bancaPares = []; FORM.banca = null; FORM.armado = false;
   FORM.verId = null;   // CMP3: restablecer también quita la ficha
   completarPosiciones();
+  fijarBandasBase(FORM.draft);
   renderFormationModal();
   showMiniToast('Formación restablecida a la del save.');
 }
@@ -5267,6 +5403,13 @@ const VIVO_UTIL = {
   POS_MAX: PITCH_POS_MAX, BANDA: PITCH_POS_BANDA, LUGAR: PITCH_LUGAR_NOMBRE,
   puedeAsignar: puedeAsignarEn,
   opcionesPosicion: opcionesPosicionEn,
+  // FV8: medio por banda (CIZ/CDR o DLI/DLD según la formación de partida).
+  posicionAlMover: posicionAlMover,
+  modoBandas: modoBandas,
+  bandasBaseDe: bandasBaseDe,
+  fijarBandasBase: fijarBandasBase,
+  SIGLA_BANDA: SIGLA_BANDA,
+  FAMILIA_BANDA: SIGLA_FAMILIA_BANDA,
   contarLineas: contarLineas,
   lineaBajoMinimo: lineaBajoMinimo,
   validar: validarFormacion,

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FV8 — DLI/DLD en la formación</title>
+<link rel="stylesheet" href="../../../tsc-src/css/variables.css">
+<link rel="stylesheet" href="../../../tsc-src/css/components.css">
+<link rel="stylesheet" href="../../../tsc-src/css/mejoras-editor.css">
+<link rel="stylesheet" href="../../../tsc-src/css/mejoras-cambio.css">
+<link rel="stylesheet" href="../../../tsc-src/css/formacion-vivo.css">
+<style>html,body{margin:0;background:var(--bg);color:var(--txt)}#log{white-space:pre-wrap;font:12px monospace;padding:10px}</style>
+</head>
+<body>
+<div id="fv-host"></div>
+<div id="log">ejecutando…</div>
+<script src="../../../tsc-src/js/sanitize.js"></script>
+<script src="../../../tsc-src/js/yunacoins-rules.js"></script>
+<script src="../../../tsc-src/js/pes5-plantilla.js"></script>
+<script src="../../../tsc-src/js/mejoras-cambio.js"></script>
+<script src="../../../tsc-src/js/mejoras-page.js"></script>
+<script src="../../../tsc-src/js/formacion-vivo.js"></script>
+<script>
+(function(){
+'use strict';
+const F = [], O = [];
+const check = (n, c, e) => c ? O.push('OK  ' + n) : F.push('FALLA ' + n + (e !== undefined ? ' :: ' + JSON.stringify(e) : ''));
+window.addEventListener('unhandledrejection', e => F.push('RECHAZO ' + (e.reason && e.reason.stack || e.reason)));
+window.addEventListener('error', e => F.push('ERROR ' + e.message));
+
+function jug(i, pos){
+  const st = {}, sec = {};
+  ['atk','def','equ','res','vm','ace','rsp','agi','pcd','vcd','ppc','vpc','ppl','vpl','pre','pot','ted','psf','efe','cab','sal','tec','agr']
+    .forEach((k, n) => { st[k] = 60 + ((i * 3 + n) % 30); });
+  sec.ment = 70; sec.cons = 4; sec.gk = 50; sec.teq = 70; sec.cond = 5; sec.wff = 4; sec.wfa = 5; sec.inj = 'B';
+  return { id:'r' + (1000 + i), name:'J' + (i + 1), dorsal:String(i + 1), tag:'', primaryPos: pos || (i === 0 ? 'GK' : 'CMF'),
+    stats: st, sec: sec, abilities:{}, positions:{}, height:180, age:25, foot:'Der.', side:'A' };
+}
+const P1 = { jugadores: [] }, P2 = { jugadores: [] };
+for (let i = 0; i < 32; i++){ P1.jugadores.push(jug(i)); const j = jug(i); j.id = 'r' + (1500 + i); j.name = 'R' + (i + 1); P2.jugadores.push(j); }
+
+/* Local: 3-4-3 con DLI/DLD (la familia de la formación es DLI/DLD).
+   El DLI está en la fila 12 (banda izquierda). Mover no lo cambia a CIZ
+   aunque cruce la mitad. */
+const LOC = [
+  { c:0,  pos:'PT',  cod:0,  x:1,  y:24 },
+  { c:1,  pos:'CT',  cod:7,  x:9,  y:38 },
+  { c:2,  pos:'CT',  cod:3,  x:9,  y:24 },
+  { c:3,  pos:'CT',  cod:1,  x:9,  y:10 },
+  { c:4,  pos:'CCD', cod:12, x:18, y:24 },
+  { c:5,  pos:'DLD', cod:16, x:24, y:38 },
+  { c:6,  pos:'DLI', cod:15, x:24, y:12 },
+  { c:7,  pos:'MP',  cod:26, x:32, y:24 },
+  { c:8,  pos:'ED',  cod:30, x:43, y:38 },
+  { c:9,  pos:'EI',  cod:29, x:43, y:10 },
+  { c:10, pos:'DC',  cod:38, x:43, y:24 },
+];
+/* Visitante: 4-4-2 con CIZ/CDR (la otra familia). */
+const VIS = [
+  { c:0,  pos:'PT',  cod:0,  x:1,  y:24 },
+  { c:1,  pos:'CT',  cod:7,  x:8,  y:36 },
+  { c:2,  pos:'CT',  cod:1,  x:8,  y:12 },
+  { c:3,  pos:'DD',  cod:9,  x:10, y:42 },
+  { c:4,  pos:'DI',  cod:8,  x:10, y:6 },
+  { c:5,  pos:'CC',  cod:21, x:20, y:32 },
+  { c:6,  pos:'CC',  cod:17, x:20, y:16 },
+  { c:7,  pos:'CDR', cod:23, x:28, y:42 },
+  { c:8,  pos:'CIZ', cod:22, x:27, y:6 },
+  { c:9,  pos:'DC',  cod:40, x:41, y:32 },
+  { c:10, pos:'DC',  cod:36, x:45, y:16 },
+];
+const latDeFila = fila => Math.round(6 + (fila - 1) * 93 / 46);
+function equipo(defs, lado, ids){
+  const slots = defs.map(d => ({
+    casilla:d.c, indice:d.c, id:ids[0] + d.c, prof:d.x,
+    lat: d.c === 0 ? null : latDeFila(d.y),
+    pos:d.pos, codigo:d.cod, x:d.x, y:d.y,
+    flechas: [], act: d.pos === 'DC' ? 2 : (d.pos === 'CT' ? 0 : 1), mark:1, rival:255,
+  }));
+  return { lado:lado, ids:ids, orden:slots.map(s => s.indice), cambiosRestantes:3, cola:[], slots:slots,
+    cabecera:{ botones:[0,8,9,2], modo:1, lanzadores:{ckl:9,ckr:9,tll:9,tlc:9,pk:9}, capitan:9 },
+    ajustes:{ nivel:2, sistema:0, libero:0, linea:1, presion:0, offside:1, contra:0 },
+    bandas: lado === 'local' ? { izq:'dl', der:'dl' } : { izq:'ci', der:'ci' },
+    estadoJugador:new Array(32).fill(2), resistencia:new Array(32).fill(null) };
+}
+const IDS1 = []; for (let i = 0; i < 32; i++) IDS1.push(1000 + i);
+const IDS2 = []; for (let i = 0; i < 32; i++) IDS2.push(1500 + i);
+const EQ = equipo(LOC, 'local', IDS1);
+const EQ2 = equipo(VIS, 'visitante', IDS2);
+
+const EST = { alineacionAbierta:true, partidoEmpezado:false, pausa:false, balonEnJuego:false, momento:'previa', puedeEscribir:true, partidoCargado:true };
+const P = { estado: Object.assign({}, EST), posts:[] };
+const real = window.fetch.bind(window);
+window.fetch = async function(u, o){
+  u = String(u);
+  if (u.indexOf('pes5-variantes.json') >= 0) return real(new URL('../../../tsc-src/js/pes5/pes5-variantes.json', location.href).href, o);
+  const r = obj => new Response(JSON.stringify(obj), { status:200, headers:{'Content-Type':'application/json'} });
+  if (u.slice(-7) === '/estado') return r({ ok:true, juego:true, estado:P.estado });
+  if (u.indexOf('/leer') >= 0) return r({ ok:true, estado:P.estado, equipos:[EQ, EQ2] });
+  P.posts.push(JSON.parse(o.body));
+  return r({ ok:true, cerrada:false, errores:[], escrito:[], salieron:[] });
+};
+
+const $ = q => document.querySelector(q);
+const $$ = q => Array.from(document.querySelectorAll(q));
+const clic = (fn, el) => window[fn](el);
+const opts = i => {
+  const sel = $('.ep-pitch-possel');
+  return sel ? Array.from(sel.options).map(o => ({ pos:o.value, disabled:o.disabled, txt:o.textContent })) : [];
+};
+
+(async function(){
+  const FV = window.FORMACION_VIVO;
+  window.AUTH = { role:'admin', user:{ uid:'t' }, teamId:1, displayName:'T' };
+  window.firebase = { firestore: () => ({ collection: () => ({
+    doc: () => ({ get: async () => ({ exists:false }) }),
+    get: async () => ({ docs:[ { data: () => P1 }, { data: () => P2 } ] }),
+  }) }) };
+
+  await FV.abrir();
+  await new Promise(r => setTimeout(r, 150));
+  await FV.consultar();
+  await new Promise(r => setTimeout(r, 80));
+
+  const u = window.MEJORAS_EDITOR.vivo;
+  check('vivo disponible', !!u && typeof u.posicionAlMover === 'function');
+  check('bandas leídas del equipo', JSON.stringify(u.modoBandas(EQ.slots)) === '{"izq":"dl","der":"dl"}', u.modoBandas(EQ.slots));
+  check('bandas del rival', JSON.stringify(u.modoBandas(EQ2.slots)) === '{"izq":"ci","der":"ci"}', u.modoBandas(EQ2.slots));
+  check('bandas de partida del local', JSON.stringify(u.bandasBaseDe(EQ.slots)) === '{"izq":"dl","der":"dl"}', u.bandasBaseDe(EQ.slots));
+  const mixto = EQ.slots.map(s => Object.assign({}, s));
+  mixto[4].pos = 'CIZ';   // con el DLI de la casilla 6: dos familias en la izquierda
+  check('banda con las dos familias: vale ci', JSON.stringify(u.modoBandas(mixto)) === '{"izq":"ci","der":"dl"}', u.modoBandas(mixto));
+  const sinBanda = EQ.slots.map(s => Object.assign({}, s));
+  sinBanda[5].pos = 'CC'; sinBanda[6].pos = 'CC';   // ninguna familia declarada
+  check('banda sin medio declarado: vale ci', JSON.stringify(u.modoBandas(sinBanda)) === '{"izq":"ci","der":"ci"}', u.modoBandas(sinBanda));
+  const oSin = u.opcionesPosicion(sinBanda, 6, false);
+  const dliSin = oSin.find(x => x.pos === 'DLI'), cizSin = oSin.find(x => x.pos === 'CIZ');
+  check('banda sin medio: DLI no', !!dliSin && !dliSin.disponible && dliSin.motivo === 'formacion', dliSin);
+  check('banda sin medio: CIZ sí', !!cizSin && cizSin.disponible, cizSin);
+
+  /* --- selector del DLI (casilla 6): DLI habilitada, CIZ en gris --- */
+  clic('fvPunto', { dataset:{ slot:'6' } });
+  let o = opts();
+  const dli = o.find(x => x.pos === 'DLI'), ciz = o.find(x => x.pos === 'CIZ'), mp = o.find(x => x.pos === 'MP');
+  check('selector: DLI habilitada', !!dli && !dli.disabled, o);
+  check('selector: CIZ deshabilitada', !!ciz && ciz.disabled && /no en esta formación/.test(ciz.txt), ciz);
+  check('selector: MP habilitada', !!mp && !mp.disabled, mp);
+  clic('fvPunto', { dataset:{ slot:'6' } });   // deselecciona (si no, el siguiente clic intercambia)
+
+  /* --- selector de un central (casilla 7, MP en el centro): sin bandas --- */
+  clic('fvPunto', { dataset:{ slot:'7' } });
+  o = opts();
+  check('central: sin CIZ ni DLI', o.length > 0 && !o.some(x => x.pos === 'CIZ' || x.pos === 'DLI'), o);
+  clic('fvPunto', { dataset:{ slot:'7' } });   // deselecciona
+
+  /* --- el MISMO selector que usa la Formación normal del editor --- */
+  const oEd = u.opcionesPosicion(EQ.slots, 6, false);
+  const dliEd = oEd.find(x => x.pos === 'DLI'), cizEd = oEd.find(x => x.pos === 'CIZ');
+  check('editor (compartido): DLI habilitada', !!dliEd && dliEd.disponible, oEd);
+  check('editor (compartido): CIZ deshabilitada por formación',
+    !!cizEd && !cizEd.disponible && cizEd.motivo === 'formacion', cizEd);
+
+  /* --- arrastre: cruzar la mitad no cambia la sigla --- */
+  const s6 = EQ.slots[6], s7 = EQ.slots[7];
+  check('mover DLI dentro del medio conserva DLI', u.posicionAlMover(EQ.slots, s6, 34, 19) === 'DLI', u.posicionAlMover(EQ.slots, s6, 34, 19));
+  check('mover DLI a la banda izquierda conserva DLI', u.posicionAlMover(EQ.slots, s6, 24, 4) === 'DLI', u.posicionAlMover(EQ.slots, s6, 24, 4));
+  check('mover un MP al medio izquierdo da DLI', u.posicionAlMover(EQ.slots, s7, 28, 8) === 'DLI', u.posicionAlMover(EQ.slots, s7, 28, 8));
+  check('mover un MP al medio derecho da DLD', u.posicionAlMover(EQ.slots, s7, 28, 40) === 'DLD', u.posicionAlMover(EQ.slots, s7, 28, 40));
+  check('mover un MP a la defensa da CT/CCD', ['CT','CCD'].indexOf(u.posicionAlMover(EQ.slots, s7, 8, 24)) >= 0, u.posicionAlMover(EQ.slots, s7, 8, 24));
+  check('rival con CIZ: un central al medio izquierdo da CIZ', u.posicionAlMover(EQ2.slots, EQ2.slots[5], 28, 8) === 'CIZ', u.posicionAlMover(EQ2.slots, EQ2.slots[5], 28, 8));
+
+  /* --- validación y familia --- */
+  const draft = EQ.slots.map(s => Object.assign({}, s));
+  draft[7].pos = 'CIZ';   // CIZ en la izquierda con el DLI todavía puesto
+  check('validación: CIZ y DLI en la misma banda', /no pueden convivir/.test(String(u.validar(draft))), u.validar(draft));
+  check('puedeAsignar niega CIZ con formación DLI', !u.puedeAsignar(EQ.slots, 'CIZ', EQ.slots[6]));
+
+  /* --- color de mediocampo en la lista y en la cancha --- */
+  const filaDli = $$('.fv-card-lista .fv-fila').find(el => {
+    const cod = el.querySelector('.ep-form-cod');
+    return cod && cod.textContent.trim() === 'DLI';
+  });
+  check('lista: DLI con color de medio', !!filaDli && filaDli.querySelector('.ep-form-cod').classList.contains('ep-line-mid'),
+    $$('.fv-card-lista .fv-fila').map(el => el.textContent.trim().slice(0, 24)));
+  clic('fvCapa', { dataset:{ c:'pos' } });
+  check('cancha: siglas de medio', $$('.fv-sig.l-mid').length >= 4, $$('.fv-sig.l-mid').length);
+  const color = $('.fv-sig.l-mid') ? getComputedStyle($('.fv-sig.l-mid')).color : '';
+  check('cancha: color verde de medio', color === 'rgb(95, 203, 139)', color);
+
+  /* --- DLI pasado a CC con el selector: la familia de partida no cambia --- */
+  clic('fvPunto', { dataset:{ slot:'6' } });
+  clic('fvSelPos', 'CC');
+  o = opts();
+  const dliCc = o.find(x => x.pos === 'DLI'), cizCc = o.find(x => x.pos === 'CIZ');
+  check('DLI pasado a CC: DLI sigue habilitada', !!dliCc && !dliCc.disabled, o);
+  check('DLI pasado a CC: CIZ sigue deshabilitada', !!cizCc && cizCc.disabled && /no en esta formación/.test(cizCc.txt), cizCc);
+  clic('fvDeshacer', { dataset:{ k:'0' } });   // vuelve a DLI
+  check('deshacer devuelve el DLI', $('.fv-badge') && $('.fv-badge').textContent === 'DLI', $('.fv-badge') && $('.fv-badge').textContent);
+  clic('fvPunto', { dataset:{ slot:'6' } });   // deselecciona
+
+  /* --- elegir CIZ en un DLI: mensaje y sin pedido --- */
+  clic('fvPunto', { dataset:{ slot:'6' } });
+  const antesPosts = P.posts.length;
+  clic('fvSelPos', 'CIZ');
+  check('elegir CIZ en formación DLI: aviso', /DLI\/DLD en esa banda/.test($('.fv-root').textContent), $('.fv-msg') ? $('.fv-msg').textContent : '');
+  check('elegir CIZ no encola pedido', P.posts.length === antesPosts);
+
+  /* --- la variante recalcula: 4-4-2 A-1 trae CIZ --- */
+  const vistaDl = /vista=dl/.test(location.search);
+  if (vistaDl){
+    clic('fvPunto', { dataset:{ slot:'6' } });
+  } else {
+  await clic('fvEsquema');
+  await new Promise(r => setTimeout(r, 120));
+  const esq = Array.from($$('.fv-esq-schb')).map(b => b.textContent.trim());
+  O.push('INFO esquemas: ' + (esq.join(' | ') || 'ninguno'));
+  const i442 = esq.findIndex(t => /4-4-2/.test(t));
+  check('hoja de esquemas abierta', i442 >= 0, esq);
+  clic('fvEsqEsquema', { dataset:{ i:String(i442) } });
+  const vars = Array.from($$('.fv-esq-var')).map(b => b.textContent.trim());
+  O.push('INFO variantes 4-4-2: ' + (vars.join(' | ') || 'ninguna'));
+  check('variantes del 4-4-2', vars.length > 0, vars);
+  clic('fvEsqVariante', { dataset:{ i:'0' } });
+  clic('fvEsqAplicar');
+  /* El panel trabaja sobre su propio modelo (copia del puente), no sobre EQ:
+     se comprueba por el selector. En 4-4-2 A-1 la casilla 7 es CIZ. */
+  clic('fvPunto', { dataset:{ slot:'7' } });
+  o = opts();
+  const ciz2 = o.find(x => x.pos === 'CIZ'), dli2 = o.find(x => x.pos === 'DLI');
+  check('tras 4-4-2: la casilla 7 es CIZ', $('.fv-badge') && $('.fv-badge').textContent === 'CIZ', $('.fv-badge') && $('.fv-badge').textContent);
+  check('tras 4-4-2: CIZ habilitada', !!ciz2 && !ciz2.disabled, o);
+  check('tras 4-4-2: DLI deshabilitada', !!dli2 && dli2.disabled, dli2);
+  check('tras 4-4-2: el pedido es la variante', P.posts.length === 0 && /Esquema: 4-4-2 A-1/.test($('.fv-root').textContent));
+  }
+
+  document.getElementById('log').textContent = [].concat(O, F).join('\n') + (F.length ? '\n\nFALLAS: ' + F.length : '\n\nTODO OK');
+  document.title = F.length ? 'FV8 — FALLAS' : 'FV8 — OK';
+})().catch(e => {
+  document.getElementById('log').textContent = 'EXCEPCIÓN ' + (e && e.stack || e);
+  document.title = 'FV8 — EXCEPCIÓN';
+});
+})();
+</script>
+</body>
+</html>
