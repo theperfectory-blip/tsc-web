@@ -177,7 +177,11 @@
 .fv-root .fv-capa{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;}
 .fv-root .fv-ov{position:absolute;width:0;height:0;}
 .fv-root .fv-arr{position:absolute;left:0;top:0;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:3;
-  stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 1.5px rgba(0,0,0,.9));transform-origin:50% 50%;}
+  stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 1.5px rgba(0,0,0,.9));transform-origin:50% 50%;
+  transform:translate(-50%,-50%) rotate(var(--fv-ang,0deg)) translateX(var(--fv-len,13px));}
+/* FV7: si la flecha se saldría de la cancha, se dibuja dentro del círculo del
+   jugador: misma dirección y color, más chica y pegada al centro. */
+.fv-root .fv-ov.dentro .fv-arr{transform:translate(-50%,-50%) rotate(var(--fv-ang,0deg)) translateX(1px) scale(var(--fv-in,.6));}
 .fv-root .fv-sig{transform:translate(-50%,-135%);width:auto;height:auto;font-family:'Bebas Neue',Impact,sans-serif;
   font-size:15px;letter-spacing:.5px;line-height:1;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap;}
 .fv-root .fv-sig.m0{color:#FFD45A;} .fv-root .fv-sig.m1{color:#7FD3F7;}
@@ -207,22 +211,33 @@
 .fv-root .c5{background:#1B1F27;box-shadow:inset 0 0 0 2px #F2D24A;}
 .fv-root .c5 svg{stroke:#F2D24A;}
 
-/* resistencia */
-.fv-root .fv-st{display:block;height:9px;border-radius:2px;background:rgba(127,127,127,.22);overflow:hidden;
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.3);}
-.fv-root .fv-st i{display:block;height:100%;background:linear-gradient(180deg,#7BE35A,#2E9E2A);}
-.fv-root .fv-st.md i{background:linear-gradient(180deg,#F2D24A,#C9A21E);}
-.fv-root .fv-st.lo i{background:linear-gradient(180deg,#F26B4A,#C0391E);}
-
 /* ---------- filas de la lista (mismas clases del editor) ---------- */
-.fv-root .fv-fila{grid-template-columns:40px minmax(0,1fr) 38px 44px 22px auto;}
-.fv-root .fv-fila .ep-form-cmpd{justify-content:flex-end;}
+/* FV7: una sola línea — condición · nombre · posición — con la tarjeta
+   compacta. La condición y la posición se centran verticalmente. El selector
+   incluye .fv-bench y .ep-form-subbtn para ganarle a mejoras-cambio.css
+   (44px/1fr/44px/auto), que si no impone su propia rejilla. */
+.fv-root .fv-bench .ep-form-subbtn.fv-fila{grid-template-columns:24px minmax(0,1fr) 36px auto;gap:6px;
+  min-height:34px;padding:3px 8px 3px 6px;position:relative;}
+.fv-root .fv-fila .ep-form-cmpd{justify-content:flex-end;min-width:0;overflow:hidden;}
+.fv-root .fv-fila .ep-form-cmpd .mc-delta{white-space:nowrap;}
+.fv-root .fv-fila .ep-form-subname{line-height:1.15;}
+.fv-root .fv-fila .ep-form-cod{min-width:0;height:24px;font-size:11.5px;}
+.fv-root .fv-fila .fv-cond,.fv-root .fv-fila .fv-sincond{width:24px;height:24px;}
+.fv-root .fv-fila .fv-cond svg{width:15px;height:15px;}
+/* La resistencia no ocupa una celda de la rejilla: va como línea fina al pie
+   de la tarjeta, así la fila sigue siendo de una sola línea. */
+.fv-root .fv-fila .fv-st{position:absolute;left:8px;right:8px;bottom:2px;height:3px;border-radius:2px;
+  background:rgba(127,127,127,.22);overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);}
+.fv-root .fv-fila .fv-st i{display:block;height:100%;background:linear-gradient(180deg,#7BE35A,#2E9E2A);}
+.fv-root .fv-fila .fv-st.md i{background:linear-gradient(180deg,#F2D24A,#C9A21E);}
+.fv-root .fv-fila .fv-st.lo i{background:linear-gradient(180deg,#F26B4A,#C0391E);}
+.fv-root .fv-bench .ep-form-subbtn.fv-fila-rival{grid-template-columns:minmax(0,1fr) 36px;}
 .fv-root .fv-fila.queued .ep-form-subname::after{content:' · en cola';color:var(--fv-wait);font-size:.82em;}
 .fv-root .fv-fila.salio{opacity:.42;cursor:not-allowed;}
 .fv-root .fv-fila.salio .ep-form-subname::after{content:' · salió';color:var(--txt3);font-size:.82em;}
 .fv-root .fv-fila.ro{cursor:default;}
 .fv-root .fv-fila.ro:hover{border-color:var(--brd);}
-.fv-root .fv-bench .ep-form-subbtn.fv-fila{min-height:46px;}
+.fv-root .fv-bench .ep-form-subbtn.fv-fila{min-height:34px;}
 .fv-root .fv-ficha{margin-top:10px;background:var(--card);border:1px solid var(--brd);border-radius:var(--r);padding:10px 12px;}
 .fv-root .fv-ficha-simple{margin-top:10px;}
 .fv-root .fv-swapbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border-radius:10px;
@@ -313,7 +328,10 @@
 }
 @media (max-width: 600px){
   .fv-root .fv-menu{grid-template-columns:1fr;}
-  .fv-root .fv-fila{grid-template-columns:34px minmax(0,1fr) 34px 40px 20px auto;}
+  .fv-root .fv-bench .ep-form-subbtn.fv-fila{grid-template-columns:22px minmax(0,1fr) 32px auto;gap:5px;padding:3px 7px 3px 5px;}
+  .fv-root .fv-fila .fv-cond,.fv-root .fv-fila .fv-sincond{width:22px;height:22px;}
+  .fv-root .fv-fila .ep-form-cod{height:22px;font-size:11px;}
+  .fv-root .fv-bench .ep-form-subbtn.fv-fila-rival{grid-template-columns:minmax(0,1fr) 32px;}
   .fv-root .fv-url{width:150px;}
   .fv-root .fv-foot .ep-btn{flex:1 1 auto;}
   .fv-root .fv-esq-sch{grid-template-columns:repeat(4,minmax(0,1fr));}

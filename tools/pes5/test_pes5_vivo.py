@@ -116,6 +116,10 @@ class Base(unittest.TestCase):
         for nombre, valor in valores.items():
             if valor is None:
                 continue
+            if nombre == "flechasAtaquePantalla":
+                for c, grupo in enumerate(valor):
+                    poner(vivo.REL_FLECHAS_PANTALLA + 8 * c, grupo)
+                continue
             campo = vivo.campo_de(nombre, "principal")
             self.assertIsNotNone(campo, "campo de prueba desconocido: %s" % nombre)
             if campo.get("porCasilla"):
@@ -129,6 +133,14 @@ class Base(unittest.TestCase):
                     poner(campo["offset"], plano)
             else:
                 poner(campo["offset"], [valor])
+
+        # FV7: si el test no fija la copia de pantalla, el juego la mantiene
+        # igual que el bloque principal; se siembra el espejo para que el
+        # puente lea las mismas flechas.
+        if "flechasAtaquePantalla" not in valores and valores.get("flechasAtaque"):
+            for c, grupo in enumerate(valores["flechasAtaque"]):
+                poner(vivo.REL_FLECHAS_PANTALLA + 8 * c, grupo)
+                poner(vivo.REL_FLECHAS_SELECCION + 8 * c, grupo)
 
         for k, (entra, sale) in enumerate(cola):
             poner(vivo.COLA_ENTRA + 2 * k, [entra])
@@ -225,6 +237,7 @@ class TestLectura(Base):
         self.assertEqual(campos["posicion"][0], 0)
         self.assertEqual(campos["posicion"][7], 10)
         self.assertEqual(campos["flechasAtaque"][2], [1, 0, 1, 0, 0, 0, 0, 0])
+        self.assertEqual(campos["flechasAtaquePantalla"][2], [1, 0, 1, 0, 0, 0, 0, 0])
         self.assertEqual(campos["actitudDefensiva"][0], 1)
         self.assertEqual(campos["marcaje"][0], 1)
         self.assertEqual(campos["rivalMarcado"][0], 255)
@@ -235,6 +248,19 @@ class TestLectura(Base):
         self.assertEqual(campos["zonaPresion"], 0)
         self.assertEqual(campos["fueraDeJuego"], 2)
         self.assertEqual(campos["contraataque"], 1)
+
+    def test_flechas_de_pantalla_se_leen_de_c2(self):
+        # FV7: el minimapa usa c2 (rec+981), que puede diferir del bloque
+        # principal (rec+147).
+        principal = [[0] * 8 for _ in range(11)]
+        principal[3] = [0, 1, 0, 0, 0, 1, 0, 0]        # ↖ + ↘
+        pantalla = [[0] * 8 for _ in range(11)]
+        pantalla[3] = [0, 0, 1, 0, 0, 0, 1, 0]         # ↑ + ↓
+        mem = self.memoria(campos={"flechasAtaque": principal,
+                                   "flechasAtaquePantalla": pantalla})
+        campos = vivo.leer_equipo(mem, "local")["campos"]
+        self.assertEqual(campos["flechasAtaque"][3], [0, 1, 0, 0, 0, 1, 0, 0])
+        self.assertEqual(campos["flechasAtaquePantalla"][3], [0, 0, 1, 0, 0, 0, 1, 0])
 
     def test_cola_y_cambios_restantes(self):
         mem = self.memoria(partido=1, pausa=1, restantes=3,
@@ -474,6 +500,9 @@ class TestCampo(Base):
                                         "casilla": 2, "indice": 3, "valor": 1}])
         self.assertTrue(resultado["ok"], resultado["errores"])
         self.assertEqual(self.byte(mem, 147 + 2 * 8 + 3), 1)
+        # FV7: se escriben también la copia de pantalla (c2) y la seleccionada (c3).
+        self.assertEqual(self.byte(mem, vivo.REL_FLECHAS_PANTALLA + 2 * 8 + 3), 1)
+        self.assertEqual(self.byte(mem, vivo.REL_FLECHAS_SELECCION + 2 * 8 + 3), 1)
 
     def test_campo_bloque_a(self):
         mem = self.memoria()
@@ -1214,6 +1243,10 @@ class TestVariante(Base):
         self.assertEqual(mem.leer(rec + 147, 8), b"\x01" * 8)
         for casilla in range(1, 11):
             self.assertEqual(mem.leer(rec + 147 + casilla * 8, 8), b"\x00" * 8)
+            self.assertEqual(mem.leer(rec + vivo.REL_FLECHAS_PANTALLA + casilla * 8, 8),
+                             b"\x00" * 8)
+            self.assertEqual(mem.leer(rec + vivo.REL_FLECHAS_SELECCION + casilla * 8, 8),
+                             b"\x00" * 8)
 
     def test_variante_desconocida(self):
         mem = self.memoria()

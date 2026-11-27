@@ -121,6 +121,28 @@ tres no coinciden antes (p. ej. una quedó en cero porque la pantalla aún no se
 abrió), la operación se rechaza con «las tres copias del orden no coinciden» y
 no se escribe nada.
 
+## Flechas de ataque: la copia que dibuja el minimapa (FV7)
+
+El bloque principal (`rec+147+8c`) guarda las flechas que se editan y se
+confirman, pero **el minimapa de la pantalla de alineación dibuja la copia de
+pantalla `c2`** (`rec+981+8c`, es decir `c2+74`), no el principal. FV7 lo
+comprobó comparando el volcado con la captura del minimapa: en el mismo estado
+`c2` daba `3:2,6 · 4:2 · 5:2,6 · 6:2 · 7:2 · 8:2,3 · 9:2 · 10:2,3` (lo que
+mostraba el minimapa) y el principal daba `3:1,5 · 4:6 · 5:3,7 · 6:0 · 7:0 ·
+8:1 · 9:2,3 · 10:3`. El juego resincroniza `c2` con el principal al abrir o
+cerrar algunos menús; por eso el puente lee `c2` en cada `/leer` y refleja lo
+que la pantalla tiene en ese momento.
+
+- `c2` = `rec+981..1068`: copia de pantalla (la del minimapa).
+- `c3` = `rec+4240..4327` (`c3+140`, con `c3 = rec+0x1004`): copia de la
+  configuración seleccionada. El offset correcto es **4240**, no 4244.
+- `c3+38` (`rec+4138`) dice qué bloque se está mostrando: 0 principal, 1 A, 2 B.
+
+Al escribir con `campo` una flecha del bloque principal se escribe también en
+`c2` y, si el bloque mostrado es el principal (`rec+4138 == 0`), en `c3`; así la
+web y el minimapa no quedan desincronizados. `variante` borra las flechas de
+los 10 jugadores de campo en el principal y en las dos copias.
+
 ## Condición y resistencia
 
 Dos lecturas nuevas (verificadas por el coordinador el 24-11-2026):
@@ -239,6 +261,11 @@ partido empezado los cambios van por la cola».
   y el modo (`modoEstrategia`: 0 Manual, 1 Semi-automático). Los dos se validan
   solo contra `valores`: un 13 en `estrategiaBoton` o un 2 en `modoEstrategia`
   se rechazan.
+- **Flechas de ataque (FV7):** `campo` con `flechasAtaque` del bloque
+  principal escribe el byte en el principal, en `c2` (`rec+981`, la copia del
+  minimapa) y en `c3` (`rec+4240`) cuando el bloque mostrado es el principal
+  (`rec+4138 == 0`). Así la web y el minimapa no quedan desincronizados. Ver
+  [Flechas de ataque: la copia que dibuja el minimapa](#flechas-de-ataque-la-copia-que-dibuja-el-minimapa-fv7).
 
 ### `mover`
 
@@ -272,7 +299,8 @@ como lo hace el juego:
 - Escribe profundidad, lateral y código de posición de las 11 casillas (el
   arquero no tiene lateral).
 - **Borra las flechas de ataque** de los 10 jugadores de campo
-  (`rec+147+8c`, 8 bytes a 0 por casilla 1–10). Las del arquero no se tocan.
+  (`rec+147+8c`, `c2` en `rec+981` y `c3` en `rec+4240`; 8 bytes a 0 por
+  casilla 1–10). Las del arquero no se tocan.
 - Pone la **actitud defensiva** (`rec+243+c`) de las 11 casillas según
   `reglaActitud` (sigla → 0 Alto, 1 Normal, 2 Bajo), igual que el juego: PT
   Normal; CT/DI/DD/CCD Alto; DLI/DLD/CC/CIZ/CDR/MP Normal; EI/ED/DC Bajo.
@@ -459,7 +487,9 @@ lecturas, no para escribir. `--help` lista todo.
 - `ids` y `orden` tienen 32 elementos; `slots` son las 11 casillas de titular
   (0 arquero, 1–10 campo). `pos` es la sigla del código de posición y
   `flechas` los nombres (`izq`, `arriba-izq`, `arriba`, `arriba-dcha`, `dcha`,
-  `abajo-dcha`, `abajo`, `abajo-izq`) que están encendidos.
+  `abajo-dcha`, `abajo`, `abajo-izq`) que están encendidos **en la copia de
+  pantalla `c2`** (`rec+981`), la misma que dibuja el minimapa del juego
+  (FV7).
 - `estadoJugador` tiene 32 valores por **índice de plantel** (0 roja, 1 naranja,
   2 verde, 3 azul, 4 gris) y `resistencia` 32 elementos (`null` antes del
   saque o si el id no está en la tabla).

@@ -652,6 +652,8 @@ function condMini(c, pos){
   return '<span class="fv-dotcond c' + i + '" style="' + pos + '" title="Estado: ' + escA(TEXTO_COND[i]) + '">'
     + '<svg viewBox="0 0 24 24" aria-hidden="true">' + SVG_COND[i] + '</svg></span>';
 }
+/* Resistencia: línea fina al pie de la tarjeta (no ocupa una celda de la
+   rejilla), para que la fila quede en una sola línea. */
 function staminaHTML(m, indice){
   const enP = enPartido();
   const r = m.res ? m.res[indice] : null;
@@ -711,13 +713,59 @@ function vectorCancha(px, py, v){ return v ? [px, py] : [-py, px]; }
 /* Vector expresado ya en la cancha horizontal -> cancha vertical (giro de
    90°). Solo para vectores de la cancha, como la flecha defensiva. */
 function rotar(dx, dy, v){ return v ? [dy, -dx] : [dx, dy]; }
+/* FV7: la dirección y el largo viajan en variables CSS para que la clase
+   «dentro» pueda achicar la flecha sin cambiar el ángulo ni el color. */
 function flechaHTML(dx, dy, color, len, largo){
   const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const vars = 'color:' + color + ';--fv-ang:' + ang + 'deg;';
   if (largo){
     const w = largo + 8;
-    return '<svg class="fv-arr" viewBox="0 0 ' + w + ' 16" style="width:' + w + 'px;height:16px;transform:translate(-50%,-50%) rotate(' + ang + 'deg) translateX(' + (w / 2 + 6) + 'px);color:' + color + '"><path d="M2 8h' + (w - 4) + 'M' + (w - 9) + ' 3l6 5-6 5"/></svg>';
+    return '<svg class="fv-arr" viewBox="0 0 ' + w + ' 16" style="width:' + w + 'px;height:16px;' + vars + '--fv-len:' + (w / 2 + 6) + 'px;--fv-in:.38"><path d="M2 8h' + (w - 4) + 'M' + (w - 9) + ' 3l6 5-6 5"/></svg>';
   }
-  return '<svg class="fv-arr" viewBox="0 0 24 24" style="transform:translate(-50%,-50%) rotate(' + ang + 'deg) translateX(' + len + 'px);color:' + color + '"><path d="M4 12h14M13 6l6 6-6 6"/></svg>';
+  return '<svg class="fv-arr" viewBox="0 0 24 24" style="' + vars + '--fv-len:' + len + 'px;--fv-in:.6"><path d="M4 12h14M13 6l6 6-6 6"/></svg>';
+}
+/* Si la flecha se sale del rectángulo de la cancha se dibuja dentro del
+   círculo del jugador (encima, más chica, misma dirección y color). Se mide
+   después de montar el HTML, así vale para cancha horizontal/vertical y para
+   cualquier ancho de pantalla. */
+function ajustarFlechas(raiz){
+  const host = raiz || D.host;
+  if (!host || !host.querySelectorAll) return;
+  host.querySelectorAll('.fv-capa .fv-ov').forEach(function(ov){
+    const svg = ov.querySelector('.fv-arr');
+    const campo = ov.closest ? ov.closest('.ep-pitch-field') : null;
+    if (!svg || !campo) return;
+    const f = campo.getBoundingClientRect();
+    const w = campo.clientWidth, h = campo.clientHeight;
+    if (!w || !h) return;
+    // Rectángulo útil del campo: los márgenes de la grilla (1,7 % / 3,8 %)
+    // cambian de eje según la orientación, igual que pctX/pctY.
+    const v = campo.classList.contains('vertical');
+    const padX = (v ? 3.8 : 1.7) / 100 * w;
+    const padY = (v ? 1.7 : 3.8) / 100 * h;
+    const izq = f.left + campo.clientLeft + padX;
+    const der = f.left + campo.clientLeft + w - padX;
+    const arr = f.top + campo.clientTop + padY;
+    const aba = f.top + campo.clientTop + h - padY;
+    // Se mide siempre la flecha "de fuera"; si ya estaba dentro, se quita la
+    // clase un momento para que getBoundingClientRect devuelva su tamaño real.
+    ov.classList.remove('dentro');
+    const r = svg.getBoundingClientRect();
+    const fuera = r.left < izq - 0.5 || r.right > der + 0.5
+      || r.top < arr - 0.5 || r.bottom > aba + 0.5;
+    ov.classList.toggle('dentro', fuera);
+  });
+}
+/* Durante el arrastre no se repinta (se perdería el punto): se mueve también
+   la capa del jugador y se recalcula si la flecha entra o sale de la cancha. */
+function moverOverlay(casilla, x, y){
+  const host = D.host;
+  if (!host || !host.querySelectorAll) return;
+  host.querySelectorAll('.fv-capa .fv-ov[data-slot="' + casilla + '"]').forEach(function(ov){
+    ov.style.left = x + '%';
+    ov.style.top = y + '%';
+  });
+  ajustarFlechas(host);
 }
 /* Capas que dibuja el juego sobre la cancha según el submenú. */
 function capaHTML(m, v){
@@ -731,14 +779,14 @@ function capaHTML(m, v){
     if (c === 'ataque') (s.flechas || []).forEach(function(f){
       const d = CRUZ[f]; if (!d) return;
       const r = vectorCancha(d[0], d[1], v);
-      h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], '#FFFFFF', 13) + '</span>';
+      h += '<span class="fv-ov" data-slot="' + i + '" style="' + pos + '">' + flechaHTML(r[0], r[1], '#FFFFFF', 13) + '</span>';
     });
     if (c === 'defensa'){
       // FV5: también el arquero tiene su flecha defensiva (Normal = celeste).
       // FV6: apunta al arco propio: izquierda en horizontal, abajo en vertical.
       const act = Math.max(0, Math.min(2, num(s.act) == null ? 1 : num(s.act)));
       const r = rotar(-1, 0, v);
-      h += '<span class="fv-ov" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[act], 0, Math.round(ACT_LARGO[act] * (v ? 0.6 : 1))) + '</span>';
+      h += '<span class="fv-ov" data-slot="' + i + '" style="' + pos + '">' + flechaHTML(r[0], r[1], ACT_COLOR[act], 0, Math.round(ACT_LARGO[act] * (v ? 0.6 : 1))) + '</span>';
     }
     if (c === 'pos'){
       const linea = SIGLA_LINEA[s.pos] || 'mid';
@@ -1119,12 +1167,14 @@ function filaHTML(m, casilla, indice, seccion, soloLectura){
   const deshabilitado = (soloLectura || salio) ? ' disabled' : '';
   const accion = soloLectura ? '' : ' data-onclick="fvFila(this)" data-idx="' + indice + '"';
   const cond = m.cond ? m.cond[indice] : null;
+  /* FV7: una sola línea — flecha de condición · nombre · posición — centrada
+     verticalmente y con la tarjeta lo más baja posible. La resistencia va
+     como línea fina al pie, sin ocupar una celda. */
   return '<button type="button" class="' + clase + '"' + accion + deshabilitado + ' aria-pressed="' + (!!armado) + '">'
-    + '<span class="ep-form-num ep-line-' + linea + ' vacia"></span>'
+    + (cond == null ? '<span class="fv-sincond" aria-hidden="true"></span>' : condIcono(cond))
     + '<span class="ep-form-subname">' + esc(nombre) + '</span>'
     + '<span class="ep-form-cod ep-line-' + linea + '">' + esc(pos) + '</span>'
     + staminaHTML(m, indice)
-    + (cond == null ? '<span class="fv-sincond" aria-hidden="true"></span>' : condIcono(cond))
     + delta
     + '</button>';
 }
@@ -1353,10 +1403,10 @@ function rivalCardHTML(){
     + '<div class="fv-sum"><span>Rival · solo lectura</span><b>' + esc(esquemaTexto(R)) + '</b></div>'
     + '<div class="fv-bench">' + R.orden.slice(0, 11).map(function(idx, i){
       const linea = SIGLA_LINEA[R.slots[i].pos] || 'mid';
-      return '<div class="ep-form-subbtn fv-fila ro"><span class="ep-form-num ep-line-' + linea + ' vacia"></span>'
+      return '<div class="ep-form-subbtn fv-fila fv-fila-rival ro">'
         + '<span class="ep-form-subname">' + esc(nombreDe(R, idx)) + '</span>'
         + '<span class="ep-form-cod ep-line-' + linea + '">' + esc(R.slots[i].pos) + '</span>'
-        + '<span class="fv-sincond"></span><span></span></div>';
+        + '</div>';
     }).join('') + '</div></section>';
 }
 function nombreDeEquipo(m){
@@ -1484,6 +1534,7 @@ function pintar(){
   host.innerHTML = panelHTML();
   const ahora = host.querySelector('.fv-body');
   if (ahora && scroll) ahora.scrollTop = scroll;
+  ajustarFlechas(host);
 }
 
 /* ---------- envío ---------- */
@@ -1847,8 +1898,10 @@ function enganchar(){
     if (!celda) return;
     if (!moverACasilla(_arrastre.casilla, celda.x, celda.y)) return;
     const s = D.mio.slots[_arrastre.casilla];
-    _arrastre.punto.style.left = u.pctX(s.x, s.y, v) + '%';
-    _arrastre.punto.style.top = u.pctY(s.x, s.y, v) + '%';
+    const px = u.pctX(s.x, s.y, v), py = u.pctY(s.x, s.y, v);
+    _arrastre.punto.style.left = px + '%';
+    _arrastre.punto.style.top = py + '%';
+    moverOverlay(_arrastre.casilla, px, py);
   });
   const soltar = function(){
     if (!_arrastre) return;

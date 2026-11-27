@@ -63,7 +63,11 @@ def _slots(equipo):
     for casilla in range(11):
         indice = orden[casilla]
         codigo = campos["posicion"][casilla]
-        flechas = campos["flechasAtaque"][casilla]
+        # FV7: el minimapa del juego dibuja la copia de pantalla (c2), no el
+        # bloque principal; se prefiere esa para que la web muestre lo mismo.
+        flechas = campos.get("flechasAtaquePantalla", {}).get(casilla)
+        if flechas is None:
+            flechas = campos["flechasAtaque"][casilla]
         slots.append({
             "casilla": casilla,
             "indice": indice,

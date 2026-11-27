@@ -305,7 +305,7 @@ en pausa o en el entretiempo. Con el balón en juego no se abre.
 | `rec+945..955` (= `c2+38..48`) | Espejo de los 11 códigos de posición (945 = PT y 946..955 = casillas 1..10) | `sp_dd` (135 7→9) escribe `947`; `l003` recorre el espejo entero. Mientras hay líbero el espejo marca `4` (LIB) en la casilla del líbero donde el bloque principal deja `1` (CT). **El array empieza en `945`**, no en `946` |
 | `rec+956` (= `c2+49`) | Primer byte del marcaje de c2 (portero); **no** es parte del array de posiciones | en `c000→c001` toma un 36 transitorio y vuelve a 1 |
 | `rec+967..977` (= `c2+60..70`) | Espejo del rival marcado (`rec+265..275`) | coincide en las capturas de marcaje |
-| `rec+981..1068` (= `c2+74..161`) | Espejo de las flechas de ataque (`rec+147..234`) | `mk0`/`ep0` idénticos byte a byte |
+| `rec+981..1068` (= `c2+74..161`) | Espejo de las flechas de ataque (`rec+147..234`) | `mk0`/`ep0` idénticos byte a byte. **FV7:** la pantalla de alineación dibuja esta copia (no el principal); el puente lee `c2` para `slots[i].flechas`. |
 | `rec+1077..1087` (= `c2+170..180`) | Espejo de la actitud defensiva (`rec+243..253`) | `q1` deja los 11 bytes a 1 igual que `243..253`; `f442_A1` los reinicia igual |
 | `rec+4138` (= `c3+38`) | **Bloque seleccionado** de c3: 0 principal, 1 Alineación A, 2 Alineación B | `b000` = 2, `b100` = 1, `b200` = 0. La nota anterior lo daba como «0 fijo» |
 | `rec+4139..4149` (= `c3+39..49`) | Copia de las posiciones del bloque seleccionado | coincide 1:1 con `rec+133..143` en `p000` y `f442_A1`; **no** sigue los ajustes individuales (`l003`) |
@@ -628,7 +628,7 @@ comprueba byte a byte cada fila. Resultado con la serie entregada (125 capturas:
 | Estrategia manual `rec+100..103` | VERIFICADO CON RESERVA | offsets y dos reasignaciones comprobadas; solo se ven los códigos 2, 3, 4, 7, 8, 9 |
 | Modo `rec+105` | VERIFICADO CON RESERVA | 0 Manual / 1 Semi-automático; el rótulo L2/AUTO1-3 es interfaz |
 | Bandera `rec+661` | VERIFICADO CON RESERVA | cambia en t002, pero también en otros menús |
-| Flechas `rec+147+8c` | **VERIFICADO** | orden de los 8 bytes confirmado en los índices 0, 2, 3, 4 y 6 |
+| Flechas `rec+147+8c` | **VERIFICADO** | orden de los 8 bytes confirmado en los índices 0, 2, 3, 4 y 6. FV7: el minimapa dibuja la **copia de pantalla `c2`** (`rec+981+8c`), no este bloque; el puente lee c2 y escribe las dos |
 | Actitud defensiva `rec+243+c` | VERIFICADO CON RESERVA | 0 Alto, 1 Normal, 2 Bajo; dos capturas con el valor anterior |
 | Editar posición `rec+112/122+c` | **VERIFICADO** | 2→3 (profundidad) y 63→61 (lateral) al confirmar |
 | Config. marcaje `rec+254/265+c` | VERIFICADO CON RESERVA | 0..3 (Marcaje / zonas / hombre normal / agresivo) y rival 10; en `m02` el tipo es 3 y en `m04`, 2. El rival se conserva al volver a zonas |

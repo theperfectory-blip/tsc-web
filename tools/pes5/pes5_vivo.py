@@ -75,6 +75,19 @@ LARGO_REGISTRO = 628
 # Las tres copias del orden: A = rec+4, A+0x38B y A+0x1004.
 COPIAS_ORDEN = (REL_ORDEN, REL_ORDEN + 0x38B, REL_ORDEN + 0x1004)
 
+# Flechas de ataque. La copia que dibuja el minimapa de la pantalla de
+# alineación no es la del bloque principal: es la de c2, la «copia de la
+# pantalla» (ver docs/pes5/mapa-vivo/COPIAS.md), en rec+981 (c2+74). FV7
+# comprobó que el bloque principal (rec+147) puede llevar otras flechas
+# (las confirmadas, o las de la Alineación A/B guardada) y que el minimapa
+# muestra c2. c3 (rec+4240 = c3+140, la copia del bloque seleccionado)
+# también puede quedarse atrás; se escribe junto con las otras para no
+# desincronizar, pero solo cuando el bloque seleccionado es el principal.
+REL_FLECHAS_PANTALLA = 981    # c2 + 74: copia de pantalla (la del minimapa)
+REL_FLECHAS_SELECCION = 4240  # c3 + 140: copia de la configuración seleccionada
+REL_BLOQUE_SELECCION = 4138   # c3 + 38: 0 principal, 1 Alineación A, 2 Alineación B
+LARGO_FLECHAS = 88
+
 # Indicadores de estado (direcciones absolutas, 1 byte cada uno).
 IND_ALINEACION = 0x39564DA   # 1 = pantalla de alineación abierta
 IND_PARTIDO = 0xD8CCEA       # 1 = desde el saque inicial
@@ -547,6 +560,14 @@ def leer_equipo(mem, lado, maximos=None):
         else:
             campos[nombre] = list(buf[offset:offset + campo["len"]])
 
+    # FV7: el minimapa de la pantalla de alineación dibuja las flechas de
+    # ataque de la copia de pantalla (c2, rec+981), no las del bloque
+    # principal. Se leen aparte con la misma forma que flechasAtaque.
+    campos["flechasAtaquePantalla"] = {
+        j: list(mem.leer(rec + REL_FLECHAS_PANTALLA + 8 * j, 8))
+        for j in range(11)
+    }
+
     declarados = mem.leer(rec + COLA_CONTADOR, 1)[0]
     parejas = min(declarados, COLA_MAX)
     cola = []
@@ -777,6 +798,19 @@ def _bloque_de(nombre, op):
     return "principal"
 
 
+def _escribir_flechas_copias(vista, rec, desplazamiento, valor):
+    """Escribe una flecha de ataque en las copias que usa la pantalla.
+
+    ``c2`` (``REL_FLECHAS_PANTALLA``) es la copia que dibuja el minimapa y se
+    escribe siempre. ``c3`` (``REL_FLECHAS_SELECCION``) es la copia de la
+    configuración seleccionada: solo se toca cuando el juego muestra el bloque
+    principal (``c3+38 == 0``), para no pisar la previsualización de A o B.
+    """
+    vista.escribir(rec + REL_FLECHAS_PANTALLA + desplazamiento, valor)
+    if vista.leer(rec + REL_BLOQUE_SELECCION, 1)[0] == 0:
+        vista.escribir(rec + REL_FLECHAS_SELECCION + desplazamiento, valor)
+
+
 def _campo(vista, rec, op, campos_escritos=None):
     nombre = op.get("nombre")
     if not isinstance(nombre, str) or not nombre:
@@ -810,11 +844,13 @@ def _campo(vista, rec, op, campos_escritos=None):
                 casilla, inicial, inicial + grupos - 1, nombre))
         if stride > 1:
             indice = _entero(op, "indice", 0, stride - 1)
-            direccion = rec + campo["offset"] + (casilla - inicial) * stride + indice
+            desplazamiento = (casilla - inicial) * stride + indice
+            direccion = rec + campo["offset"] + desplazamiento
         else:
             if op.get("indice") is not None:
                 raise ErrorOperacion("el campo «%s» no usa «indice»" % nombre)
-            direccion = rec + campo["offset"] + (casilla - inicial)
+            desplazamiento = casilla - inicial
+            direccion = rec + campo["offset"] + desplazamiento
     else:
         if op.get("casilla") is not None:
             raise ErrorOperacion("el campo «%s» no es por casilla" % nombre)
@@ -828,6 +864,12 @@ def _campo(vista, rec, op, campos_escritos=None):
 
     _validar_valor(campo, op["valor"])
     vista.escribir(direccion, bytes([op["valor"]]))
+    # FV7: las flechas de ataque del bloque principal se escriben también en
+    # la copia de pantalla (c2, la que dibuja el minimapa) y, si el juego está
+    # mostrando el bloque principal, en la copia de la configuración
+    # seleccionada (c3), para que el juego y la web no queden desincronizados.
+    if nombre == "flechasAtaque" and bloque == "principal":
+        _escribir_flechas_copias(vista, rec, desplazamiento, bytes([op["valor"]]))
     if campos_escritos is not None:
         campos_escritos.add((bloque, nombre))
 
@@ -948,11 +990,13 @@ def _variante(vista, rec, op):
             raise ErrorOperacion("no hay actitud para la sigla %r en «reglaActitud»" % sigla)
         vista.escribir(rec + campo_act["offset"] + casilla, bytes([int(actitud)]))
 
-    # El juego deja vacías las flechas de ataque de los 10 jugadores de campo.
+    # El juego deja vacías las flechas de ataque de los 10 jugadores de campo
+    # (y sus copias de pantalla y de la configuración seleccionada).
     stride = campo_flechas.get("stride", 8)
     for casilla in range(1, 11):
         inicio = campo_flechas["offset"] + casilla * stride
         vista.escribir(rec + inicio, bytes([0] * stride))
+        _escribir_flechas_copias(vista, rec, casilla * stride, bytes([0] * stride))
 
 
 def _validar_op(vista, rec, st, op, salieron, nuevos_salidos, campos_escritos=None):

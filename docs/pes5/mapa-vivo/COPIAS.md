@@ -102,6 +102,13 @@ aislados) que no se interpretaron. Todos los offsets son relativos a `c2`:
 | 74..161 | 88 | flechas de ataque[11][8] | `rec+147..234` |
 | 170..180 | 11 | actitud defensiva[11] | `rec+243..253` |
 
+> **FV7:** esta copia es la que dibuja el minimapa de la pantalla de
+> alineación. `pes5_vivo.leer_equipo` lee sus flechas en
+> `campos.flechasAtaquePantalla` (el puente las devuelve en `slots[i].flechas`)
+> y `campo`/`variante` escriben `rec+981` junto con el registro. El bloque
+> principal (`rec+147`) puede llevar otras flechas aunque la pantalla muestre
+> las de `c2`.
+
 Evidencia de las equivalencias (capturas con valores distintos en cada campo):
 
 * marcaje y rival: `m02` (Freier = casilla 8, «hombre agresivo» → `c2+49[8]=3`,

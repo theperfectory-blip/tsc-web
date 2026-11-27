@@ -219,6 +219,20 @@ class TestPuente(base.Base):
         self.assertEqual(equipo["cola"], [])
         self.assertIsNone(equipo["cambiosRestantes"])
 
+    def test_leer_usa_las_flechas_de_pantalla_c2(self):
+        # FV7: el minimapa del juego dibuja c2 (rec+981). El puente devuelve
+        # esas flechas aunque el bloque principal tenga otras.
+        mem = self.mem
+        rec = vivo.REC["local"]
+        principal = bytearray(88)
+        pantalla = bytearray(88)
+        pantalla[8 * 3 + 2] = 1     # casilla 3, flecha ↑
+        mem.escribir(rec + 147, bytes(principal))
+        mem.escribir(rec + vivo.REL_FLECHAS_PANTALLA, bytes(pantalla))
+        _estado, _cabeceras, datos = self.pedir("/leer?lado=local")
+        slot = datos["equipos"][0]["slots"][3]
+        self.assertEqual(slot["flechas"], ["arriba"])
+
     def test_leer_ambos_y_lado_invalido(self):
         _estado, _cabeceras, datos = self.pedir("/leer")
         self.assertEqual(len(datos["equipos"]), 2)
