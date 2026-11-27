@@ -424,6 +424,13 @@ function modeloDe(eq, lado){
     izq: (bandasEq ? bandasEq.izq : (bandasVivas && bandasVivas.izq)) === 'dl' ? 'dl' : 'ci',
     der: (bandasEq ? bandasEq.der : (bandasVivas && bandasVivas.der)) === 'dl' ? 'dl' : 'ci',
   };
+  /* FV10: familia que la lectura vio en los códigos del juego. Si la familia de
+     partida (`bandasBase`) ya no coincide porque el panel pasó el DLI a otra
+     posición, la petición la declara al puente para poder volver atrás. */
+  slots.bandasVivas = {
+    izq: (bandasVivas && bandasVivas.izq) === 'dl' ? 'dl' : 'ci',
+    der: (bandasVivas && bandasVivas.der) === 'dl' ? 'dl' : 'ci',
+  };
   const cab = eq.cabecera || {};
   const lanz = cab.lanzadores || {};
   const aj = eq.ajustes || {};
@@ -470,6 +477,34 @@ function modeloDe(eq, lado){
     cond: Array.isArray(eq.estadoJugador) ? eq.estadoJugador.map(function(v){ return num(v); }) : null,
     res: Array.isArray(eq.resistencia) ? eq.resistencia.map(function(r){ return r ? { actual: num(r.actual), max: num(r.maxSaque) } : null; }) : null,
   };
+}
+/* FV10: la familia de partida sobrevive a la relectura que sigue a un cambio
+   hecho desde acá. El puente informa `bandas` con los códigos que el juego
+   tiene AHORA: si un DLI se pasó a CC, esa banda deja de declarar DLI y
+   `bandas` pasa a `ci`. Eso no es una formación nueva, así que la web conserva
+   la familia que traía mientras la alineación siga siendo la misma (mismos
+   jugadores en las mismas casillas) y el cambio sea de una sola casilla. Una
+   variante reescribe las 11 y un partido nuevo cambia el orden: ahí se
+   recalcula. */
+function mismaAlineacion(prev, hoy){
+  if (!prev || !hoy || !prev.orden || !hoy.orden) return false;
+  if (prev.orden.length !== hoy.orden.length) return false;
+  for (let i = 0; i < prev.orden.length; i++) if (prev.orden[i] !== hoy.orden[i]) return false;
+  return true;
+}
+function casillasCambiadas(prev, hoy){
+  let n = 0;
+  for (let i = 0; i < 11; i++){
+    const a = prev.slots[i], b = hoy.slots[i];
+    if (!a || !b || a.prof !== b.prof || a.lat !== b.lat || a.codigo !== b.codigo) n++;
+  }
+  return n;
+}
+function conservarBandasBase(prev, hoy){
+  if (!prev || !hoy || !prev.slots.bandasBase) return;
+  if (!mismaAlineacion(prev, hoy)) return;
+  if (casillasCambiadas(prev, hoy) > 1) return;
+  hoy.slots.bandasBase = { izq: prev.slots.bandasBase.izq, der: prev.slots.bandasBase.der };
 }
 /* Capitán y lanzadores: el contrato los da como índice de plantel; la forma
    cruda los da como {indice, id, casilla}. */
@@ -636,6 +671,21 @@ function deshacer(k){
   pintar();
   if (!D.order.length && !D.sent.length && D.releerPendiente) consultar(true);
 }
+/* FV10: familia de partida de la banda del jugador, solo cuando el juego ya no
+   la declara (el panel pasó su DLI a otra posición). Se manda en la op para
+   que el puente deje volver a DLI/DLD; si coincide con lo leído, no se manda y
+   el puente aplica su regla normal. */
+function familiaDelMovimiento(m, s){
+  const u = util();
+  if (!u || !u.SIGLA_BANDA || !u.FAMILIA_BANDA || !m || !m.slots) return null;
+  const banda = u.SIGLA_BANDA[s.pos];
+  const familia = u.FAMILIA_BANDA[s.pos];
+  if (!banda || !familia) return null;
+  const base = m.slots.bandasBase ? m.slots.bandasBase[banda] : null;
+  const viva = m.slots.bandasVivas ? m.slots.bandasVivas[banda] : null;
+  if (!base || !viva || base === viva) return null;
+  return base;
+}
 /* Movimientos del mismo jugador = un solo renglón (se deshacen juntos). */
 function registrarMovimiento(casilla, antes){
   const m = D.mio;
@@ -644,7 +694,10 @@ function registrarMovimiento(casilla, antes){
   if (antes.prof === s.prof && antes.lat === s.lat && antes.pos === s.pos) return;
   const nombre = nombreDe(m, m.orden[casilla]);
   const txt = 'Posición: ' + nombre + ' ' + antes.pos + ' → ' + s.pos + ' (col ' + s.prof + ', fila ' + s.y + ')';
-  const ops = [{ op: 'mover', casilla: casilla, prof: s.prof, lat: s.lat, pos: s.pos }];
+  const op = { op: 'mover', casilla: casilla, prof: s.prof, lat: s.lat, pos: s.pos };
+  const familia = familiaDelMovimiento(m, s);
+  if (familia) op.familia = familia;
+  const ops = [op];
   const ahora = { prof: s.prof, lat: s.lat, pos: s.pos, x: s.x, y: s.y };
   pedir(txt, function(){ Object.assign(s, antes); }, ops, 'mover:' + casilla, ahora, antes);
 }
@@ -1768,6 +1821,9 @@ async function leer(forzar){
     const m = modeloDe(eq, eq && eq.lado);
     if (m) mapa[m.lado] = m;
   });
+  /* FV10: antes de reemplazar los modelos, la familia de partida del panel se
+     conserva si la relectura solo trae el cambio que se acaba de escribir. */
+  Object.keys(mapa).forEach(function(l){ conservarBandasBase(D.equipos[l], mapa[l]); });
   if (!Object.keys(mapa).length){
     olvidarEquipos();
     throw new Error('el puente no devolvió equipos');

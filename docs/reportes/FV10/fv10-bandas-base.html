@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FV10 — familia de partida tras aplicar</title>
+<link rel="stylesheet" href="../../../tsc-src/css/variables.css">
+<link rel="stylesheet" href="../../../tsc-src/css/components.css">
+<link rel="stylesheet" href="../../../tsc-src/css/mejoras-editor.css">
+<link rel="stylesheet" href="../../../tsc-src/css/mejoras-cambio.css">
+<link rel="stylesheet" href="../../../tsc-src/css/formacion-vivo.css">
+<style>html,body{margin:0;background:var(--bg);color:var(--txt)}#log{white-space:pre-wrap;font:12px monospace;padding:10px}</style>
+</head>
+<body>
+<div id="fv-host"></div>
+<div id="log">ejecutando…</div>
+<script src="../../../tsc-src/js/sanitize.js"></script>
+<script src="../../../tsc-src/js/yunacoins-rules.js"></script>
+<script src="../../../tsc-src/js/pes5-plantilla.js"></script>
+<script src="../../../tsc-src/js/mejoras-cambio.js"></script>
+<script src="../../../tsc-src/js/mejoras-page.js"></script>
+<script src="../../../tsc-src/js/formacion-vivo.js"></script>
+<script>
+(function(){
+'use strict';
+/* FV10: comprueba que el panel no pierde la familia de medio por banda (la
+   «formación de partida») cuando la relectura del juego trae un cambio que se
+   acaba de escribir desde acá: el puente informa `bandas` con los códigos
+   actuales, y un DLI pasado a CC deja esa banda sin DLI. La familia se guarda
+   mientras la alineación sea la misma y el cambio sea de una casilla; una
+   variante (reescribe las 11) la recalcula. */
+const F = [], O = [];
+const check = (n, c, e) => c ? O.push('OK  ' + n) : F.push('FALLA ' + n + (e !== undefined ? ' :: ' + JSON.stringify(e) : ''));
+window.addEventListener('unhandledrejection', e => F.push('RECHAZO ' + (e.reason && e.reason.stack || e.reason)));
+window.addEventListener('error', e => F.push('ERROR ' + e.message));
+
+function jug(i){
+  const st = {}, sec = {};
+  ['atk','def','equ','res','vm','ace','rsp','agi','pcd','vcd','ppc','vpc','ppl','vpl','pre','pot','ted','psf','efe','cab','sal','tec','agr']
+    .forEach((k, n) => { st[k] = 60 + ((i * 3 + n) % 30); });
+  sec.ment = 70; sec.cons = 4; sec.gk = 50; sec.teq = 70; sec.cond = 5; sec.wff = 4; sec.wfa = 5; sec.inj = 'B';
+  return { id:'r' + (1000 + i), name:'J' + (i + 1), dorsal:String(i + 1), tag:'', primaryPos:(i === 0 ? 'GK' : 'CMF'),
+    stats: st, sec: sec, abilities:{}, positions:{}, height:180, age:25, foot:'Der.', side:'A' };
+}
+const P1 = { jugadores: [] }, P2 = { jugadores: [] };
+for (let i = 0; i < 32; i++){ P1.jugadores.push(jug(i)); const j = jug(i); j.id = 'r' + (1500 + i); j.name = 'R' + (i + 1); P2.jugadores.push(j); }
+
+const CODIGO = { PT:0, CT:7, DI:8, DD:9, CCD:12, DLI:15, DLD:16, CC:17, CIZ:22, CDR:23, MP:26, EI:29, ED:30, DC:38 };
+const BANDA_FAM = { CIZ:'ci', CDR:'ci', DLI:'dl', DLD:'dl' };
+const BANDA_LADO = { DI:'izq', DLI:'izq', CIZ:'izq', EI:'izq', DD:'der', DLD:'der', CDR:'der', ED:'der' };
+const LOC = [
+  { pos:'PT',  x:1,  y:24 },
+  { pos:'CT',  x:9,  y:38 },
+  { pos:'CT',  x:9,  y:24 },
+  { pos:'CT',  x:9,  y:10 },
+  { pos:'CCD', x:18, y:24 },
+  { pos:'DLD', x:24, y:38 },
+  { pos:'DLI', x:24, y:12 },
+  { pos:'MP',  x:32, y:24 },
+  { pos:'ED',  x:43, y:38 },
+  { pos:'EI',  x:43, y:10 },
+  { pos:'DC',  x:43, y:24 },
+];
+const VIS = [
+  { pos:'PT',  x:1,  y:24 },
+  { pos:'CT',  x:8,  y:38 },
+  { pos:'CT',  x:8,  y:12 },
+  { pos:'DD',  x:10, y:42 },
+  { pos:'DI',  x:10, y:6 },
+  { pos:'CC',  x:20, y:32 },
+  { pos:'CC',  x:20, y:16 },
+  { pos:'CDR', x:28, y:42 },
+  { pos:'CIZ', x:27, y:6 },
+  { pos:'DC',  x:41, y:32 },
+  { pos:'DC',  x:45, y:16 },
+];
+const latDeFila = fila => Math.round(6 + (fila - 1) * 93 / 46);
+/* Misma regla que modo_bandas del puente y modoBandas de la web. */
+function bandasDe(slots){
+  const v = { izq:{}, der:{} };
+  slots.forEach(s => {
+    const fam = BANDA_FAM[s.pos], banda = BANDA_LADO[s.pos];
+    if (fam && banda) v[banda][fam] = true;
+  });
+  const out = { izq:'ci', der:'ci' };
+  ['izq','der'].forEach(b => { const f = Object.keys(v[b]); if (f.length === 1) out[b] = f[0]; });
+  return out;
+}
+function equipo(defs, lado, ids){
+  const slots = defs.map((d, c) => ({
+    casilla:c, indice:c, id:ids[c], prof:d.x,
+    lat: c === 0 ? null : latDeFila(d.y),
+    pos:d.pos, codigo:CODIGO[d.pos] || 0, x:d.x, y:d.y,
+    flechas:[], act:1, mark:1, rival:255,
+  }));
+  const orden = slots.map(s => s.indice);
+  for (let i = 11; i < 32; i++) orden.push(i);   // el contrato trae 32 casillas
+  return { lado:lado, ids:ids, orden:orden, cambiosRestantes:3, cola:[], slots:slots,
+    cabecera:{ botones:[0,8,9,2], modo:1, lanzadores:{ckl:9,ckr:9,tll:9,tlc:9,pk:9}, capitan:9 },
+    ajustes:{ nivel:2, sistema:0, libero:0, linea:1, presion:0, offside:1, contra:0 },
+    bandas: bandasDe(slots),
+    estadoJugador:new Array(32).fill(2), resistencia:new Array(32).fill(null) };
+}
+const IDS1 = []; for (let i = 0; i < 32; i++) IDS1.push(1000 + i);
+const IDS2 = []; for (let i = 0; i < 32; i++) IDS2.push(1500 + i);
+/* Juego simulado: el local arranca en 3-4-3 con DLI/DLD y el visitante en
+   4-4-2 con CIZ/CDR. */
+const EQ = equipo(LOC, 'local', IDS1);
+const EQ2 = equipo(VIS, 'visitante', IDS2);
+
+const EST = { alineacionAbierta:true, partidoEmpezado:false, pausa:false, balonEnJuego:false, momento:'previa', puedeEscribir:true, partidoCargado:true };
+const P = { estado: Object.assign({}, EST), posts:[], leidas:0 };
+const real = window.fetch.bind(window);
+window.fetch = async function(u, o){
+  u = String(u);
+  if (u.indexOf('pes5-variantes.json') >= 0) return real(new URL('../../../tsc-src/js/pes5/pes5-variantes.json', location.href).href, o);
+  const r = obj => new Response(JSON.stringify(obj), { status:200, headers:{'Content-Type':'application/json'} });
+  if (u.slice(-7) === '/estado') return r({ ok:true, juego:true, estado:P.estado });
+  if (u.indexOf('/leer') >= 0) { P.leidas++; P.ultimaBandas = JSON.stringify(EQ.bandas); return r({ ok:true, estado:P.estado, equipos:[EQ, EQ2] }); }
+  /* /aplicar: escribe en el «juego» como el puente (prof/lat/código de la
+     sigla, primer código de la tabla) y recalcula `bandas`. */
+  const body = JSON.parse(o.body);
+  P.posts.push(body);
+  /* Regla del puente (FV8 + FV10): la sigla de banda solo se escribe si esa
+     banda usa su familia; si la banda no declara ninguna, la op puede declarar
+     la familia de partida (`familia`) para devolver DLI/DLD. */
+  const errores = [];
+  (body.ops || []).forEach(op => {
+    const fam = BANDA_FAM[op.pos], banda = BANDA_LADO[op.pos];
+    if (op.op !== 'mover' || !fam || !banda) return;
+    const vistas = {};
+    EQ.slots.forEach(s => {
+      const f = BANDA_FAM[s.pos], b = BANDA_LADO[s.pos];
+      if (f && b) { vistas[b] = vistas[b] || {}; vistas[b][f] = 1; }
+    });
+    const conocidas = Object.keys(vistas[banda] || {});
+    const modo = conocidas.length === 1 ? conocidas[0] : 'ci';
+    if (modo !== fam && !(op.familia === fam && conocidas.length === 0)){
+      errores.push('operación 1: la formación usa ' + (modo === 'dl' ? 'DLI/DLD' : 'CIZ/CDR')
+        + ' en la banda ' + banda + ': ' + op.pos + ' solo lo pone la variante (no se puede escribir a mano)');
+    }
+  });
+  if (errores.length) return r({ ok:false, cerrada:false, errores:errores });
+  if (body.lado === 'local'){
+    (body.ops || []).forEach(op => {
+      if (op.op !== 'mover' || !op.casilla) return;
+      const s = EQ.slots[op.casilla];
+      s.prof = op.prof; s.x = op.prof;
+      if (op.lat != null) s.lat = op.lat;
+      if (op.pos && CODIGO[op.pos] != null) { s.pos = op.pos; s.codigo = CODIGO[op.pos]; }
+    });
+    EQ.bandas = bandasDe(EQ.slots);
+  }
+  return r({ ok:true, cerrada:false, errores:[], escrito:[], salieron:[], bandas:EQ.bandas });
+};
+
+const $ = q => document.querySelector(q);
+const $$ = q => Array.from(document.querySelectorAll(q));
+const esperar = ms => new Promise(r => setTimeout(r, ms));
+const opts = () => {
+  const sel = $('.ep-pitch-possel');
+  return sel ? Array.from(sel.options).map(o => ({ pos:o.value, disabled:o.disabled, txt:o.textContent })) : [];
+};
+const estadoGris = () => {
+  const o = opts();
+  const dli = o.find(x => x.pos === 'DLI'), ciz = o.find(x => x.pos === 'CIZ');
+  return { dli: dli ? (dli.disabled ? 'gris' : 'ok') : '-', ciz: ciz ? (ciz.disabled ? 'gris' : 'ok') : '-' };
+};
+/* Deja el selector visible para la casilla: el mismo punto dos veces
+   deselecciona, así que se pulsa solo si no hay selector. */
+function seleccionar(i){
+  if (!$('.ep-pitch-possel') || !$('.ep-pitch-tag')) window.fvPunto({ dataset:{ slot:String(i) } });
+  if (!$('.ep-pitch-possel')) window.fvPunto({ dataset:{ slot:String(i) } });
+  return !!$('.ep-pitch-possel');
+}
+
+(async function(){
+  const FV = window.FORMACION_VIVO;
+  window.AUTH = { role:'admin', user:{ uid:'t' }, teamId:1, displayName:'T' };
+  window.firebase = { firestore: () => ({ collection: () => ({
+    doc: () => ({ get: async () => ({ exists:false }) }),
+    get: async () => ({ docs:[ { data: () => P1 }, { data: () => P2 } ] }),
+  }) }) };
+
+  await FV.abrir();
+  await esperar(150);
+  await FV.consultar();          // primera lectura: bandas dl/dl del puente
+  await esperar(80);
+
+  check('puente: bandas dl/dl de partida', JSON.stringify(EQ.bandas) === '{"izq":"dl","der":"dl"}', EQ.bandas);
+  check('panel: lee la familia de partida', JSON.stringify(window.MEJORAS_EDITOR.vivo.bandasBaseDe(EQ.slots)) === '{"izq":"dl","der":"dl"}');
+
+  /* --- 1. el DLI pasa a CC desde la web y se aplica --- */
+  seleccionar(6);
+  let g = estadoGris();
+  check('antes: DLI habilitada y CIZ gris', g.dli === 'ok' && g.ciz === 'gris', g);
+  window.fvSelPos('CC');
+  check('pedido: DLI → CC', /DLI → CC/.test($('.fv-pedido').textContent), $('.fv-pedido').textContent.slice(0, 160));
+  await window.fvEnviar();
+  await esperar(120);
+  check('/aplicar recibió mover CC en la casilla 6', P.posts.length === 1 && P.posts[0].ops.some(o => o.op === 'mover' && o.casilla === 6 && o.pos === 'CC'), P.posts);
+  check('juego simulado: casilla 6 en CC (código 17)', EQ.slots[6].pos === 'CC' && EQ.slots[6].codigo === 17, EQ.slots[6]);
+  check('juego simulado: bandas ya no declara DLI en la izquierda', EQ.bandas.izq === 'ci', EQ.bandas);
+
+  /* el modelo del panel es el del puente releído: se mira por el selector */
+  const filaCc = $$('.fv-fila.es-titular')[6];
+  check('panel: la casilla 6 quedó en CC', filaCc && filaCc.querySelector('.ep-form-cod').textContent.trim() === 'CC',
+    filaCc && filaCc.querySelector('.ep-form-cod').textContent);
+  seleccionar(6);
+  g = estadoGris();
+  check('tras aplicar CC: DLI sigue habilitada', g.dli === 'ok', g);
+  check('tras aplicar CC: CIZ sigue gris', g.ciz === 'gris', g);
+
+  /* --- 1b. vuelve a DLI desde la web: la op declara la familia de partida y
+     el puente la acepta aunque el juego ya no la declare en esa banda --- */
+  window.fvSelPos('DLI');
+  check('pedido de vuelta: CC → DLI', /CC → DLI/.test($('.fv-pedido').textContent), $('.fv-pedido').textContent.slice(0, 160));
+  await window.fvEnviar();
+  await esperar(150);
+  const opDli = P.posts[P.posts.length - 1].ops[0];
+  check('la op de vuelta declara familia dl', opDli.pos === 'DLI' && opDli.familia === 'dl', opDli);
+  check('el puente la aceptó (sin errores)', /Aplicado en el juego/.test($('.fv-msg').textContent), $('.fv-msg') && $('.fv-msg').textContent);
+  check('juego simulado: la casilla 6 vuelve a DLI (código 15)', EQ.slots[6].pos === 'DLI' && EQ.slots[6].codigo === 15, EQ.slots[6]);
+  check('juego simulado: la banda vuelve a declarar DLI', EQ.bandas.izq === 'dl', EQ.bandas);
+  seleccionar(6);
+  g = estadoGris();
+  check('tras volver a DLI: DLI seleccionada y CIZ sigue gris', g.dli === 'ok' && g.ciz === 'gris', g);
+  window.fvPunto({ dataset:{ slot:'6' } });   // deselecciona
+
+  /* --- 2. la variante que aplica el juego sí recalcula (4-4-2 con CIZ/CDR) --- */
+  const CIZ442 = [
+    { pos:'PT', x:1, y:24 }, { pos:'CT', x:8, y:38 }, { pos:'CT', x:8, y:24 },
+    { pos:'DI', x:10, y:10 }, { pos:'DD', x:10, y:38 },
+    { pos:'CIZ', x:22, y:12 }, { pos:'CC', x:24, y:24 }, { pos:'CCD', x:22, y:36 },
+    { pos:'CDR', x:22, y:44 }, { pos:'DC', x:40, y:30 }, { pos:'DC', x:40, y:18 },
+  ];
+  CIZ442.forEach((d, c) => {
+    const s = EQ.slots[c];
+    s.prof = d.x; s.x = d.x;
+    if (c) s.lat = latDeFila(d.y);
+    s.y = d.y; s.pos = d.pos; s.codigo = CODIGO[d.pos];
+  });
+  EQ.bandas = bandasDe(EQ.slots);
+  await esperar(1700);
+  await FV.consultar();
+  await esperar(150);
+  check('variante del juego: bandas ci/ci', JSON.stringify(EQ.bandas) === '{"izq":"ci","der":"ci"}', EQ.bandas);
+  seleccionar(5);
+  g = estadoGris();
+  check('tras la variante: CIZ habilitada y DLI gris', g.ciz === 'ok' && g.dli === 'gris', g);
+  window.fvPunto({ dataset:{ slot:'5' } });
+
+  /* --- 3. un partido nuevo (cambia el orden) también recalcula --- */
+  EQ.orden = EQ.orden.slice().reverse();
+  EQ.bandas = { izq:'dl', der:'dl' };
+  const antesLeidas = P.leidas;
+  await esperar(1700);
+  await FV.consultar();
+  await esperar(150);
+  O.push('INFO partido nuevo: lecturas ' + antesLeidas + ' → ' + P.leidas);
+  seleccionar(5);
+  g = estadoGris();
+  check('partido nuevo: la familia vuelve a salir del puente (DLI habilitada)', g.dli === 'ok', g);
+  window.fvPunto({ dataset:{ slot:'5' } });
+
+  document.getElementById('log').textContent = [].concat(O, F).join('\n') + (F.length ? '\n\nFALLAS: ' + F.length : '\n\nTODO OK');
+  document.title = F.length ? 'FV10 — FALLAS' : 'FV10 — OK';
+})().catch(e => {
+  document.getElementById('log').textContent = 'EXCEPCIÓN ' + (e && e.stack || e);
+  document.title = 'FV10 — EXCEPCIÓN';
+});
+})();
+</script>
+</body>
+</html>

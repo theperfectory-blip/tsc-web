@@ -26,7 +26,7 @@ empezado y en pausa con la pantalla de alineación abierta):
 | `cambio` con el partido empezado (entró Bade por Madsen) | La pareja entró en la cola (`rec-20` / `rec-19` / `rec-6` y sus espejos) y «Supl. Res.» (`rec-42`) bajó de **3 a 2** |
 | El juego aplica la cola | Al volver a abrir la alineación el cambio ya estaba aplicado (Bade en la casilla de Madsen) y la cola quedó vacía sola (`rec-6 = 0`) |
 | `intercambiar` entre titulares | El orden quedó cambiado y el juego lo respetó |
-| `campo` sobre `libero` (= 2, Matip) | Matip quedó como LIB; el espejo de posiciones (`rec+945+c`) lo marca el propio juego, no hay que escribirlo |
+| `campo` sobre `libero` (= 2, Matip) | Matip quedó como LIB; el juego marca LIB (código 4) en el espejo de posiciones (`rec+945+c`) y el puente conserva esa marca en vez de escribir CT |
 | Las tres copias del orden con la pantalla abierta | Ya están llenas en pausa: `intercambiar` no se rechaza |
 | Escribir el contador de la cola y su espejo (`rec-6`, `rec+1840`) | Inocuo: el juego aplicó la cola igual |
 | `cambio` en partido con el capitán y el penal en Madsen (índice 9) | Al aplicarse, el juego dejó `rec+110` (PK) y `rec+111` (capitán) en **11** (Bade, el que entró) y la pantalla lo muestra como capitán/lanzador en la casilla 9 |
@@ -353,6 +353,23 @@ mediocampo y para los topes y mínimos cuentan como medios.
   selector no la cambia al pasar un medio a otra posición: un DLI pasado a CC
   puede volver a DLI, y CIZ sigue en gris. Solo se recalcula con otra variante
   o con una lectura nueva del juego.
+- **La relectura no la borra (FV10).** Al aplicar un cambio desde la web, el
+  juego pasa a tener CC en esa banda y `bandas` informa `ci`; la web conserva
+  `bandasBase` mientras la alineación siga siendo la misma (mismos jugadores en
+  las mismas casillas) y el cambio sea de una sola casilla
+  (`conservarBandasBase`). Una variante reescribe las 11 y un partido nuevo
+  cambia el orden: ahí se recalcula.
+- **`familia` en la op (FV10).** Para devolver DLI/DLD a una banda que ya no
+  declara familia, la web manda `{"op":"mover", ..., "familia":"dl"}`. El
+  puente solo la acepta en una banda **sin** familia: nunca habilita la familia
+  contraria en una banda que ya la tiene.
+- **El espejo de la pantalla (FV10).** La lista de titulares y el minimapa se
+  dibujan desde `rec+945..955` (y `c3+39..49` con el bloque principal), no
+  desde `rec+133..143`: `mover`, `campo` y `variante` escriben las dos, como el
+  juego al confirmar «Selec. posición». Sin eso el juego seguía mostrando la
+  alineación anterior hasta cambiar de pantalla. La única excepción es la marca
+  de LIB del líbero: si el espejo de esa casilla tiene LIB (4/5), no se pisa con
+  el código de CT.
 
 > En el **selector del juego** las posiciones de la banda contraria salen en
 > gris y las de la banda propia en negrita; dentro de la banda propia el juego
@@ -418,8 +435,11 @@ lote entero (sin escribir ningún byte) si:
   los muestra en la casilla donde ese índice esté en el orden y, cuando el
   capitán o un lanzador sale por cambio, él mismo pasa el índice del que entra
   a `rec+106..111`.
-- El espejo de posiciones (`rec+945+c`) lo escribe el juego al marcar el LIB:
-  no se toca.
+- El espejo de posiciones (`rec+945+c`) lo escribe el puente al cambiar
+  posiciones (`mover`, `campo` y `variante`), salvo la marca del líbero.
+  Mientras hay líbero el juego deja LIB (códigos 4 y 5) en el espejo de su
+  casilla aunque el bloque principal tenga CT: esa marca la pone él y no se
+  pisa con el código de CT.
 
 ## CLI `live-agent.py`
 
@@ -674,8 +694,11 @@ python -m unittest tools/pes5/test_pes5_vivo.py -v
     puede dejarlos en un índice que en ese momento esté en la banca (el caso
     real, 11 con Bade). El valor 255 de `rivalMarcado` sigue significando
     «ninguno».
-13. **No se escribe el espejo de posiciones**: el juego marca LIB en
-    `rec+945+c` por su cuenta al confirmar el líbero.
+13. **El espejo de posiciones se escribe al cambiar posiciones, salvo la marca
+    del líbero**: `mover`, `campo` y `variante` actualizan `rec+945..955` (y
+    `c3+39..49` si el bloque mostrado es el principal), pero si el espejo de esa
+    casilla tiene LIB (códigos 4 y 5, lo que el juego marca al confirmar el
+    líbero) no se pisa con el código de CT: la marca se conserva.
 14. **`0x39564DA` vale 2 en algunos submenús** (selector de líbero): la pantalla
     está abierta con `!= 0`, no solo con `1`. `estado()` ya lo trataba así; queda
     documentado.

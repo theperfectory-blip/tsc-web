@@ -44,6 +44,9 @@ Reglas que respeta el módulo
 - ``variante`` aplica una variante del catálogo ``pes5-variantes.json``: las 11
   casillas (profundidad, lateral y código), borra las flechas de ataque de los
   10 jugadores de campo y pone la actitud defensiva según ``reglaActitud``.
+- ``mover``, ``campo posicion`` y ``variante`` escriben también el espejo de
+  códigos de posición que dibuja la pantalla (``rec+945..955``), salvo la marca
+  de LIB del líbero, que pone el juego y no se pisa (FV10).
 - La lectura incluye ``estadoJugador`` (flecha de condición por índice de
   plantel, en ``rec-1678``) y ``resistencia`` (tabla global en ``0x3BD3E00``,
   asociada por id). El máximo de resistencia no está en memoria: lo guarda el
@@ -87,6 +90,19 @@ REL_FLECHAS_PANTALLA = 981    # c2 + 74: copia de pantalla (la del minimapa)
 REL_FLECHAS_SELECCION = 4240  # c3 + 140: copia de la configuración seleccionada
 REL_BLOQUE_SELECCION = 4138   # c3 + 38: 0 principal, 1 Alineación A, 2 Alineación B
 LARGO_FLECHAS = 88
+
+# Espejo de los 11 códigos de posición de la pantalla: rec+945 (= c2+38, 945 es
+# PT y 946..955 las casillas 1..10). La lista de titulares y el minimapa se
+# dibujan desde acá, no desde el bloque principal, así que el puente lo escribe
+# junto con la posición (FV10): el juego lo hace al confirmar «Selec. posición»
+# y al aplicar una variante. c3 (rec+4139..4149) es la copia del bloque
+# seleccionado: se escribe solo cuando el bloque es el principal.
+REL_POSICION_PANTALLA = 945    # c2 + 38
+REL_POSICION_SELECCION = 4139  # c3 + 39
+# Mientras hay líbero, el juego marca LIB (códigos 4 y 5) en el espejo de la
+# casilla del líbero aunque el bloque principal deje CT. Esa marca la pone él:
+# al escribir una posición no se pisa con el código de CT (FV10).
+CODIGOS_LIBERO_ESPEJO = (4, 5)
 
 # Indicadores de estado (direcciones absolutas, 1 byte cada uno).
 IND_ALINEACION = 0x39564DA   # 1 = pantalla de alineación abierta
@@ -833,6 +849,30 @@ def _escribir_flechas_copias(vista, rec, desplazamiento, valor):
         vista.escribir(rec + REL_FLECHAS_SELECCION + desplazamiento, valor)
 
 
+def _escribir_posicion_copias(vista, rec, desplazamiento, valor):
+    """Escribe un código de posición en el espejo de la pantalla (FV10).
+
+    La lista de titulares y el minimapa se dibujan desde ``rec+945..955``; el
+    bloque principal (``rec+133..143``) puede quedarse sin reflejar en pantalla.
+    El juego escribe las dos al confirmar «Selec. posición» y al aplicar una
+    variante; el puente hace lo mismo. ``c3`` solo se toca con el bloque
+    principal seleccionado, como las flechas.
+
+    El líbero es la excepción: el juego marca LIB (códigos 4 y 5) en el espejo
+    de su casilla aunque el bloque principal deje CT, y esa marca no se pisa
+    con el código de CT (FV10). Sigue siendo una casilla 1–10 con posición CT
+    o LIB en el bloque principal (ver ``_comprobar_coherencia``).
+    """
+    nuevo = valor[0] if isinstance(valor, (bytes, bytearray)) else int(valor)
+    marca_libero = vista.leer(
+        rec + REL_POSICION_PANTALLA + desplazamiento, 1)[0] in CODIGOS_LIBERO_ESPEJO
+    if marca_libero and nuevo not in CODIGOS_LIBERO_ESPEJO:
+        return
+    vista.escribir(rec + REL_POSICION_PANTALLA + desplazamiento, valor)
+    if vista.leer(rec + REL_BLOQUE_SELECCION, 1)[0] == 0:
+        vista.escribir(rec + REL_POSICION_SELECCION + desplazamiento, valor)
+
+
 def _campo(vista, rec, op, campos_escritos=None):
     nombre = op.get("nombre")
     if not isinstance(nombre, str) or not nombre:
@@ -891,7 +931,7 @@ def _campo(vista, rec, op, campos_escritos=None):
         dato = CODIGO_BANDA_FAMILIA.get(int(op["valor"]))
         if dato:
             _comprobar_familia_banda(vista, rec, bloque, dato[1], dato[0],
-                                     "el código %d" % int(op["valor"]))
+                                     "el código %d" % int(op["valor"]), _familia_declarada(op))
     vista.escribir(direccion, bytes([op["valor"]]))
     # FV7: las flechas de ataque del bloque principal se escriben también en
     # la copia de pantalla (c2, la que dibuja el minimapa) y, si el juego está
@@ -899,6 +939,10 @@ def _campo(vista, rec, op, campos_escritos=None):
     # seleccionada (c3), para que el juego y la web no queden desincronizados.
     if nombre == "flechasAtaque" and bloque == "principal":
         _escribir_flechas_copias(vista, rec, desplazamiento, bytes([op["valor"]]))
+    # FV10: lo mismo con el código de posición (la lista de titulares y el
+    # minimapa se dibujan desde el espejo de la pantalla, no del bloque).
+    if nombre == "posicion" and bloque == "principal":
+        _escribir_posicion_copias(vista, rec, desplazamiento, bytes([op["valor"]]))
     if campos_escritos is not None:
         campos_escritos.add((bloque, nombre))
 
@@ -980,19 +1024,36 @@ def modo_bandas(mem, rec, bloque="principal"):
     return salida
 
 
-def _comprobar_familia_banda(mem, rec, bloque, familia, banda, etiqueta):
+def _comprobar_familia_banda(mem, rec, bloque, familia, banda, etiqueta, declarada=None):
     """Rechaza escribir CIZ/DLI de la familia que la formación no usa.
 
     El juego mantiene una familia por banda (CIZ/CDR o DLI/DLD): la que trajo
     la formación de partida. Escribir la otra a mano deja una alineación que
     el juego no permitiría. Si la banda no declara un medio de banda vale
     ``"ci"``: DLI/DLD no se pueden escribir (solo los pone ``variante``).
+
+    FV10: el cliente puede declarar la familia de partida de esa banda
+    (``familia: "dl"``) cuando el propio panel pasó su DLI a otra posición y la
+    banda ya no declara ninguna familia. Solo sirve para devolver DLI/DLD a una
+    banda sin familia: nunca para meter la familia contraria en una banda que ya
+    la declara.
     """
-    modo = modo_bandas(mem, rec, bloque)[banda]
-    if modo != familia:
+    familias = familias_banda(mem, rec, bloque)[banda]
+    modo = next(iter(familias)) if len(familias) == 1 else "ci"
+    if modo != familia and not (declarada == familia and not familias):
         raise ErrorOperacion(
             "la formación usa %s en la banda %s: %s solo lo pone la variante "
             "(no se puede escribir a mano)" % (NOMBRE_FAMILIA[modo], banda, etiqueta))
+
+
+def _familia_declarada(op):
+    """Familia de banda que declara la operación (FV10), validada o None."""
+    familia = op.get("familia")
+    if familia is None:
+        return None
+    if familia not in ("dl", "ci"):
+        raise ErrorOperacion("«familia» tiene que ser «dl» o «ci»")
+    return familia
 
 
 def _mover(vista, rec, op):
@@ -1014,12 +1075,14 @@ def _mover(vista, rec, op):
     # Mover no cambia la sigla: el código actual se conserva cuando coincide.
     if CODIGO_BANDA_FAMILIA.get(codigo):
         familia = FAMILIA_DE_SIGLA[sigla]
-        _comprobar_familia_banda(vista, rec, "principal", familia, SIGLA_BANDA[sigla], sigla)
+        _comprobar_familia_banda(vista, rec, "principal", familia, SIGLA_BANDA[sigla], sigla,
+                                 _familia_declarada(op))
 
     inicial = campo_lat.get("casillaInicial", 0)
     vista.escribir(rec + campo_prof["offset"] + casilla, bytes([prof]))
     vista.escribir(rec + campo_lat["offset"] + (casilla - inicial), bytes([lat]))
     vista.escribir(rec + campo_pos["offset"] + casilla, bytes([codigo]))
+    _escribir_posicion_copias(vista, rec, casilla, bytes([codigo]))
 
 
 def _buscar_variante(esquema, nombre):
@@ -1071,6 +1134,7 @@ def _variante(vista, rec, op):
             lat = _entero(puesto, "lat", 6, 99)
             vista.escribir(rec + campo_lat["offset"] + (casilla - inicial_lat), bytes([lat]))
         vista.escribir(rec + campo_pos["offset"] + casilla, bytes([codigo]))
+        _escribir_posicion_copias(vista, rec, casilla - campo_pos.get("casillaInicial", 0), bytes([codigo]))
         actitud = regla.get(sigla)
         if actitud is None:
             raise ErrorOperacion("no hay actitud para la sigla %r en «reglaActitud»" % sigla)

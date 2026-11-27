@@ -1310,6 +1310,54 @@ class TestMedioPorBanda(Base):
         self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
         self.assertEqual(mem.escrituras, [])
 
+    def test_mover_acepta_la_familia_declarada_por_el_cliente(self):
+        # FV10: la web pasó el DLI a CC y el juego ya no declara DLI en esa
+        # banda. La op declara la familia de partida y el puente deja volver.
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "DLI",
+             "familia": "dl"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 6), 15)
+        self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"]["izq"], "dl")
+
+    def test_campo_posicion_acepta_la_familia_declarada(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "posicion", "casilla": 6, "valor": 15,
+             "familia": "dl"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 6), 15)
+
+    def test_mover_familia_declarada_no_cambia_la_banda_que_ya_tiene_familia(self):
+        # La familia declarada solo devuelve DLI/DLD a una banda sin familia:
+        # no puede meter CIZ en una banda que declara DLI/DLD.
+        mem = self.memoria(campos={"posicion": self.DL})
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 7, "prof": 29, "lat": 24, "pos": "CIZ",
+             "familia": "ci"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_rechaza_la_familia_declarada_de_la_otra_familia(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "DLI",
+             "familia": "ci"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("solo lo pone la variante", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
+    def test_mover_rechaza_una_familia_invalida(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "CIZ",
+             "familia": "xx"}])
+        self.assertFalse(resultado["ok"])
+        self.assertIn("«familia»", " ".join(resultado["errores"]))
+        self.assertEqual(mem.escrituras, [])
+
     def test_variante_recalcula_las_bandas(self):
         mem = self.memoria()
         resultado = self.aplicar(mem, [
@@ -1322,6 +1370,98 @@ class TestMedioPorBanda(Base):
         self.assertTrue(resultado["ok"], resultado["errores"])
         self.assertEqual(vivo.leer_equipo(mem, "local")["bandas"],
                          {"izq": "ci", "der": "ci"})
+
+
+class TestEspejoPantalla(Base):
+    """FV10: el espejo de posiciones que dibuja la pantalla.
+
+    La lista de titulares y el minimapa se dibujan desde ``rec+945..955``, no
+    desde el bloque principal: al escribir la posición hay que actualizar el
+    espejo (y la copia c3 si el bloque seleccionado es el principal), como hace
+    el juego al confirmar «Selec. posición» o al aplicar una variante.
+    """
+
+    def test_mover_escribe_el_espejo_de_la_pantalla(self):
+        mem = self.memoria(campos={"posicion": TestMedioPorBanda.DL})
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "DLI"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 945 + 6), 15)
+        self.assertEqual(self.byte(mem, 4139 + 6), 15)
+
+    def test_variante_escribe_el_espejo_de_la_pantalla(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "variante", "esquema": "3-4-3", "variante": "A-1"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        for casilla in range(11):
+            self.assertEqual(self.byte(mem, 945 + casilla), self.byte(mem, 133 + casilla))
+
+    def test_campo_posicion_escribe_el_espejo(self):
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "posicion", "casilla": 5, "valor": 22}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 945 + 5), 22)
+        self.assertEqual(self.byte(mem, 4139 + 5), 22)
+
+    def test_espejo_conserva_la_marca_de_libero(self):
+        # El juego marca LIB (4/5) en el espejo de la casilla del líbero aunque
+        # el bloque principal deje CT: escribir la posición no pisa la marca.
+        mem = self.memoria()
+        rec = vivo.REC["local"]
+        mem.sembrar(rec + vivo.REL_POSICION_PANTALLA + 3, bytes([4]))
+        mem.sembrar(rec + vivo.REL_POSICION_SELECCION + 3, bytes([4]))
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 3, "prof": 20, "lat": 20, "pos": "CT"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 3), 1)
+        self.assertEqual(self.byte(mem, 945 + 3), 4)
+        self.assertEqual(self.byte(mem, 4139 + 3), 4)
+
+    def test_campo_posicion_conserva_la_marca_de_libero(self):
+        mem = self.memoria()
+        rec = vivo.REC["local"]
+        mem.sembrar(rec + vivo.REL_POSICION_PANTALLA + 5, bytes([5]))
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "posicion", "casilla": 5, "valor": 1}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 5), 1)
+        self.assertEqual(self.byte(mem, 945 + 5), 5)
+
+    def test_variante_conserva_la_marca_de_libero(self):
+        mem = self.memoria()
+        rec = vivo.REC["local"]
+        mem.sembrar(rec + vivo.REL_POSICION_PANTALLA + 4, bytes([4]))
+        resultado = self.aplicar(mem, [
+            {"op": "variante", "esquema": "3-4-3", "variante": "A-1"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 945 + 4), 4)
+        for casilla in (0, 1, 2, 3, 5, 6, 7, 8, 9, 10):
+            self.assertEqual(self.byte(mem, 945 + casilla), self.byte(mem, 133 + casilla))
+
+    def test_escribir_lib_no_se_considera_marca_que_conservar(self):
+        # Si la formación no tiene líbero y se pide LIB, el espejo se escribe
+        # igual que el bloque principal (la marca es el propio código pedido).
+        mem = self.memoria()
+        resultado = self.aplicar(mem, [
+            {"op": "campo", "nombre": "posicion", "casilla": 2, "valor": 4}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 133 + 2), 4)
+        self.assertEqual(self.byte(mem, 945 + 2), 4)
+
+    def test_espejo_no_toca_c3_con_otra_alineacion_mostrada(self):
+        # Con la Alineación B mostrada (rec+4138 = 2) solo se escribe la copia
+        # de pantalla: c3 es la previsualización de B y no se pisa.
+        mem = self.memoria(campos={"posicion": TestMedioPorBanda.DL})
+        rec = vivo.REC["local"]
+        mem.sembrar(rec + vivo.REL_BLOQUE_SELECCION, bytes([2]))
+        antes_c3 = self.byte(mem, 4139 + 6)
+        resultado = self.aplicar(mem, [
+            {"op": "mover", "casilla": 6, "prof": 24, "lat": 24, "pos": "DLI"}])
+        self.assertTrue(resultado["ok"], resultado["errores"])
+        self.assertEqual(self.byte(mem, 945 + 6), 15)
+        self.assertEqual(self.byte(mem, 4139 + 6), antes_c3)
 
 
 # ------------------------------------------------------------------ variante
