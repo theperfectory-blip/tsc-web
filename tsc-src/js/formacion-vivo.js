@@ -1162,8 +1162,6 @@ function menuHTML(){
   const items = MENUS.map(function(m){
     return '<button type="button" class="fv-mi' + (D.menu === m[0] ? ' on' : '') + '" data-onclick="fvMenu(this)" data-m="' + m[0] + '" aria-expanded="' + (D.menu === m[0]) + '">' + m[1] + '</button>';
   }).join('');
-  const luis = '<button type="button" class="fv-mi" disabled>' + (enPartido() ? 'Salir' : 'Comienzo del partido') + '<small>Luis</small></button>'
-    + '<button type="button" class="fv-mi" disabled>Almacenar<small>Luis</small></button>';
   let sub = '';
   if (D.menu && D.mio){
     if (D.menu === 'equipo') sub = ajustesHTML();
@@ -1172,7 +1170,7 @@ function menuHTML(){
     else if (D.menu === 'lanzador') sub = lanzadoresHTML();
     else if (D.menu === 'rapida') sub = rapidaHTML();
   }
-  return '<div class="fv-menu">' + items + luis + '</div>' + sub;
+  return '<div class="fv-menu">' + items + '</div>' + sub;
 }
 
 /* ---------- lista ---------- */

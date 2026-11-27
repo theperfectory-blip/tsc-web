@@ -269,12 +269,13 @@
 
 /* ---------- menú del juego ---------- */
 .fv-root .fv-menu{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+/* Los menús son impares: el último ocupa la fila entera y no queda un hueco. */
+.fv-root .fv-menu>.fv-mi:last-child:nth-child(odd){grid-column:1/-1;}
 .fv-root .fv-mi{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;min-height:44px;
   padding:8px 12px;border-radius:10px;border:1px solid var(--brd);background:var(--card3);color:var(--txt);
   cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13.5px;}
-.fv-root .fv-mi:hover:not(:disabled){border-color:var(--gold-b);}
+.fv-root .fv-mi:hover{border-color:var(--gold-b);}
 .fv-root .fv-mi.on{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-b);}
-.fv-root .fv-mi:disabled{opacity:.5;cursor:not-allowed;}
 .fv-root .fv-mi small{font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;}
 .fv-root .fv-sub{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
 .fv-root .fv-linea{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;
