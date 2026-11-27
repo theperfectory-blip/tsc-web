@@ -358,9 +358,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // --- Plantillas PES5 publicadas por el admin --- las escribe solo el admin; cada presidente lee solo la de su equipo.
+    // --- Plantillas PES5 publicadas por el admin --- las escribe solo el admin. La lectura la hace
+    // cualquier usuario con sesión y documento en users: es información pública del torneo (el save
+    // se comparte y la Formación en vivo necesita los jugadores de cualquier equipo TSC).
     match /pes5_plantillas/{teamId} {
-      allow read: if isAdmin() || (signedIn() && meExists() && me().teamId != null && string(me().teamId) == teamId);
+      allow read: if isAdmin() || (signedIn() && meExists());
       allow write: if isAdmin();
     }
 

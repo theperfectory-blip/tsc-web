@@ -33,6 +33,7 @@ const AS = {
   anon:  null,
   pres5: mockToken('pres5', 'pres5@test.dev'),   // presidente del equipo 5
   pres6: mockToken('pres6', 'pres6@test.dev'),   // presidente del equipo 6 (ajeno para pres5)
+  nodoc: mockToken('nodoc', 'nodoc@test.dev'),   // con sesion pero sin documento en users (no se siembra)
   admin: mockToken('admin1', 'admin1@test.dev'),
 };
 
@@ -287,11 +288,17 @@ async function main(){
     await op.update('pes5_mejoras/reg-5-1', { nivel: 90 }, AS.admin));
   await expect('registro emparejar: anonimo no lee', 403, await op.get('pes5_mejoras/reg-5-1', AS.anon));
 
-  // ---- pes5_plantillas: solo el admin escribe; cada presidente lee la de su equipo ----
+  // ---- pes5_plantillas: solo el admin escribe; cualquier usuario con sesion y doc en users lee ----
   await expect('plantillas: presidente lee la plantilla de su equipo', 200, await op.get('pes5_plantillas/5', AS.pres5));
-  await expect('plantillas: presidente NO lee la plantilla ajena', 403, await op.get('pes5_plantillas/6', AS.pres5));
+  await expect('plantillas: presidente lee la plantilla de OTRO equipo (informacion publica del torneo)', 200,
+    await op.get('pes5_plantillas/6', AS.pres5));
+  await expect('plantillas: usuario con sesion pero sin documento en users NO lee', 403,
+    await op.get('pes5_plantillas/6', AS.nodoc));
+  await expect('plantillas: anonimo NO lee', 403, await op.get('pes5_plantillas/6', AS.anon));
   await expect('plantillas: presidente NO escribe plantillas', 403,
     await op.update('pes5_plantillas/5', { jugadores: [] }, AS.pres5));
+  await expect('plantillas: admin escribe plantillas', 200,
+    await op.update('pes5_plantillas/6', { jugadores: [] }, AS.admin));
 
   // ---- EMP-80-2 · pes5_perfiles: perfiles fijados por temporada y equipo ----
   const perfilesDoc = (teamId, perfiles, extra = {}) => Object.assign({ season: 2, teamId: String(teamId), perfiles }, extra);
