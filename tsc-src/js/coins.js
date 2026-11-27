@@ -59,34 +59,10 @@ const _COINS_AMOUNT_MSG = `La cantidad debe ser un número entero entre 1 y ${CO
 /* ----------------------------------------------------------
    YCORDEN · orden de los equipos en YuNaCoins
    ----------------------------------------------------------
-   Arriba los activos, alfabético por nombre (localeCompare en español, sin
-   distinguir mayúsculas ni tildes); abajo los inactivos, por ID. Un equipo
-   sin `status` cuenta como activo (mismo criterio que teams.js y bracket.js).
-   Devuelve los dos grupos ya ordenados para que cada lista decida cómo
-   pintarlos: quien se ordena a propósito por otra columna (el ranking de
-   saldos) re-ordena cada grupo, pero los inactivos siguen al final.
+   La función que ordena (activos alfabético por nombre, inactivos al final
+   por ID) vive en ui-utils.js —compartida con la sección Equipos
+   (EQORDEN)—: `ordenarEquiposActivosPrimero(teams)`.
    ---------------------------------------------------------- */
-function _coinsEquipoActivo(t){
-  return ((t && t.status) || 'ACTIVO') === 'ACTIVO';
-}
-function _coinsEquipoNombre(t){
-  return String((t && t.name) || '');
-}
-function _coinsEquipoId(t){
-  return Number(t && t.id) || 0;
-}
-function ordenarEquiposActivosPrimero(teams){
-  const activos = [];
-  const inactivos = [];
-  (Array.isArray(teams) ? teams : []).forEach(t=>{
-    if(!t) return;
-    (_coinsEquipoActivo(t) ? activos : inactivos).push(t);
-  });
-  activos.sort((a,b)=>_coinsEquipoNombre(a).localeCompare(_coinsEquipoNombre(b),'es',{sensitivity:'base',numeric:true})
-    || _coinsEquipoId(a)-_coinsEquipoId(b));
-  inactivos.sort((a,b)=>_coinsEquipoId(a)-_coinsEquipoId(b));
-  return { activos, inactivos, todos: activos.concat(inactivos) };
-}
 
 async function renderAdmCoins(){
   const el = document.getElementById('adm-coins-content');
