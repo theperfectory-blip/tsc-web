@@ -349,6 +349,17 @@
    "_bloque": 5,
    "gotcha_escritura": "el JUEGO internamente hace swap con otro jugador del mismo grupo posicional al dar de baja (arquero/defensa/medio/delantero) - esa regla exacta no esta resuelta. PERO no hace falta reproducirla: escribir con un swap-and-pop simple (mover el ultimo slot activo al hueco, sin importar posicion) FUNCIONA - probado en PES5 real: baja de Harkins en Blackburn Rovers + traspaso de Forssell de Birmingham City a Aston Villa, ambos cargaron bien en el juego (arquero se mantuvo primero, plantel sin huecos ni corrupcion). Ver tools/write-team-test.js."
   },
+    "dorsales": {
+      "_nota": "bloque 5, uno por club, al lado del roster. 32 bytes por club, en el mismo orden de casillas que el roster (byte s = casilla s).",
+      "base": 659414,
+      "stride": 32,
+      "slots_por_equipo": 32,
+      "ancho_slot_bits": 8,
+      "enc": "uint8. Guarda dorsal - 1 (el #1 = 0, el #99 = 98). Casillas vacias = 0.",
+      "formula": "offset_absoluto = 659414 + indice_equipo*32 + slot",
+      "verificado": "2026-11-28: 138/138 clubes con 32 valores en 0..98 (busqueda con stride 32 sobre el save descifrado). Caso Santiago: Vivaldo (casilla 0) = 11 (#12) y Toldo (casilla 11, banca) = 0 (#1).",
+      "regla_movimientos": "ordenarTitulares, ordenarBancaSwaps, darDeBajaJugador y darDeAltaJugador mueven el dorsal con el jugador. En el alta/transferencia el jugador conserva su dorsal si esta libre en el equipo destino; si no, toma el primer numero libre desde el #1."
+    },
   "seleccion_vs_club": "un jugador puede estar referenciado en la lista de su seleccion nacional Y en la de su club a la vez, mismo id de jugador, listas independientes. Antes de la seccion de clubes (que arranca en 667458) el bloque 5 tiene las listas de selecciones nacionales, en otro formato/tamano no mapeado (no hace falta para la TSC, que trabaja con clubes)."
  }
 }

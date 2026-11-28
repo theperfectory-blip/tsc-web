@@ -82,7 +82,15 @@
   }
 
   function plantillaParaEditor(ED, bytes, indiceClub){
-    return ED.leerPlantillaEquipo(bytes, indiceClub).map((id, slot) => jugadorParaEditor(ED, bytes, id, slot));
+    // dorsal real del save (casilla a casilla; leerPlantillaEquipo omite las casillas vacias, igual que aqui)
+    const dorsales = typeof ED.leerDorsalesEquipo === 'function'
+      ? ED.leerDorsalesEquipo(bytes, indiceClub).filter(d => d)
+      : [];
+    return ED.leerPlantillaEquipo(bytes, indiceClub).map((id, slot) => {
+      const j = jugadorParaEditor(ED, bytes, id, slot);
+      if (dorsales[slot] != null) j.dorsal = String(dorsales[slot]);
+      return j;
+    });
   }
 
   function registroDeId(id){

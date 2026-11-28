@@ -204,26 +204,82 @@ const PES5_EDITOR = (() => {
       bytes[off + s * 2 + 1] = (v >> 8) & 0xFF;
     }
   }
+  // DORSALES (bloque 5, uno por club). 32 bytes por club, en el mismo orden de casillas que el
+  // roster (byte s = casilla s). Se guarda dorsal - 1: el #1 es 0, el #99 es 98. Verificado
+  // contra el save real el 2026-11-28: los 138 clubes tienen sus 32 valores en 0..98 y el caso de
+  // Santiago (Toldo #1 en la banca, Vivaldo #12 de titular) encaja: Vivaldo en la casilla 0 con 11,
+  // Toldo en la casilla 11 con 0. Detalle en pes5-map.json > equipos.dorsales.
+  const DORSAL_BASE = 659414, DORSAL_STRIDE = 32, DORSAL_MAX_RAW = 98;
+  function _dorsalOffset(indiceEquipo) { return DORSAL_BASE + indiceEquipo * DORSAL_STRIDE; }
+  function _leerDorsales(bytes, indiceEquipo) {
+    const off = _dorsalOffset(indiceEquipo);
+    const out = [];
+    for (let s = 0; s < SLOTS; s++) out.push((bytes[off + s] || 0) & 0xFF);
+    return out;
+  }
+  function _escribirDorsales(bytes, indiceEquipo, dorsales) {
+    const off = _dorsalOffset(indiceEquipo);
+    for (let s = 0; s < SLOTS; s++) bytes[off + s] = (dorsales[s] || 0) & 0xFF;
+  }
+  // Dorsales (numero real, 1..99) de cada casilla del roster. 0 = casilla vacia.
+  function leerDorsalesEquipo(bytes, indiceEquipo) {
+    const slots = _leerSlots(bytes, indiceEquipo);
+    const dors = _leerDorsales(bytes, indiceEquipo);
+    return slots.map((id, s) => (id ? dors[s] + 1 : 0));
+  }
+  // Numeros (raw) ya usados por las casillas ocupadas del equipo.
+  function _dorsalesUsados(slots, dors) {
+    const usados = new Set();
+    for (let s = 0; s < SLOTS; s++) if (slots[s] !== 0) usados.add(dors[s]);
+    return usados;
+  }
+  function _primerDorsalLibre(slots, dors) {
+    const usados = _dorsalesUsados(slots, dors);
+    for (let r = 0; r <= DORSAL_MAX_RAW; r++) if (!usados.has(r)) return r;
+    return -1;
+  }
+  // Baja: el ultimo del roster ocupa la casilla que deja el que se va (como antes) y el dorsal
+  // viaja con cada jugador. Devuelve el dorsal (1..99) que tenia el jugador que se fue.
   function darDeBajaJugador(bytes, indiceEquipo, idJugador) {
     const slots = _leerSlots(bytes, indiceEquipo);
+    const dors = _leerDorsales(bytes, indiceEquipo);
     const idx = slots.indexOf(idJugador);
     if (idx < 0) throw new Error('jugador ' + idJugador + ' no esta en el equipo ' + indiceEquipo);
     let ultimoActivo = -1;
     for (let s = 0; s < SLOTS; s++) if (slots[s] !== 0) ultimoActivo = s;
-    if (idx !== ultimoActivo) slots[idx] = slots[ultimoActivo];
-    slots[ultimoActivo] = 0;
+    const liberado = dors[idx] + 1;
+    if (idx !== ultimoActivo) { slots[idx] = slots[ultimoActivo]; dors[idx] = dors[ultimoActivo]; }
+    slots[ultimoActivo] = 0; dors[ultimoActivo] = 0;
     _escribirSlots(bytes, indiceEquipo, slots);
+    _escribirDorsales(bytes, indiceEquipo, dors);
+    return liberado;
   }
-  function darDeAltaJugador(bytes, indiceEquipo, idJugador) {
+  // Alta: el jugador ocupa la primera casilla libre. Conserva su dorsal (dorsalPrevio, 1..99) si
+  // esta libre en el equipo destino; si no, toma el primer numero libre (1 en adelante).
+  // Devuelve el dorsal asignado (1..99).
+  function darDeAltaJugador(bytes, indiceEquipo, idJugador, dorsalPrevio) {
     const slots = _leerSlots(bytes, indiceEquipo);
+    const dors = _leerDorsales(bytes, indiceEquipo);
     const libre = slots.indexOf(0);
     if (libre < 0) throw new Error('equipo ' + indiceEquipo + ' sin cupo (32/32)');
+    const usados = _dorsalesUsados(slots, dors);
+    let raw = -1;
+    if (Number.isInteger(dorsalPrevio) && dorsalPrevio >= 1 && dorsalPrevio <= DORSAL_MAX_RAW + 1 && !usados.has(dorsalPrevio - 1)) {
+      raw = dorsalPrevio - 1;
+    } else {
+      raw = _primerDorsalLibre(slots, dors);
+      if (raw < 0) throw new Error('equipo ' + indiceEquipo + ' sin dorsal libre');
+    }
     slots[libre] = idJugador;
+    dors[libre] = raw;
     _escribirSlots(bytes, indiceEquipo, slots);
+    _escribirDorsales(bytes, indiceEquipo, dors);
+    return raw + 1;
   }
+  // Devuelve el dorsal (1..99) que tiene el jugador en el equipo destino.
   function transferirJugador(bytes, indiceEquipoOrigen, indiceEquipoDestino, idJugador) {
-    darDeBajaJugador(bytes, indiceEquipoOrigen, idJugador);
-    darDeAltaJugador(bytes, indiceEquipoDestino, idJugador);
+    const dorsal = darDeBajaJugador(bytes, indiceEquipoOrigen, idJugador);
+    return darDeAltaJugador(bytes, indiceEquipoDestino, idJugador, dorsal);
   }
 
   // ---------- formacion (bloque 5, registro de equipos editados) ----------
@@ -378,6 +434,7 @@ const PES5_EDITOR = (() => {
     if (!Array.isArray(registros) || registros.length !== 11) throw new Error('hacen falta 11 titulares');
     if (new Set(registros).size !== 11) throw new Error('hay titulares repetidos');
     const slots = _leerSlots(bytes, indiceEquipo);
+    const dors = _leerDorsales(bytes, indiceEquipo);
     for (const r of registros) if (!slots.includes(r)) throw new Error('el jugador ' + r + ' no esta en el plantel');
     let cambios = 0;
     for (let s = 0; s <= 10; s++) {
@@ -385,9 +442,10 @@ const PES5_EDITOR = (() => {
       if (slots[s] === quiere) continue;
       const k = slots.indexOf(quiere); // k > s: los slots 0..s-1 ya tienen su titular
       [slots[s], slots[k]] = [slots[k], slots[s]];
+      [dors[s], dors[k]] = [dors[k], dors[s]]; // el dorsal viaja con el jugador
       cambios++;
     }
-    if (cambios) _escribirSlots(bytes, indiceEquipo, slots);
+    if (cambios) { _escribirSlots(bytes, indiceEquipo, slots); _escribirDorsales(bytes, indiceEquipo, dors); }
     return cambios;
   }
   // FORM-1 (atomico): aplica el orden de titulares y la formacion de un pedido sobre una COPIA
@@ -407,13 +465,16 @@ const PES5_EDITOR = (() => {
       if (pares[k] === pares[k + 1]) throw fallo('banca-formato', 'un par repite al mismo jugador');
     }
     const slots = _leerSlots(bytes, indiceEquipo);
+    const dors = _leerDorsales(bytes, indiceEquipo);
     const banca = slots.slice(11);
     for (const r of pares) if (!banca.includes(r)) throw fallo('banca', 'ya no esta en la banca', r);
     for (let k = 0; k < pares.length; k += 2) {
       const a = slots.indexOf(pares[k]), b = slots.indexOf(pares[k + 1]);
       [slots[a], slots[b]] = [slots[b], slots[a]];
+      [dors[a], dors[b]] = [dors[b], dors[a]]; // el dorsal viaja con el jugador
     }
     _escribirSlots(bytes, indiceEquipo, slots);
+    _escribirDorsales(bytes, indiceEquipo, dors);
     return pares.length / 2;
   }
   function aplicarFormacionPedido(bytes, indiceEquipo, registros, slots, bancaSwaps) {
@@ -681,8 +742,19 @@ const PES5_EDITOR = (() => {
 
   // Plantilla completa de un club: leerJugadorCompleto(...) para cada slot
   // ocupado, en el orden del roster (mismo orden que leerPlantillaEquipo).
+  // Cada jugador lleva `dorsal` (1..99, el del save de su casilla) y `slot` (casilla del roster).
   function leerPlantillaCompleta(bytes, indiceClub) {
-    return leerPlantillaEquipo(bytes, indiceClub).map(id => leerJugadorCompleto(bytes, id));
+    const slots = _leerSlots(bytes, indiceClub);
+    const dorsales = leerDorsalesEquipo(bytes, indiceClub);
+    const out = [];
+    for (let s = 0; s < SLOTS; s++) {
+      if (!slots[s]) continue;
+      const j = leerJugadorCompleto(bytes, slots[s]);
+      j.dorsal = dorsales[s];
+      j.slot = s;
+      out.push(j);
+    }
+    return out;
   }
 
   // Indices de TODOS los clubes que tienen a este jugador en su roster (un
@@ -704,6 +776,7 @@ const PES5_EDITOR = (() => {
     leerBanda, escribirBanda,
     buscarEquipoPorNombre, nombreEquipo, leerPlantillaEquipo,
     darDeBajaJugador, darDeAltaJugador, transferirJugador,
+    leerDorsalesEquipo,
     codigoCortoEquipo, leerFormacionEquipo, escribirFormacionEquipo, nombreFormacion, ordenarTitulares, ordenarBancaSwaps, aplicarFormacionPedido,
     POS_CODIGO, POS_POR_CODIGO, nomPosicion, codPosicion,
     leerJugadorCompleto, escribirJugadorCompleto,
